@@ -5,6 +5,7 @@
 #include <godot_cpp/godot.hpp>
 
 #include "core/noss_core.h"
+#include "package/gd_package.h"
 
 using namespace godot;
 
@@ -13,6 +14,7 @@ static void initialize_noss_core(ModuleInitializationLevel p_level) {
 		return;
 	}
 	GDREGISTER_ABSTRACT_CLASS(noss::NossCore);
+	GDREGISTER_ABSTRACT_CLASS(noss::NossPackage);
 }
 
 static void uninitialize_noss_core(ModuleInitializationLevel p_level) {

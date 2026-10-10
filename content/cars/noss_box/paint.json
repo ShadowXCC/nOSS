@@ -1,0 +1,39 @@
+{
+  "presets": [
+    {
+      "finish": "metallic",
+      "name": "Box Yellow",
+      "primary": "#E8B71A",
+      "secondary": "#1B1D22"
+    },
+    {
+      "finish": "solid",
+      "name": "Box Red",
+      "primary": "#C2261D",
+      "secondary": "#F2F2F2"
+    },
+    {
+      "finish": "pearl",
+      "name": "Box Blue",
+      "primary": "#1F4FB5",
+      "secondary": "#F2F2F2"
+    }
+  ],
+  "schema": "noss.paint/1",
+  "slots": {
+    "primary": {
+      "color": "#E8B71A",
+      "finish": "metallic",
+      "materials": [
+        "Paint_Primary"
+      ]
+    },
+    "secondary": {
+      "color": "#1B1D22",
+      "finish": "solid",
+      "materials": [
+        "Paint_Secondary"
+      ]
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "author": "nOSS contributors",
+  "created": "2026-10-10",
+  "family": "car",
+  "files": {
+    "fit.json": "sha256:cff698ed31bab188fa326201351f51180469163b8ae334b20264dcf7438f387a",
+    "model/body.glb": "sha256:7bc24a99815863f64802c14bf11bee76bac11100a109bbabf9cd588e371aa294",
+    "paint.json": "sha256:d11ed6d6be90e7ad753ca4df90647710402070aafadfb53e7004d87582a39a88",
+    "sound/profile.json": "sha256:425d483755a33999d1a6184c0ff16ebe3753cfd467d717109ce7e64fdaad4d30"
+  },
+  "game_min_version": "0.1.0",
+  "id": "6e0c6a51-5d0f-4a2b-9a52-3b1f0d7c2e11",
+  "license": "CC-BY-SA-4.0",
+  "name": "nOSS Box",
+  "schema": "noss.package/1",
+  "source": "tools/make_noss_box.gd",
+  "tags": [
+    "default",
+    "original"
+  ],
+  "version": 1
+}

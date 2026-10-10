@@ -33,10 +33,15 @@ else:
 env.NoCache(library)
 Default(library)
 
-# Native unit tests: plain C++, no Godot dependency.
+# Native unit tests: plain C++, no Godot dependency. They build every module source except the
+# Godot bindings (gd_*.cpp) and core/.
 tests_env = Environment(ENV=os.environ, CXX=env["CXX"], CPPPATH=["src/", "thirdparty/doctest/"])
 tests_env["CXXFLAGS"] = ["/EHsc"] if env.get("is_msvc", False) else ["-Wall", "-Wextra", "-O1"]
 use_cxx20(tests_env)
 VariantDir("build/tests", "../tests/native", duplicate=False)
-tests_bin = tests_env.Program("build/tests/noss_core_tests", Glob("build/tests/*.cpp"))
+VariantDir("build/tests_src", "src", duplicate=False)
+pure_sources = [
+    f for f in Glob("build/tests_src/*/*.cpp") if not f.name.startswith("gd_") and f.dir.name not in ("core", "input")
+]
+tests_bin = tests_env.Program("build/tests/noss_core_tests", Glob("build/tests/*.cpp") + pure_sources)
 AlwaysBuild(Alias("tests", tests_bin, tests_bin[0].abspath))
