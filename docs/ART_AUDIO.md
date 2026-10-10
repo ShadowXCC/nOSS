@@ -54,11 +54,13 @@ FOV is per camera and per player. Each viewport has its own camera ([ARCHITECTUR
 - **Short, direct text** (NFR-06): "Lap 2/5", "P3", "+0.42", "Car loaded", "Track limits", "Busted", "Combo ×4". No sentences on the HUD.
 - **Retro theme:** chunky and bold, matching the world style. OFL-licensed fonts.
 - **HUD:** speed (km/h or mph), gear, RPM bar, position, lap and timing, delta, minimap. Mode extras: item slot, combo meter, heat. Scales per viewport (NFR-08).
-- **Colorblind-safe palettes** for UI states and the racing line.
+- **Colorblind-safe palettes** for UI states and the racing line. All vision, hearing and motion options: [ACCESSIBILITY.md](ACCESSIBILITY.md).
 
 ## 6. Engine sound
 
 *Requirements: AV-05, AV-06.*
+
+Players can customize every car's engine sound, and the result is saved inside the car's `.noss`.
 
 ### System
 - **Sample-based:** looped recordings at RPM points, with **on-load** and **off-load** variants, cross-faded and pitch-shifted between points.
@@ -72,34 +74,19 @@ FOV is per camera and per player. Each viewport has its own camera ([ARCHITECTUR
 - **Later:** I3, I5, I6, flat-4, V6, flat-plane V8, V10, V12, 2-rotor rotary, diesel (truck), 2-stroke (kart), single and twin (moto), V-twin.
 - **Sources:** original recordings or CC0/CC-BY samples, tracked in `CREDITS.md`.
 
-### Custom sound pack (`sound/` inside `.noss`)
+### Player customization
 
-```json
-{
-  "schema": "noss.sound/1",
-  "name": "My V8",
-  "rpm_idle": 800,
-  "rpm_max": 7000,
-  "layers": [
-    { "emitter": "exhaust", "samples": [
-      { "rpm": 1000, "on": "ex_on_1000.ogg", "off": "ex_off_1000.ogg" },
-      { "rpm": 3000, "on": "ex_on_3000.ogg", "off": "ex_off_3000.ogg" },
-      { "rpm": 6000, "on": "ex_on_6000.ogg", "off": "ex_off_6000.ogg" }
-    ]},
-    { "emitter": "engine", "samples": [
-      { "rpm": 1000, "on": "en_on_1000.ogg", "off": "en_off_1000.ogg" }
-    ]}
-  ],
-  "extras": {
-    "start": "start.ogg", "limiter": "limiter.ogg",
-    "backfire": ["bf1.ogg", "bf2.ogg"], "turbo": null, "blowoff": null
-  }
-}
-```
+Every car carries its own engine sound inside its `.noss` (`sound/`, format in [VEHICLE_PACKAGE.md §6](VEHICLE_PACKAGE.md#6-engine-sound-sound)). The sound goes wherever the car goes: garage, hotswap, online.
 
-- **Files:** OGG Vorbis, mono, 44.1 or 48 kHz, seamless loops.
-- **Limits:** ≤10 MB and ≤32 samples ([VEHICLE_PACKAGE.md §8](VEHICLE_PACKAGE.md#8-limits-and-safety)).
-- **Online:** auto-transferred. Servers can turn custom sounds off, and those cars then fall back to their chosen built-in profile.
+| Level | What the player does | Size |
+|---|---|---|
+| **Tune** a built-in | Pick a base profile, then adjust pitch, emitter mix, idle lope, turbo, blow-off, supercharger, gear whine, crackle and limiter. | < 1 KB, no audio files |
+| **Record** your own | Add your own samples at RPM points (on-load and off-load) plus extras (start, limiter, backfire). Tweaks still apply. Any layer you skip comes from the base profile. | ≤ 10 MB |
+
+- **Where:** the Fitting Bay sound step, or **Sound** in the garage for an existing car. Rev in neutral, run a dyno sweep or test-drive while you listen.
+- **Reuse:** "Copy sound" applies one car's sound to another car in the garage.
+- **Sound only:** picking a turbo layer doesn't add a turbo. If the platform has no boost, the turbo layer follows throttle and RPM instead.
+- **Online:** auto-transferred with the car. Tuned built-ins always play, since they use shipped samples. Servers can turn off own recordings; those cars then play their base profile with tweaks.
 
 ## 7. Other audio
 

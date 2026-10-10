@@ -1,6 +1,6 @@
 # Vehicle packages (`.noss`)
 
-A `.noss` file holds one player vehicle: the model plus everything needed to mount it on any platform. Requirements: PKG-01…PKG-10, AV-05, AV-06, NFR-10.
+A `.noss` file holds one player vehicle: the model, its paint and engine sound, plus everything needed to mount it on any platform. Requirements: PKG-01…PKG-10, AV-05, AV-06, NFR-10.
 
 ---
 
@@ -17,9 +17,9 @@ my_car.noss
 │  ├─ body.glb          LOD0, full detail                               (required)
 │  ├─ lod1.glb … lodN.glb   lower LODs; generated at pack time if missing
 │  └─ extra/*.glb       optional alternate parts (ignored for now)
-├─ sound/               optional custom sound pack (see ART_AUDIO.md)
-│  ├─ profile.json
-│  └─ *.ogg
+├─ sound/               engine sound, customized by the player (§6)
+│  ├─ profile.json      base profile, tweaks, recording map
+│  └─ *.ogg / *.wav     own recordings (optional)
 └─ thumb.png            512×288 garage thumbnail (rendered at pack time)
 ```
 
@@ -45,6 +45,7 @@ FBX imports are converted to GLB when packed (Godot `FBXDocument` → `GLTFDocum
     "paint.json":     "sha256:…",
     "model/body.glb": "sha256:…",
     "model/lod1.glb": "sha256:…",
+    "sound/profile.json": "sha256:…",
     "thumb.png":      "sha256:…"
   }
 }
@@ -56,7 +57,7 @@ FBX imports are converted to GLB when packed (Godot `FBXDocument` → `GLTFDocum
 
 ## 3. Model conventions
 
-These match the FM4 rips, so those convert with no manual work. Models that don't follow them can still be fitted by hand (§6).
+These match the FM4 rips, so those convert with no manual work. Models that don't follow them can still be fitted by hand (§7).
 
 **Coordinates (glTF standard):** +Y up, +Z forward, +X is the car's left, units in metres. FBX units and axes are converted on import.
 
@@ -133,34 +134,84 @@ These match the FM4 rips, so those convert with no manual work. Models that don'
 
 Finishes are `solid`, `metallic`, `pearl`, `matte` and `chrome`. Each maps to metallic, roughness and clearcoat values.
 
-## 6. Fitting Bay (in-game import)
+## 6. Engine sound (`sound/`)
+
+*Requirements: AV-05, AV-06. Sound system and how players customize it: [ART_AUDIO.md §6](ART_AUDIO.md#6-engine-sound).*
+
+Players customize each car's engine sound, and it is saved in the package with the model and paint. The Fitting Bay writes `sound/profile.json`. A package without it plays the family's default built-in profile.
+
+A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **own recordings** (`layers` + `extras`, with tweaks on top):
+
+```json
+{
+  "schema": "noss.sound/1",
+  "name": "My V8",
+  "base": "v8_crossplane",
+  "tweaks": {
+    "pitch": 0.95,
+    "mix": { "engine": 0.8, "exhaust": 1.2, "intake": 0.6 },
+    "idle_lope": 0.4,
+    "turbo": "twin", "blowoff": true, "supercharger": false,
+    "gear_whine": "straight_cut",
+    "crackle": 0.7,
+    "limiter": "bounce"
+  },
+  "rpm_idle": 800,
+  "rpm_max": 7000,
+  "layers": [
+    { "emitter": "exhaust", "samples": [
+      { "rpm": 1000, "on": "ex_on_1000.ogg", "off": "ex_off_1000.ogg" },
+      { "rpm": 3000, "on": "ex_on_3000.ogg", "off": "ex_off_3000.ogg" },
+      { "rpm": 6000, "on": "ex_on_6000.ogg", "off": "ex_off_6000.ogg" }
+    ]}
+  ],
+  "extras": {
+    "start": "start.ogg", "limiter": "limiter.ogg",
+    "backfire": ["bf1.ogg", "bf2.ogg"], "turbo": null, "blowoff": null
+  }
+}
+```
+
+| Field | Required | Meaning |
+|---|---|---|
+| `base` | Yes | Built-in profile id. It fills any layer you didn't record, and it plays when a server turns off own recordings. |
+| `tweaks` | No | `pitch` 0.8–1.2. `mix` per emitter 0–1.5. `idle_lope` and `crackle` 0–1. `turbo`: `none`, `single`, `twin`. `blowoff` and `supercharger` on/off. `gear_whine`: `normal`, `straight_cut`. `limiter`: `soft`, `bounce`, `cut`. |
+| `rpm_idle`, `rpm_max` | With `layers` | The RPM range the recordings cover. It is remapped onto the platform's idle–redline. |
+| `layers`, `extras` | No | Own recordings per emitter (`engine`, `exhaust`, `intake`). Omit them for a tuned built-in. |
+
+- **Audio files:** OGG Vorbis (preferred) or 16-bit PCM WAV. Mono, 44.1 or 48 kHz, seamless loops. Paths are relative to `sound/`.
+- **Hashed like everything else:** `profile.json` and every audio file are listed in the manifest `files`.
+- **Never affects performance:** the platform decides power, revs and boost. The sound only follows them.
+- **Limits:** 10 MB and 32 samples (§9).
+
+## 7. Fitting Bay (in-game import)
 
 *Requirements: PKG-02…PKG-04. Milestone M2.*
 
 | Step | What happens | Automatic? |
 |---|---|---|
-| 1. Import | Pick a `.glb`, `.gltf` or `.fbx`. It's validated (§8) and parsed on a worker thread. | — |
+| 1. Import | Pick a `.glb`, `.gltf` or `.fbx`. It's validated (§9) and parsed on a worker thread. | — |
 | 2. Orient | Forward is guessed from the longest horizontal axis plus wheel and headlight positions. Buttons rotate it 90°/180°. | Yes, overridable |
 | 3. Wheels | Named hubs are used. Otherwise wheels are detected by name (`wheel`, `tire`, `tyre`, `rim`, `FL/FR/RL/RR`…) and then by shape (cylinder-like meshes near the bottom corners). If both fail, the player clicks 4 anchor points and picks `stock` or `static` wheels. | Mostly |
 | 4. Scale | Auto from wheel radius and typical car length. The player can type the real length. | Yes, overridable |
 | 5. Paint | Click materials to assign them to primary, secondary or tertiary slots, then pick colors and finishes. | `Paint_*` materials are automatic |
 | 6. Cockpit | Drag the eye point, pick the steering-wheel node, map lights. | Guessed |
-| 7. Sound | Pick a built-in profile, or add a sound pack. | — |
+| 7. Sound | Pick a built-in profile and tune it, or add your own recordings (§6). Rev it in the bay and listen live. | Family default |
 | 8. Preview | Mount it on any platform. The fitted geometry, clamps and warnings are shown ("Scaled to 92%", "Wheels moved 4 cm in"). Test-drive on the Proving Ground. | — |
 | 9. Save | Writes `.noss` to the garage, generates missing LODs (meshoptimizer) and renders the thumbnail. | Yes |
 
-## 7. Garage and hotswap
+## 8. Garage and hotswap
 
 *Requirements: PKG-05, PKG-06.*
 
-- The garage lists `user://garage/*.noss` with thumbnail, name, author, family and triangle count. Actions: preview, edit in Fitting Bay, duplicate, recolor, delete.
-- **Hotswap** replaces only the visuals and collision envelope. The platform and the physics state carry on, so the car keeps moving.
+- The garage lists `user://garage/*.noss` with thumbnail, name, author, family and triangle count. Actions: preview, edit in Fitting Bay, duplicate, recolor, edit sound, copy sound to another car, delete.
+- **Hotswap** replaces only the visuals, engine sound and collision envelope. The platform and the physics state carry on, so the car keeps moving.
   - Allowed in lobby, practice, cruise, free roam and endless mode.
   - Locked mid-race unless the server allows it.
   - If the new envelope would overlap geometry, the swap waits until the car is clear (≤2 s), then nudges it.
   - Online, the new content hash is broadcast and other players fetch it ([NETWORKING.md](NETWORKING.md)).
 
-## 8. Limits and safety
+## 9. Limits and safety
 
 *Requirements: PKG-08, NFR-10.*
 
@@ -186,7 +237,7 @@ Finishes are `solid`, `metallic`, `pearl`, `matte` and `chrome`. Each maps to me
 - **Isolation:** parsing runs on a worker thread with a timeout. On any failure the player sees "Car failed to load" and a placeholder appears in its place.
 - **Hash check:** every file is verified against the manifest before use.
 
-## 9. Runtime load pipeline
+## 10. Runtime load pipeline
 
 *Target: NFR-04. A 200k-triangle car is drivable in under 5 s; steps 1–2 run off the main thread.*
 
@@ -198,7 +249,7 @@ Finishes are `solid`, `metallic`, `pearl`, `matte` and `chrome`. Each maps to me
 6. Cache the result in `user://cache/<hash>/` (machine-generated `.scn`) for fast reloads.
 7. Mount on the platform ([PLATFORMS.md §4](PLATFORMS.md#4-fitting-and-handling-normalization)).
 
-## 10. FM4 converter (`tools/fm4_to_noss.py`)
+## 11. FM4 converter (`tools/fm4_to_noss.py`)
 
 *Requirement: PKG-09. Milestone M1. Local use only. Packages it makes are marked `personal-use-only`.*
 
@@ -224,6 +275,7 @@ python3 tools/fm4_to_noss.py "<…>/Forza Motorsport 4/models/ACU_NSX_97" --out 
 | `paint.json` `materials_in_glb` | `paint.slots` | |
 | `paint.json` `factory_colors[]` | `paint.presets[]` | `Normal` → `solid`, `Metallic` → `metallic` |
 | `year`, `make`, `media_name` | `manifest.name`, `source`, `tags` | "1997 Acura" + model, from media name |
+| — | `sound/profile.json` | Family default `base`. `--sound <id>` picks another. Tune it later in the garage. |
 
 ### Worked example: ACU_NSX_97
 

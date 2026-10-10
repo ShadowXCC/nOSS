@@ -51,7 +51,7 @@ The GitHub repo (`git@github.com:ShadowXCC/nOSS.git`) is created and pushed afte
 
 ## M2: Garage and Fitting Bay
 
-- Fitting Bay: GLB/FBX import, orientation, wheel detection and manual anchors, scale, paint slots, eye point, sound pick, preview, save (PKG-02…04, PKG-07).
+- Fitting Bay: GLB/FBX import, orientation, wheel detection and manual anchors, scale, paint slots, eye point, engine sound pick and tuning, preview, save (PKG-02…04, PKG-07, AV-06).
 - Garage UI and hotswap in session (PKG-05, PKG-06).
 - Platforms: Track Touring/Prototype/Formula, Kart Medium (prototype), Highway Street (PLT-03).
 - Handling normalization and the **conformance runner** (PLT-05, PLT-06).
@@ -89,7 +89,7 @@ The GitHub repo (`git@github.com:ShadowXCC/nOSS.git`) is created and pushed afte
 - Listen server and headless dedicated server, ENet, UPnP, LAN discovery (MP-01, MP-02, MP-04).
 - 16 players including splitscreen guests (MP-03, LOC-05).
 - Content transfer with cache and placeholders (MP-05). Server rules and caps (MP-06). Chat, kick, ban (MP-07).
-- Custom platforms and custom sound packs over the network (PLT-09, AV-06).
+- Custom platforms over the network. Own engine sound recordings: record/import in the garage and transfer online (PLT-09, AV-06).
 - Plausibility checks.
 
 **Acceptance:**

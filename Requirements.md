@@ -26,7 +26,7 @@ nOSS is a free, open-source racing game. Your car can look like anything you bri
 | **Platform** | Data file that defines a vehicle's mechanics: dimension ranges, mass, engine, gearbox, tires, aero, allowed tuning. The only source of driving behavior. |
 | **Class** | A named platform tier within a mode, e.g. *Track / GT*. |
 | **Family** | Wheel layout plus physics module: `car`, `open` (karts, open-wheelers, 3-wheelers, oddities), `truck` (multi-axle), `moto`. |
-| **Package (`.noss`)** | A player's vehicle: model, fitting data, paint and optional sound pack, identified by content hash. |
+| **Package (`.noss`)** | A player's vehicle: model, fitting data, paint and the player's engine sound, identified by content hash. |
 | **Fitting** | Mapping a model onto a platform: wheel anchors, orientation, scale and adapted dimensions. |
 | **Fitting Bay** | In-game tool that turns a model file into a package. |
 | **Track package (`.nosstrack`)** | A track, built in the editor or imported from a 3D scene or real-world data. |
@@ -109,7 +109,7 @@ Detail: [NETWORKING.md](docs/NETWORKING.md)
 | MP-03 | Up to 16 players per session, including local splitscreen players. | M5 |
 | MP-04 | Join by IP or LAN discovery. UPnP port mapping for hosts. | M5 |
 | MP-05 | Car, track and platform packages auto-transfer on join and are cached by hash. A placeholder shows until the real car arrives. | M5 |
-| MP-06 | Server settings: mode, tracks, classes, tuning limits, assists, package size caps, custom sounds and custom platforms on/off, collisions on/off. | M5 |
+| MP-06 | Server settings: mode, tracks, classes, tuning limits, assists, package size caps, own sound recordings and custom platforms on/off, collisions on/off. | M5 |
 | MP-07 | Text chat. Kick and ban for hosts. | M5 |
 | MP-08 | Optional self-hostable server list / lobby service. The game never depends on a central server. | M10+ |
 
@@ -165,7 +165,7 @@ Detail: [ART_AUDIO.md](docs/ART_AUDIO.md)
 | AV-03 | Cars always render at full detail, with distance LODs only. | M1 |
 | AV-04 | Cameras: chase and cockpit (M1); hood and bumper (M2); TV/replay (M10). | M1–M10 |
 | AV-05 | Built-in engine sound profiles, chosen per car and driven by the platform's RPM and load. | M2 |
-| AV-06 | Custom sound packs inside `.noss`. Servers can disable them. | M5 |
+| AV-06 | Players customize each car's engine sound: tune a built-in profile (M2) or add their own recordings (M5). It is saved inside the `.noss`. Servers can disable own recordings. | M2 / M5 |
 | AV-07 | Cosmetic damage: scratches, dirt, broken glass and lights. | M10 |
 | AV-08 | Replays and photo mode. | M10 |
 | AV-09 | VR (OpenXR) cockpit view. | M10+ |

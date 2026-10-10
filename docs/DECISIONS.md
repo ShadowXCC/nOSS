@@ -35,6 +35,7 @@ Append-only log. To change a decision, add a new row that supersedes the old one
 | D25 | 2026-10-09 | Community platforms | Platforms are data. Servers can ship custom ones. Official leaderboards and career use `official.*` only. | Moddability without diluting official results |
 | D26 | 2026-10-09 | Later extras | Livery editor, replays/photo, VR (OpenXR), UDP telemetry | Owner's choice (M10+) |
 | D27 | 2026-10-09 | Ripped reference content | FM4 models and GT4 textures are local-only, for testing and reference. Never committed or shipped. | Copyright. GPL/CC-BY-SA project. |
+| D28 | 2026-10-09 | Engine sound customization (extends D19) | Players tune a built-in profile or add their own recordings. Either way it is saved in the car's `.noss` and travels with it. Servers can turn off own recordings only. | Owner's choice. Tuned built-ins are tiny and use shipped samples, so they're always safe to allow. |
 
 ## Risks
 

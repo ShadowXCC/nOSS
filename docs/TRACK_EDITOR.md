@@ -97,7 +97,7 @@ my_track.nosstrack
 
 - **Content hash** = SHA-256 of `manifest.json`, the same scheme as cars ([VEHICLE_PACKAGE.md §2](VEHICLE_PACKAGE.md#2-manifestjson)).
 - **Default limits:** 100 MB per track, and 2 M triangles for imported scenes. Servers can lower them.
-- **Safety:** the same rules as car packages ([VEHICLE_PACKAGE.md §8](VEHICLE_PACKAGE.md#8-limits-and-safety)). Never Godot resource files or scripts.
+- **Safety:** the same rules as car packages ([VEHICLE_PACKAGE.md §9](VEHICLE_PACKAGE.md#9-limits-and-safety)). Never Godot resource files or scripts.
 - **Sharing:** tracks auto-transfer when joining online (EDT-07, [NETWORKING.md](NETWORKING.md)).
 
 ## 6. Test-drive and editing comforts

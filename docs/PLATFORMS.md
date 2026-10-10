@@ -25,7 +25,7 @@ A **platform** is the mechanical identity of a vehicle: everything that decides 
 | Mass, inertia, CoG | Body shape and look |
 | Engine, gearbox, diff | Visual wheel size and position (within limits) |
 | Tires, suspension, brakes, aero | Paint slots, lights, interior |
-| Allowed tuning and assists | Engine sound (profile or pack) |
+| Allowed tuning and assists | Engine sound (tuned built-in or own recordings) |
 | Damage effects | Collision envelope (clamped) |
 
 ## 2. Platform file

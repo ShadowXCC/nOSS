@@ -80,15 +80,15 @@ connect ─► handshake (game version, protocol version, password)
 
 *Requirements: MP-05, PLT-09, AV-06.*
 
-- **Everything is addressed by content hash:** cars, tracks, platforms, sound packs.
+- **Everything is addressed by content hash:** cars (with their engine sounds), tracks, platforms.
 - **Cache:** content is stored in `user://cache/<sha256>/` after verification, and is never downloaded twice.
 - **Chunks:** 64 KB on channel 2. Resumable by chunk index. The whole file is verified by SHA-256 when complete.
 - **Rate limit:** ≤ 2 MB/s per transfer by default (server-configurable), so state traffic is never starved (NFR-05).
 - **Order and placeholders:**
   1. **Track and platforms** must arrive before spawning, because they're required.
-  2. **Cars** stream after spawning. First the manifest, `fit.json`, `paint.json` and the smallest LOD, so a low-detail version appears quickly. Then the rest.
+  2. **Cars** stream after spawning. First the manifest, `fit.json`, `paint.json`, `sound/profile.json` and the smallest LOD, so a low-detail version appears quickly. Then the rest.
   3. Until a car arrives, a **placeholder body** shows: a simple box car in the player's color.
-- **Server caps** (MP-06): max package size, custom sounds on/off, custom platforms on/off. A player whose car exceeds a cap uses the placeholder, with the message "Car too large for this server".
+- **Server caps** (MP-06): max package size, own sound recordings on/off (tuned built-in sounds always play), custom platforms on/off. A player whose car exceeds a cap uses the placeholder, with the message "Car too large for this server".
 - **The host relays.** It uploads player cars to the others, so clients never connect to each other directly.
 
 ## 8. Cheating and fairness
