@@ -685,7 +685,7 @@ static func _cockpit(r: Result, scene: Node3D, steering: Node3D, points: PackedV
 		eye = Vector3(0.0, roof - 0.18 / scale, box.get_center().z - 0.1 / scale)
 	# Hood: above the body's centre strip, between the eye and the nose. Bumper: at the nose.
 	var front := box.end.z
-	var hood_z := lerpf(eye.z, front, 0.45)
+	var hood_z := lerpf(eye.z, front, 0.62)
 	var hood_y := -INF
 	for p in points:
 		if absf(p.x - box.get_center().x) < 0.3 * box.size.x and absf(p.z - hood_z) < 0.05 * box.size.z and p.y < eye.y:

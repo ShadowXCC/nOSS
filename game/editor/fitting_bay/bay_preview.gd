@@ -159,13 +159,11 @@ func _build_overlays(draft: FittingDraft) -> void:
 				_overlay_root.add_child(_dot(p, item[1]))
 
 
-## A camera position (vehicle frame) from fit.json, or null.
-func camera_point(draft: FittingDraft, which: String) -> Variant:
-	var cams: Dictionary = draft.fit.get("cameras", {})
-	var p: Variant = cams.get(which)
-	if p is Array:
-		return fitted.model_xform * Vector3(p[0], p[1], p[2])
-	return null
+## A camera position (vehicle frame): fit.json's, or where the game would place it.
+func camera_point(_draft: FittingDraft, which: String) -> Variant:
+	if fitted == null:
+		return null
+	return fitted.hood if which == "hood" else fitted.bumper if which == "bumper" else fitted.eye_point
 
 
 func _gui_input(event: InputEvent) -> void:

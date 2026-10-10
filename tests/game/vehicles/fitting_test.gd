@@ -113,6 +113,16 @@ func test_strict_fitting_uses_the_reference() -> void:
 	assert_vector(r.envelope.size).is_equal_approx(Vector3(1.875, 1.225, 4.35), Vector3.ONE * 0.0001)
 
 
+func test_hood_and_bumper_cameras() -> void:
+	var r := Fitting.fit(_platform, _fit(2.6, 1.6))
+	assert_float(r.bumper.z).is_greater(r.model_bounds.end.z)
+	assert_float(r.bumper.y).is_equal_approx(0.42, 0.001)
+	assert_float(r.hood.z).is_between(r.eye_point.z, r.model_bounds.end.z)
+	var data := _fit(2.6, 1.6)
+	data.cameras = { "hood": [0.0, 1.1, 0.8], "bumper": null }
+	assert_vector(Fitting.fit(_platform, data).hood).is_equal_approx(Vector3(0, 1.1, 0.8), Vector3.ONE * 0.0001)
+
+
 func test_ground_comes_from_the_wheels() -> void:
 	var data := _fit(2.6, 1.6)
 	data.ground_y = -0.05

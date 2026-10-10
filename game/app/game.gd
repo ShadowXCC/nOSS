@@ -5,7 +5,7 @@ extends Node
 ##   --car=<path>         car package for --drive
 ##   --platform=<id>      platform class for --drive, e.g. official.highway.street
 ##   --autodrive          let the line follower drive (tests, screenshots)
-##   --camera=<mode>      chase_near, chase_far or cockpit
+##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
 ##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5)
 ##   --quit-at=<s>        quit after this many seconds
 ##   --bay                open the Fitting Bay

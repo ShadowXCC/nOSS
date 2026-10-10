@@ -18,6 +18,9 @@ class Result:
 	var envelope := AABB()
 	var model_bounds := AABB()
 	var eye_point := Vector3.ZERO
+	## Hood and bumper camera positions.
+	var hood := Vector3.ZERO
+	var bumper := Vector3.ZERO
 	## Player-facing notes such as "Scaled to 92%" or "Wheels moved 4 cm in".
 	var notes := PackedStringArray()
 	## "normal" or "strict" (physics on the reference geometry, docs/PLATFORMS.md §4.2).
@@ -109,6 +112,13 @@ static func fit(platform: Dictionary, fit_data: Dictionary, mode := "normal") ->
 	else:
 		# Auto: driver's side, a little behind the middle, below the roof.
 		r.eye_point = Vector3(r.track * 0.22, r.model_bounds.end.y - 0.18, center.z - 0.1)
+
+	# Hood and bumper cameras from fit.json, or placed from the eye point and the nose.
+	var cams: Dictionary = fit_data.get("cameras") if fit_data.get("cameras") is Dictionary else {}
+	r.hood = r.model_xform * _vec(cams.hood) if cams.get("hood") is Array \
+			else Vector3(center.x, r.eye_point.y - 0.12, lerpf(r.eye_point.z, r.model_bounds.end.z, 0.62))
+	r.bumper = r.model_xform * _vec(cams.bumper) if cams.get("bumper") is Array \
+			else Vector3(center.x, r.ground_y + 0.42, r.model_bounds.end.z + 0.03)
 
 	_physics_wheels(r, platform)
 	if mode == "strict":

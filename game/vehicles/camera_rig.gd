@@ -1,10 +1,12 @@
 class_name CameraRig
 extends Node3D
-## Chase (near, far) and cockpit cameras for one player (docs/ART_AUDIO.md §4, AV-04), with
+## Chase (near, far), hood, bumper and cockpit cameras for one player (docs/ART_AUDIO.md §4,
+## AV-04), with
 ## the comfort options from docs/ACCESSIBILITY.md §4: camera shake, head movement, speed FOV
 ## and horizon lock.
 
-const MODES := ["chase_near", "chase_far", "cockpit"]
+const MODES := ["chase_near", "chase_far", "hood", "bumper", "cockpit"]
+const MOUNTED_FOV := { "hood": 70.0, "bumper": 76.0 }
 const CHASE := {
 	"chase_near": { "distance": 5.6, "height": 1.7, "look_height": 0.9, "fov": 68.0 },
 	"chase_far": { "distance": 8.5, "height": 2.6, "look_height": 1.0, "fov": 62.0 },
@@ -60,6 +62,8 @@ func _process(delta: float) -> void:
 	var fov_extra := SPEED_FOV_EXTRA * clampf(speed / SPEED_FOV_AT, 0.0, 1.0) if profile.get("speed_fov", true) else 0.0
 	if mode == "cockpit":
 		_cockpit(xf, delta, look_back, fov_extra, profile)
+	elif mode in MOUNTED_FOV:
+		_mounted(xf, delta, look_back, fov_extra, profile)
 	else:
 		_chase(xf, delta, look_back, fov_extra, profile)
 
@@ -109,6 +113,20 @@ func _cockpit(xf: Transform3D, delta: float, look_back: bool, fov_extra: float, 
 	var shake := _shake(delta, profile) * 0.3
 	camera.global_transform = Transform3D(look.orthonormalized(), xf * eye + shake)
 	camera.fov = COCKPIT_FOV + fov_extra * 0.6
+	_initialized = true
+
+
+## Hood and bumper: fixed to the car, looking ahead.
+func _mounted(xf: Transform3D, delta: float, look_back: bool, fov_extra: float, profile: Dictionary) -> void:
+	var at: Vector3 = vehicle.fitted.hood if mode == "hood" else vehicle.fitted.bumper
+	var basis := xf.basis
+	if profile.get("horizon_lock", false):
+		var flat := Vector3(basis.z.x, 0.0, basis.z.z).normalized()
+		basis = Basis(Vector3.UP.cross(flat).normalized(), Vector3.UP, flat)
+	var look := basis.rotated(basis.y, PI if not look_back else 0.0)
+	var shake := _shake(delta, profile) * 0.5
+	camera.global_transform = Transform3D(look.orthonormalized(), xf * at + shake)
+	camera.fov = MOUNTED_FOV[mode] + fov_extra * 0.6
 	_initialized = true
 
 

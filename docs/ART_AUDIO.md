@@ -44,7 +44,7 @@ The world look is a swappable **style profile** ([ARCHITECTURE.md §7](ARCHITECT
 |---|---|---|
 | Chase (near and far) | M1 | Spring-damped, speed-based FOV |
 | Cockpit | M1 | Uses the model's interior and `eye_point`. Head movement from g-forces (adjustable). The `steering_wheel` node rotates. Optional look-to-apex. |
-| Hood, bumper | M2 | From `fit.json`, or auto-placed from the envelope |
+| Hood, bumper | M2 | From `fit.json` `cameras` (the Fitting Bay measures them on the model), or placed automatically: hood 62% of the way from the eye point to the nose, just below eye height; bumper 0.42 m up at the nose. Fixed to the car; horizon lock applies. |
 | TV / replay | M10 | Trackside cameras placed by the editor, or automatic |
 | Free / photo | M10 | Photo mode (AV-08) |
 | VR cockpit | M10+ | OpenXR (AV-09) |
