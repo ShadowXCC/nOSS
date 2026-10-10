@@ -1,0 +1,33 @@
+# Godot
+.godot/
+/export/
+/build/
+
+# Native (noss_core)
+native/build/
+native/bin/
+*.o
+*.os
+*.obj
+*.so
+*.dll
+*.dylib
+*.lib
+*.a
+.sconsign*.dblite
+
+# Packaged content is build output; official content lives unpacked in content/
+*.noss
+*.nosstrack
+
+# Ripped / third-party game content: never commit (see Requirements.md §6)
+*.iso
+*.xds
+**/raw/
+/reference/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
