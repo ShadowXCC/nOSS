@@ -40,6 +40,30 @@ func test_semantic_checks() -> void:
 	assert_int(errors.size()).is_equal(3)
 
 
+func test_layout_rules() -> void:
+	var data := _gt()
+	data.family = "open"
+	data.layout.axles[0].wheels = 1
+	data.layout.axles[1].wheels = 1
+	assert_array(PlatformLoader.validate(data, true)).contains(["layout: open needs 2 axles and at least 3 wheels"])
+	data.layout.axles[1].wheels = 2
+	assert_array(PlatformLoader.validate(data, true)).is_empty()
+	data = _gt()
+	data.differential.center = { "type": "viscous", "front_share": 0.4 }
+	assert_array(PlatformLoader.validate(data, true)).contains(["differential.center needs two driven axles"])
+
+
+func test_merged_rules() -> void:
+	var data := PlatformLoader.with_defaults(_gt())
+	assert_array(PlatformLoader.validate_merged(data)).is_empty()
+	data.suspension.type = "rigid"
+	assert_array(PlatformLoader.validate_merged(data)).has_size(2)
+	data = _gt()
+	data.erase("aero")
+	data.family = "moto" # no defaults file
+	assert_array(PlatformLoader.validate_merged(PlatformLoader.with_defaults(data))).contains(["aero.cd_a: missing (no default)"])
+
+
 func test_missing_blocks_use_family_defaults() -> void:
 	var data := _gt()
 	data.erase("differential")

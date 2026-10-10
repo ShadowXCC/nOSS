@@ -34,6 +34,12 @@ constexpr double BUMP_STOP_ZONE = 0.15; // last fraction of travel
 constexpr double BUMP_STOP_LOAD = 3.0; // extra static loads at full travel
 constexpr double BEYOND_TRAVEL_RATE = 20.0; // spring rates past full travel
 constexpr int SOLVER_ITERATIONS = 8;
+// Springs are integrated once per 120 Hz tick: past omega * dt of about 1 they go unstable, so
+// stiff ones (karts, bump stops) are capped below that.
+constexpr double TICK = 1.0 / 120.0;
+constexpr double MAX_OMEGA_DT = 0.8;
+// Wheel, tire and brake inertia per kg of vehicle and m^2 of rolling radius (1.2 kg m^2 on GT).
+constexpr double WHEEL_INERTIA_PER_KG_M2 = 0.0085;
 
 } // namespace
 
@@ -46,6 +52,7 @@ Config make_config(const PlatformSpec &p_spec, const Geometry &p_geometry) {
 	c.spec = p_spec;
 	c.mass = p_spec.mass;
 	c.r_ref = p_spec.wheel_radius_ref;
+	c.wheel_inertia = p_spec.wheel_inertia > 0.0 ? p_spec.wheel_inertia : WHEEL_INERTIA_PER_KG_M2 * p_spec.mass * c.r_ref * c.r_ref;
 	c.spec.tire.reference_load = p_spec.mass * GRAVITY / 4.0;
 
 	double z_sum[2] = { 0, 0 }, x_sum = 0;
@@ -113,6 +120,19 @@ Config make_config(const PlatformSpec &p_spec, const Geometry &p_geometry) {
 	double weight = p_spec.mass * GRAVITY;
 	double axle_load[2] = { weight * p_spec.front_weight, weight * (1.0 - p_spec.front_weight) };
 	double k_axle[2] = { 0, 0 }, c_axle[2] = { 0, 0 };
+	// Drive torque per axle: all of it to a single driven axle; split by the center diff on AWD.
+	int driven_n[2] = { 0, 0 };
+	for (const WheelGeometry &w : p_geometry.wheels) {
+		int ax = std::clamp(w.axle, 0, 1);
+		driven_n[ax] += p_spec.axles[ax].driven ? 1 : 0;
+	}
+	if (driven_n[0] > 0 && driven_n[1] > 0) {
+		c.axle_drive_share[0] = std::clamp(p_spec.center.front_share, 0.0, 1.0);
+		c.axle_drive_share[1] = 1.0 - c.axle_drive_share[0];
+	} else {
+		c.axle_drive_share[0] = driven_n[0] > 0 ? 1.0 : 0.0;
+		c.axle_drive_share[1] = driven_n[1] > 0 ? 1.0 : 0.0;
+	}
 	for (const WheelGeometry &w : p_geometry.wheels) {
 		int ax = std::clamp(w.axle, 0, 1);
 		const AxleSpec &spec = p_spec.axles[ax];
@@ -123,10 +143,18 @@ Config make_config(const PlatformSpec &p_spec, const Geometry &p_geometry) {
 		wc.travel = spec.travel;
 		wc.static_load = axle_load[ax] / std::max(count[ax], 1);
 		double m_corner = wc.static_load / GRAVITY;
+		double k_cap = m_corner * std::pow(MAX_OMEGA_DT / TICK, 2.0);
 		double omega = 2.0 * PI * spec.freq_hz;
-		wc.k = m_corner * omega * omega;
-		wc.c_bump = 2.0 * spec.damping_bump * std::sqrt(wc.k * m_corner);
-		wc.c_rebound = 2.0 * spec.damping_rebound * std::sqrt(wc.k * m_corner);
+		wc.k = std::min(m_corner * omega * omega, 0.5 * k_cap);
+		double c_cap = MAX_OMEGA_DT * m_corner / TICK;
+		wc.c_bump = std::min(2.0 * spec.damping_bump * std::sqrt(wc.k * m_corner), c_cap);
+		wc.c_rebound = std::min(2.0 * spec.damping_rebound * std::sqrt(wc.k * m_corner), c_cap);
+		// The bump stop's stiffness at full travel (2 * load * BUMP_STOP_LOAD / zone) and the
+		// rate past it stay under the cap.
+		wc.bump_zone = std::max(spec.travel * BUMP_STOP_ZONE, 2.0 * BUMP_STOP_LOAD * wc.static_load / std::max(k_cap - wc.k, 1.0));
+		wc.bump_zone = std::min(wc.bump_zone, spec.travel);
+		wc.k_beyond = std::max(std::min(BEYOND_TRAVEL_RATE * wc.k, k_cap - wc.k), 0.0);
+		wc.drive_share = spec.driven ? c.axle_drive_share[ax] / std::max(driven_n[ax], 1) : 0.0;
 		double bias = ax == 0 ? p_spec.brake_bias_front : 1.0 - p_spec.brake_bias_front;
 		wc.brake_share = bias / std::max(count[ax], 1);
 		double dx = w.hub.x - c.com.x, dz = w.hub.z - c.com.z;
@@ -169,7 +197,6 @@ VehicleModel::VehicleModel(const Config &p_config) :
 			_driven.push_back(int(i));
 		}
 	}
-	_drive_weight = _driven.empty() ? 0.0 : 1.0 / double(_driven.size());
 }
 
 void VehicleModel::reset() {
@@ -219,11 +246,12 @@ Ray VehicleModel::wheel_ray(int p_index, const Chassis &p_chassis) const {
 }
 
 double VehicleModel::_driven_omega() const {
+	// Speed at the gearbox output: the driven wheels weighted by their share of the torque.
 	double sum = 0.0;
 	for (int i : _driven) {
-		sum += wheels[size_t(i)].omega;
+		sum += _config.wheels[size_t(i)].drive_share * wheels[size_t(i)].omega;
 	}
-	return _driven.empty() ? 0.0 : sum / double(_driven.size());
+	return sum;
 }
 
 void VehicleModel::_update_gearbox(double p_driver_throttle, double p_driver_brake, double p_dt) {
@@ -236,9 +264,9 @@ void VehicleModel::_update_gearbox(double p_driver_throttle, double p_driver_bra
 		in.peak_slip = _config.spec.tire.peak_slip_ratio;
 		double slip = 0.0;
 		for (int i : _driven) {
-			slip += wheels[size_t(i)].kappa;
+			slip += _config.wheels[size_t(i)].drive_share * wheels[size_t(i)].kappa;
 		}
-		in.drive_slip = _driven.empty() ? 0.0 : slip / double(_driven.size());
+		in.drive_slip = slip;
 		int want = _auto.choose(gearbox, _config.spec.engine, in, p_dt);
 		if (want != gearbox.gear) {
 			gearbox.request(want);
@@ -383,12 +411,12 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 		V3 n_ground = c.hit ? normalized(c.normal) : up;
 		double v_comp = -dot(v_hub, n_ground) / std::max(dot(up, n_ground), 0.3);
 		double f = wc.static_load + wc.k * w.disp;
-		double zone_start = wc.travel * (1.0 - BUMP_STOP_ZONE);
+		double zone_start = wc.travel - wc.bump_zone;
 		if (w.disp > zone_start) {
 			double e = std::min(w.disp, wc.travel) - zone_start;
-			f += BUMP_STOP_LOAD * wc.static_load * std::pow(e / (wc.travel * BUMP_STOP_ZONE), 2.0);
+			f += BUMP_STOP_LOAD * wc.static_load * std::pow(e / wc.bump_zone, 2.0);
 			if (w.disp > wc.travel) {
-				f += BEYOND_TRAVEL_RATE * wc.k * (w.disp - wc.travel);
+				f += wc.k_beyond * (w.disp - wc.travel);
 			}
 		}
 		f += (v_comp > 0.0 ? wc.c_bump : wc.c_rebound) * v_comp;
@@ -502,11 +530,29 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 		if (clutch_cap > 0.0) {
 			double inv = 1.0 / engine.inertia;
 			for (int i : _driven) {
-				inv += std::pow(g * _drive_weight, 2.0) / ieff[size_t(i)];
+				inv += std::pow(g * _config.wheels[size_t(i)].drive_share, 2.0) / ieff[size_t(i)];
 			}
 			clutch_mass = 1.0 / inv;
 		}
-		double clutch_acc = 0.0;
+		// Center diff (AWD): front and rear axle mean speeds, as a torque-limited constraint.
+		const CenterDiffSpec &center = spec.center;
+		double center_mass = 0.0, center_limit = 0.0;
+		int center_n[2] = { 0, 0 };
+		for (int i : _driven) {
+			center_n[std::clamp(_config.wheels[size_t(i)].geo.axle, 0, 1)]++;
+		}
+		bool has_center = center.type != CenterType::OPEN && center_n[0] > 0 && center_n[1] > 0;
+		if (has_center) {
+			double inv = 0.0, mean[2] = { 0.0, 0.0 };
+			for (int i : _driven) {
+				int ax = std::clamp(_config.wheels[size_t(i)].geo.axle, 0, 1);
+				inv += 1.0 / (center_n[ax] * center_n[ax] * ieff[size_t(i)]);
+				mean[ax] += wheels[size_t(i)].omega / center_n[ax];
+			}
+			center_mass = 1.0 / inv;
+			center_limit = center.type == CenterType::LOCKED ? 1e9 : center.preload + center.viscous * std::abs(mean[0] - mean[1]);
+		}
+		double clutch_acc = 0.0, center_acc = 0.0;
 		double lsd_acc[2] = { 0.0, 0.0 };
 		std::vector<double> brake_acc(n, 0.0);
 		for (int it = 0; it < SOLVER_ITERATIONS; it++) {
@@ -517,32 +563,49 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 				double lambda = clutch_acc - old;
 				engine_omega += lambda / engine.inertia;
 				for (int i : _driven) {
-					wheels[size_t(i)].omega -= g * _drive_weight * lambda / ieff[size_t(i)];
+					wheels[size_t(i)].omega -= g * _config.wheels[size_t(i)].drive_share * lambda / ieff[size_t(i)];
 				}
 			}
-			if (spec.diff != DiffType::OPEN) {
-				for (int ax = 0; ax < 2; ax++) {
-					int left = -1, right = -1;
-					for (int i : _driven) {
-						const WheelConfig &wc = _config.wheels[size_t(i)];
-						if (wc.geo.axle == ax) {
-							(wc.geo.side > 0 ? left : right) = i;
-						}
-					}
-					if (left < 0 || right < 0) {
-						continue;
-					}
-					double input = std::abs(clutch_acc / h * g);
-					bool power = clutch_acc <= 0.0;
-					double limit = spec.diff == DiffType::LOCKED ? 1e9 : spec.diff_preload + (power ? spec.diff_power_lock : spec.diff_coast_lock) * input;
-					double mass = 1.0 / (1.0 / ieff[size_t(left)] + 1.0 / ieff[size_t(right)]);
-					double cdot = wheels[size_t(left)].omega - wheels[size_t(right)].omega;
-					double old = lsd_acc[ax];
-					lsd_acc[ax] = clampd(lsd_acc[ax] - mass * cdot, -limit * h, limit * h);
-					double lambda = lsd_acc[ax] - old;
-					wheels[size_t(left)].omega += lambda / ieff[size_t(left)];
-					wheels[size_t(right)].omega -= lambda / ieff[size_t(right)];
+			if (has_center) {
+				double cdot = 0.0;
+				for (int i : _driven) {
+					int ax = std::clamp(_config.wheels[size_t(i)].geo.axle, 0, 1);
+					cdot += (ax == 0 ? 1.0 : -1.0) * wheels[size_t(i)].omega / center_n[ax];
 				}
+				double old = center_acc;
+				center_acc = clampd(center_acc - center_mass * cdot, -center_limit * h, center_limit * h);
+				double lambda = center_acc - old;
+				for (int i : _driven) {
+					int ax = std::clamp(_config.wheels[size_t(i)].geo.axle, 0, 1);
+					wheels[size_t(i)].omega += (ax == 0 ? 1.0 : -1.0) * lambda / (center_n[ax] * ieff[size_t(i)]);
+				}
+			}
+			for (int ax = 0; ax < 2; ax++) {
+				const DiffSpec &diff = spec.axle_diff[ax];
+				if (diff.type == DiffType::OPEN) {
+					continue;
+				}
+				int left = -1, right = -1;
+				for (int i : _driven) {
+					const WheelConfig &wc = _config.wheels[size_t(i)];
+					if (wc.geo.axle == ax) {
+						(wc.geo.side > 0 ? left : right) = i;
+					}
+				}
+				if (left < 0 || right < 0) {
+					continue;
+				}
+				// The torque this axle gets from the gearbox locks its diff.
+				double input = std::abs(clutch_acc / h * g) * _config.axle_drive_share[ax];
+				bool power = clutch_acc <= 0.0;
+				double limit = diff.type == DiffType::LOCKED ? 1e9 : diff.preload + (power ? diff.power_lock : diff.coast_lock) * input;
+				double mass = 1.0 / (1.0 / ieff[size_t(left)] + 1.0 / ieff[size_t(right)]);
+				double cdot = wheels[size_t(left)].omega - wheels[size_t(right)].omega;
+				double old = lsd_acc[ax];
+				lsd_acc[ax] = clampd(lsd_acc[ax] - mass * cdot, -limit * h, limit * h);
+				double lambda = lsd_acc[ax] - old;
+				wheels[size_t(left)].omega += lambda / ieff[size_t(left)];
+				wheels[size_t(right)].omega -= lambda / ieff[size_t(right)];
 			}
 			for (size_t i = 0; i < n; i++) {
 				if (brake_cap[i] <= 0.0) {

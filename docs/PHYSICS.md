@@ -46,8 +46,9 @@ VehicleSim (per vehicle, C++)
 - **Contact:** per-wheel **shape cast** (a cylinder, or a sphere as fallback) along the suspension axis from the hub's top-of-travel. Contact gives the normal, penetration, the collider's surface type and its velocity (for moving platforms). *v1 casts one ray per wheel, starting a wheel radius above the top of travel so deep bumps still hit (D36). Surfaces come from the collider's `noss_surface` meta.*
 - **Springs:** `F = k·x` with `k` derived from the platform's natural frequency ([PLATFORMS.md §4.2](PLATFORMS.md#42-invariants-that-keep-performance-equal)), plus progressive bump stops in the last 15% of travel.
 - **Dampers:** separate bump and rebound damping ratios (linear in v1, with a fast/slow knee later). The compression rate is the hub's speed toward the ground along the contact normal, so driving along a flat road never compresses the springs, even with the body pitched.
-- **Anti-roll bars:** `F = k_arb · (x_L − x_R)` per axle, sized to hit the target roll gradient and front share.
-- **Kart sub-type:** no suspension travel. A stiff contact spring only, with a spool axle.
+- **Anti-roll bars:** `F = k_arb · (x_L − x_R)` per axle, sized to hit the target roll gradient and front share (negative if the springs alone are too stiff, D45). A roll damping bar does the same for damping.
+- **Kart sub-type** (`suspension.type: "rigid"`): no visible suspension travel. The front/rear `freq_hz` (4 Hz or more) and `travel_m` (0.04 m or less) describe a stiff contact spring; pair it with a `spool` rear axle.
+- **Stability caps:** springs are integrated once per 120 Hz tick, so stiff ones are capped at `ω·dt ≤ 0.8` (spring at half that), and the bump stop's zone widens until its stiffness fits. Karts and hard landings stay stable; GT-like platforms are below the caps.
 
 ## 4. Tires: "Pacejka-lite"
 
@@ -88,9 +89,10 @@ The surface type comes from the collider (track material tag).
   - `sequential`: up/down paddles.
   - `auto`: shifts by RPM and throttle.
   - All types use the platform's `shift_time_s`.
-- **Differentials:** `open`, `lsd_clutch` (preload plus power/coast lock ramps), `locked`/`spool`, and `viscous` later. AWD uses a center diff with a torque split.
+- **Differentials:** per axle `open`, `lsd_clutch` (preload plus power/coast lock ramps on the torque that axle receives) or `locked`/`spool`. `differential.front` and `.rear` override the shared settings.
+- **Center diff (AWD):** `differential.center` with `front_share`. `open` splits the torque by that share; `viscous` adds a coupling torque `preload + c · |Δω|` between the axles' mean speeds; `locked` holds them together. Solved as torque-limited impulses like the axle diffs.
 - **Layouts:** FWD, RWD and AWD. Trucks choose which axles are driven (e.g. 6×4).
-- **Wheel spin integration:** `I_w · dω/dt = T_drive − T_brake − Fx · r_ref` at 480 Hz.
+- **Wheel spin integration:** `I_w · dω/dt = T_drive − T_brake − Fx · r_ref` at 480 Hz. `I_w` is the platform's `tires.wheel_inertia_kgm2`, or `0.0085 · m · r_ref²` (1.2 kg·m² on GT, 0.03 on a kart).
 
 ## 6. Brakes
 

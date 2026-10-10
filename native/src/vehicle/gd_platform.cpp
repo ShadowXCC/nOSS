@@ -52,6 +52,22 @@ AxleSpec axle(const Dictionary &p_platform, const String &p_name, int p_index) {
 	return a;
 }
 
+DiffSpec diff_spec(const Dictionary &p_platform, const String &p_base, const DiffSpec &p_default) {
+	Variant block = at(p_platform, p_base);
+	if (block.get_type() != Variant::DICTIONARY) {
+		return p_default;
+	}
+	DiffSpec d = p_default;
+	String type = at(p_platform, p_base + String(".type"), "");
+	if (!type.is_empty()) {
+		d.type = type == "lsd_clutch" ? DiffType::LSD_CLUTCH : (type == "locked" || type == "spool") ? DiffType::LOCKED : DiffType::OPEN;
+	}
+	d.preload = num(p_platform, p_base + String(".preload_nm"), d.preload);
+	d.power_lock = num(p_platform, p_base + String(".power_lock"), d.power_lock);
+	d.coast_lock = num(p_platform, p_base + String(".coast_lock"), d.coast_lock);
+	return d;
+}
+
 } // namespace
 
 PlatformSpec parse_platform(const Dictionary &p) {
@@ -89,16 +105,21 @@ PlatformSpec parse_platform(const Dictionary &p) {
 	s.gearbox.final_drive = num(p, "gearbox.final_drive", s.gearbox.final_drive);
 	s.gearbox.shift_time = num(p, "gearbox.shift_time_s", s.gearbox.shift_time);
 
-	String diff = at(p, "differential.type", "open");
-	s.diff = diff == "lsd_clutch" ? DiffType::LSD_CLUTCH : (diff == "locked" || diff == "spool") ? DiffType::LOCKED : DiffType::OPEN;
-	s.diff_preload = num(p, "differential.preload_nm", 0.0);
-	s.diff_power_lock = num(p, "differential.power_lock", 0.0);
-	s.diff_coast_lock = num(p, "differential.coast_lock", 0.0);
+	// differential.front / .rear override the shared settings per axle.
+	DiffSpec shared = diff_spec(p, "differential", DiffSpec());
+	s.axle_diff[0] = diff_spec(p, "differential.front", shared);
+	s.axle_diff[1] = diff_spec(p, "differential.rear", shared);
+	String center = at(p, "differential.center.type", "open");
+	s.center.type = center == "viscous" ? CenterType::VISCOUS : center == "locked" ? CenterType::LOCKED : CenterType::OPEN;
+	s.center.front_share = num(p, "differential.center.front_share", s.center.front_share);
+	s.center.viscous = num(p, "differential.center.viscous_nm_per_rad_s", 0.0);
+	s.center.preload = num(p, "differential.center.preload_nm", 0.0);
 
 	s.brake_torque = num(p, "brakes.max_torque_nm", s.brake_torque);
 	s.brake_bias_front = num(p, "brakes.bias_front", s.brake_bias_front);
 	s.axles[0] = axle(p, "front", 0);
 	s.axles[1] = axle(p, "rear", 1);
+	s.rigid = String(at(p, "suspension.type", "independent")) == "rigid";
 	s.roll_gradient_deg_per_g = num(p, "suspension.roll_gradient_deg_per_g", s.roll_gradient_deg_per_g);
 	s.roll_front_share = num(p, "suspension.roll_stiffness_front_share", s.roll_front_share);
 	s.max_steer_deg = num(p, "steering.max_road_angle_deg", s.max_steer_deg);
@@ -111,6 +132,7 @@ PlatformSpec parse_platform(const Dictionary &p) {
 	s.tire.peak_slip_angle = num(p, "tires.peak_slip_angle_deg", 7.5) * PI / 180.0;
 	s.relaxation_length = num(p, "tires.relaxation_length_m", s.relaxation_length);
 	s.rolling_resistance = num(p, "tires.rolling_resistance", s.rolling_resistance);
+	s.wheel_inertia = num(p, "tires.wheel_inertia_kgm2", 0.0);
 	s.ffb_reference_nm = num(p, "ffb.reference_rack_nm", s.ffb_reference_nm);
 	return s;
 }

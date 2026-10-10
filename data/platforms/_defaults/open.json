@@ -1,0 +1,25 @@
+{
+  "accepts_families": ["open"],
+  "engine": { "inertia_kgm2": 0.08, "engine_brake_nm": 40 },
+  "differential": { "type": "lsd_clutch", "preload_nm": 40, "power_lock": 0.4, "coast_lock": 0.2 },
+  "brakes": { "max_torque_nm": 4000, "bias_front": 0.58 },
+  "suspension": {
+    "front": { "freq_hz": 3.6, "damping_bump": 0.6, "damping_rebound": 0.8, "travel_m": 0.04 },
+    "rear": { "freq_hz": 3.4, "damping_bump": 0.6, "damping_rebound": 0.8, "travel_m": 0.05 },
+    "roll_gradient_deg_per_g": 0.4,
+    "roll_stiffness_front_share": 0.52
+  },
+  "steering": { "max_road_angle_deg": 22, "wheel_rotation_deg": 360 },
+  "aero": { "cd_a": 1.0, "cl_a_front": 0.0, "cl_a_rear": 0.0, "slipstream": true },
+  "tires": {
+    "load_sensitivity": 0.10,
+    "relaxation_length_m": 0.20,
+    "rolling_resistance": 0.012,
+    "wear": false,
+    "temperature": false
+  },
+  "assists_allowed": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid", "racing_line"],
+  "damage": { "cosmetic": true, "mechanical": [] },
+  "tunable": {},
+  "ffb": { "reference_rack_nm": 10.0 }
+}

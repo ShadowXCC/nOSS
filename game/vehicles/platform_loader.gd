@@ -7,6 +7,14 @@ const OFFICIAL_DIR := "res://data/platforms/"
 const DEFAULTS_DIR := "res://data/platforms/_defaults/"
 const USER_DIR := "user://platforms/"
 const SUFFIX := ".platform.json"
+## Physics values an official platform must have once defaults are merged.
+const OFFICIAL_REQUIRED := [
+	"engine.inertia_kgm2", "engine.engine_brake_nm", "differential.type", "brakes.max_torque_nm",
+	"brakes.bias_front", "suspension.front", "suspension.rear", "suspension.roll_gradient_deg_per_g",
+	"suspension.roll_stiffness_front_share", "steering.max_road_angle_deg", "steering.wheel_rotation_deg",
+	"aero.cd_a", "tires.load_sensitivity", "tires.relaxation_length_m", "tires.rolling_resistance",
+	"accepts_families", "assists_allowed",
+]
 
 
 ## Result of a load. `platform` has family defaults merged in; `hash` covers the file bytes.
@@ -61,6 +69,7 @@ static func load_file(path: String) -> Result:
 	result.errors = validate(data, path.begins_with(OFFICIAL_DIR))
 	if result.ok():
 		result.platform = with_defaults(data)
+		result.errors = validate_merged(result.platform)
 	return result
 
 
@@ -90,6 +99,12 @@ static func validate(data: Dictionary, is_official_source: bool) -> PackedString
 	var axles: Array = data.layout.axles
 	if data.family == "car" and (axles.size() != 2 or axles.any(func(a: Dictionary) -> bool: return a.wheels != 2)):
 		errors.append("layout: car needs 2 axles of 2 wheels")
+	var wheels: int = axles.reduce(func(sum: int, a: Dictionary) -> int: return sum + int(a.wheels), 0)
+	if data.family == "open" and (axles.size() != 2 or wheels < 3):
+		errors.append("layout: open needs 2 axles and at least 3 wheels")
+	var driven_axles := axles.filter(func(a: Dictionary) -> bool: return a.driven).size()
+	if data.get("differential", {}).has("center") and driven_axles < 2:
+		errors.append("differential.center needs two driven axles")
 	var driven: Array = axles.map(func(a: Dictionary) -> bool: return a.driven)
 	var drive_ok: bool = {
 		"fwd": driven == [true, false],
@@ -98,6 +113,23 @@ static func validate(data: Dictionary, is_official_source: bool) -> PackedString
 	}.get(data.layout.drive, false) if axles.size() == 2 else true
 	if not drive_ok:
 		errors.append("layout: drive doesn't match driven axles")
+	return errors
+
+
+## Checks on the platform with its family defaults merged in. Official platforms must spell
+## out every physics block, so none of them silently runs on the sim's built-in fallbacks.
+static func validate_merged(platform: Dictionary) -> PackedStringArray:
+	var errors := PackedStringArray()
+	if String(platform.id).begins_with("official."):
+		for path in OFFICIAL_REQUIRED:
+			if _at(platform, path) == null:
+				errors.append("%s: missing (no default)" % path)
+	var suspension: Dictionary = platform.get("suspension", {})
+	if suspension.get("type", "independent") == "rigid":
+		for axle in ["front", "rear"]:
+			var a: Dictionary = suspension.get(axle, {})
+			if float(a.get("travel_m", 1.0)) > 0.04 or float(a.get("freq_hz", 0.0)) < 4.0:
+				errors.append("suspension.%s: rigid needs travel <= 0.04 m and >= 4 Hz" % axle)
 	return errors
 
 
@@ -116,6 +148,15 @@ static func _merge(base: Dictionary, over: Dictionary) -> Dictionary:
 		else:
 			out[key] = over[key].duplicate(true) if over[key] is Dictionary or over[key] is Array else over[key]
 	return out
+
+
+static func _at(data: Dictionary, path: String) -> Variant:
+	var node: Variant = data
+	for part in path.split("."):
+		if not node is Dictionary or not node.has(part):
+			return null
+		node = node[part]
+	return node
 
 
 static func sha256_hex(bytes: PackedByteArray) -> String:

@@ -31,6 +31,28 @@ enum class DiffType {
 	LOCKED,
 };
 
+// An axle's differential (docs/PHYSICS.md §5). Spool is LOCKED.
+struct DiffSpec {
+	DiffType type = DiffType::OPEN;
+	double preload = 0.0; // Nm
+	double power_lock = 0.0; // share of the input torque that can lock it on power
+	double coast_lock = 0.0;
+};
+
+enum class CenterType {
+	OPEN,
+	VISCOUS,
+	LOCKED,
+};
+
+// Between the front and rear axles of an AWD layout.
+struct CenterDiffSpec {
+	CenterType type = CenterType::OPEN;
+	double front_share = 0.5; // of the drive torque, when open
+	double viscous = 0.0; // Nm per rad/s of front/rear speed difference
+	double preload = 0.0; // Nm
+};
+
 // Surface ids, set on colliders as the "noss_surface" meta (docs/PHYSICS.md §4).
 enum Surface {
 	SURFACE_ASPHALT,
@@ -74,14 +96,13 @@ struct PlatformSpec {
 	Drive drive = Drive::RWD;
 	EngineSpec engine;
 	GearboxSpec gearbox;
-	DiffType diff = DiffType::OPEN;
-	double diff_preload = 0.0;
-	double diff_power_lock = 0.0;
-	double diff_coast_lock = 0.0;
+	DiffSpec axle_diff[2]; // front, rear
+	CenterDiffSpec center;
 	double brake_torque = 5000.0; // Nm total at full pedal
 	double brake_bias_front = 0.6;
 	double handbrake_torque = 2500.0; // Nm on the rear axle
 	AxleSpec axles[2];
+	bool rigid = false; // kart-style: a stiff contact spring instead of a suspension
 	double roll_gradient_deg_per_g = 1.5;
 	double roll_front_share = 0.55;
 	double max_steer_deg = 30.0;
@@ -91,6 +112,7 @@ struct PlatformSpec {
 	TireParams tire;
 	double relaxation_length = 0.25;
 	double rolling_resistance = 0.012;
+	double wheel_inertia = 0.0; // kg m^2 per wheel; 0 = from mass and wheel radius
 	double ffb_reference_nm = 9.0;
 };
 
@@ -121,6 +143,9 @@ struct WheelConfig {
 	double c_rebound = 0.0;
 	double travel = 0.1;
 	double brake_share = 0.25; // of the total brake torque
+	double drive_share = 0.0; // of the drive torque (all driven wheels add up to 1)
+	double bump_zone = 0.015; // m before full travel where the bump stop builds up
+	double k_beyond = 0.0; // N/m past full travel
 };
 
 // Everything derived from platform + geometry, keeping handling equal across fits (§4.2).
@@ -144,6 +169,7 @@ struct Config {
 	double max_steer = 0.5; // rad at full input
 	double r_ref = 0.33;
 	double wheel_inertia = 1.2;
+	double axle_drive_share[2] = { 0.0, 0.0 };
 	double clutch_max = 900.0; // Nm
 	double cog_height = 0.0;
 };
@@ -255,7 +281,6 @@ private:
 	bool _has_last_velocity = false;
 	V3 _last_velocity;
 	std::vector<int> _driven;
-	double _drive_weight = 0.5;
 
 	void _update_gearbox(double p_driver_throttle, double p_driver_brake, double p_dt);
 	double _driven_omega() const;

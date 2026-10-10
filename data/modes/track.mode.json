@@ -1,0 +1,13 @@
+{
+  "schema": "noss.mode/1",
+  "id": "track",
+  "name": "Track",
+  "classes": ["official.track.touring", "official.track.gt", "official.track.prototype", "official.track.formula"],
+  "tuning": { "allow": ["*"] },
+  "assists": {
+    "allowed": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid", "racing_line"],
+    "defaults": ["abs", "tcs", "auto_gearbox", "auto_clutch"]
+  },
+  "damage": { "cosmetic": true, "mechanical": false },
+  "physics_layer": "none"
+}

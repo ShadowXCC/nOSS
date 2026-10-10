@@ -115,9 +115,12 @@ Example: an official Track/GT platform. All values are illustrative and get tune
 
 **Design notes:**
 - `brakes.max_torque_nm` is the total brake torque at full pedal, split by `bias_front` (D38).
+- `differential` holds the driven axles' diff; `differential.front` / `.rear` override it per axle, and `differential.center` (`open`, `viscous` or `locked`, with `front_share`) splits AWD torque. A center needs two driven axles.
+- `suspension.type: "rigid"` makes a kart-style chassis (stiff contact spring, no visible travel).
+- `tires.wheel_inertia_kgm2` is optional; the default scales with mass and wheel radius.
 - `geometry.ride_height_m` is not used yet: in M1 the model's own ground line sets the static ride height.
 - Suspension is specified as **natural frequency and damping ratio**, not spring rates. Rates are derived from sprung mass, so they don't depend on geometry (§4).
-- A missing optional block uses a family default (`data/platforms/_defaults/<family>.json`).
+- A missing optional block uses a family default (`data/platforms/_defaults/<family>.json`: `car` and `open` so far). An official platform must end up with every physics block after that merge, so none falls back to the sim's built-in numbers.
 - `id` namespaces: `official.*` is reserved and loads only from the game's own `data/`. Custom platforms use `<author>.<name>`.
 - Results, ghosts and leaderboards store the platform `id` and its **content hash**, so a modified file never counts as official.
 

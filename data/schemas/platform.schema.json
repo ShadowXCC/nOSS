@@ -134,14 +134,28 @@
     },
 
     "differential": {
+      "description": "The driven axles' diff. front/rear override it per axle; center splits AWD torque.",
       "type": "object",
       "additionalProperties": false,
       "required": ["type"],
       "properties": {
-        "type": { "enum": ["open", "lsd_clutch", "locked", "spool"] },
+        "type": { "$ref": "#/$defs/diff_type" },
         "preload_nm": { "type": "number", "minimum": 0 },
         "power_lock": { "$ref": "#/$defs/unit" },
-        "coast_lock": { "$ref": "#/$defs/unit" }
+        "coast_lock": { "$ref": "#/$defs/unit" },
+        "front": { "$ref": "#/$defs/axle_diff" },
+        "rear": { "$ref": "#/$defs/axle_diff" },
+        "center": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "front_share"],
+          "properties": {
+            "type": { "enum": ["open", "viscous", "locked"] },
+            "front_share": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+            "viscous_nm_per_rad_s": { "type": "number", "minimum": 0 },
+            "preload_nm": { "type": "number", "minimum": 0 }
+          }
+        }
       }
     },
 
@@ -160,6 +174,10 @@
       "additionalProperties": false,
       "required": ["front", "rear", "roll_gradient_deg_per_g", "roll_stiffness_front_share"],
       "properties": {
+        "type": {
+          "description": "rigid: no suspension travel, a stiff contact spring (karts).",
+          "enum": ["independent", "rigid"]
+        },
         "front": { "$ref": "#/$defs/suspension_axle" },
         "rear": { "$ref": "#/$defs/suspension_axle" },
         "roll_gradient_deg_per_g": { "$ref": "#/$defs/positive" },
@@ -202,6 +220,10 @@
         "peak_slip_angle_deg": { "$ref": "#/$defs/positive" },
         "relaxation_length_m": { "$ref": "#/$defs/positive" },
         "rolling_resistance": { "type": "number", "minimum": 0 },
+        "wheel_inertia_kgm2": {
+          "description": "Wheel, tire and brake inertia per wheel. Default: 0.0085 x mass x rolling radius^2.",
+          "$ref": "#/$defs/positive"
+        },
         "wear": { "type": "boolean" },
         "temperature": { "type": "boolean" }
       }
@@ -254,6 +276,17 @@
 
   "$defs": {
     "semver": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "diff_type": { "enum": ["open", "lsd_clutch", "locked", "spool"] },
+    "axle_diff": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "$ref": "#/$defs/diff_type" },
+        "preload_nm": { "type": "number", "minimum": 0 },
+        "power_lock": { "$ref": "#/$defs/unit" },
+        "coast_lock": { "$ref": "#/$defs/unit" }
+      }
+    },
     "family": { "enum": ["car", "open", "truck", "moto"] },
     "positive": { "type": "number", "exclusiveMinimum": 0 },
     "unit": { "type": "number", "minimum": 0, "maximum": 1 },

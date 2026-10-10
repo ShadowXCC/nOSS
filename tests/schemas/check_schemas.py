@@ -3,7 +3,8 @@
 
 Every schema must be a valid JSON Schema. For each fixtures/<name>/ folder,
 valid_*.json must pass <name>.schema.json and invalid_*.json must fail it.
-Every official platform in data/platforms/ must pass the platform schema.
+Every official platform in data/platforms/ must pass the platform schema, and every mode in
+data/modes/ the mode schema.
 """
 
 import json
@@ -42,6 +43,13 @@ def main() -> int:
     platform_validator = Draft202012Validator(json.loads((SCHEMAS / "platform.schema.json").read_text()))
     for path in sorted((ROOT / "data" / "platforms").glob("*/*.platform.json")):
         errors = list(platform_validator.iter_errors(json.loads(path.read_text())))
+        checked += 1
+        if errors:
+            failures.append(f"{path.relative_to(ROOT)}: rejected: {errors[0].message}")
+
+    mode_validator = Draft202012Validator(json.loads((SCHEMAS / "mode.schema.json").read_text()))
+    for path in sorted((ROOT / "data" / "modes").glob("*.mode.json")):
+        errors = list(mode_validator.iter_errors(json.loads(path.read_text())))
         checked += 1
         if errors:
             failures.append(f"{path.relative_to(ROOT)}: rejected: {errors[0].message}")

@@ -205,7 +205,9 @@ Vector4 VehicleSim::get_wheel_visual(int64_t p_index) const {
 	}
 	const WheelState &w = _model->wheels[size_t(p_index)];
 	double travel = _model->config().wheels[size_t(p_index)].travel;
-	return Vector4(real_t(w.steer), real_t(w.spin_angle), real_t(std::clamp(w.disp, -travel, travel)), w.contact ? 1.0f : 0.0f);
+	// A rigid chassis (kart) has no visible suspension travel.
+	double lift = _model->config().spec.rigid ? 0.0 : std::clamp(w.disp, -travel, travel);
+	return Vector4(real_t(w.steer), real_t(w.spin_angle), real_t(lift), w.contact ? 1.0f : 0.0f);
 }
 
 double VehicleSim::get_rack_force() const {

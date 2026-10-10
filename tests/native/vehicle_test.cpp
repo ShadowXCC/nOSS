@@ -219,3 +219,127 @@ TEST_CASE("sim: TCS keeps full throttle in first gear out of a tight corner") {
 		}
 	}
 }
+
+namespace {
+
+PlatformSpec awd_spec(CenterType p_center) {
+	PlatformSpec s = gt_spec();
+	s.axles[0].driven = true;
+	s.axle_diff[0] = { DiffType::OPEN, 0, 0, 0 };
+	s.center.type = p_center;
+	s.center.front_share = 0.4;
+	s.center.viscous = 60.0;
+	return s;
+}
+
+// Mean wheel speed of each axle.
+double axle_omega(const Harness &p_h, int p_axle) {
+	double sum = 0.0;
+	int n = 0;
+	for (size_t i = 0; i < p_h.model.wheels.size(); i++) {
+		if (p_h.model.config().wheels[i].geo.axle == p_axle) {
+			sum += p_h.model.wheels[i].omega;
+			n++;
+		}
+	}
+	return sum / std::max(n, 1);
+}
+
+// Drive force of each axle, summed over its wheels.
+double axle_fx(const Harness &p_h, int p_axle) {
+	double sum = 0.0;
+	for (size_t i = 0; i < p_h.model.wheels.size(); i++) {
+		if (p_h.model.config().wheels[i].geo.axle == p_axle) {
+			sum += p_h.model.wheels[i].fx;
+		}
+	}
+	return sum;
+}
+
+} // namespace
+
+TEST_CASE("drivetrain: AWD with an open center splits the torque") {
+	Harness h(make_config(awd_spec(CenterType::OPEN), nsx_geometry()));
+	h.model.assists.auto_gearbox = false;
+	h.model.controls.select_gear = 2;
+	h.model.controls.throttle = 0.5;
+	h.run(3.0);
+	double front = axle_fx(h, 0), rear = axle_fx(h, 1);
+	MESSAGE("front share of drive force " << front / (front + rear));
+	CHECK(front / (front + rear) == doctest::Approx(0.4).epsilon(0.05));
+}
+
+TEST_CASE("drivetrain: a locked center holds both axles at one speed") {
+	Harness h(make_config(awd_spec(CenterType::LOCKED), nsx_geometry()));
+	h.model.controls.throttle = 1.0;
+	double worst = 0.0;
+	for (int i = 0; i < 480; i++) {
+		h.step();
+		worst = std::max(worst, std::abs(axle_omega(h, 0) - axle_omega(h, 1)));
+	}
+	CHECK(worst < 0.05);
+	CHECK(h.forward_speed() > 15.0);
+}
+
+TEST_CASE("drivetrain: a viscous center sits between open and locked") {
+	auto spread = [](CenterType p_type) {
+		PlatformSpec s = awd_spec(p_type);
+		s.center.front_share = 0.1; // the rear gets most torque, so it spins up first
+		Harness h(make_config(s, nsx_geometry()));
+		h.model.assists.tcs = false;
+		h.model.controls.throttle = 1.0;
+		double worst = 0.0;
+		for (int i = 0; i < 240; i++) {
+			h.step();
+			worst = std::max(worst, axle_omega(h, 1) - axle_omega(h, 0));
+		}
+		return worst;
+	};
+	double open = spread(CenterType::OPEN), viscous = spread(CenterType::VISCOUS), locked = spread(CenterType::LOCKED);
+	MESSAGE("rear minus front spin: open " << open << ", viscous " << viscous << ", locked " << locked);
+	CHECK(viscous < open);
+	CHECK(locked <= viscous);
+}
+
+TEST_CASE("drivetrain: FWD pulls with the front axle") {
+	PlatformSpec s = gt_spec();
+	s.axles[0].driven = true;
+	s.axles[1].driven = false;
+	Harness h(make_config(s, nsx_geometry()));
+	h.model.controls.throttle = 1.0;
+	h.run(3.0);
+	CHECK(h.forward_speed() > 10.0); // traction-limited: only 47% of the weight is on the front
+	CHECK(axle_fx(h, 0) > 0.0);
+	CHECK(std::abs(axle_fx(h, 1)) < 0.1 * axle_fx(h, 0));
+}
+
+TEST_CASE("sim: a rigid kart chassis lands from 0.3 m and settles") {
+	PlatformSpec s = gt_spec();
+	s.mass = 170.0;
+	s.wheelbase_ref = 1.05;
+	s.track_ref = 1.2;
+	s.wheel_radius_ref = 0.14;
+	s.rigid = true;
+	s.axles[0] = { 7.0, 0.6, 0.8, 0.02, true, false };
+	s.axles[1] = { 7.0, 0.6, 0.8, 0.02, false, true };
+	s.axle_diff[1] = { DiffType::LOCKED, 0, 0, 0 };
+	s.engine.torque_curve = { { 2000, 18 }, { 6000, 24 }, { 11000, 20 } };
+	s.engine.idle_rpm = 1800;
+	s.engine.redline_rpm = 10500;
+	s.engine.limiter_rpm = 11000;
+	s.engine.inertia = 0.02;
+	s.gearbox.ratios = { 1.0 };
+	s.gearbox.final_drive = 6.0;
+	Config c = make_config(s, nsx_geometry(1.05, 1.2, 0.14));
+	CHECK(c.wheel_inertia == doctest::Approx(0.0085 * 170 * 0.14 * 0.14));
+	Harness h(c);
+	h.place(h.chassis.origin + V3(0, 0.3, 0));
+	h.run(3.0);
+	CHECK(std::isfinite(h.chassis.com.y));
+	CHECK(length(h.chassis.velocity) < 0.05);
+	CHECK(h.chassis.basis.c1.y > 0.999);
+	h.model.controls.throttle = 1.0;
+	h.run(4.0);
+	MESSAGE("kart after 4 s: " << h.forward_speed() * 3.6 << " km/h");
+	CHECK(h.forward_speed() > 10.0);
+}

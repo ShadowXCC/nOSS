@@ -31,10 +31,7 @@ inline PlatformSpec gt_spec() {
 	s.gearbox.reverse = 3.0;
 	s.gearbox.final_drive = 3.70;
 	s.gearbox.shift_time = 0.07;
-	s.diff = DiffType::LSD_CLUTCH;
-	s.diff_preload = 80;
-	s.diff_power_lock = 0.45;
-	s.diff_coast_lock = 0.25;
+	s.axle_diff[0] = s.axle_diff[1] = { DiffType::LSD_CLUTCH, 80, 0.45, 0.25 };
 	s.brake_torque = 6000;
 	s.brake_bias_front = 0.62;
 	s.axles[0] = { 2.8, 0.55, 0.75, 0.08, true, false };

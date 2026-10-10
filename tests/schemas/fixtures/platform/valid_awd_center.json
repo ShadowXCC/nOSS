@@ -1,0 +1,239 @@
+{
+  "schema": "noss.platform/1",
+  "id": "official.highway.example",
+  "name": "GT",
+  "version": "1.0.0",
+  "family": "car",
+  "modes": [
+    "track"
+  ],
+  "accepts_families": [
+    "car"
+  ],
+  "layout": {
+    "drive": "awd",
+    "axles": [
+      {
+        "steer": true,
+        "driven": true,
+        "wheels": 2
+      },
+      {
+        "steer": false,
+        "driven": true,
+        "wheels": 2
+      }
+    ]
+  },
+  "geometry": {
+    "wheelbase_m": {
+      "ref": 2.6,
+      "min": 2.3,
+      "max": 2.95
+    },
+    "track_m": {
+      "ref": 1.6,
+      "min": 1.45,
+      "max": 1.75
+    },
+    "ride_height_m": {
+      "ref": 0.09,
+      "min": 0.06,
+      "max": 0.14
+    },
+    "wheel_radius_m": {
+      "ref": 0.33,
+      "min": 0.29,
+      "max": 0.37
+    },
+    "envelope_m": {
+      "length": [
+        3.8,
+        4.9
+      ],
+      "width": [
+        1.7,
+        2.05
+      ],
+      "height": [
+        1.0,
+        1.45
+      ]
+    }
+  },
+  "mass": {
+    "kg": 1300,
+    "front_weight": 0.47,
+    "cog_height_over_track": 0.28,
+    "yaw_dynamic_index": 0.95
+  },
+  "engine": {
+    "torque_curve_nm": [
+      [
+        1000,
+        280
+      ],
+      [
+        3000,
+        430
+      ],
+      [
+        5000,
+        540
+      ],
+      [
+        6000,
+        560
+      ],
+      [
+        7500,
+        480
+      ],
+      [
+        8200,
+        420
+      ]
+    ],
+    "idle_rpm": 950,
+    "redline_rpm": 8000,
+    "limiter_rpm": 8200,
+    "inertia_kgm2": 0.14,
+    "engine_brake_nm": 70
+  },
+  "gearbox": {
+    "type": "sequential",
+    "ratios": [
+      3.1,
+      2.25,
+      1.75,
+      1.42,
+      1.19,
+      1.02
+    ],
+    "reverse": 3.0,
+    "final_drive": 3.7,
+    "shift_time_s": 0.07
+  },
+  "differential": {
+    "type": "open",
+    "rear": {
+      "type": "lsd_clutch",
+      "preload_nm": 60,
+      "power_lock": 0.4,
+      "coast_lock": 0.2
+    },
+    "center": {
+      "type": "viscous",
+      "front_share": 0.4,
+      "viscous_nm_per_rad_s": 40
+    }
+  },
+  "brakes": {
+    "max_torque_nm": 3400,
+    "bias_front": 0.62
+  },
+  "suspension": {
+    "front": {
+      "freq_hz": 2.8,
+      "damping_bump": 0.55,
+      "damping_rebound": 0.75,
+      "travel_m": 0.08
+    },
+    "rear": {
+      "freq_hz": 2.6,
+      "damping_bump": 0.55,
+      "damping_rebound": 0.75,
+      "travel_m": 0.09
+    },
+    "roll_gradient_deg_per_g": 0.9,
+    "roll_stiffness_front_share": 0.55,
+    "type": "independent"
+  },
+  "steering": {
+    "max_road_angle_deg": 28,
+    "wheel_rotation_deg": 540
+  },
+  "aero": {
+    "cd_a": 0.8,
+    "cl_a_front": -0.4,
+    "cl_a_rear": -0.6,
+    "slipstream": true
+  },
+  "tires": {
+    "model": "pacejka_lite",
+    "compound": "semi_slick",
+    "mu_peak": 1.4,
+    "load_sensitivity": 0.08,
+    "peak_slip_ratio": 0.1,
+    "peak_slip_angle_deg": 7.5,
+    "relaxation_length_m": 0.25,
+    "rolling_resistance": 0.012,
+    "wear": false,
+    "temperature": false,
+    "wheel_inertia_kgm2": 1.1
+  },
+  "assists_allowed": [
+    "abs",
+    "tcs",
+    "stability",
+    "auto_gearbox",
+    "auto_clutch",
+    "steer_aid",
+    "racing_line"
+  ],
+  "damage": {
+    "cosmetic": true,
+    "mechanical": [
+      "alignment",
+      "aero",
+      "engine",
+      "suspension"
+    ]
+  },
+  "tunable": {
+    "gearbox.final_drive": {
+      "min": 3.2,
+      "max": 4.3,
+      "step": 0.05
+    },
+    "gearbox.ratios": {
+      "mode": "per_gear",
+      "min": 0.8,
+      "max": 3.6,
+      "step": 0.01
+    },
+    "brakes.bias_front": {
+      "min": 0.52,
+      "max": 0.7,
+      "step": 0.01
+    },
+    "suspension.front.freq_hz": {
+      "min": 2.4,
+      "max": 3.2,
+      "step": 0.05
+    },
+    "suspension.rear.freq_hz": {
+      "min": 2.2,
+      "max": 3.0,
+      "step": 0.05
+    },
+    "suspension.roll_stiffness_front_share": {
+      "min": 0.45,
+      "max": 0.65,
+      "step": 0.01
+    },
+    "aero.cl_a_rear": {
+      "min": -0.8,
+      "max": -0.4,
+      "step": 0.05
+    },
+    "differential.power_lock": {
+      "min": 0.2,
+      "max": 0.8,
+      "step": 0.05
+    }
+  },
+  "ffb": {
+    "reference_rack_nm": 9.0
+  }
+}

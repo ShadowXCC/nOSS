@@ -22,6 +22,11 @@ class Result:
 	var notes := PackedStringArray()
 
 
+## True if a model of `family` (from its manifest) may mount `platform` (docs/PLATFORMS.md §4.4).
+static func compatible(platform: Dictionary, family: String) -> bool:
+	return family in platform.get("accepts_families", [platform.get("family", "")])
+
+
 static func fit(platform: Dictionary, fit_data: Dictionary) -> Result:
 	var r := Result.new()
 	var geo: Dictionary = platform.geometry

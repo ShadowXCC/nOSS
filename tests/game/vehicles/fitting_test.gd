@@ -53,6 +53,16 @@ func test_model_transform_applies() -> void:
 	assert_float(r.wheels[0].radius).is_equal_approx(0.3, 0.0001)
 
 
+func test_compatible_follows_accepts_families() -> void:
+	assert_bool(Fitting.compatible(_platform, "car")).is_true()
+	assert_bool(Fitting.compatible(_platform, "truck")).is_false()
+	var kart := _platform.duplicate(true)
+	kart.accepts_families = ["car", "open", "truck"]
+	assert_bool(Fitting.compatible(kart, "truck")).is_true()
+	kart.erase("accepts_families")
+	assert_bool(Fitting.compatible(kart, "car")).is_true() # defaults to its own family
+
+
 func test_ground_comes_from_the_wheels() -> void:
 	var data := _fit(2.6, 1.6)
 	data.ground_y = -0.05
