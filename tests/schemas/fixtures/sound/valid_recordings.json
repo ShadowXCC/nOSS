@@ -1,0 +1,47 @@
+{
+  "schema": "noss.sound/1",
+  "name": "My V8",
+  "base": "v8_crossplane",
+  "tweaks": {
+    "pitch": 0.95,
+    "mix": {
+      "engine": 0.8,
+      "exhaust": 1.2,
+      "intake": 0.6
+    },
+    "idle_lope": 0.4,
+    "turbo": "twin",
+    "blowoff": true,
+    "supercharger": false,
+    "gear_whine": "straight_cut",
+    "crackle": 0.7,
+    "limiter": "bounce"
+  },
+  "rpm_idle": 800,
+  "rpm_max": 7000,
+  "layers": [
+    {
+      "emitter": "exhaust",
+      "samples": [
+        {
+          "rpm": 1000,
+          "on": "ex_on_1000.ogg",
+          "off": "ex_off_1000.ogg"
+        },
+        {
+          "rpm": 6000,
+          "on": "ex_on_6000.ogg"
+        }
+      ]
+    }
+  ],
+  "extras": {
+    "start": "start.ogg",
+    "limiter": null,
+    "backfire": [
+      "bf1.ogg"
+    ],
+    "turbo": null,
+    "blowoff": null
+  }
+}

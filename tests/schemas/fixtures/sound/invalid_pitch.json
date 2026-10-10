@@ -1,0 +1,20 @@
+{
+  "schema": "noss.sound/1",
+  "name": "My V8",
+  "base": "v8_crossplane",
+  "tweaks": {
+    "pitch": 1.5,
+    "mix": {
+      "engine": 0.8,
+      "exhaust": 1.2,
+      "intake": 0.6
+    },
+    "idle_lope": 0.4,
+    "turbo": "twin",
+    "blowoff": true,
+    "supercharger": false,
+    "gear_whine": "straight_cut",
+    "crackle": 0.7,
+    "limiter": "bounce"
+  }
+}

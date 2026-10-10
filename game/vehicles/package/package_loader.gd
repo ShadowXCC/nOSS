@@ -139,8 +139,11 @@ static func _read_data(source: PackageSource, pkg: VehiclePackage, lim: Dictiona
 		pkg.set(item[1], data)
 	if source.has("sound/profile.json"):
 		var sound: Variant = JSON.parse_string(source.read("sound/profile.json").get_string_from_utf8())
-		if not sound is Dictionary or sound.get("schema") != "noss.sound/1":
-			return "sound/profile.json is invalid"
+		if not sound is Dictionary:
+			return "sound/profile.json isn't valid JSON"
+		errors = JsonSchema.validate(sound, JsonSchema.load_schema("sound"))
+		if not errors.is_empty():
+			return "sound/profile.json: " + errors[0]
 		pkg.sound = sound
 	return ""
 

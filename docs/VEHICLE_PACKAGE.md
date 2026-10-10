@@ -54,6 +54,7 @@ FBX imports are converted to GLB when packed (Godot `FBXDocument` → `GLTFDocum
 - `id` stays the same across versions of the same car. `version` increments on each save.
 - **Content hash** = SHA-256 of the exact `manifest.json` bytes. The manifest lists the hash of every other file, so one hash identifies the whole package. The packer writes canonical JSON (sorted keys, UTF-8, `\n` line endings).
 - `license` is an SPDX identifier (e.g. `CC-BY-4.0`) or free text. The game shows it but doesn't enforce it.
+- **In-game writer** (`PackageWriter`): validates `fit.json`, `paint.json` and `sound/profile.json`, writes the zip next to its target, loads it back with the normal loader, and only then replaces the old file. Saving a car unchanged keeps its file; any change bumps `version`. A new car gets a random UUID; a file that belongs to another car's id is never overwritten.
 
 ## 3. Model conventions
 
@@ -185,6 +186,7 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 - **Hashed like everything else:** `profile.json` and every audio file are listed in the manifest `files`.
 - **Never affects performance:** the platform decides power, revs and boost. The sound only follows them.
 - **Limits:** 10 MB and 32 samples (§9).
+- **Schema:** `data/schemas/sound.schema.json`; the loader rejects a profile that doesn't pass it.
 
 ## 7. Fitting Bay (in-game import)
 

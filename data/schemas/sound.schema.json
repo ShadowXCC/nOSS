@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noss:schema:sound:1",
+  "title": "nOSS engine sound",
+  "description": "sound/profile.json inside a .noss package: a tuned built-in profile, or own recordings on top of one. See docs/VEHICLE_PACKAGE.md §6.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "base"],
+  "properties": {
+    "schema": { "const": "noss.sound/1" },
+    "name": { "type": "string", "maxLength": 64 },
+    "base": {
+      "description": "Built-in profile id (data/sound_profiles/<id>.json).",
+      "type": "string",
+      "pattern": "^[a-z0-9_]+$",
+      "maxLength": 32
+    },
+    "tweaks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pitch": { "type": "number", "minimum": 0.8, "maximum": 1.2 },
+        "mix": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "engine": { "$ref": "#/$defs/mix" },
+            "exhaust": { "$ref": "#/$defs/mix" },
+            "intake": { "$ref": "#/$defs/mix" }
+          }
+        },
+        "idle_lope": { "$ref": "#/$defs/unit" },
+        "turbo": { "enum": ["none", "single", "twin"] },
+        "blowoff": { "type": "boolean" },
+        "supercharger": { "type": "boolean" },
+        "gear_whine": { "enum": ["normal", "straight_cut"] },
+        "crackle": { "$ref": "#/$defs/unit" },
+        "limiter": { "enum": ["soft", "bounce", "cut"] }
+      }
+    },
+    "rpm_idle": { "type": "number", "exclusiveMinimum": 0 },
+    "rpm_max": { "type": "number", "exclusiveMinimum": 0 },
+    "layers": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["emitter", "samples"],
+        "properties": {
+          "emitter": { "enum": ["engine", "exhaust", "intake"] },
+          "samples": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 12,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["rpm", "on"],
+              "properties": {
+                "rpm": { "type": "number", "exclusiveMinimum": 0 },
+                "on": { "$ref": "#/$defs/audio" },
+                "off": { "$ref": "#/$defs/audio" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "extras": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "start": { "$ref": "#/$defs/audio_or_null" },
+        "limiter": { "$ref": "#/$defs/audio_or_null" },
+        "backfire": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/audio" } },
+        "turbo": { "$ref": "#/$defs/audio_or_null" },
+        "blowoff": { "$ref": "#/$defs/audio_or_null" }
+      }
+    }
+  },
+  "$defs": {
+    "unit": { "type": "number", "minimum": 0, "maximum": 1 },
+    "mix": { "type": "number", "minimum": 0, "maximum": 1.5 },
+    "audio": {
+      "description": "Path relative to sound/: OGG Vorbis or 16-bit PCM WAV.",
+      "type": "string",
+      "pattern": "^(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*\\.(?:ogg|wav)$",
+      "maxLength": 128
+    },
+    "audio_or_null": { "oneOf": [{ "$ref": "#/$defs/audio" }, { "type": "null" }] }
+  }
+}
