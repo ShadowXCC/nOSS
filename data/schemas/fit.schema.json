@@ -83,6 +83,10 @@
     },
     "exhaust_points": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/vec3" } },
     "hide_nodes": { "$ref": "#/$defs/patterns" },
+    "lod_materials": {
+      "description": "shared: lod1..N carry plain materials and use LOD0's of the same name (generated LODs).",
+      "enum": ["own", "shared"]
+    },
     "lod_distances_m": {
       "description": "Start distance per LOD, LOD0 first.",
       "type": "array",

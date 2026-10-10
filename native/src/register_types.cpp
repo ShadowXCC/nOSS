@@ -6,6 +6,7 @@
 
 #include "core/noss_core.h"
 #include "input/gd_input.h"
+#include "mesh/gd_mesh.h"
 #include "package/gd_package.h"
 #include "vehicle/gd_conformance.h"
 #include "vehicle/gd_vehicle_sim.h"
@@ -21,6 +22,7 @@ static void initialize_noss_core(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(noss::VehicleSim);
 	GDREGISTER_ABSTRACT_CLASS(noss::NossInput);
 	GDREGISTER_ABSTRACT_CLASS(noss::NossConformance);
+	GDREGISTER_ABSTRACT_CLASS(noss::NossMesh);
 }
 
 static void uninitialize_noss_core(ModuleInitializationLevel p_level) {

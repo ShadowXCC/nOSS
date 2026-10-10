@@ -15,7 +15,7 @@ my_car.noss
 ├─ paint.json           paint slots, default colors, presets            (required)
 ├─ model/
 │  ├─ body.glb          LOD0, full detail                               (required)
-│  ├─ lod1.glb … lodN.glb   lower LODs; generated at pack time if missing
+│  ├─ lod1.glb … lodN.glb   lower LODs; generated at pack time if missing (no textures)
 │  └─ extra/*.glb       optional alternate parts (ignored for now)
 ├─ sound/               engine sound, customized by the player (§6)
 │  ├─ profile.json      base profile, tweaks, recording map
@@ -116,6 +116,7 @@ These match the FM4 rips, so those convert with no manual work. Models that don'
 - `null` cameras are auto-placed from the envelope.
 - `steering_wheel.visual_lock_deg` is the model's steering wheel rotation lock-to-lock, used with keyboard and controller. With a real wheel, the in-car wheel turns with it, up to the platform's lock.
 - `hide_nodes` takes glob patterns, e.g. FM4 alternate race parts like `*race`.
+- `lod_materials`: `own` (default) or `shared`. Generated LODs (§7 step 9) carry plain materials without textures; with `shared` the loader gives each LOD≥1 surface LOD0's material of the same name, so LODs add no texture memory (D40) and paint and lights still match by name.
 
 ## 5. `paint.json`
 

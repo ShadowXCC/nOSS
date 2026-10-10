@@ -138,6 +138,9 @@ func _setup() -> void:
 				w.spins.append([node, node.transform])
 		_wheels.append(w)
 
+	if fit.get("lod_materials", "own") == "shared":
+		_share_lod_materials()
+
 	var sw: Variant = fit.get("steering_wheel")
 	if sw is Dictionary:
 		for node in _find_all(sw.node):
@@ -150,6 +153,25 @@ func _setup() -> void:
 			var m := mi.get_active_material(s) as BaseMaterial3D
 			if m:
 				m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+
+
+## Generated LODs carry plain materials (LodBuilder); they use LOD0's, matched by name.
+func _share_lod_materials() -> void:
+	var lods := model_root.get_children()
+	if lods.size() < 2:
+		return
+	var by_name := {}
+	for mi: MeshInstance3D in lods[0].find_children("*", "MeshInstance3D", true, false):
+		for s in mi.mesh.get_surface_count() if mi.mesh else 0:
+			var m := mi.mesh.surface_get_material(s)
+			if m and not by_name.has(m.resource_name):
+				by_name[m.resource_name] = m
+	for lod in lods.slice(1):
+		for mi: MeshInstance3D in lod.find_children("*", "MeshInstance3D", true, false):
+			for s in mi.mesh.get_surface_count() if mi.mesh else 0:
+				var m := mi.mesh.surface_get_material(s)
+				if m and by_name.has(m.resource_name):
+					mi.mesh.surface_set_material(s, by_name[m.resource_name])
 
 
 func _apply_paint() -> void:
