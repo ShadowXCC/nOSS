@@ -14,6 +14,8 @@ const CHAMFER := 0.18
 
 var platform := {}
 var platform_hash := ""
+## "normal", or "strict" for physics on the platform's reference geometry (docs/PLATFORMS.md §4.2).
+var fitting_mode := "normal"
 var package: VehiclePackage
 var fitted: Fitting.Result
 var sim := VehicleSim.new()
@@ -31,11 +33,12 @@ var _collision: CollisionShape3D
 
 
 ## Builds a vehicle; add it to the tree, then place it with reset_to().
-static func create(platform_result: PlatformLoader.Result, pkg: VehiclePackage) -> Vehicle:
+static func create(platform_result: PlatformLoader.Result, pkg: VehiclePackage, fitting := "normal") -> Vehicle:
 	var v := Vehicle.new()
 	v.name = "Vehicle"
 	v.platform = platform_result.platform
 	v.platform_hash = platform_result.hash
+	v.fitting_mode = fitting
 	v.can_sleep = false
 	v.continuous_cd = true
 	v.linear_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
@@ -66,8 +69,8 @@ func _ready() -> void:
 func mount(pkg: VehiclePackage) -> void:
 	var old_ground := fitted.ground_y if fitted else NAN
 	package = pkg
-	fitted = Fitting.fit(platform, pkg.fit)
-	var geometry := { "ground_y": fitted.ground_y, "wheels": fitted.wheels }
+	fitted = Fitting.fit(platform, pkg.fit, fitting_mode)
+	var geometry := { "ground_y": fitted.ground_y, "wheels": fitted.physics_wheels }
 	if not sim.configure(platform, geometry):
 		push_error("Vehicle sim: " + sim.get_error())
 	var body := sim.get_body_params()
@@ -123,9 +126,20 @@ func eye_point() -> Vector3:
 func _update_visual() -> void:
 	if visual == null:
 		return
-	for i in mini(visual.wheel_count(), sim.get_wheel_count()):
-		var w := sim.get_wheel_visual(i)
-		visual.set_wheel(i, w.x, w.y, w.z)
+	var physics := []
+	for j in sim.get_wheel_count():
+		physics.append(sim.get_wheel_visual(j))
+	# Each model wheel follows its physics wheel(s): steer and lift averaged, spin from the first.
+	for i in mini(visual.wheel_count(), fitted.wheel_map.size()):
+		var mapped := fitted.wheel_map[i]
+		if mapped.is_empty() or mapped[0] >= physics.size():
+			continue
+		var steer := 0.0
+		var lift := 0.0
+		for j in mapped:
+			steer += physics[j].x / mapped.size()
+			lift += physics[j].z / mapped.size()
+		visual.set_wheel(i, steer, physics[mapped[0]].y, lift)
 	visual.set_steering_angle(-steer * deg_to_rad(steering_wheel_lock_deg) / 2.0)
 	visual.set_brake_lights(sim.get_brake() > 0.05)
 

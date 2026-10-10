@@ -63,6 +63,56 @@ func test_compatible_follows_accepts_families() -> void:
 	assert_bool(Fitting.compatible(kart, "car")).is_true() # defaults to its own family
 
 
+func test_physics_wheels_follow_the_platform_layout() -> void:
+	var r := Fitting.fit(_platform, _fit(2.6, 1.6))
+	assert_int(r.physics_wheels.size()).is_equal(4)
+	assert_array(r.wheel_map).has_size(4)
+	for i in 4:
+		assert_int(r.wheel_map[i].size()).is_equal(1)
+		var pw: Dictionary = r.physics_wheels[r.wheel_map[i][0]]
+		assert_vector(pw.center).is_equal_approx(r.wheels[i].center, Vector3.ONE * 0.0001)
+
+
+func test_three_wheeler_gets_four_physics_wheels() -> void:
+	var data := _fit(2.6, 1.6)
+	data.wheels = data.wheels.filter(func(w: Dictionary) -> bool: return w.id != "RF")
+	data.wheels[0].id = "C1"
+	data.wheels[0].side = "C"
+	data.wheels[0].center[0] = 0.0
+	var r := Fitting.fit(_platform, data)
+	assert_int(r.physics_wheels.size()).is_equal(4)
+	# The centre wheel shows both front physics wheels, which take the rear's track.
+	assert_int(r.wheel_map[0].size()).is_equal(2)
+	var front: Array = r.physics_wheels.filter(func(w: Dictionary) -> bool: return w.axle == 1)
+	assert_float(front[0].center.x - front[1].center.x).is_equal_approx(1.6, 0.0001)
+
+
+func test_middle_axle_is_visual_only() -> void:
+	var data := _fit(2.6, 1.6)
+	for side in ["L", "R"]:
+		var x := 0.8 if side == "L" else -0.8
+		data.wheels.append({ "id": side + "2", "axle": 2, "side": side, "center": [x, 0.3, -0.5], "radius": 0.3, "width": 0.22 })
+	for w: Dictionary in data.wheels:
+		if w.id in ["LR", "RR"]:
+			w.axle = 3
+	var r := Fitting.fit(_platform, data)
+	assert_int(r.physics_wheels.size()).is_equal(4)
+	assert_float(r.physics_wheels[2].center.z).is_equal_approx(-1.3, 0.0001) # rear = the last axle
+	assert_int(r.wheel_map[4].size()).is_equal(1) # the middle wheels follow the rear ones
+
+
+func test_strict_fitting_uses_the_reference() -> void:
+	var r := Fitting.fit(_platform, _fit(2.35, 1.5), "strict")
+	var front: Dictionary = r.physics_wheels[0]
+	var rear: Dictionary = r.physics_wheels[2]
+	assert_float(front.center.z - rear.center.z).is_equal_approx(2.6, 0.0001)
+	assert_float(front.center.x - r.physics_wheels[1].center.x).is_equal_approx(1.6, 0.0001)
+	assert_float(front.radius).is_equal_approx(0.33, 0.0001)
+	assert_float(front.visual_radius).is_equal_approx(0.3, 0.0001)
+	assert_float(front.center.y - front.radius).is_equal_approx(r.ground_y, 0.0001)
+	assert_vector(r.envelope.size).is_equal_approx(Vector3(1.875, 1.225, 4.35), Vector3.ONE * 0.0001)
+
+
 func test_ground_comes_from_the_wheels() -> void:
 	var data := _fit(2.6, 1.6)
 	data.ground_y = -0.05

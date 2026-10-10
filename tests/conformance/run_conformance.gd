@@ -69,8 +69,8 @@ func _run_platform(platform: Dictionary, platform_hash: String, options: Diction
 	var jobs := []
 	var index := []
 	for config in configs:
-		var fitted := Fitting.fit(platform, config.fit)
-		var geometry := { "ground_y": fitted.ground_y, "wheels": fitted.wheels }
+		var fitted := Fitting.fit(platform, config.fit, config.get("mode", "normal"))
+		var geometry := { "ground_y": fitted.ground_y, "wheels": fitted.physics_wheels }
 		for maneuver in NossConformance.maneuvers():
 			jobs.append({ "platform": platform, "geometry": geometry, "maneuver": maneuver, "options": options })
 			index.append([config, maneuver, fitted])

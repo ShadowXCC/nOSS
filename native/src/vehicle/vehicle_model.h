@@ -118,7 +118,8 @@ struct PlatformSpec {
 
 struct WheelGeometry {
 	V3 hub; // static hub center, body frame
-	double radius = 0.3; // visual radius: the contact offset
+	double radius = 0.3; // contact offset: the hub's height above the ground
+	double visual_radius = 0.0; // the drawn wheel's, for its spin; 0 = radius
 	int axle = 0; // 0 front, 1 rear
 	int side = 1; // +1 left, -1 right
 };

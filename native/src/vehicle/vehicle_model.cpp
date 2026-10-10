@@ -662,7 +662,8 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 		w.fx = sum_fx[i] / SUBSTEPS;
 		w.fy = sum_fy[i] / SUBSTEPS;
 		w.mz = sum_mz[i] / SUBSTEPS;
-		w.spin_angle = std::fmod(w.spin_angle + w.omega * p_dt * (r / std::max(wc.geo.radius, 0.05)), 2.0 * PI);
+		double drawn = wc.geo.visual_radius > 0.0 ? wc.geo.visual_radius : wc.geo.radius;
+		w.spin_angle = std::fmod(w.spin_angle + w.omega * p_dt * (r / std::max(drawn, 0.05)), 2.0 * PI);
 		if (!w.contact) {
 			w.slip_speed = 0.0;
 			continue;

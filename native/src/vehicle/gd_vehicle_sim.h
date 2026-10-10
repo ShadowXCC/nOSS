@@ -30,7 +30,7 @@ public:
 
 	// Calling it again keeps engine, gearbox and wheel state (hotswap).
 	// platform: a validated platform with defaults merged (PlatformLoader).
-	// geometry: {ground_y, wheels: [{center: Vector3, radius, axle (1 = front), side ("L"/"R")}]}.
+	// geometry: Fitting's physics wheels, see parse_geometry().
 	bool configure(const godot::Dictionary &p_platform, const godot::Dictionary &p_geometry);
 	godot::String get_error() const { return _error; }
 	// {mass, center_of_mass, inertia} for the RigidBody3D.

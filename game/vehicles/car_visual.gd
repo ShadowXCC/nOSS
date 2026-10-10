@@ -19,7 +19,9 @@ var package: VehiclePackage
 var fitted: Fitting.Result
 var model_root: Node3D
 
-var _wheels: Array[Dictionary] = [] # per fit wheel: {id, hubs: [[node, rest]], spins: [[node, rest]], radius}
+## Per fit wheel: {id, hubs: [[node, rest]], spins: [[node, rest]], up, lift, stock: [hub, rest, spinner] or []}.
+## up is the steering axis and lift one metre of vehicle-frame up, in the hubs' parent space.
+var _wheels: Array[Dictionary] = []
 var _steering: Array[Array] = [] # [node, rest, pivot, axis]
 var _paint := {} # slot -> ShaderMaterial
 var _brake_materials: Array[BaseMaterial3D] = []
@@ -53,13 +55,17 @@ static func create(pkg: VehiclePackage, fit_result: Fitting.Result) -> CarVisual
 ## Pose one wheel. steer: rad (+ = left), spin: rad (+ = rolling forward), lift: m (+ = up).
 func set_wheel(index: int, steer: float, spin: float, lift: float) -> void:
 	var w: Dictionary = _wheels[index]
-	var up: Vector3 = w.local_up
+	var up: Vector3 = w.up
 	for pair: Array in w.hubs:
 		var rest: Transform3D = pair[1]
-		pair[0].transform = Transform3D(Basis(up, steer) * rest.basis, rest.origin + up * (lift / w.scale))
+		pair[0].transform = Transform3D(Basis(up, steer) * rest.basis, rest.origin + w.lift * lift)
 	for pair: Array in w.spins:
 		var rest: Transform3D = pair[1]
 		pair[0].transform = Transform3D(Basis(Vector3.RIGHT, spin) * rest.basis, rest.origin)
+	if not w.stock.is_empty():
+		var center: Vector3 = w.stock[1]
+		w.stock[0].transform = Transform3D(Basis(Vector3.UP, steer), center + Vector3.UP * lift)
+		w.stock[2].transform = Transform3D(Basis(Vector3.RIGHT, spin), Vector3.ZERO)
 
 
 ## Rotates the steering wheel node. angle: rad, + = left.
@@ -101,20 +107,33 @@ func _setup() -> void:
 	for pattern: String in fit.get("hide_nodes", []):
 		for node in model_root.find_children(pattern, "Node3D", true, false):
 			node.visible = false
-	var animate: bool = fit.wheel_mode == "model"
+	# model: the model's wheels move; static: they're part of the body and stay put;
+	# stock: they're hidden and the platform's stock wheels are drawn at the anchors.
+	var mode: String = fit.wheel_mode
+	var to_model := fitted.model_xform.basis.inverse()
 	for i in fit.wheels.size():
 		var fw: Dictionary = fit.wheels[i]
 		var fitted_wheel: Dictionary = fitted.wheels[i]
-		var w := { "id": fw.id, "hubs": [], "spins": [], "scale": fitted.model_xform.basis.get_scale().y, "local_up": Vector3.UP }
-		for node in _find_all(fw.get("node", "")):
-			var rest := node.transform
-			# Track clamping moves the wheel along the axle (Fitting, §4.1 step 3).
-			var to_parent := _xform_to(node.get_parent())
-			rest.origin += to_parent.basis.inverse() * Vector3(fitted_wheel.shift, 0, 0)
-			node.transform = rest
-			w.hubs.append([node, rest])
-			w.local_up = (to_parent.basis.inverse() * Vector3.UP).normalized()
-		if animate:
+		var w := { "id": fw.id, "hubs": [], "spins": [], "up": Vector3.UP, "lift": Vector3.UP, "stock": [] }
+		if mode == "stock":
+			for node in _find_all(fw.get("node", "")) + _find_all(fw.get("spin_node", "")):
+				node.visible = false
+			var hub := StockWheel.create(fitted_wheel.radius, fitted_wheel.width)
+			hub.name = "StockWheel_" + String(fw.id)
+			hub.position = fitted_wheel.center
+			add_child(hub)
+			w.stock = [hub, fitted_wheel.center, hub.get_child(0)]
+		elif mode == "model":
+			for node in _find_all(fw.get("node", "")):
+				var rest := node.transform
+				# Vehicle-frame vectors in the hub's parent space, through the model transform.
+				var to_parent := _xform_to(node.get_parent()).basis.inverse() * to_model
+				# Track clamping moves the wheel along the axle (Fitting, §4.1 step 3).
+				rest.origin += to_parent * Vector3(fitted_wheel.shift, 0, 0)
+				node.transform = rest
+				w.hubs.append([node, rest])
+				w.lift = to_parent * Vector3.UP
+				w.up = w.lift.normalized()
 			for node in _find_all(fw.get("spin_node", "")):
 				w.spins.append([node, node.transform])
 		_wheels.append(w)

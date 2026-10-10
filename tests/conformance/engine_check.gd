@@ -109,7 +109,7 @@ func _steer() -> float:
 
 
 func _finish() -> void:
-	var geometry := { "ground_y": _vehicle.fitted.ground_y, "wheels": _vehicle.fitted.wheels }
+	var geometry := { "ground_y": _vehicle.fitted.ground_y, "wheels": _vehicle.fitted.physics_wheels }
 	var jobs := []
 	for maneuver in ["launch", "braking"]:
 		jobs.append({ "platform": _vehicle.platform, "geometry": geometry, "maneuver": maneuver, "options": {} })

@@ -147,7 +147,13 @@ bool parse_geometry(const Dictionary &p_geometry, Geometry &r_geometry, String &
 		WheelGeometry wg;
 		wg.hub = V3(c.x, c.y, c.z);
 		wg.radius = double(w.get("radius", 0.3));
-		wg.axle = std::clamp(int(w.get("axle", 1)) - 1, 0, 1);
+		wg.visual_radius = double(w.get("visual_radius", 0.0));
+		int axle = int(w.get("axle", 1));
+		if (axle < 1 || axle > 2) {
+			r_error = "Physics wheels must be on axle 1 or 2";
+			return false;
+		}
+		wg.axle = axle - 1;
 		String side = w.get("side", "L");
 		wg.side = side == "L" ? 1 : side == "R" ? -1 : 0;
 		r_geometry.wheels.push_back(wg);

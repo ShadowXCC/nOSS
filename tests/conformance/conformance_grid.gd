@@ -7,7 +7,7 @@ const GROUND_Y := -0.15
 const LEVELS := ["min", "ref", "max"]
 
 
-## [{id, wheelbase, track, radius, fit}], the reference config first. `quick` keeps the
+## [{id, wheelbase, track, radius, fit, mode?}], the reference config first. `quick` keeps the
 ## reference and the four wheelbase/track corners.
 static func configs(platform: Dictionary, quick := false) -> Array[Dictionary]:
 	var geo: Dictionary = platform.geometry
@@ -33,6 +33,10 @@ static func configs(platform: Dictionary, quick := false) -> Array[Dictionary]:
 	out.append(_extra(platform, "asym_track", lr, 1.04 * tr, 0.96 * tr, rr))
 	# fit.json's ground line is 3 cm off from where the wheels touch down.
 	out.append(_extra(platform, "ground_off", lr, tr, tr, rr, 0.03))
+	# A server's strict fitting: physics on the reference geometry whatever the model.
+	var strict := _extra(platform, "strict", geo.wheelbase_m.min, geo.track_m.max, geo.track_m.max, geo.wheel_radius_m.max)
+	strict.mode = "strict"
+	out.append(strict)
 	return out
 
 

@@ -20,6 +20,13 @@ class Result:
 	var eye_point := Vector3.ZERO
 	## Player-facing notes such as "Scaled to 92%" or "Wheels moved 4 cm in".
 	var notes := PackedStringArray()
+	## "normal" or "strict" (physics on the reference geometry, docs/PLATFORMS.md §4.2).
+	var mode := "normal"
+	## Wheels the sim drives, one per wheel of the platform's layout (§4.4):
+	## {axle (1 = front), side, center: Vector3, radius, visual_radius}.
+	var physics_wheels: Array[Dictionary] = []
+	## Per model wheel (fit.json order), the physics wheels whose motion it shows.
+	var wheel_map: Array[PackedInt32Array] = []
 
 
 ## True if a model of `family` (from its manifest) may mount `platform` (docs/PLATFORMS.md §4.4).
@@ -27,8 +34,9 @@ static func compatible(platform: Dictionary, family: String) -> bool:
 	return family in platform.get("accepts_families", [platform.get("family", "")])
 
 
-static func fit(platform: Dictionary, fit_data: Dictionary) -> Result:
+static func fit(platform: Dictionary, fit_data: Dictionary, mode := "normal") -> Result:
 	var r := Result.new()
+	r.mode = mode
 	var geo: Dictionary = platform.geometry
 	var mt: Dictionary = fit_data.model_transform
 	var rot: Array = mt.rotation_deg
@@ -101,7 +109,95 @@ static func fit(platform: Dictionary, fit_data: Dictionary) -> Result:
 	else:
 		# Auto: driver's side, a little behind the middle, below the roof.
 		r.eye_point = Vector3(r.track * 0.22, r.model_bounds.end.y - 0.18, center.z - 0.1)
+
+	_physics_wheels(r, platform)
+	if mode == "strict":
+		# The reference box, where the model is.
+		var ref_size := Vector3(_mid(limits.width), _mid(limits.height), _mid(limits.length))
+		r.envelope = AABB(Vector3(center.x - ref_size.x / 2.0, r.model_bounds.position.y, center.z - ref_size.z / 2.0), ref_size)
 	return r
+
+
+## One physics wheel per wheel of the platform's layout. Platform axle 1 is the model's first
+## axle and the platform's last its last; model axles in between are visual only. In strict
+## mode the wheels sit at the reference wheelbase, track and radius.
+static func _physics_wheels(r: Result, platform: Dictionary) -> void:
+	var layout: Array = platform.layout.axles
+	var geo: Dictionary = platform.geometry
+	var model_axles := []
+	for w in r.wheels:
+		if w.axle not in model_axles:
+			model_axles.append(w.axle)
+	model_axles.sort()
+	var sources := [] # model axle per platform axle
+	for a in layout.size():
+		var t := float(a) / maxf(layout.size() - 1, 1)
+		sources.append(model_axles[roundi(t * (model_axles.size() - 1))])
+
+	var axle_data := []
+	for a in layout.size():
+		var on_axle: Array = r.wheels.filter(func(w: Dictionary) -> bool: return w.axle == sources[a])
+		var d := { "z": 0.0, "y": 0.0, "radius": 0.0, "x_mid": 0.0, "half": -1.0 }
+		var lx := []
+		var rx := []
+		for w: Dictionary in on_axle:
+			d.z += w.center.z / on_axle.size()
+			d.y += w.center.y / on_axle.size()
+			d.radius += w.radius / on_axle.size()
+			d.x_mid += w.center.x / on_axle.size()
+			if w.side == "L":
+				lx.append(w.center.x)
+			elif w.side == "R":
+				rx.append(w.center.x)
+		if not lx.is_empty() and not rx.is_empty():
+			var left: float = lx.reduce(func(s: float, x: float) -> float: return s + x, 0.0) / lx.size()
+			var right: float = rx.reduce(func(s: float, x: float) -> float: return s + x, 0.0) / rx.size()
+			d.half = (left - right) / 2.0
+			d.x_mid = (left + right) / 2.0
+		axle_data.append(d)
+	# An axle without a left/right pair (a centre wheel) takes another axle's track.
+	for d: Dictionary in axle_data:
+		if d.half < 0.0:
+			var paired := axle_data.filter(func(o: Dictionary) -> bool: return o.half >= 0.0)
+			d.half = paired[0].half if not paired.is_empty() else float(geo.track_m.ref) / 2.0
+
+	var strict := r.mode == "strict"
+	var z_mid: float = (axle_data[0].z + axle_data[-1].z) / 2.0
+	for a in layout.size():
+		var d: Dictionary = axle_data[a]
+		var z: float = d.z
+		var half: float = d.half
+		var radius: float = d.radius
+		var y: float = d.y
+		if strict:
+			var t := float(a) / maxf(layout.size() - 1, 1)
+			z = z_mid + float(geo.wheelbase_m.ref) * (0.5 - t)
+			half = float(geo.track_m.ref) / 2.0
+			radius = float(geo.wheel_radius_m.ref)
+			y = r.ground_y + radius
+		var sides := ["L", "R"] if int(layout[a].wheels) == 2 else ["C"]
+		for side: String in sides:
+			var x: float = d.x_mid + (half if side == "L" else -half if side == "R" else 0.0)
+			r.physics_wheels.append({
+				"axle": a + 1, "side": side, "center": Vector3(x, y, z), "radius": radius, "visual_radius": d.radius,
+			})
+
+	# Each model wheel shows the physics wheel on its side of the matching (or nearest) axle.
+	for w in r.wheels:
+		var best := 0
+		for a in layout.size():
+			if absf(axle_data[a].z - w.center.z) < absf(axle_data[best].z - w.center.z):
+				best = a
+		var mapped := PackedInt32Array()
+		for j in r.physics_wheels.size():
+			var pw: Dictionary = r.physics_wheels[j]
+			if pw.axle == best + 1 and (pw.side == w.side or pw.side == "C" or w.side == "C"):
+				mapped.append(j)
+		r.wheel_map.append(mapped)
+
+
+static func _mid(range_: Array) -> float:
+	return (float(range_[0]) + float(range_[1])) / 2.0
 
 
 static func _last_axle(fit_data: Dictionary) -> int:

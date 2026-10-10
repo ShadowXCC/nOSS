@@ -188,15 +188,15 @@ The conformance runner (§5) measures every official platform across its whole g
 
 ### 4.3 Collision envelope
 
-The convex hull of the model is clamped to `geometry.envelope_m` (length, width, height). Mass and inertia **never** come from the hull. In `strict` mode the reference box is used.
+The convex hull of the model is clamped to `geometry.envelope_m` (length, width, height). Mass and inertia **never** come from the hull. In `strict` mode the reference box is used: the middle of each `envelope_m` range.
 
 ### 4.4 Model and platform compatibility
 
 | Model | Platform family | Result |
 |---|---|---|
 | 4 wheels on 2 axles | `car`, `open` | Normal fit |
-| 3 wheels | `car`, `open` | Physics uses the platform's layout. The single visual wheel sits on the axle centerline. |
-| More axles than the platform has | any | Extra axles are visual only: they spin and follow the ground by raycast, with no forces. |
+| 3 wheels | `car`, `open` | Physics uses the platform's layout. The single visual wheel sits on the axle centerline and shows both physics wheels of its axle, which take the other axle's track. |
+| More axles than the platform has | any | Platform axle 1 is the model's first axle and the platform's last its last. Axles in between are visual only: they follow the nearest physics axle's spin and lift, with no forces. |
 | Fewer axles than a `truck` platform | `truck` | Missing contact points are interpolated and invisible. |
 | 2 inline wheels | `moto` only | Moto module |
 | Not a 2-wheeler | `moto` | Rejected: "Needs a 2-wheel model" |
