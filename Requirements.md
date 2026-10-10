@@ -80,7 +80,7 @@ Detail: [GAMEMODES.md](docs/GAMEMODES.md)
 |---|---|---|
 | MODE-01 | Track free-drive: single player, lap timer. | M1 |
 | MODE-02 | Track racing: practice, qualifying, race, time trial with ghosts, track limits. | M4 |
-| MODE-03 | Highway (No Hesi-style): cruise, score attack, point-to-point runs through traffic. | M7 |
+| MODE-03 | Highway (No Hesi-style): cruise, score attack, point-to-point runs and a two-way loop, all through traffic. | M7 |
 | MODE-04 | Highway police: heat, pursuit, bust and evade. | M7 |
 | MODE-05 | Kart: items, drift-boost, playable on any track, stunt tracks, battle arenas. | M8 |
 | MODE-06 | Endless (Slow Roads-style): procedural infinite road, biomes, traffic, minimal UI, autodrive. | M9 |

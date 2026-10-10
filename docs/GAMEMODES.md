@@ -70,7 +70,7 @@ Original names and effects. Each racer holds one item, and triple items count as
 
 *MODE-03, MODE-04, AI-03, AI-04, EDT-10. Milestone M7.*
 
-High-speed driving through traffic on long multi-lane highways with on/off ramps. The first map is built with the editor; a procedural highway generator comes later.
+High-speed driving through traffic on long multi-lane highways with on/off ramps, either open-ended or a closed loop. The first map is built with the editor; a procedural highway generator comes later.
 
 ### Traffic
 
@@ -86,6 +86,7 @@ High-speed driving through traffic on long multi-lane highways with on/off ramps
 | **Cruise** | Free roam. No score. Chat. "Join friend" teleports you to a friend. |
 | **Score attack** | Near-miss scoring with combos (below) |
 | **Runs** | Point-to-point between exits or markers through traffic. Rolling start, checkpoints. Solo time attack or head-to-head. |
+| **Loop** | A closed highway driven both ways. You keep meeting the same players and traffic each lap (below). |
 | **Police** | Toggle that layers on top of any sub-mode (below) |
 
 ### Score attack
@@ -107,6 +108,21 @@ High-speed driving through traffic on long multi-lane highways with on/off ramps
 - **Busted:** police contact while your speed stays under 10 km/h for 3 s. You lose unbanked score and heat, and respawn.
 - **Evade:** break line of sight and keep > 300 m away until the cooldown ends.
 - Police drive **Interceptor** platforms. Players as police comes later (M10+).
+
+### Loop
+
+A highway that closes on itself, like a city ring expressway. The world feels lived-in: the same players, cars and landmarks come round again.
+
+- **Map:** a `highway` track whose main road forms a closed loop ([TRACK_EDITOR.md §1](TRACK_EDITOR.md#1-track-types)), with two carriageways (clockwise and counter-clockwise) split by a barrier, plus ramps.
+- **Direction:** pick one when you spawn. Switch at any interchange, or pick again when you respawn.
+- **Other players:** players going the other way pass you head-on across the barrier, so you keep seeing them. At similar speeds, two players going opposite ways meet about twice per lap. Players going your way are caught or catch you. Nameplates show across the barrier, and horn and light flashes work as greetings.
+- **Persistent traffic:** the loop's whole traffic population keeps circulating instead of despawning behind you, so you pass the same cars again. A few vehicles leave and join at ramps so it never feels frozen.
+  - Every traffic car on the loop is a lightweight lane follower in `noss_core`. Only cars near a player become full vehicles.
+  - Online, the server still sends just a seed plus ramp spawn and exit events ([NETWORKING.md §6](NETWORKING.md#6-server-owned-simulation)).
+- **Fixed sights:** skyline, bridges, tunnels and signs stay put, so laps become familiar.
+- **Lap time:** optional. A gantry marks the lap line and each direction has its own best time. Local and per-server leaderboards.
+- **Wrong way:** ramps are one-way. Driving against traffic shows "Wrong way" and pauses scoring.
+- **Combines with:** cruise, score attack and police all run on a loop map.
 
 ## 4. Endless
 

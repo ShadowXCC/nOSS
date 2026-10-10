@@ -4,7 +4,7 @@
 
 nOSS (NOS + Open Source Software) is a free, open-source racing game. You can import almost any 3D vehicle model and mount it on a standardized **platform**. The platform, chosen by gamemode and class, controls all performance and handling, so races stay fair no matter what you bring.
 
-- **Modes:** track racing, kart (with items), highway traffic runs (score attack, police), endless scenic drive
+- **Modes:** track racing, kart (with items), highway traffic runs (score attack, two-way loop, police), endless scenic drive
 - **Local play:** up to 4 players in splitscreen or one monitor each
 - **Online:** up to 16 players on self-hosted servers. Cars and tracks auto-transfer.
 - **Input:** keyboard, controller, wheel/pedals/shifter with force feedback

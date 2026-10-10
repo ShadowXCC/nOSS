@@ -112,13 +112,14 @@ The GitHub repo (`git@github.com:ShadowXCC/nOSS.git`) is created and pushed afte
 
 ## M7: Highway
 
-- Highway map with ramps (EDT-10). Traffic AI, server-seeded (AI-03).
-- Cruise, score attack, runs (MODE-03). Police v1 with heat, pursuit, bust and evade (MODE-04, AI-04).
+- Highway map with ramps that closes into a two-way loop, so one map serves every sub-mode (EDT-10). Traffic AI, server-seeded, persistent on the loop (AI-03).
+- Cruise, score attack, runs, loop (MODE-03). Police v1 with heat, pursuit, bust and evade (MODE-04, AI-04).
 - Highway Super and Interceptor platforms. Original traffic vehicle set.
 
 **Acceptance:**
 - [ ] 16 players plus 150 traffic cars stay in sync online at 60 fps on mid-range hardware.
 - [ ] A score attack combo banks and loses as specified.
+- [ ] On the loop, players going opposite ways pass each other every lap, and the same traffic cars come round again.
 
 ## M8: Kart
 

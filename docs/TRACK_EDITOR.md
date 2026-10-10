@@ -10,7 +10,7 @@ An in-game editor, built with Godot's UI (not the Godot editor), for building, i
 |---|---|---|
 | `circuit` | Track, Kart | Closed loop |
 | `p2p` | Track, Highway runs, Kart | Point to point |
-| `highway` | Highway | Multi-lane network with ramps (EDT-10, M7) |
+| `highway` | Highway | Multi-lane network with ramps (EDT-10, M7). The main road can close into a two-way loop for the Loop sub-mode. |
 | `arena` | Kart battle | Open area, no lap logic |
 
 Endless mode generates its roads procedurally and doesn't use editor tracks. It shares the same road and terrain mesh code.
