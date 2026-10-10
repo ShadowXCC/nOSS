@@ -78,7 +78,7 @@ Example: an official Track/GT platform. All values are illustrative and get tune
     "reverse": 3.0, "final_drive": 3.70, "shift_time_s": 0.07
   },
   "differential": { "type": "lsd_clutch", "preload_nm": 80, "power_lock": 0.45, "coast_lock": 0.25 },
-  "brakes": { "max_torque_nm": 3400, "bias_front": 0.62 },
+  "brakes": { "max_torque_nm": 6000, "bias_front": 0.62 },
   "suspension": {
     "front": { "freq_hz": 2.8, "damping_bump": 0.55, "damping_rebound": 0.75, "travel_m": 0.08 },
     "rear":  { "freq_hz": 2.6, "damping_bump": 0.55, "damping_rebound": 0.75, "travel_m": 0.09 },
@@ -114,6 +114,8 @@ Example: an official Track/GT platform. All values are illustrative and get tune
 ```
 
 **Design notes:**
+- `brakes.max_torque_nm` is the total brake torque at full pedal, split by `bias_front` (D38).
+- `geometry.ride_height_m` is not used yet: in M1 the model's own ground line sets the static ride height.
 - Suspension is specified as **natural frequency and damping ratio**, not spring rates. Rates are derived from sprung mass, so they don't depend on geometry (§4).
 - A missing optional block uses a family default (`data/platforms/_defaults/<family>.json`).
 - `id` namespaces: `official.*` is reserved and loads only from the game's own `data/`. Custom platforms use `<author>.<name>`.

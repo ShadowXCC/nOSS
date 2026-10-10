@@ -41,12 +41,21 @@ Append-only log. To change a decision, add a new row that supersedes the old one
 | D31 | 2026-10-09 | Godot version (Q1) | **Godot 4.7.2-stable**, standard (non-.NET) build. Native code targets the 4.7 API (godot-cpp **10.0.0**, `api_version=4.7`). | Latest stable at M0. godot-cpp 10 is versioned separately from Godot and builds against a chosen API level. |
 | D32 | 2026-10-09 | Native build system (Q2) | **SCons** | godot-cpp's primary build. The project is small, and CMake brings no clear win. |
 | D33 | 2026-10-09 | Dev tools | Project-local and pinned: Godot in `.tools/godot/` (self-contained mode), SCons and jsonschema in `.venv/`, all set up by `tools/setup_dev.sh`. Third-party code is pinned by submodule tag. | Nothing installed system-wide, so it's easy to remove. Everyone builds with the same versions. |
+| D34 | 2026-10-10 | Physics thread (Q3) | **Main thread** (Godot's default) for M1. | One player and one car run far above budget (165 fps, vsync-capped, on the dev machine). Revisit in M3 if 4 players or AI need it. |
+| D35 | 2026-10-10 | SDL3 for wheels (R1 spike) | `noss_core` **loads SDL3 at runtime** (no link-time dependency) and only opens **non-gamepad** devices, with HIDAPI off. Godot keeps gamepads. Linux uses the system `libSDL3.so.0`; Windows ships the official `SDL3.dll` next to the game. Without SDL3, wheels are off and everything else works. | No CMake build of SDL needed. Godot doesn't export its own SDL symbols, so the two copies can't clash, and splitting devices by class means they never fight over one. Spike result in [INPUT.md §2](INPUT.md#2-input-sources). |
+| D36 | 2026-10-10 | Wheel contact in VehicleSim v1 | One **ray per wheel** from above the top of travel, with the compression rate taken along the ground normal. Shape casts come later. | Simple and robust on the flat Proving Ground. Curb edges are a known v1 roughness. |
+| D37 | 2026-10-10 | Track file before the editor | Interim `noss.track/0` JSON: centreline control points (closed centripetal Catmull-Rom), width, start, sectors, a few set pieces. The builder makes road, curbs, terrain, barriers and scenery at load time. | Enough for the Proving Ground until `.nosstrack` arrives with the editor in M6. |
+| D38 | 2026-10-10 | Platform `brakes.max_torque_nm` | Total brake torque at full pedal, split by `bias_front`. Track / GT raised to 6000 Nm. | 3400 Nm total only gave 0.8 g. 6000 Nm can lock the tires, so ABS matters. |
+| D39 | 2026-10-10 | FM4 eye point | Seat's lowest point + 0.75 m, capped 0.17 m below the roof, 0.30 m forward of the seat back, in line with the steering wheel. The driver's side comes from the steering wheel's position (`--rhd`/`--lhd` override). | The spec's "seatL + 0.65 m" put the eye above the roof (FM4 seat pivots are mid-seat). Checked in-car on the NSX. |
+| D40 | 2026-10-10 | Texture limit | The 256 MB package limit counts decoded RGBA pixels of all LODs, **without** mipmaps. | Matches "decoded texture memory". With mipmaps counted, the Mustang (220 MB decoded) was rejected. |
+| D41 | 2026-10-10 | Import cache | Runtime load step 6 (machine-generated `.scn` cache) deferred. | A 200k-triangle FM4 car loads in about 2 s with GPU uploads, well under NFR-04's 5 s. |
+| D42 | 2026-10-10 | Windows builds | Cross-compiled on Linux with **LLVM MinGW** (pinned, project-local), exported with Godot's Windows template. Tested under Wine 10 with Vulkan. | No Windows machine needed for CI-style builds. The DLL only imports KERNEL32 and the Universal CRT. |
 
 ## Risks
 
 | # | Risk | Impact | Mitigation | When |
 |---|---|---|---|---|
-| R1 | Godot's built-in SDL3 (joypads) and our SDL3 (wheels/FFB) both open the same device | Wheel input or FFB breaks | Spike in M1. Fallback: native layer owns wheel-class devices, Godot ignores them by GUID. | M1 |
+| R1 | Godot's built-in SDL3 (joypads) and our SDL3 (wheels/FFB) both open the same device | Wheel input or FFB breaks | Done in M1 (D35): the native layer owns non-gamepad devices from the start, and Godot's gamepad buttons only listen to the chosen gamepad. Coexistence confirmed on Linux with a gamepad attached; wheel FFB awaits a hardware test. | M1 |
 | R2 | Handling normalization leaves residual differences (longitudinal load transfer) | Unfair classes | Conformance tests at ±2%, tight geometry ranges, `strict` fitting option | M2 |
 | R3 | Runtime FBX import quality varies; OBJ has no runtime loader | Some models fail to import | GLB first. FBX through `FBXDocument`. Document Blender export. OBJ loader only if demand appears. | M2 |
 | R4 | Untrusted model and track files (parser bugs, decompression bombs) | Crashes, exploits | Pre-parse limits, worker thread with timeout, no Godot resource formats, hash checks | M1+ |
@@ -63,7 +72,7 @@ Append-only log. To change a decision, add a new row that supersedes the old one
 |---|---|---|
 | Q1 | ~~Exact Godot version to pin (latest stable at M0)~~ Decided: D31 | M0 |
 | Q2 | ~~SCons vs. CMake for `noss_core`~~ Decided: D32 | M0 |
-| Q3 | Run physics on Godot's separate physics thread? | M1 |
+| Q3 | ~~Run physics on Godot's separate physics thread?~~ Decided: D34 | M1 |
 | Q4 | Terrain: Terrain3D addon vs. our own | M6 |
 | Q5 | macOS signing and notarization (needs an Apple developer account) | First public release |
 | Q6 | macOS test hardware | M1–M5 |

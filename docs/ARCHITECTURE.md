@@ -164,7 +164,7 @@ Endless mode and large real-world maps go far beyond single-precision range.
 | Thread | Work |
 |---|---|
 | Main | Game logic, UI, scene tree, render submission |
-| Physics | Godot physics plus `VehicleSim` (Godot's physics-thread option, decided in M1) |
+| Physics | Godot physics plus `VehicleSim`, on the main thread for now (D34) |
 | Worker pool | Package validation, import and LOD generation; procedural chunk and terrain mesh builds; content transfer decode |
 | Native FFB | ~500 Hz loop that interpolates the latest FFB target and updates SDL3 haptic effects |
 

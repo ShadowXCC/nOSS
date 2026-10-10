@@ -25,6 +25,8 @@ The world look is a swappable **style profile** ([ARCHITECTURE.md §7](ARCHITECT
 | Particles | Low-count billboards: tire smoke, sparks, gravel, rain spray |
 | Budget | Steam Deck 60 fps @ 1280×800 Low (NFR-02) |
 
+**M1 (`retro_ps2` v0):** exponential distance fog, a painted sky shader (gradient, sun, cloud layer, two distant mountain silhouettes) that also feeds car reflections, procedural 64–256 px world textures, one low-res sun shadow, filmic tonemap and mild glow. The data lives in `data/styles/retro_ps2.json`; tracks use the `noss_world` shader, which reads the style's global uniforms.
+
 **Authoring rule:** world assets are made at retro budget, and may include optional hi-res texture sets (`_hi`, up to 2K) for future profiles. All world materials use the `noss_world` shader so profiles can restyle them.
 
 ## 3. Content and licensing
@@ -68,6 +70,8 @@ Players can customize every car's engine sound, and the result is saved inside t
 - **Layers:** turbo spool and whistle, blow-off, supercharger whine, gearbox whine (straight-cut option), lift-off crackle and backfire, limiter bounce, starter.
 - **Driven by the sim:** RPM, throttle, load (fraction of torque), boost, shift events.
 - **The sound never affects performance.** A profile's RPM range is remapped onto the platform's idle–redline, so a V12 profile works on a 7,000 rpm platform.
+
+**M1 placeholder:** on-load and off-load loops synthesized at start-up (original, no samples), pitched with rpm and cross-faded by throttle. Tire squeal and wind are synthesized the same way.
 
 ### Built-in profiles
 - **M2 starter set:** I4, cross-plane V8, flat-6, EV.

@@ -43,9 +43,9 @@ VehicleSim (per vehicle, C++)
 
 ## 3. Suspension
 
-- **Contact:** per-wheel **shape cast** (a cylinder, or a sphere as fallback) along the suspension axis from the hub's top-of-travel. Contact gives the normal, penetration, the collider's surface type and its velocity (for moving platforms).
+- **Contact:** per-wheel **shape cast** (a cylinder, or a sphere as fallback) along the suspension axis from the hub's top-of-travel. Contact gives the normal, penetration, the collider's surface type and its velocity (for moving platforms). *v1 casts one ray per wheel, starting a wheel radius above the top of travel so deep bumps still hit (D36). Surfaces come from the collider's `noss_surface` meta.*
 - **Springs:** `F = k·x` with `k` derived from the platform's natural frequency ([PLATFORMS.md §4.2](PLATFORMS.md#42-invariants-that-keep-performance-equal)), plus progressive bump stops in the last 15% of travel.
-- **Dampers:** separate bump and rebound damping ratios (linear in v1, with a fast/slow knee later).
+- **Dampers:** separate bump and rebound damping ratios (linear in v1, with a fast/slow knee later). The compression rate is the hub's speed toward the ground along the contact normal, so driving along a flat road never compresses the springs, even with the body pitched.
 - **Anti-roll bars:** `F = k_arb · (x_L − x_R)` per axle, sized to hit the target roll gradient and front share.
 - **Kart sub-type:** no suspension travel. A stiff contact spring only, with a spool axle.
 
@@ -108,7 +108,8 @@ The surface type comes from the collider (track material tag).
 
 - **Steering:** `δ_road = δ_input · δ_max_ref · (L / L_ref)` (normalized, [PLATFORMS.md §4.2](PLATFORMS.md#42-invariants-that-keep-performance-equal)). Ackermann geometry factor.
 - **Steer aid** (controller and keyboard): speed-sensitive lock reduction, plus counter-steer help that nudges toward the slip angle.
-- **TCS:** limits driven-wheel slip ratio by reducing torque.
+- **TCS:** limits driven-wheel slip by reducing torque. It also reacts to the combined slip, since a tire that's busy cornering breaks away before its slip ratio alone looks high.
+- **Auto-gearbox reverse:** holding the brake at a standstill selects reverse, and the brake pedal then drives backwards; throttle returns to first. Off throttle, it only upshifts near the redline.
 - **Stability control:** compares the target yaw rate (from steering and speed) with the measured rate, then brakes individual wheels.
 - **Auto-gearbox, auto-clutch, ABS:** see above.
 - **Racing line:** visual only (from the track's AI line), colored by target speed.
@@ -174,7 +175,16 @@ A separate `moto` module, since lean dynamics don't fit the 4-wheel core:
 - Steer axles can be 1 or 2. Driven axles are configurable.
 - Lift axles and trailers come later.
 
-## 14. Outputs
+## 14. Implementation notes (v1)
+
+- **Frames:** the body frame is the fitted model frame (+X left, +Y up, +Z forward). Steering input is +1 = right; road angles are + = left.
+- **Within a tick** the chassis state from Jolt is fixed. The 4 substeps integrate wheel spin, the engine and the tire relaxation states; the averaged force and torque go to Jolt.
+- **Wheel spin is implicit:** each tire's longitudinal force is linearized around the current slip, which adds an effective inertia, so stiff tires stay stable at any speed.
+- **Driveline as constraints:** clutch, limited-slip diff and brakes are torque-limited velocity constraints, solved with sequential impulses (8 iterations per substep). This handles slipping and locking clutches, diff lock and brake lock-up the same way.
+- **Lateral slip** uses the relaxation length as a carcass deflection state: it lags at speed and acts as a spring at a standstill, with extra damping below 3 m/s.
+- **Tests:** `tests/native/vehicle_test.cpp` drives the model with its own rigid-body harness: 0–100 km/h about 3.9 s, 100–0 km/h about 31 m with ABS, about 1.3 g on a skidpad-like corner, and no spin with TCS at full throttle out of a tight corner.
+
+## 15. Outputs
 
 Published each tick for the HUD, audio, FFB, the network, replays and UDP telemetry (AV-10):
 - Speed, RPM, gear, and throttle/brake/clutch/steer inputs.

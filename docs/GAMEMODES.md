@@ -33,6 +33,7 @@ Rules and flow for each mode. Every mode uses the same vehicle core ([PHYSICS.md
   - Strictness: off / lenient / strict, set per server.
 - **Flags:** green, yellow (stopped or slow car ahead), blue (being lapped, shown only), checkered.
 - **Wrong way:** a warning, then a respawn.
+- **Free-drive (M1):** a car reset puts the car back on the track at the last valid spot and stops the current lap counting. Jumping ahead along the track (cutting across) does the same.
 - **Collisions:** on, or **ghosted** (no car-to-car contact), set per server.
 - **Results:** position, total time, best lap, gaps. Championship points in career events.
 - **Pit lane, repairs, tire wear:** later (M10).

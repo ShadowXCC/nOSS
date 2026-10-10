@@ -14,7 +14,22 @@ nOSS (NOS + Open Source Software) is a free, open-source racing game. You can im
 
 ## Status
 
-**M0 (foundations) is done:** the project skeleton, the `noss_core` C++ extension, tests and JSON schemas. The game boots to a title screen. Next up is **M1**, the first drivable demo ([roadmap](docs/ROADMAP.md)).
+**M1 (first demo) is nearly done:** free-drive on the Proving Ground with the Track / GT platform, your own cars loaded as `.noss` packages, keyboard, controller and wheel (with force feedback), chase and cockpit cameras, a lap timer, and car hotswap. Still open: a wheel test on real hardware and a test on Windows itself. See the [roadmap](docs/ROADMAP.md).
+
+## Playing
+
+- **Free Drive** on the title screen, pick a car, drive. The original **nOSS Box** always works; your own cars come from the garage (`~/.local/share/nOSS/garage/` on Linux, `%APPDATA%\nOSS\garage` on Windows).
+- **Keys:** arrows or WASD to drive, Space handbrake, E/Q shift, C camera, B look back, R reset car, Tab change car while driving, Esc pause, F3 frame rate. Keys can be rebound in Settings. Controllers work out of the box.
+- **Wheel:** Settings → Wheel setup. Pick the device, set its rotation, detect steering and pedals by moving them, tune and test force feedback. Linux needs the system SDL3 (`libsdl3-0` on Ubuntu); Windows builds ship it.
+- **Assists** (ABS, traction control, auto gearbox, steer aid) and comfort options (camera shake, head movement, speed FOV, horizon lock) are in Settings. With the auto gearbox, holding the brake at a standstill selects reverse.
+
+### Converting FM4 rips (local use only)
+
+```sh
+python3 tools/fm4_to_noss.py "<...>/Forza Motorsport 4/models"   # every car folder inside, into the garage
+```
+
+Converted packages are marked `personal-use-only` and must never be shared or committed ([Requirements §6](Requirements.md#6-content-and-legal-policy)).
 
 ## Development (Linux)
 
@@ -24,9 +39,18 @@ Needs `git`, `curl`, `unzip`, `python3` (with `venv`) and a C++20 compiler (GCC 
 git clone --recursive <repo>       # or: git submodule update --init --recursive
 tools/setup_dev.sh                 # pinned Godot in .tools/, SCons in .venv/ (nothing system-wide)
 tools/build_native.sh              # builds noss_core into native/bin/
-tools/run_tests.sh                 # native, schema and GDScript tests, plus a boot check
+tools/run_tests.sh                 # native, schema, tools and GDScript tests, plus a boot check
 tools/godot.sh                     # runs the game; add -e for the editor
 ```
+
+**Exports** (Linux and Windows, cross-compiled with LLVM MinGW):
+
+```sh
+tools/setup_export.sh              # pinned export templates, LLVM MinGW, SDL3.dll (all project-local)
+tools/export.sh                    # builds release noss_core and exports to export/linux, export/windows
+```
+
+**Dev options** go after `--`, e.g. `tools/godot.sh -- --drive --autodrive --camera=cockpit`: `--drive`, `--car=<path>`, `--autodrive` (the line follower drives), `--camera=<chase_near|chase_far|cockpit>`, `--shot=<file.png> --shot-at=<s>`, `--quit-at=<s>`, `--fps`, `--log-drive`, `--swap-car=<path> --swap-at=<s>`, `--menu=<cars|settings>`.
 
 ## Docs
 

@@ -17,6 +17,21 @@ Each local player has their own set of actions:
 | Kart | `use_item`, `throw_back` (hold), `drift` |
 | UI | `pause`, `chat`, `scoreboard`, `confirm`, `cancel` |
 
+**M1 defaults** (keys rebindable in Settings; gamepad layout fixed for now):
+
+| Action | Keyboard | Gamepad |
+|---|---|---|
+| Steer | ← → / A D | Left stick |
+| Throttle, brake | ↑ ↓ / W S | Right, left trigger |
+| Handbrake | Space | A |
+| Shift up, down | E, Q | RB, LB |
+| Camera | C | Y |
+| Look back | B | R3 |
+| Reset car | R | View |
+| Change car | Tab | D-pad up |
+| Pause | Esc | Start |
+| FPS readout | F3 | — |
+
 ## 2. Input sources
 
 | Devices | Path |
@@ -28,6 +43,8 @@ Each local player has their own set of actions:
 **Risk** (tracked in [DECISIONS.md](DECISIONS.md)): Godot's built-in SDL3 and our SDL3 may both try to open the same wheel.
 - **M1 spike:** confirm they can coexist.
 - **Fallback:** the native layer owns wheel-class devices exclusively, and Godot ignores them, filtered by GUID.
+
+**Spike result (M1, D35):** the fallback became the design. `noss_core` loads SDL3 at runtime and opens only non-gamepad devices, with HIDAPI off. Godot keeps gamepads, and its gamepad buttons only listen to the chosen gamepad, so wheel buttons can't trigger actions. Godot doesn't export its own SDL symbols, so both copies run in one process. Confirmed on Linux (system SDL 3.4.2) with a gamepad attached, and on Windows under Wine (bundled SDL 3.4.18). Wheel FFB still needs a test on real hardware.
 
 ## 3. Joining and device assignment
 
@@ -54,7 +71,7 @@ Each local player has their own set of actions:
 
 *Requirements: INP-03, INP-04.*
 
-- **Calibration wizard:** wheel center and full lock. Pedal min and max, inverted pedals, combined-axis pedals. Handbrake axis or button.
+- **Calibration wizard:** wheel center and full lock. Pedal min and max, inverted pedals, combined-axis pedals. Handbrake axis or button. *M1: Settings → Wheel setup picks the device and detects each axis by moving it (steering from centre to full lock, pedals fully pressed). Rest and full positions are stored, so inverted pedals just work. Saved per player by device GUID.*
 - **Rotation range:**
   - Set the wheel's hardware range in settings.
   - The game applies a **soft lock** that matches the platform's `steering.wheel_rotation_deg` ([PHYSICS.md §11](PHYSICS.md#11-force-feedback)).

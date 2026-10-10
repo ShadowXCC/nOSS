@@ -114,6 +114,7 @@ These match the FM4 rips, so those convert with no manual work. Models that don'
   - `stock`: the model's wheels are hidden and the platform's stock wheels are drawn at the anchors.
   - `static`: the wheels are baked into the body and stay still, which is allowed but looks odd.
 - `null` cameras are auto-placed from the envelope.
+- `steering_wheel.visual_lock_deg` is the model's steering wheel rotation lock-to-lock, used with keyboard and controller. With a real wheel, the in-car wheel turns with it, up to the platform's lock.
 - `hide_nodes` takes glob patterns, e.g. FM4 alternate race parts like `*race`.
 
 ## 5. `paint.json`
@@ -224,7 +225,7 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 | LOD0 triangles | 500,000 |
 | Nodes / materials | 2,000 / 128 |
 | Texture size | 4096 × 4096 |
-| Decoded texture memory | 256 MB |
+| Decoded texture memory | 256 MB (RGBA pixels of all LODs, mipmaps not counted) |
 | Sound pack | 10 MB, 32 samples max |
 | Zip entries | 512 |
 
@@ -232,7 +233,7 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 - **Allowed file types:** `.json`, `.glb`, `.gltf` with embedded or zip-local buffers and images, `.png`, `.jpg`, `.ogg`, `.wav`. Everything else is rejected.
 - **Zip checks:** no absolute paths, no `..`, no symlinks, and entry count and compression ratio are capped (zip-bomb guard).
 - **Checked before full parsing:** GLB header and chunk sizes, accessor counts and image headers.
-- **glTF:** an allowlist of extensions, and no external or remote URIs.
+- **glTF:** an allowlist of extensions, and no external or remote URIs. Allowed: `KHR_materials_*` (clearcoat, emissive strength, IOR, specular, sheen, transmission, unlit, volume, pbrSpecularGlossiness), `KHR_texture_transform`, `KHR_mesh_quantization`, `KHR_lights_punctual`, `GODOT_single_root`. Rejected with a clear error: Draco, meshopt, WebP and BasisU.
 - **Never loaded from a package:** Godot resource formats (`.tscn`, `.scn`, `.tres`, `.res`), scripts, shaders.
 - **Isolation:** parsing runs on a worker thread with a timeout. On any failure the player sees "Car failed to load" and a placeholder appears in its place.
 - **Hash check:** every file is verified against the manifest before use.
@@ -242,11 +243,11 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 *Target: NFR-04. A 200k-triangle car is drivable in under 5 s; steps 1–2 run off the main thread.*
 
 1. Verify the zip and the manifest hashes, then check the limits.
-2. `GLTFDocument.append_from_buffer()` → `generate_scene()` on a worker thread.
+2. `GLTFDocument.append_from_buffer()` → `generate_scene()` on a worker thread. Mipmaps are generated for every texture; cameras and animation players in the model are dropped.
 3. Apply `fit.json`: transform, find hubs, hide nodes, map lights.
 4. Paint: replace `Paint_*` materials with the `noss_paint` shader material (slot color, finish, detail texture).
 5. LODs: attach `lodN.glb` meshes with visibility ranges from `lod_distances_m`.
-6. Cache the result in `user://cache/<hash>/` (machine-generated `.scn`) for fast reloads.
+6. Cache the result in `user://cache/<hash>/` (machine-generated `.scn`) for fast reloads. *Deferred (D41): FM4 cars already load in about 2 s.*
 7. Mount on the platform ([PLATFORMS.md §4](PLATFORMS.md#4-fitting-and-handling-normalization)).
 
 ## 11. FM4 converter (`tools/fm4_to_noss.py`)
@@ -254,8 +255,11 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 *Requirement: PKG-09. Milestone M1. Local use only. Packages it makes are marked `personal-use-only`.*
 
 ```
-python3 tools/fm4_to_noss.py "<…>/Forza Motorsport 4/models/ACU_NSX_97" --out ~/.local/share/nOSS/garage/
+python3 tools/fm4_to_noss.py "<…>/Forza Motorsport 4/models/ACU_NSX_97"   # into the garage
+python3 tools/fm4_to_noss.py "<…>/Forza Motorsport 4/models"              # every car in the folder
 ```
+
+The default output is the game's garage (`user://garage/`); `--out` picks another folder. The package id comes from the media name, so re-running updates the same car: an unchanged car is left alone, a changed one gets `version` + 1.
 
 | FM4 rip (`car.json`, `paint.json`, GLBs) | `.noss` | Notes |
 |---|---|---|
@@ -270,8 +274,11 @@ python3 tools/fm4_to_noss.py "<…>/Forza Motorsport 4/models/ACU_NSX_97" --out 
 | `dimensions.wheelbase`, `*_track_outer` | — (derived from wheels) | Warning if it differs from the derived value by >1 cm |
 | `curb_weight_kg`, `weight_distribution_front` | **ignored** | The platform decides mass. Rip values can be wrong (NSX says 13.6 kg). |
 | interior node `steering_wheel` | `steering_wheel.node` | |
-| `seatL` node position + (0, 0.65, 0) | `eye_point` | Heuristic. `--rhd` uses `seatR`. Adjust in Fitting Bay. |
+| `seatL`/`seatR` mesh bounds, `steering_wheel` | `eye_point` | Seat's lowest point + 0.75 m (capped 0.17 m below the roof), 0.30 m forward of the seat back, in line with the steering wheel (D39). The driver's side comes from the steering wheel's x; `--rhd`/`--lhd` override it. Adjust in Fitting Bay. |
 | sections `headlight*` | `lights.head` | Pattern |
+| materials `tail_light*`, `reverse_light*` | `lights.brake`, `lights.reverse` | Brake lights glow while braking |
+| nodes `exhaust*` | `exhaust_points` | |
+| `previews/<media>_front34.png` | `thumb.png` | Copied as is (not resized) |
 | `paint.json` `materials_in_glb` | `paint.slots` | |
 | `paint.json` `factory_colors[]` | `paint.presets[]` | `Normal` → `solid`, `Metallic` → `metallic` |
 | `year`, `make`, `media_name` | `manifest.name`, `source`, `tags` | "1997 Acura" + model, from media name |
