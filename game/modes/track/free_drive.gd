@@ -20,6 +20,8 @@ var platform_id := DEFAULT_PLATFORM
 var bay_return := false
 ## Cars can be swapped mid-drive (free drive, practice, cruise; docs/VEHICLE_PACKAGE.md §8).
 var hotswap_allowed := true
+## Only P1 drives, and nobody drops in (garage and Fitting Bay drives).
+var solo := false
 ## Dev: the line follower drives every player.
 var autodrive := false
 ## Dev: this many extra players driven by the line follower.
@@ -69,14 +71,14 @@ func _ready() -> void:
 	for i in ai_players:
 		Players.add_ai()
 	_apply_dev_layout()
-	for slot in Players.slots:
+	for slot in Players.slots.slice(0, 1 if solo else Players.MAX):
 		if autodrive:
 			slot.ai = true
 		_add_player(slot)
 	Players.remember_all()
 	Players.joined.connect(_on_joined)
 	Players.left.connect(_on_left)
-	Players.joining = not bay_return # drop in mid-drive
+	Players.joining = not solo # drop in mid-drive
 
 
 func _exit_tree() -> void:
@@ -135,6 +137,8 @@ func _on_joined(slot: PlayerSlot) -> void:
 
 
 func _on_left(slot: PlayerSlot) -> void:
+	if views.view(slot) == null:
+		return # not in this session (a solo drive)
 	for p in players:
 		if p.slot == slot:
 			if paused_by == p:
@@ -162,6 +166,12 @@ func _process(delta: float) -> void:
 			_dev_swapped = true
 			print("Swap at %.1f km/h" % (p1.vehicle.speed() * 3.6))
 			p1.load_car(Game.dev["swap-car"])
+	# Dev: --pause-at=<s> opens the last player's pause menu (screenshots).
+	if Game.dev.has("pause-at") and paused_by == null and not players.is_empty():
+		_dev_time += delta
+		if _dev_time >= float(Game.dev["pause-at"]):
+			Game.dev.erase("pause-at")
+			_open_pause(players[-1])
 	if Game.dev.has("fps"):
 		_fps_time += delta
 		_fps_frames += 1

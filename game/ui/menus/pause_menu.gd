@@ -16,7 +16,6 @@ var slot: PlayerSlot
 var bay_return := false
 ## Players other than P1 can drop out.
 var can_leave := false
-var _settings: SettingsMenu
 var _buttons: Array = []
 
 
@@ -29,7 +28,8 @@ func _ready() -> void:
 		UiKit.button("Resume", func() -> void: resumed.emit()),
 		UiKit.button("Reset car", func() -> void: reset_car.emit()),
 		UiKit.button("Change car", func() -> void: change_car.emit()),
-		UiKit.button("Settings", _open_settings),
+		UiKit.button("Settings", _open_settings, "Your controls, assists and HUD"),
+		UiKit.button("Game settings", _open_game_settings, "Graphics, sound, splitscreen"),
 		UiKit.button("Quit to title", func() -> void: quit_to_title.emit()),
 	]
 	if bay_return:
@@ -42,18 +42,15 @@ func _ready() -> void:
 
 
 func _open_settings() -> void:
-	_settings = SettingsMenu.new()
-	_settings.closed.connect(func() -> void:
-		_settings.queue_free()
-		_settings = null
-		for child in get_children():
-			if child is CanvasItem:
-				child.visible = true
-		_ready_focus())
-	for child in get_children():
-		if child is CanvasItem:
-			child.visible = false
-	add_child(_settings)
+	var menu := PlayerSettingsMenu.new()
+	menu.slot = slot
+	UiKit.open_sub(self, menu, _ready_focus)
+
+
+func _open_game_settings() -> void:
+	var menu := SettingsMenu.new()
+	menu.in_session = true
+	UiKit.open_sub(self, menu, _ready_focus)
 
 
 func _ready_focus() -> void:
@@ -61,6 +58,6 @@ func _ready_focus() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _settings == null and (event.is_action_pressed("ui_cancel") or event.is_action_pressed("pause")):
+	if _buttons[0].is_visible_in_tree() and (event.is_action_pressed("ui_cancel") or event.is_action_pressed("pause")):
 		get_viewport().set_input_as_handled()
 		resumed.emit()

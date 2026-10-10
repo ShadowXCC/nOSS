@@ -35,6 +35,13 @@ func _init() -> void:
 
 func _ready() -> void:
 	_root_embedded = get_tree().root.gui_embed_subwindows
+	Settings.changed.connect(_on_settings)
+
+
+func _on_settings() -> void:
+	for v: PlayerView in _views.values():
+		v.apply_graphics()
+	layout()
 
 
 func _exit_tree() -> void:

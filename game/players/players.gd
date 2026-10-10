@@ -70,13 +70,31 @@ func _process(delta: float) -> void:
 			push_action(slot.menu_target, Bindings.MENU_EVENTS[action])
 
 
-## A press and release of `action` into `viewport`, as GUI navigation.
+## A press and release of `action` into `viewport`, as GUI navigation. The viewport's own
+## focus comes back first (see track_focus).
 static func push_action(viewport: Viewport, action: String) -> void:
+	var c := focus_of(viewport)
+	if c and viewport.gui_get_focus_owner() != c:
+		c.grab_focus()
 	for pressed in [true, false]:
 		var e := InputEventAction.new()
 		e.action = action
 		e.pressed = pressed
 		viewport.push_input(e)
+
+
+## Godot keeps one focused control per OS window, so player menus sharing a window (views,
+## Players screen cards) each remember their own and get it back before their input arrives.
+static func track_focus(viewport: Viewport) -> void:
+	viewport.gui_focus_changed.connect(func(c: Control) -> void: viewport.set_meta(&"player_focus", c))
+
+
+## The control a player's viewport last focused, if it's still there and visible.
+static func focus_of(viewport: Viewport) -> Control:
+	var c: Variant = viewport.get_meta(&"player_focus") if viewport.has_meta(&"player_focus") else null
+	if c is Control and is_instance_valid(c) and c.is_inside_tree() and c.is_visible_in_tree():
+		return c
+	return null
 
 
 func count() -> int:

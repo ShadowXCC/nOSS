@@ -5,7 +5,8 @@ extends SubViewportContainer
 ## - 2D is laid out for 1080p and scaled to the view, then by the player's HUD scale (HUD) or
 ##   text scale (menus), so the same HUD and menus fit any split.
 ## - Only mouse events come in from the window. The player's own menu navigation is pushed in
-##   by Players (PlayerSlot.menu_target), so each view has its own focus.
+##   by Players (PlayerSlot.menu_target). Godot has one focus per OS window, so the view
+##   remembers its own (Players.track_focus) and draws its own focus cursor.
 ## - Render scale and anti-aliasing follow the graphics preset, times the auto-resolution
 ##   factor. Brightness is the player's (a copy of the world's environment on the camera).
 
@@ -15,6 +16,11 @@ const REF := Vector2(1920, 1080)
 const MIN_SPACE := Vector2(1100, 900)
 
 var slot: PlayerSlot
+## Size the 2D content is laid out for (a full view: 1080p; a Players screen card: card size).
+var reference := REF:
+	set(v):
+		reference = v
+		_fit()
 var viewport := SubViewport.new()
 ## Full-rect roots for the HUD and for this player's menus.
 var hud_root := Control.new()
@@ -27,6 +33,7 @@ var render_scale := 1.0:
 
 var _hud_layer := CanvasLayer.new()
 var _overlay_layer := CanvasLayer.new()
+var _cursor := FocusCursor.new()
 var _world_env: Environment
 var _env: Environment
 var _camera: Camera3D
@@ -52,6 +59,9 @@ func _init() -> void:
 	overlay_root.name = "Menus"
 	_hud_layer.add_child(hud_root)
 	_overlay_layer.add_child(overlay_root)
+	_cursor.viewport = viewport
+	_overlay_layer.add_child(_cursor)
+	Players.track_focus(viewport)
 	resized.connect(_fit)
 
 
@@ -103,7 +113,7 @@ func apply_graphics() -> void:
 
 ## Scale of the 2D layout relative to 1080p.
 func base_scale() -> float:
-	return minf(size.x / REF.x, size.y / REF.y) if size.x > 0.0 and size.y > 0.0 else 1.0
+	return minf(size.x / reference.x, size.y / reference.y) if size.x > 0.0 and size.y > 0.0 else 1.0
 
 
 func _fit() -> void:
@@ -117,7 +127,7 @@ func _fit() -> void:
 	var text := clampf(float(slot.profile.data.get("text_scale", 1.0)), 1.0, 2.0) if slot else 1.0
 	_place(hud_root, space, hud)
 	# Menus grow with the text scale, as far as they still fit.
-	_place(overlay_root, space, minf(text, minf(space.x / MIN_SPACE.x, space.y / MIN_SPACE.y)))
+	_place(overlay_root, space, minf(text, maxf(minf(space.x / MIN_SPACE.x, space.y / MIN_SPACE.y), 1.0)) if reference == REF else 1.0)
 
 
 static func _place(root: Control, space: Vector2, factor: float) -> void:
@@ -125,3 +135,26 @@ static func _place(root: Control, space: Vector2, factor: float) -> void:
 	root.position = Vector2.ZERO
 	root.scale = Vector2(factor, factor)
 	root.size = space / factor
+
+
+## This view's focus, drawn whether or not the view holds the window's real focus.
+class FocusCursor:
+	extends Control
+
+	var viewport: Viewport
+	var _rect := Rect2()
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	func _process(_delta: float) -> void:
+		var c := Players.focus_of(viewport)
+		var r := c.get_global_rect() if c and not c is LineEdit else Rect2()
+		if r != _rect:
+			_rect = r
+			queue_redraw()
+
+	func _draw() -> void:
+		if _rect.has_area():
+			draw_rect(_rect.grow(2.0), UiKit.ACCENT, false, 4.0)

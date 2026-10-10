@@ -8,6 +8,8 @@ extends Node
 ##   --players=<n>        free drive with n players; the extra ones are driven by the line follower
 ##   --screens=0,0,1,1    monitor per player (multi-monitor)
 ##   --split=<s>          two players: stacked or side; --three=<s>: wide or map
+##   --pause-at=<s>       open the last player's pause menu
+##   --menu=<m>           title: open classes, players or settings (--join=<n>: n devices join)
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
 ##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5), one per window
 ##   --quit-at=<s>        quit after this many seconds
@@ -40,10 +42,12 @@ func first_scene() -> String:
 	return "" if dev.has("drive") or dev.has("bay") or dev.has("garage") else TITLE
 
 
-func start_free_drive(car_path := "", platform_id := "", bay_return := false) -> void:
+## `solo`: only P1 drives (garage and Fitting Bay); otherwise every joined player.
+func start_free_drive(car_path := "", platform_id := "", bay_return := false, solo := true) -> void:
 	get_tree().paused = false
 	var session := FreeDrive.new()
 	session.bay_return = bay_return
+	session.solo = solo and not dev.has("players")
 	session.car_path = car_path if car_path else String(dev.get("car", ""))
 	session.platform_id = platform_id if platform_id else String(dev.get("platform", Settings.profile.get("last_platform", "")))
 	session.autodrive = dev.has("autodrive")

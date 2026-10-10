@@ -7,7 +7,7 @@ extends Control
 @onready var _quit_button: Button = %QuitButton
 
 var _classes: ClassPicker
-var _picker: CarPicker
+var _players: PlayersMenu
 var _settings: SettingsMenu
 
 
@@ -37,36 +37,35 @@ func _ready() -> void:
 	UiKit.chain_focus([_drive_button, garage_button, bay_button, _settings_button, _quit_button])
 	match Game.dev.get("menu", ""): # dev: open a menu directly
 		"classes": _open_classes()
-		"cars": _open_picker(String(Settings.profile.get("last_platform", "official.track.gt")))
+		"players": _open_players(String(Settings.profile.get("last_platform", "official.track.gt")))
 		"settings": _open_settings()
 
 
-## Free Drive: class first (how it drives), then car (how it looks).
+## Free Drive: class first (how it drives), then the players, who each pick a car (how it looks).
 func _open_classes() -> void:
 	_classes = ClassPicker.new()
 	_classes.current = String(Settings.profile.get("last_platform", ""))
 	_classes.picked.connect(func(id: String) -> void:
 		_classes.visible = false
-		_open_picker(id))
+		_open_players(id))
 	_classes.closed.connect(func() -> void:
 		_classes.queue_free()
 		_drive_button.grab_focus())
 	add_child(_classes)
 
 
-func _open_picker(platform_id: String) -> void:
-	_picker = CarPicker.new()
-	_picker.current = String(Settings.profile.get("last_car", ""))
-	_picker.platform = PlatformLoader.load_official(platform_id).platform
-	_picker.picked.connect(func(path: String) -> void: Game.start_free_drive(path, platform_id))
-	_picker.closed.connect(func() -> void:
-		_picker.queue_free()
+func _open_players(platform_id: String) -> void:
+	_players = PlayersMenu.new()
+	_players.platform_id = platform_id
+	_players.started.connect(func() -> void: Game.start_free_drive("", platform_id, false, false))
+	_players.closed.connect(func() -> void:
+		_players.queue_free()
 		if is_instance_valid(_classes):
 			_classes.visible = true
 			_classes.grab_focus_first()
 		else:
 			_drive_button.grab_focus())
-	add_child(_picker)
+	add_child(_players)
 
 
 func _open_settings() -> void:

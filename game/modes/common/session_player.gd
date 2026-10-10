@@ -49,6 +49,7 @@ func setup(world_env: Environment) -> void:
 	view.add_3d(cameras)
 	view.set_camera(cameras.camera, world_env)
 	hud.theme = UiKit.theme()
+	hud.process_mode = Node.PROCESS_MODE_ALWAYS # shows "Paused by P2" while paused
 	view.hud_root.add_child(hud)
 	hud.timer = timer
 	hud.show_message("Loading", 30.0)

@@ -196,6 +196,64 @@ static func color(text: String, value: Color, on_changed: Callable) -> HBoxConta
 	return row
 
 
+## A choice stepped with left and right (confirm steps forward), so it works with directions,
+## confirm and cancel alone (docs/ACCESSIBILITY.md §5.1). `items` are [value, label] pairs.
+static func spinner(text: String, items: Array, value: Variant, on_changed: Callable) -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(0, 64)
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	var state := { "i": 0 }
+	for i in items.size():
+		if items[i][0] == value:
+			state.i = i
+	var show := func() -> void:
+		var shown := String(items[state.i][1]) if not items.is_empty() else "-"
+		b.text = "%s   ‹ %s ›" % [text, shown] if items.size() > 1 else "%s   %s" % [text, shown]
+		b.accessibility_name = "%s: %s" % [text, shown]
+	var step := func(d: int) -> void:
+		if items.size() < 2:
+			return
+		state.i = posmod(state.i + d, items.size())
+		show.call()
+		on_changed.call(items[state.i][0])
+	b.pressed.connect(func() -> void: step.call(1))
+	b.gui_input.connect(func(e: InputEvent) -> void:
+		if e.is_action_pressed("ui_left", true):
+			step.call(-1)
+			b.accept_event()
+		elif e.is_action_pressed("ui_right", true):
+			step.call(1)
+			b.accept_event())
+	b.accessibility_description = "Left and right to change"
+	show.call()
+	return b
+
+
+## Opens `menu` in place of the rest of `host` (hidden meanwhile). When the menu emits
+## `closed`, it goes and `host` comes back with `on_back` called (e.g. to refocus).
+static func open_sub(host: Control, menu: Control, on_back := Callable()) -> void:
+	var hidden: Array[CanvasItem] = []
+	for child in host.get_children():
+		if child is CanvasItem and child.visible:
+			child.visible = false
+			hidden.append(child)
+	menu.closed.connect(func() -> void:
+		menu.queue_free()
+		for c in hidden:
+			if is_instance_valid(c):
+				c.visible = true
+		if on_back.is_valid():
+			on_back.call())
+	host.add_child(menu)
+
+
+## The focused control of `node`'s menu: a player view's own focus, else the window's.
+static func focus_owner(node: Node) -> Control:
+	var vp := node.get_viewport()
+	var c := Players.focus_of(vp)
+	return c if c else vp.gui_get_focus_owner()
+
+
 ## Links the focusable controls in `controls` top to bottom (wrapping) and focuses the first.
 static func chain_focus(controls: Array) -> void:
 	var focusable: Array[Control] = []
