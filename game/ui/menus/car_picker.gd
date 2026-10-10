@@ -33,6 +33,10 @@ func _ready() -> void:
 		var b := UiKit.button(title + ("  •" if path == current else ""), func() -> void: picked.emit(path),
 			"%s, by %s" % [license, m.get("author", "unknown")])
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.icon = GarageFiles.thumbnail(path)
+		if b.icon:
+			b.expand_icon = true
+			b.custom_minimum_size = Vector2(0, 96)
 		rows.add_child(b)
 		buttons.append(b)
 	if buttons.is_empty():

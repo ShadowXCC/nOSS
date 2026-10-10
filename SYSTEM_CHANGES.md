@@ -7,6 +7,9 @@ Changes made outside this project directory, to be reversed later if wanted.
 | `~/.local/share/nOSS/` (logs, shader and Vulkan caches, ObjectDB snapshots, `settings.cfg`, `profiles/`) | Running the game or its tests. This is the game's normal `user://` folder (NFR-09). | `rm -rf ~/.local/share/nOSS` |
 | `~/.local/share/nOSS/garage/*.noss`: the 8 converted FM4 cars (~125 MB, personal-use-only) | `tools/fm4_to_noss.py` (its default output) | `rm -rf ~/.local/share/nOSS/garage` |
 
+| `~/.local/share/nOSS/fitting/` (Fitting Bay drafts), `cache/` (garage index, rendered thumbnails), `import/` (folder the bay lists) | Running the game (M2). Part of the game's `user://` folder. | Covered by `rm -rf ~/.local/share/nOSS`; or delete each folder |
+| `~/.local/share/nOSS/garage/race.noss`, `sedan_sports.noss`, `toy_car.noss` | Fitting Bay tests during M2 (CC0 Kenney and Khronos models) | `rm ~/.local/share/nOSS/garage/{race,sedan_sports,toy_car}.noss` |
+
 Not system changes:
 - git `user.name` and `user.email` are set in this repo's `.git/config`, not globally.
 - Godot runs in self-contained mode, so it does not create `~/.config/godot`, `~/.local/share/godot` or `~/.cache/godot`.

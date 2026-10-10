@@ -14,6 +14,8 @@ var fitted: Fitting.Result
 var overlays := {}
 ## orbit, eye, hood or bumper.
 var view := "orbit"
+## Turn slowly on its own (the garage's turntable).
+var turntable := false
 
 var _car_root := Node3D.new()
 var _overlay_root := Node3D.new()
@@ -75,6 +77,28 @@ func show_draft(draft: FittingDraft, platform: Dictionary, rebuild := true) -> v
 	_distance = clampf(fitted.envelope.size.z * 1.6, 3.0, 20.0) if view == "orbit" and _distance == 7.0 else _distance
 	_build_overlays(draft)
 	_update_camera()
+
+
+## Shows a loaded package (takes ownership of its LOD scenes), fitted to `platform`.
+func show_package(pkg: VehiclePackage, platform: Dictionary) -> void:
+	clear()
+	fitted = Fitting.fit(platform, pkg.fit)
+	visual = CarVisual.create(pkg, fitted)
+	_car_root.add_child(visual)
+	for i in visual.wheel_count():
+		visual.set_wheel(i, 0.0, 0.0, 0.0)
+	_car_root.position.y = -fitted.ground_y
+	_target = Vector3(0.0, fitted.ground_y + fitted.envelope.size.y * 0.45, fitted.envelope.get_center().z)
+	_distance = clampf(fitted.envelope.size.z * 1.6, 3.0, 20.0)
+	for child in _overlay_root.get_children():
+		child.free()
+	_update_camera()
+
+
+func clear() -> void:
+	if visual:
+		visual.free()
+		visual = null
 
 
 ## Renders the car at a fixed 3/4 angle for the garage (512x288 PNG). Empty when headless.
@@ -163,6 +187,9 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	if turntable and not _dragging:
+		_yaw += delta * 0.35
+		_update_camera()
 	# A pad's right stick turns the view, the shoulders zoom.
 	var x := Input.get_joy_axis(0, JOY_AXIS_RIGHT_X)
 	var y := Input.get_joy_axis(0, JOY_AXIS_RIGHT_Y)

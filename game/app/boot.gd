@@ -11,6 +11,8 @@ func _ready() -> void:
 	print("nOSS %s (core %s)" % [game_version(), core if core else "missing"])
 	if Game.dev.has("bay"):
 		Game.open_fitting_bay.call_deferred()
+	elif Game.dev.has("garage"):
+		Game.open_garage.call_deferred()
 	elif Game.first_scene().is_empty():
 		Game.start_free_drive.call_deferred()
 	else:

@@ -19,6 +19,9 @@ var platform_id := ""
 ## Dev: import this file on open; with auto, save and drive as soon as it's in.
 var import_path := ""
 var auto := false
+## Step to open on with a draft already in (e.g. "Sound" from the garage). Empty: Import, or
+## Save when coming back from a test drive.
+var start_step := ""
 
 var _preview: BayPreview
 var _content: VBoxContainer
@@ -91,7 +94,7 @@ func _ready() -> void:
 	if draft:
 		_choose_platform()
 		_refresh()
-		_show_step("Save" if Game.bay_draft == draft and draft.scene else "Import")
+		_show_step(start_step if start_step else "Save")
 	else:
 		_show_step("Import")
 	if import_path:

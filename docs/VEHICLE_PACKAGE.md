@@ -216,11 +216,14 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 
 *Requirements: PKG-05, PKG-06.*
 
-- The garage lists `user://garage/*.noss` with thumbnail, name, author, family and triangle count. Actions: preview, edit in Fitting Bay, duplicate, recolor, edit sound, copy sound to another car, delete.
+- The garage lists the built-in cars and `user://garage/*.noss` with thumbnail, name, author, family and triangle count (counts are cached in `user://cache/garage_index.json`). The selected car turns on a turntable. Actions: drive (pick a class that takes it), edit in the Fitting Bay, paint (presets, colours, finishes), sound (the bay's sound step), duplicate, copy sound to another car, delete (asks first). Built-in cars can be driven and copied; editing one makes a copy.
+- A car without `thumb.png` gets one rendered from the turntable, kept in `user://cache/thumbs/`.
+- Editing a car keeps its own LODs and thumbnail while its model stays the same.
 - **Hotswap** replaces only the visuals, engine sound and collision envelope. The platform and the physics state carry on, so the car keeps moving.
   - Allowed in lobby, practice, cruise, free roam and endless mode.
   - Locked mid-race unless the server allows it.
-  - If the new envelope would overlap geometry, the swap waits until the car is clear (≤2 s), then nudges it.
+  - If the new envelope would overlap geometry, the swap waits until the car is clear (≤2 s), then nudges it up 0.6 m.
+  - The in-session picker (Tab) only lists cars the current class accepts.
   - Online, the new content hash is broadcast and other players fetch it ([NETWORKING.md](NETWORKING.md)).
 
 ## 9. Limits and safety

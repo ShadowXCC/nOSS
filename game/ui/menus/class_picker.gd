@@ -7,6 +7,8 @@ signal picked(platform_id: String)
 signal closed
 
 var current := ""
+## Only classes that take this kind of car (empty: all).
+var family := ""
 
 
 func _ready() -> void:
@@ -27,7 +29,11 @@ func _ready() -> void:
 		var heading := UiKit.label(mode.name, 26)
 		heading.modulate = UiKit.ACCENT
 		rows.add_child(heading)
-		for result in GameModes.classes(mode):
+		var classes := GameModes.classes(mode).filter(func(r: PlatformLoader.Result) -> bool: return family.is_empty() or Fitting.compatible(r.platform, family))
+		if classes.is_empty():
+			heading.queue_free()
+			continue
+		for result: PlatformLoader.Result in classes:
 			var p := result.platform
 			var info := GameModes.describe(p)
 			var b := UiKit.button("%s   %s%s" % [p.name, info, "  •" if p.id == current else ""],

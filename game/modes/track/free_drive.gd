@@ -12,6 +12,11 @@ var car_path := ""
 var platform_id := DEFAULT_PLATFORM
 ## Test-driving a Fitting Bay draft: the pause menu leads back, and the car isn't remembered.
 var bay_return := false
+## Cars can be swapped mid-drive (free drive, practice, cruise; docs/VEHICLE_PACKAGE.md §8).
+var hotswap_allowed := true
+## A loaded car waiting for room to swap in, and for how long it has waited.
+var _pending_swap: VehiclePackage
+var _pending_time := 0.0
 var autodrive := false
 
 var track: TrackData
@@ -118,12 +123,25 @@ func _on_car_loaded(pkg: VehiclePackage) -> void:
 	if vehicle == null:
 		_spawn(pkg)
 		hud.show_message("Go", 1.0)
+	elif not vehicle.fits_here(pkg):
+		_pending_swap = pkg # waits for room, then nudges
+		_pending_time = 0.0
+		hud.show_message("Waiting for room", 2.0)
+		return
 	else:
-		var before := vehicle.linear_velocity.length()
-		vehicle.mount(pkg) # hotswap: platform and physics state carry on
-		hud.show_message("Car loaded", 1.5)
-		print("Swapped to %s: %.1f -> %.1f km/h" % [pkg.display_name(), before * 3.6, vehicle.linear_velocity.length() * 3.6])
+		_swap(pkg)
 	hud.set_car_name("%s · %s%s" % [platform.platform.name, pkg.display_name(), _fit_notes()])
+
+
+## Hotswap: the platform and the physics state carry on, so the car keeps moving.
+func _swap(pkg: VehiclePackage, nudge := false) -> void:
+	var before := vehicle.linear_velocity.length()
+	vehicle.mount(pkg) # the old visual, which owns the old model, goes with it
+	if nudge:
+		vehicle.global_position += Vector3.UP * 0.6
+	hud.show_message("Car loaded", 1.5)
+	hud.set_car_name("%s · %s%s" % [platform.platform.name, pkg.display_name(), _fit_notes()])
+	print("Swapped to %s: %.1f -> %.1f km/h" % [pkg.display_name(), before * 3.6, vehicle.linear_velocity.length() * 3.6])
 
 
 func _spawn(pkg: VehiclePackage) -> void:
@@ -160,6 +178,12 @@ func _spawn(pkg: VehiclePackage) -> void:
 func _physics_process(delta: float) -> void:
 	if vehicle == null:
 		return
+	if _pending_swap:
+		_pending_time += delta
+		if vehicle.fits_here(_pending_swap) or _pending_time >= 2.0:
+			var pkg := _pending_swap
+			_pending_swap = null
+			_swap(pkg, _pending_time >= 2.0)
 	if controller and Devices.wheel.is_active():
 		Devices.wheel.update_ffb(vehicle.sim.get_rack_force())
 		# The in-car wheel turns with the real one.
@@ -208,7 +232,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_open_pause()
 	elif event is InputEventKey and event.pressed and event.physical_keycode == KEY_F3:
 		hud.show_fps = not hud.show_fps
-	elif event.is_action_pressed("hotswap_menu"):
+	elif event.is_action_pressed("hotswap_menu") and hotswap_allowed:
 		get_viewport().set_input_as_handled()
 		_open_picker(false)
 

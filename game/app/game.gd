@@ -9,6 +9,7 @@ extends Node
 ##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5)
 ##   --quit-at=<s>        quit after this many seconds
 ##   --bay                open the Fitting Bay
+##   --garage             open the garage
 ##   --import=<path>      Fitting Bay: import this model
 ##   --bay-auto           Fitting Bay: save and drive as soon as the import is in (timed runs)
 ##   --bay-step=<step>    Fitting Bay: show this step after the import (screenshots)
@@ -33,7 +34,7 @@ func _ready() -> void:
 
 ## First scene after boot.
 func first_scene() -> String:
-	return "" if dev.has("drive") or dev.has("bay") else TITLE
+	return "" if dev.has("drive") or dev.has("bay") or dev.has("garage") else TITLE
 
 
 func start_free_drive(car_path := "", platform_id := "", bay_return := false) -> void:
@@ -48,9 +49,15 @@ func start_free_drive(car_path := "", platform_id := "", bay_return := false) ->
 	get_tree().change_scene_to_node(session)
 
 
-func open_fitting_bay(import_path := "") -> void:
+func open_garage() -> void:
+	get_tree().paused = false
+	get_tree().change_scene_to_node(Garage.new())
+
+
+func open_fitting_bay(import_path := "", step := "") -> void:
 	get_tree().paused = false
 	var bay := FittingBay.new()
+	bay.start_step = step
 	if not _dev_import_used:
 		_dev_import_used = true
 		import_path = import_path if import_path else String(dev.get("import", ""))

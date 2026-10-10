@@ -25,9 +25,16 @@ func _ready() -> void:
 	bay_button.custom_minimum_size = _drive_button.custom_minimum_size
 	bay_button.pressed.connect(func() -> void: Game.open_fitting_bay())
 	_drive_button.add_sibling(bay_button)
-	for b: Button in [_drive_button, bay_button, _settings_button, _quit_button]:
+	var garage_button := Button.new()
+	garage_button.name = "GarageButton"
+	garage_button.text = "Garage"
+	garage_button.accessibility_description = "Your cars"
+	garage_button.custom_minimum_size = _drive_button.custom_minimum_size
+	garage_button.pressed.connect(func() -> void: Game.open_garage())
+	_drive_button.add_sibling(garage_button)
+	for b: Button in [_drive_button, garage_button, bay_button, _settings_button, _quit_button]:
 		b.accessibility_name = b.text
-	UiKit.chain_focus([_drive_button, bay_button, _settings_button, _quit_button])
+	UiKit.chain_focus([_drive_button, garage_button, bay_button, _settings_button, _quit_button])
 	match Game.dev.get("menu", ""): # dev: open a menu directly
 		"classes": _open_classes()
 		"cars": _open_picker(String(Settings.profile.get("last_platform", "official.track.gt")))

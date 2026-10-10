@@ -92,6 +92,21 @@ func mount(pkg: VehiclePackage) -> void:
 	package_changed.emit(pkg)
 
 
+## False if `pkg`'s collision envelope would overlap the world where the car is now (a swap
+## then waits; docs/VEHICLE_PACKAGE.md §8).
+func fits_here(pkg: VehiclePackage) -> bool:
+	if not is_inside_tree():
+		return true
+	var f := Fitting.fit(platform, pkg.fit, fitting_mode)
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = _hull(f)
+	var lift := global_basis.y * (fitted.ground_y - f.ground_y + 0.02) if fitted else Vector3.ZERO
+	query.transform = Transform3D(global_basis, global_position + lift)
+	query.collision_mask = LAYER_WORLD
+	query.exclude = [get_rid()]
+	return get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty()
+
+
 ## Puts the car at rest with its wheels on the ground at `xform` (ground point, +Z forward).
 func reset_to(xform: Transform3D) -> void:
 	var t := Transform3D(xform.basis.orthonormalized(), xform.origin - xform.basis.orthonormalized().y * fitted.ground_y)

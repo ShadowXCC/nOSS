@@ -26,6 +26,11 @@ var notes := PackedStringArray()
 var scene_changed := false
 ## The garage file this draft edits, or "" for a new car.
 var edit_path := ""
+## An edited package's own LODs ({path: bytes}) and their fit.json settings, kept while its
+## model stays the same; and its thumbnail.
+var kept_lods := {}
+var kept_lod_fit := {}
+var kept_thumbnail := PackedByteArray()
 
 
 ## A new car from an imported model, with everything the analysis could work out.
@@ -65,10 +70,18 @@ static func from_package(pkg: VehiclePackage) -> FittingDraft:
 	d.paint = pkg.paint.duplicate(true)
 	d.sound = pkg.sound.duplicate(true) if not pkg.sound.is_empty() else { "schema": "noss.sound/1", "name": "Default", "base": DEFAULT_SOUND.get(d.family, "v8_crossplane") }
 	var source := PackageSource.open(pkg.path, PackageLoader.DEFAULT_LIMITS)
-	d.glb = source.read("model/body.glb") if not source.error else PackedByteArray()
+	if not source.error:
+		d.glb = source.read("model/body.glb")
+		for rel in source.files():
+			if rel.begins_with("model/lod"):
+				d.kept_lods[rel] = source.read(rel)
+		if source.has("thumb.png"):
+			d.kept_thumbnail = source.read("thumb.png")
 	source.close()
 	d.scene = ModelImport._parse_glb(d.glb, "")
-	# Generated LODs are made again on save.
+	for key in ["lod_materials", "lod_distances_m"]:
+		if d.fit.has(key):
+			d.kept_lod_fit[key] = d.fit[key]
 	d.fit.erase("lod_materials")
 	d.fit.lod_distances_m = [0]
 	return d
@@ -86,6 +99,7 @@ func model_bytes() -> PackedByteArray:
 		if not bytes.is_empty():
 			glb = bytes
 			scene_changed = false
+			kept_lods.clear() # they were made from the old model
 	return glb
 
 
@@ -97,7 +111,10 @@ func files(lods := false, thumbnail := PackedByteArray()) -> Dictionary:
 		"sound/profile.json": PackageWriter.canonical_json(sound).to_utf8_buffer(),
 	}
 	var fit_out := fit.duplicate(true)
-	if lods and scene:
+	if lods and not kept_lods.is_empty():
+		out.merge(kept_lods)
+		fit_out.merge(kept_lod_fit, true)
+	elif lods and scene:
 		var env: Dictionary = fit.envelope
 		var length := (_vec(env.max) - _vec(env.min))[(_vec(env.max) - _vec(env.min)).max_axis_index()]
 		var built := LodBuilder.build(scene, length)
@@ -110,6 +127,8 @@ func files(lods := false, thumbnail := PackedByteArray()) -> Dictionary:
 	out["fit.json"] = PackageWriter.canonical_json(fit_out).to_utf8_buffer()
 	if not thumbnail.is_empty():
 		out["thumb.png"] = thumbnail
+	elif not kept_thumbnail.is_empty():
+		out["thumb.png"] = kept_thumbnail
 	return out
 
 
