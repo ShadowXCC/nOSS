@@ -4,6 +4,7 @@
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/godot.hpp>
 
+#include "audio/gd_audio.h"
 #include "core/noss_core.h"
 #include "input/gd_input.h"
 #include "mesh/gd_mesh.h"
@@ -23,6 +24,7 @@ static void initialize_noss_core(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(noss::NossInput);
 	GDREGISTER_ABSTRACT_CLASS(noss::NossConformance);
 	GDREGISTER_ABSTRACT_CLASS(noss::NossMesh);
+	GDREGISTER_ABSTRACT_CLASS(noss::NossAudio);
 }
 
 static void uninitialize_noss_core(ModuleInitializationLevel p_level) {

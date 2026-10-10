@@ -1,0 +1,56 @@
+{
+  "schema": "noss.sound_profile/1",
+  "id": "flat6",
+  "name": "Flat 6",
+  "rpm_idle": 900,
+  "rpm_max": 8500,
+  "rpm_points": [
+    950,
+    2300,
+    3800,
+    5300,
+    7000,
+    8500
+  ],
+  "mix": {
+    "engine": 0.9,
+    "exhaust": 1.0,
+    "intake": 0.8
+  },
+  "synth": {
+    "fire_deg": [
+      0,
+      120,
+      240,
+      360,
+      480,
+      600
+    ],
+    "bank": [
+      0,
+      1,
+      0,
+      1,
+      0,
+      1
+    ],
+    "pulse_ms": 1.8,
+    "exhaust_hz": [
+      212,
+      220
+    ],
+    "exhaust_q": 3.2,
+    "exhaust_delay_ms": [
+      0.0,
+      0.25
+    ],
+    "muffler_hz": 1500,
+    "intake_hz": 540,
+    "intake_q": 2.2,
+    "intake_noise": 0.35,
+    "mechanical": 0.22,
+    "harshness": 0.4,
+    "jitter": 0.05,
+    "seed": 6
+  }
+}

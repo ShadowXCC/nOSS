@@ -1,0 +1,60 @@
+{
+  "schema": "noss.sound_profile/1",
+  "id": "v8_crossplane",
+  "name": "Cross-plane V8",
+  "rpm_idle": 700,
+  "rpm_max": 7000,
+  "rpm_points": [
+    750,
+    1800,
+    3000,
+    4300,
+    5700,
+    7000
+  ],
+  "mix": {
+    "engine": 0.8,
+    "exhaust": 1.15,
+    "intake": 0.6
+  },
+  "synth": {
+    "fire_deg": [
+      0,
+      90,
+      180,
+      270,
+      360,
+      450,
+      540,
+      630
+    ],
+    "bank": [
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1
+    ],
+    "pulse_ms": 3.0,
+    "exhaust_hz": [
+      108,
+      118
+    ],
+    "exhaust_q": 2.6,
+    "exhaust_delay_ms": [
+      0.0,
+      0.6
+    ],
+    "muffler_hz": 700,
+    "intake_hz": 330,
+    "intake_q": 1.8,
+    "intake_noise": 0.25,
+    "mechanical": 0.12,
+    "harshness": 0.25,
+    "jitter": 0.1,
+    "seed": 8
+  }
+}

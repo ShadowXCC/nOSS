@@ -170,6 +170,7 @@ func _spawn(pkg: VehiclePackage) -> void:
 	sound.vehicle = vehicle
 	vehicle.add_child(sound)
 	sound.position = Vector3(0, 0.5, 0)
+	vehicle.package_changed.connect(func(pkg: VehiclePackage) -> void: sound.set_profile(pkg.sound))
 	cameras.set_vehicle(vehicle)
 	cameras.set_mode(Settings.profile.get("camera", "chase_near"))
 	hud.vehicle = vehicle

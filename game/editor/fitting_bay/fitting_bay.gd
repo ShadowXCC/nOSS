@@ -12,7 +12,6 @@ const IMPORT_DIR := "user://import/"
 const FONT_SIZE := 24
 const FAMILIES := [["car", "Car"], ["open", "Open-wheel"], ["truck", "Truck"]]
 const FINISHES := [["solid", "Solid"], ["metallic", "Metallic"], ["pearl", "Pearl"], ["matte", "Matte"], ["chrome", "Chrome"]]
-const SOUND_BASES := [["i4", "Inline 4"], ["v8_crossplane", "V8"], ["flat6", "Flat 6"], ["ev", "Electric"]]
 
 var draft: FittingDraft
 var platform_id := ""
@@ -33,6 +32,9 @@ var _save_button: Button
 var _dialog: FileDialog
 var _busy := false
 var _t_open := 0
+var _engine: EngineSound
+var _rev_time := 0.0
+var _sound_json := ""
 
 
 func _ready() -> void:
@@ -113,6 +115,8 @@ func _show_step(step: String) -> void:
 		_step_buttons[s].disabled = draft == null and s != "Import"
 	for child in _content.get_children():
 		child.queue_free()
+	if step != "Sound":
+		_stop_engine()
 	_preview.overlays = {
 		"forward": step in ["Import", "Orient"], "wheels": step in ["Wheels", "Import"], "envelope": step == "Scale",
 		"cockpit": step == "Cockpit",
@@ -244,7 +248,7 @@ func _step_sound() -> Array:
 	var mix: Dictionary = tweaks.get("mix", {})
 	tweaks.mix = mix
 	var out := [
-		UiKit.option("Engine", SOUND_BASES, draft.sound.base, func(v: String) -> void: draft.sound.base = v),
+		UiKit.option("Engine", EngineSound.profiles(), draft.sound.base, func(v: String) -> void: draft.sound.base = v),
 		UiKit.number("Pitch", float(tweaks.get("pitch", 1.0)), 0.8, 1.2, 0.01, "%.2f", func(v: float) -> void: tweaks.pitch = v),
 	]
 	for emitter in ["engine", "exhaust", "intake"]:
@@ -256,9 +260,47 @@ func _step_sound() -> Array:
 	out.append(UiKit.check("Supercharger", bool(tweaks.get("supercharger", false)), func(on: bool) -> void: tweaks.supercharger = on))
 	out.append(UiKit.option("Gear whine", [["normal", "Normal"], ["straight_cut", "Straight-cut"]], tweaks.get("gear_whine", "normal"), func(v: String) -> void: tweaks.gear_whine = v))
 	out.append(UiKit.option("Limiter", [["soft", "Soft"], ["bounce", "Bounce"], ["cut", "Cut"]], tweaks.get("limiter", "soft"), func(v: String) -> void: tweaks.limiter = v))
-	if has_method("_sound_preview"):
-		out.append_array(call("_sound_preview"))
+	_start_engine()
+	out.append(UiKit.button("Rev", func() -> void: _rev_time = 0.9, "Rev the engine"))
 	return out
+
+
+## The engine idling in the bay while the Sound step is open; Rev blips it.
+func _start_engine() -> void:
+	if _engine:
+		return
+	var loaded := PlatformLoader.load_official(platform_id)
+	var engine: Dictionary = loaded.platform.engine if loaded.ok() else { "idle_rpm": 900, "redline_rpm": 7000 }
+	_engine = EngineSound.new()
+	_engine.manual = { "rpm": float(engine.idle_rpm), "load": 0.0, "throttle": 0.0, "speed": 0.0,
+		"idle": float(engine.idle_rpm), "redline": float(engine.redline_rpm) }
+	_engine.set_profile(draft.sound)
+	_sound_json = JSON.stringify(draft.sound)
+	_preview.add_to_car(_engine)
+	_engine.position = Vector3(0, _preview.fitted.ground_y + 0.6, 0) if _preview.fitted else Vector3.UP * 0.6
+
+
+func _stop_engine() -> void:
+	if _engine:
+		_engine.queue_free()
+		_engine = null
+
+
+func _process(delta: float) -> void:
+	if _engine == null:
+		return
+	# A free-revving engine: up fast with throttle, back to idle without.
+	var m := _engine.manual
+	_rev_time -= delta
+	var throttle := 1.0 if _rev_time > 0.0 else 0.0
+	var target: float = m.redline if throttle > 0.0 else m.idle
+	m.rpm = move_toward(m.rpm, target, delta * (9000.0 if throttle > 0.0 else 4500.0))
+	m.throttle = throttle
+	m.load = throttle
+	var now := JSON.stringify(draft.sound)
+	if now != _sound_json:
+		_sound_json = now
+		_engine.set_profile(draft.sound)
 
 
 func _step_save() -> Array:
@@ -369,6 +411,7 @@ func _exit() -> void:
 
 ## Takes the preview's car out before the scene goes, so the draft's model isn't freed.
 func _leave() -> void:
+	_stop_engine()
 	if _preview.visual:
 		_preview.visual.free()
 		_preview.visual = null

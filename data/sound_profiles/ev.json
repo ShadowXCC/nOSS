@@ -1,0 +1,27 @@
+{
+  "schema": "noss.sound_profile/1",
+  "id": "ev",
+  "name": "Electric",
+  "rpm_idle": 600,
+  "rpm_max": 12000,
+  "rpm_points": [
+    600,
+    2500,
+    5000,
+    7500,
+    10000,
+    12000
+  ],
+  "mix": {
+    "engine": 1.0,
+    "exhaust": 0.3,
+    "intake": 0.6
+  },
+  "synth": {
+    "electric": true,
+    "motor_order": 6,
+    "inverter_order": 48,
+    "intake_noise": 0.1,
+    "seed": 2
+  }
+}

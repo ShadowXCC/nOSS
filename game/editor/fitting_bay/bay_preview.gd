@@ -30,6 +30,7 @@ func _ready() -> void:
 	stretch = true
 	focus_mode = Control.FOCUS_NONE
 	viewport.own_world_3d = true
+	viewport.audio_listener_enable_3d = true
 	viewport.msaa_3d = Viewport.MSAA_4X
 	viewport.handle_input_locally = false
 	add_child(viewport)
@@ -93,6 +94,11 @@ func show_package(pkg: VehiclePackage, platform: Dictionary) -> void:
 	for child in _overlay_root.get_children():
 		child.free()
 	_update_camera()
+
+
+## Adds a node (e.g. a sound) at the car, in the preview's world.
+func add_to_car(node: Node3D) -> void:
+	_car_root.add_child(node)
 
 
 func clear() -> void:

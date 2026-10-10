@@ -1,0 +1,47 @@
+{
+  "schema": "noss.sound_profile/1",
+  "id": "i4",
+  "name": "Inline 4",
+  "rpm_idle": 850,
+  "rpm_max": 7500,
+  "rpm_points": [
+    900,
+    2000,
+    3200,
+    4500,
+    6000,
+    7500
+  ],
+  "mix": {
+    "engine": 0.8,
+    "exhaust": 1.0,
+    "intake": 0.7
+  },
+  "synth": {
+    "fire_deg": [
+      0,
+      180,
+      360,
+      540
+    ],
+    "bank": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "pulse_ms": 2.0,
+    "exhaust_hz": [
+      185
+    ],
+    "exhaust_q": 3.0,
+    "muffler_hz": 1100,
+    "intake_hz": 450,
+    "intake_q": 2.0,
+    "intake_noise": 0.3,
+    "mechanical": 0.2,
+    "harshness": 0.35,
+    "jitter": 0.06,
+    "seed": 4
+  }
+}

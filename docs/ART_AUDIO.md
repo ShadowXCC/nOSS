@@ -71,12 +71,12 @@ Players can customize every car's engine sound, and the result is saved inside t
 - **Driven by the sim:** RPM, throttle, load (fraction of torque), boost, shift events.
 - **The sound never affects performance.** A profile's RPM range is remapped onto the platform's idle–redline, so a V12 profile works on a 7,000 rpm platform.
 
-**M1 placeholder:** on-load and off-load loops synthesized at start-up (original, no samples), pitched with rpm and cross-faded by throttle. Tire squeal and wind are synthesized the same way.
+**Synthesized (M2, D53):** the built-in profiles are original sound, made when a profile is first used (`NossAudio`, about 50 ms per profile). Each loop holds whole engine cycles: a pulse per firing at the crank angles of the firing order, through resonant exhaust (per bank, with its own pipe resonance and delay) and intake filters, plus block and valvetrain noise and small cycle-to-cycle variation. The filters run to steady state, so loops are seamless. Electric profiles use motor and inverter harmonics instead. Loops are made at six rpm points, on- and off-load, for each emitter; the player cross-fades the two points around the current rpm and pitches them to it. Tire squeal, wind and the tweak layers (turbo whistle, blow-off, supercharger and gear whine, crackle pops) are synthesized too.
 
 ### Built-in profiles
-- **M2 starter set:** I4, cross-plane V8, flat-6, EV.
+- **M2 starter set:** I4, cross-plane V8 (firing order 1-8-4-3-6-5-7-2: each bank fires unevenly, hence the burble), flat-6, EV. Data in `data/sound_profiles/<id>.json`.
 - **Later:** I3, I5, I6, flat-4, V6, flat-plane V8, V10, V12, 2-rotor rotary, diesel (truck), 2-stroke (kart), single and twin (moto), V-twin.
-- **Sources:** original recordings or CC0/CC-BY samples, tracked in `CREDITS.md`.
+- **Sources:** synthesized (original). Recordings (original or CC0/CC-BY, tracked in `CREDITS.md`) can replace a profile later with the same player.
 
 ### Player customization
 
