@@ -25,6 +25,7 @@ var _message := _label(56)
 var _assists := _label(26, Color(1.0, 0.8, 0.3))
 var _car := _label(26, DIM)
 var _fps := _label(24, DIM)
+var _badge := _label(34)
 ## F3 toggles a frame-rate readout.
 var show_fps := false
 var _delta_timer := 0.0
@@ -55,7 +56,28 @@ func _init() -> void:
 	_place(_delta, Vector2(0.5, 0), Vector2(-200, 40), HORIZONTAL_ALIGNMENT_CENTER, 400)
 	_place(_message, Vector2(0.5, 0.3), Vector2(-500, 0), HORIZONTAL_ALIGNMENT_CENTER, 1000)
 	_place(_car, Vector2(0, 1), Vector2(40, -60), HORIZONTAL_ALIGNMENT_LEFT, 800)
-	_place(_fps, Vector2(1, 0), Vector2(-260, 28), HORIZONTAL_ALIGNMENT_RIGHT, 220)
+	_place(_fps, Vector2(1, 0), Vector2(-260, 76), HORIZONTAL_ALIGNMENT_RIGHT, 220)
+	_place(_badge, Vector2(1, 0), Vector2(-140, 24), HORIZONTAL_ALIGNMENT_CENTER, 100)
+	_badge.visible = false
+
+
+## The player's tag ("P2") in their colour, on a dark plate so it reads on any colour.
+func set_player(tag: String, color: Color, show: bool) -> void:
+	_badge.text = tag
+	_badge.visible = show
+	var plate := StyleBoxFlat.new()
+	plate.bg_color = color
+	plate.set_corner_radius_all(6)
+	plate.set_content_margin_all(4)
+	_badge.add_theme_stylebox_override("normal", plate)
+	_badge.add_theme_color_override("font_color", Color.BLACK)
+	_badge.add_theme_constant_override("outline_size", 0)
+	_badge.accessibility_name = "Player %s" % tag.substr(1)
+
+
+## Re-reads the player's HUD options (docs/ACCESSIBILITY.md §2).
+func apply_profile(_profile: PlayerProfile) -> void:
+	pass
 
 
 func show_message(text: String, seconds := 2.0) -> void:

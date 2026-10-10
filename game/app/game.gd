@@ -5,8 +5,11 @@ extends Node
 ##   --car=<path>         car package for --drive
 ##   --platform=<id>      platform class for --drive, e.g. official.highway.street
 ##   --autodrive          let the line follower drive (tests, screenshots)
+##   --players=<n>        free drive with n players; the extra ones are driven by the line follower
+##   --screens=0,0,1,1    monitor per player (multi-monitor)
+##   --split=<s>          two players: stacked or side; --three=<s>: wide or map
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
-##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5)
+##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5), one per window
 ##   --quit-at=<s>        quit after this many seconds
 ##   --bay                open the Fitting Bay
 ##   --garage             open the garage
@@ -44,6 +47,7 @@ func start_free_drive(car_path := "", platform_id := "", bay_return := false) ->
 	session.car_path = car_path if car_path else String(dev.get("car", ""))
 	session.platform_id = platform_id if platform_id else String(dev.get("platform", Settings.profile.get("last_platform", "")))
 	session.autodrive = dev.has("autodrive")
+	session.ai_players = maxi(int(dev.get("players", "1")) - maxi(Players.count(), 1), 0)
 	if dev.has("camera"):
 		Settings.profile.camera = dev.camera
 	get_tree().change_scene_to_node(session)
@@ -87,5 +91,10 @@ func _process(delta: float) -> void:
 		var img := get_viewport().get_texture().get_image()
 		img.save_png(dev.shot)
 		print("Screenshot: ", dev.shot)
+		# Extra monitor windows: <shot>_<window name>.png
+		for w: Window in get_tree().root.find_children("*", "Window", true, false):
+			var path := String(dev.shot).get_basename() + "_" + w.name + ".png"
+			w.get_texture().get_image().save_png(path)
+			print("Screenshot: ", path)
 	if dev.has("quit-at") and _time >= float(dev["quit-at"]):
 		get_tree().quit()

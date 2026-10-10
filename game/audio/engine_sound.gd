@@ -14,6 +14,9 @@ const DEFAULT_PROFILE := "v8_crossplane"
 const EMITTERS := ["engine", "exhaust", "intake"]
 const RATE := 44100
 const BASE_DB := -6.0
+## Every car sound plays on this bus (made at run time, sends to Master), so splitscreen can
+## turn all of them down together.
+const BUS := &"Cars"
 
 static var _profiles := {} # id -> {profile, loops: {emitter: {on: [stream...], off: [...], rpm: [...]}}}
 static var _extras := {}
@@ -234,7 +237,25 @@ func _one_shot(kind: String, pitch: float) -> void:
 	player.play()
 
 
+## Splitscreen mix: with n views listening, each player's own engine is loud in their own
+## view, so car sound is scaled by 1/√n to keep the total level (docs/ARCHITECTURE.md §6).
+static func set_listeners(n: int) -> void:
+	AudioServer.set_bus_volume_db(_bus(), linear_to_db(1.0 / sqrt(maxf(float(n), 1.0))))
+
+
+static func _bus() -> int:
+	var i := AudioServer.get_bus_index(BUS)
+	if i < 0:
+		AudioServer.add_bus()
+		i = AudioServer.bus_count - 1
+		AudioServer.set_bus_name(i, BUS)
+		AudioServer.set_bus_send(i, &"Master")
+	return i
+
+
 static func _setup_player(player: AudioStreamPlayer3D, stream: AudioStream) -> void:
+	_bus()
+	player.bus = BUS
 	player.stream = stream
 	player.unit_size = 6.0
 	player.max_db = 3.0

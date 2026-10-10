@@ -1,15 +1,21 @@
 class_name PauseMenu
 extends Control
-## Pause menu for a session (docs/ACCESSIBILITY.md §6: pause any time offline).
+## Pause menu for a session (docs/ACCESSIBILITY.md §6: pause any time offline). It opens in the
+## view of the player who paused, and only they control it.
 
 signal resumed
 signal reset_car
 signal change_car
+signal leave
 signal quit_to_title
 signal back_to_bay
 
+## Who paused.
+var slot: PlayerSlot
 ## Test-driving a Fitting Bay draft: offers the way back.
 var bay_return := false
+## Players other than P1 can drop out.
+var can_leave := false
 var _settings: SettingsMenu
 var _buttons: Array = []
 
@@ -18,7 +24,7 @@ func _ready() -> void:
 	theme = UiKit.theme()
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	var list := UiKit.panel(self, "Paused", 560)
+	var list := UiKit.panel(self, "Paused" if slot == null else "Paused  ·  %s" % slot.tag(), 560)
 	_buttons = [
 		UiKit.button("Resume", func() -> void: resumed.emit()),
 		UiKit.button("Reset car", func() -> void: reset_car.emit()),
@@ -28,6 +34,8 @@ func _ready() -> void:
 	]
 	if bay_return:
 		_buttons.insert(1, UiKit.button("Back to Fitting Bay", func() -> void: back_to_bay.emit()))
+	if can_leave:
+		_buttons.insert(_buttons.size() - 1, UiKit.button("Leave", func() -> void: leave.emit(), "Drop out; the others keep driving"))
 	for b: Button in _buttons:
 		list.add_child(b)
 	UiKit.chain_focus(_buttons)

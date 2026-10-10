@@ -111,6 +111,26 @@ func join(device: Dictionary, profile: PlayerProfile = null) -> PlayerSlot:
 	return slot
 
 
+## Dev and tests: a player driven by the line follower, with a throwaway profile.
+func add_ai() -> PlayerSlot:
+	if slots.size() >= MAX:
+		return null
+	var slot := PlayerSlot.new()
+	slot.index = slots.size()
+	slot.ai = true
+	slot.profile = PlayerProfile.create("ai%d" % slot.number(), { "name": "AI %d" % slot.number() })
+	slots.append(slot)
+	slot.refresh(Devices.list())
+	slots_changed.emit()
+	return slot
+
+
+func remove_ai() -> void:
+	for slot in slots.duplicate():
+		if slot.device_keys.is_empty() and slot.profile.id.begins_with("ai"):
+			leave(slot)
+
+
 func leave(slot: PlayerSlot) -> void:
 	if slot not in slots:
 		return
@@ -118,7 +138,7 @@ func leave(slot: PlayerSlot) -> void:
 	slot.menu_target = null
 	for i in slots.size():
 		slots[i].index = i
-	if not slots.is_empty() and slots[0].profile != Settings.primary:
+	if not slots.is_empty() and not slots[0].ai and slots[0].profile != Settings.primary:
 		Settings.set_primary(slots[0].profile)
 	print("%s left" % slot.display_name())
 	left.emit(slot)

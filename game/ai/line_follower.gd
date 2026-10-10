@@ -8,6 +8,8 @@ extends Node
 var track: TrackData
 ## Fraction of the grip-limited corner speed to aim for.
 var pace := 0.8
+## Line to follow, metres left (+) or right (-) of the centreline.
+var lateral := 0.0
 
 var _hint := -1
 
@@ -23,7 +25,7 @@ func _physics_process(_delta: float) -> void:
 	var speed := maxf(vehicle.speed(), 0.0)
 
 	# Pure pursuit toward a point ahead on the line.
-	var ahead := track.point_at(proj.distance + 8.0 + speed * 0.7)
+	var ahead := track.transform_at(proj.distance + 8.0 + speed * 0.7, lateral).origin
 	var local := vehicle.global_basis.inverse() * (ahead - com)
 	var angle := atan2(local.x, maxf(local.z, 0.1)) # + = target is to the left
 	var max_steer := deg_to_rad(float(vehicle.platform.steering.max_road_angle_deg))
