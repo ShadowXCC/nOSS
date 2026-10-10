@@ -1,0 +1,9 @@
+[submodule "native/thirdparty/godot-cpp"]
+	path = native/thirdparty/godot-cpp
+	url = https://github.com/godotengine/godot-cpp.git
+[submodule "native/thirdparty/SDL"]
+	path = native/thirdparty/SDL
+	url = https://github.com/libsdl-org/SDL.git
+[submodule "native/thirdparty/doctest"]
+	path = native/thirdparty/doctest
+	url = https://github.com/doctest/doctest.git

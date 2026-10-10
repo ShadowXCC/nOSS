@@ -1,5 +1,6 @@
 # Godot
 .godot/
+/reports/
 /export/
 /build/
 
@@ -25,6 +26,10 @@ native/bin/
 *.xds
 **/raw/
 /reference/
+
+# Local dev tools (tools/setup_dev.sh)
+/.tools/
+/.venv/
 
 # Editors / OS
 .vscode/
