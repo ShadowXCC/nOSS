@@ -1,0 +1,84 @@
+{
+  "schema": "noss.platform/1",
+  "id": "official.highway.street",
+  "name": "Street",
+  "version": "0.1.0",
+  "family": "car",
+  "modes": ["highway", "track"],
+  "accepts_families": ["car"],
+
+  "layout": {
+    "drive": "awd",
+    "axles": [
+      { "steer": true, "driven": true, "wheels": 2 },
+      { "steer": false, "driven": true, "wheels": 2 }
+    ]
+  },
+
+  "geometry": {
+    "wheelbase_m": { "ref": 2.70, "min": 2.40, "max": 3.00 },
+    "track_m": { "ref": 1.60, "min": 1.45, "max": 1.75 },
+    "ride_height_m": { "ref": 0.13, "min": 0.09, "max": 0.19 },
+    "wheel_radius_m": { "ref": 0.33, "min": 0.30, "max": 0.38 },
+    "envelope_m": { "length": [4.0, 5.2], "width": [1.75, 2.05], "height": [1.15, 1.60] }
+  },
+
+  "mass": {
+    "kg": 1500,
+    "front_weight": 0.55,
+    "cog_height_over_track": 0.32,
+    "yaw_dynamic_index": 1.0
+  },
+
+  "engine": {
+    "torque_curve_nm": [[1000, 300], [2500, 480], [4500, 500], [6000, 470], [6500, 441], [7000, 400]],
+    "idle_rpm": 800,
+    "redline_rpm": 6800,
+    "limiter_rpm": 7000,
+    "inertia_kgm2": 0.18,
+    "engine_brake_nm": 70
+  },
+  "gearbox": {
+    "type": "auto",
+    "ratios": [3.60, 2.40, 1.75, 1.35, 1.10, 0.92, 0.78],
+    "reverse": 3.2,
+    "final_drive": 3.50,
+    "shift_time_s": 0.15
+  },
+  "differential": {
+    "type": "open",
+    "rear": { "type": "lsd_clutch", "preload_nm": 60, "power_lock": 0.35, "coast_lock": 0.20 },
+    "center": { "type": "viscous", "front_share": 0.40, "viscous_nm_per_rad_s": 40, "preload_nm": 20 }
+  },
+  "brakes": { "max_torque_nm": 6500, "bias_front": 0.60 },
+  "suspension": {
+    "front": { "freq_hz": 1.8, "damping_bump": 0.45, "damping_rebound": 0.65, "travel_m": 0.11 },
+    "rear": { "freq_hz": 1.9, "damping_bump": 0.45, "damping_rebound": 0.65, "travel_m": 0.12 },
+    "roll_gradient_deg_per_g": 1.6,
+    "roll_stiffness_front_share": 0.60
+  },
+  "steering": { "max_road_angle_deg": 30, "wheel_rotation_deg": 720 },
+  "aero": { "cd_a": 0.75, "cl_a_front": -0.15, "cl_a_rear": -0.25, "slipstream": true },
+  "tires": {
+    "model": "pacejka_lite",
+    "compound": "street",
+    "mu_peak": 1.15,
+    "load_sensitivity": 0.10,
+    "peak_slip_ratio": 0.12,
+    "peak_slip_angle_deg": 8.0,
+    "relaxation_length_m": 0.30,
+    "rolling_resistance": 0.013,
+    "wear": false,
+    "temperature": false
+  },
+
+  "assists_allowed": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid", "racing_line"],
+  "damage": { "cosmetic": true, "mechanical": ["alignment", "engine"] },
+
+  "tunable": {
+    "gearbox.final_drive": { "min": 3.10, "max": 3.90, "step": 0.05 },
+    "brakes.bias_front": { "min": 0.54, "max": 0.66, "step": 0.01 }
+  },
+
+  "ffb": { "reference_rack_nm": 8.0 }
+}

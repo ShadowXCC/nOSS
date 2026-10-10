@@ -1,0 +1,22 @@
+{
+  "author": "nOSS contributors",
+  "created": "2026-10-10",
+  "family": "open",
+  "files": {
+    "fit.json": "sha256:e48d02e6b935d24cb389c42cbe9f2a5bfb3295866c8307d7a2805c527c372f46",
+    "model/body.glb": "sha256:57adc042041e9415902fa53eb9c12030962d2a990e888d72907ba6533d0492be",
+    "paint.json": "sha256:e8d52570d14bff56284fa31be5eda897c4d345b1a9dba79534806bed1b2cd680",
+    "sound/profile.json": "sha256:7cae9189ec1ea6cc3d80e57ca2cb3a9a99396915f975245c22724b75fba143a9"
+  },
+  "game_min_version": "0.1.0",
+  "id": "3f6c2b8e-91d4-4f0a-b7e2-5c8a1d9e4f20",
+  "license": "CC-BY-SA-4.0",
+  "name": "nOSS Open",
+  "schema": "noss.package/1",
+  "source": "tools/make_noss_box.gd",
+  "tags": [
+    "default",
+    "original"
+  ],
+  "version": 1
+}

@@ -3,6 +3,7 @@ extends Node
 ## after "--" on the command line:
 ##   --drive              start free-drive right away
 ##   --car=<path>         car package for --drive
+##   --platform=<id>      platform class for --drive, e.g. official.highway.street
 ##   --autodrive          let the line follower drive (tests, screenshots)
 ##   --camera=<mode>      chase_near, chase_far or cockpit
 ##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5)
@@ -28,10 +29,11 @@ func first_scene() -> String:
 	return "" if dev.has("drive") else TITLE
 
 
-func start_free_drive(car_path := "") -> void:
+func start_free_drive(car_path := "", platform_id := "") -> void:
 	get_tree().paused = false
 	var session := FreeDrive.new()
 	session.car_path = car_path if car_path else String(dev.get("car", ""))
+	session.platform_id = platform_id if platform_id else String(dev.get("platform", Settings.profile.get("last_platform", "")))
 	session.autodrive = dev.has("autodrive")
 	if dev.has("camera"):
 		Settings.profile.camera = dev.camera

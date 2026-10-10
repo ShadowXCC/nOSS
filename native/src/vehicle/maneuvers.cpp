@@ -122,15 +122,17 @@ bool hold_speed(FlatHarness &p_h, PathDriver &p_driver, double p_target, double 
 	return true;
 }
 
-// 100-0 km/h with full brake and ABS, from a steady 102 km/h.
-ManeuverResult braking(const Config &p_config, const ManeuverSpec &) {
+// Brake speed (100 km/h on most platforms) to 0 with full brake and ABS, from a steady 2 km/h
+// above it.
+ManeuverResult braking(const Config &p_config, const ManeuverSpec &p_spec) {
 	FlatHarness h(p_config);
 	Path path = straight_path(8000.0);
 	PathDriver driver(path, p_config.spec);
 	settle(h);
+	const double from = p_spec.brake_speed * KMH;
 	double throttle;
-	if (!hold_speed(h, driver, 102.0 * KMH, 2.0, throttle)) {
-		return fail("Can't reach 100 km/h");
+	if (!hold_speed(h, driver, from + 2.0 * KMH, 2.0, throttle)) {
+		return fail("Can't reach " + std::to_string(int(p_spec.brake_speed)) + " km/h");
 	}
 	double s100 = NOT_REACHED, s_stop = NOT_REACHED;
 	double prev_s = 0.0, prev_v = 0.0;
@@ -139,8 +141,8 @@ ManeuverResult braking(const Config &p_config, const ManeuverSpec &) {
 		double steer = driver.steer(h);
 		double s = driver.progress(), v = h.forward_speed();
 		if (i > 0) {
-			if (std::isnan(s100) && prev_v >= 100.0 * KMH && v < 100.0 * KMH) {
-				s100 = between(prev_s, s, prev_v, v, 100.0 * KMH);
+			if (std::isnan(s100) && prev_v >= from && v < from) {
+				s100 = between(prev_s, s, prev_v, v, from);
 			}
 			if (prev_v >= 0.5 && v < 0.5) {
 				s_stop = between(prev_s, s, prev_v, v, 0.5);
@@ -161,7 +163,7 @@ ManeuverResult braking(const Config &p_config, const ManeuverSpec &) {
 		return fail("Didn't stop");
 	}
 	ManeuverResult r;
-	r.metrics.push_back({ "d_100_0_m", s_stop - s100 });
+	r.metrics.push_back({ "d_" + std::to_string(int(p_spec.brake_speed)) + "_0_m", s_stop - s100 });
 	return r;
 }
 

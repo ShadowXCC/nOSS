@@ -1,0 +1,133 @@
+{
+  "cameras": {
+    "bumper": null,
+    "hood": null
+  },
+  "envelope": {
+    "max": [
+      0.97,
+      0.98,
+      2.53
+    ],
+    "min": [
+      -0.97,
+      0.0,
+      -2.18
+    ]
+  },
+  "exhaust_points": [
+    [
+      0.0,
+      0.4,
+      -1.9
+    ]
+  ],
+  "eye_point": [
+    0.0,
+    0.84,
+    -0.12
+  ],
+  "ground_y": 0.0,
+  "hide_nodes": [],
+  "lights": {
+    "brake": [
+      "tail_light"
+    ],
+    "head": [],
+    "indicator_L": [],
+    "indicator_R": [],
+    "reverse": []
+  },
+  "lod_distances_m": [
+    0
+  ],
+  "model_transform": {
+    "offset_m": [
+      0,
+      0,
+      0
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0
+  },
+  "schema": "noss.fit/1",
+  "steering_wheel": {
+    "node": "steering_wheel",
+    "visual_lock_deg": 300
+  },
+  "wheel_mode": "model",
+  "wheels": [
+    {
+      "axle": 1,
+      "center": [
+        0.8,
+        0.33,
+        1.45
+      ],
+      "fixed_nodes": [
+        "caliper_LF"
+      ],
+      "id": "LF",
+      "node": "hub_LF",
+      "radius": 0.33,
+      "side": "L",
+      "spin_node": "wheel_LF",
+      "width": 0.32
+    },
+    {
+      "axle": 1,
+      "center": [
+        -0.8,
+        0.33,
+        1.45
+      ],
+      "fixed_nodes": [
+        "caliper_RF"
+      ],
+      "id": "RF",
+      "node": "hub_RF",
+      "radius": 0.33,
+      "side": "R",
+      "spin_node": "wheel_RF",
+      "width": 0.32
+    },
+    {
+      "axle": 2,
+      "center": [
+        0.8,
+        0.33,
+        -1.45
+      ],
+      "fixed_nodes": [
+        "caliper_LR"
+      ],
+      "id": "LR",
+      "node": "hub_LR",
+      "radius": 0.33,
+      "side": "L",
+      "spin_node": "wheel_LR",
+      "width": 0.32
+    },
+    {
+      "axle": 2,
+      "center": [
+        -0.8,
+        0.33,
+        -1.45
+      ],
+      "fixed_nodes": [
+        "caliper_RR"
+      ],
+      "id": "RR",
+      "node": "hub_RR",
+      "radius": 0.33,
+      "side": "R",
+      "spin_node": "wheel_RR",
+      "width": 0.32
+    }
+  ]
+}

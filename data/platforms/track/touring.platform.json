@@ -1,0 +1,83 @@
+{
+  "schema": "noss.platform/1",
+  "id": "official.track.touring",
+  "name": "Touring",
+  "version": "0.1.0",
+  "family": "car",
+  "modes": ["track"],
+  "accepts_families": ["car"],
+
+  "layout": {
+    "drive": "fwd",
+    "axles": [
+      { "steer": true, "driven": true, "wheels": 2 },
+      { "steer": false, "driven": false, "wheels": 2 }
+    ]
+  },
+
+  "geometry": {
+    "wheelbase_m": { "ref": 2.60, "min": 2.35, "max": 2.85 },
+    "track_m": { "ref": 1.52, "min": 1.40, "max": 1.66 },
+    "ride_height_m": { "ref": 0.12, "min": 0.08, "max": 0.17 },
+    "wheel_radius_m": { "ref": 0.31, "min": 0.28, "max": 0.35 },
+    "envelope_m": { "length": [3.7, 4.8], "width": [1.65, 1.95], "height": [1.20, 1.60] }
+  },
+
+  "mass": {
+    "kg": 1250,
+    "front_weight": 0.60,
+    "cog_height_over_track": 0.33,
+    "yaw_dynamic_index": 1.0
+  },
+
+  "engine": {
+    "torque_curve_nm": [[1000, 170], [3000, 240], [4500, 275], [6000, 280], [7000, 259], [7600, 230]],
+    "idle_rpm": 900,
+    "redline_rpm": 7300,
+    "limiter_rpm": 7600,
+    "inertia_kgm2": 0.13,
+    "engine_brake_nm": 45
+  },
+  "gearbox": {
+    "type": "manual_h",
+    "ratios": [3.20, 2.10, 1.55, 1.22, 1.00, 0.85],
+    "reverse": 3.3,
+    "final_drive": 4.20,
+    "shift_time_s": 0.12
+  },
+  "differential": { "type": "lsd_clutch", "preload_nm": 40, "power_lock": 0.25, "coast_lock": 0.10 },
+  "brakes": { "max_torque_nm": 4200, "bias_front": 0.66 },
+  "suspension": {
+    "front": { "freq_hz": 2.4, "damping_bump": 0.50, "damping_rebound": 0.70, "travel_m": 0.09 },
+    "rear": { "freq_hz": 2.6, "damping_bump": 0.50, "damping_rebound": 0.70, "travel_m": 0.10 },
+    "roll_gradient_deg_per_g": 1.3,
+    "roll_stiffness_front_share": 0.56
+  },
+  "steering": { "max_road_angle_deg": 30, "wheel_rotation_deg": 540 },
+  "aero": { "cd_a": 0.68, "cl_a_front": -0.05, "cl_a_rear": -0.10, "slipstream": true },
+  "tires": {
+    "model": "pacejka_lite",
+    "compound": "street_sport",
+    "mu_peak": 1.20,
+    "load_sensitivity": 0.10,
+    "peak_slip_ratio": 0.12,
+    "peak_slip_angle_deg": 8.5,
+    "relaxation_length_m": 0.30,
+    "rolling_resistance": 0.013,
+    "wear": false,
+    "temperature": false
+  },
+
+  "assists_allowed": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid", "racing_line"],
+  "damage": { "cosmetic": true, "mechanical": ["alignment", "aero", "engine", "suspension"] },
+
+  "tunable": {
+    "gearbox.final_drive": { "min": 3.80, "max": 4.60, "step": 0.05 },
+    "brakes.bias_front": { "min": 0.58, "max": 0.74, "step": 0.01 },
+    "suspension.front.freq_hz": { "min": 2.1, "max": 2.8, "step": 0.05 },
+    "suspension.rear.freq_hz": { "min": 2.2, "max": 3.0, "step": 0.05 },
+    "suspension.roll_stiffness_front_share": { "min": 0.46, "max": 0.64, "step": 0.01 }
+  },
+
+  "ffb": { "reference_rack_nm": 7.5 }
+}

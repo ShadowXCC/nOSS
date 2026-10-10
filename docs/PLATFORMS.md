@@ -244,4 +244,6 @@ Rough targets, tuned during development. Power figures are peak.
 | Endless | Sport | car | RWD | 260 kW | 1350 kg | Spirited |
 | Track (M10) | Race Truck | truck | RWD | 750 kW | 5300 kg | Truck racing |
 
-M1 ships only **Track / GT**. The rest arrive in M2 and later milestones.
+**Shipped in M2:** Track Touring, GT, Prototype and Formula, Kart Medium (a prototype on the core sim; the `kart_arcade` layer comes in M8), and Highway Street. Every one passes conformance across its geometry grid (§5). The kart's ranges are wide (wheelbase 1.1–2.8 m) so cars, karts and trucks all fit without much scaling. Formula only takes `open` models; the built-in **nOSS Open** is its default car.
+
+Free Drive asks for the class first (how the car drives), then the car (how it looks); the car list only shows models the class accepts.

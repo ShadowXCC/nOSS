@@ -25,6 +25,7 @@ struct ManeuverSpec {
 	double slalom_spacing = 18.0;
 	int slalom_gates = 10;
 	double slalom_max_error = 1.0; // m of path error that ends a slalom speed
+	double brake_speed = 100.0; // km/h, braking measures from here to a stop
 	double step_speed = 100.0 / 3.6; // m/s
 	double step_lateral_g = 0.4; // steady-state target of the step input
 	double top_speed_time = 60.0; // s

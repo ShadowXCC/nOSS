@@ -4,12 +4,12 @@ extends Node3D
 ## car reset, pause, and car hotswap (docs/GAMEMODES.md §1).
 
 const DEFAULT_TRACK := "res://content/tracks/proving_ground/track.json"
-const DEFAULT_CAR := "res://content/cars/noss_box"
-const PLATFORM := "official.track.gt"
+const DEFAULT_PLATFORM := "official.track.gt"
 const GRID_BEHIND_LINE := 40.0
 
 var track_path := DEFAULT_TRACK
 var car_path := ""
+var platform_id := DEFAULT_PLATFORM
 var autodrive := false
 
 var track: TrackData
@@ -26,6 +26,7 @@ var _overlay: Control
 var _hint := -1
 var _last_valid := 0.0
 var _loading := false
+var _default_car := ""
 var _dev_time := 0.0
 var _dev_swapped := false
 var _fps_time := 0.0
@@ -40,9 +41,13 @@ func _ready() -> void:
 	add_child(style.create_environment())
 	add_child(style.create_sun())
 	add_child(TrackBuilder.build(track))
-	platform = PlatformLoader.load_official(PLATFORM)
+	platform = PlatformLoader.load_official(platform_id)
 	if not platform.ok():
-		push_error("Platform: %s" % platform.errors)
+		push_warning("Platform %s: %s" % [platform_id, platform.errors])
+		platform_id = DEFAULT_PLATFORM
+		platform = PlatformLoader.load_official(platform_id)
+	Settings.profile.last_platform = platform_id
+	_default_car = GameModes.default_car(platform.platform)
 
 	cameras = CameraRig.new()
 	add_child(cameras)
@@ -63,8 +68,9 @@ func _ready() -> void:
 	hud.show_message("Loading", 30.0)
 
 	var path := car_path if car_path else String(Settings.profile.get("last_car", ""))
-	if path.is_empty() or not (FileAccess.file_exists(path) or DirAccess.dir_exists_absolute(path)):
-		path = DEFAULT_CAR
+	if path.is_empty() or not (FileAccess.file_exists(path) or DirAccess.dir_exists_absolute(path)) \
+			or not Fitting.compatible(platform.platform, PackageLoader.read_manifest(path).get("family", "")):
+		path = _default_car
 	load_car(path)
 
 
@@ -100,8 +106,8 @@ func _on_car_loaded(pkg: VehiclePackage) -> void:
 	if not pkg.ok():
 		push_warning("Car failed to load: %s (%s)" % [pkg.path, pkg.error])
 		hud.show_message("Car failed to load", 2.5)
-		if vehicle == null and pkg.path != DEFAULT_CAR:
-			load_car(DEFAULT_CAR)
+		if vehicle == null and pkg.path != _default_car:
+			load_car(_default_car)
 		return
 	print("Loaded %s in %d ms (%d tris)" % [pkg.display_name(), pkg.load_ms, pkg.triangles])
 	Settings.profile.last_car = pkg.path
@@ -114,7 +120,7 @@ func _on_car_loaded(pkg: VehiclePackage) -> void:
 		vehicle.mount(pkg) # hotswap: platform and physics state carry on
 		hud.show_message("Car loaded", 1.5)
 		print("Swapped to %s: %.1f -> %.1f km/h" % [pkg.display_name(), before * 3.6, vehicle.linear_velocity.length() * 3.6])
-	hud.set_car_name(pkg.display_name() + _fit_notes())
+	hud.set_car_name("%s · %s%s" % [platform.platform.name, pkg.display_name(), _fit_notes()])
 
 
 func _spawn(pkg: VehiclePackage) -> void:
@@ -228,6 +234,7 @@ func _open_picker(pause: bool) -> void:
 	get_tree().paused = pause
 	var picker := CarPicker.new()
 	picker.current = vehicle.package.path if vehicle else ""
+	picker.platform = platform.platform
 	picker.picked.connect(func(path: String) -> void:
 		_close_overlay()
 		if vehicle == null or path != vehicle.package.path:

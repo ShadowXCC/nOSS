@@ -7,6 +7,8 @@ signal picked(path: String)
 signal closed
 
 var current := ""
+## Only cars that can mount this platform are listed (empty: all).
+var platform := {}
 
 
 func _ready() -> void:
@@ -24,6 +26,8 @@ func _ready() -> void:
 	var buttons: Array = []
 	for path in PackageLoader.list_available():
 		var m := PackageLoader.read_manifest(path)
+		if not platform.is_empty() and not Fitting.compatible(platform, m.get("family", "")):
+			continue
 		var title: String = m.get("name", path.get_file())
 		var license: String = m.get("license", "")
 		var b := UiKit.button(title + ("  •" if path == current else ""), func() -> void: picked.emit(path),

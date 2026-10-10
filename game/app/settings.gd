@@ -22,6 +22,7 @@ const DEFAULT_PROFILE := {
 	"pad_linearity": 1.6,
 	"wheel": {},
 	"last_car": "",
+	"last_platform": "official.track.gt",
 }
 
 var graphics := "medium"

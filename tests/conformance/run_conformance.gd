@@ -63,9 +63,14 @@ func _run() -> int:
 	return 1 if failures else 0
 
 
-func _run_platform(platform: Dictionary, platform_hash: String, options: Dictionary, quick: bool, threads: int, rows: Array[Dictionary]) -> Dictionary:
+func _run_platform(platform: Dictionary, platform_hash: String, track_options: Dictionary, quick: bool, threads: int, rows: Array[Dictionary]) -> Dictionary:
 	var t0 := Time.get_ticks_msec()
 	var configs := Grid.configs(platform, quick)
+	# Braking and step steer run at 100 km/h, or lower on a platform that can't hold it.
+	var options := track_options.duplicate()
+	var test_kmh := _test_speed(platform, configs[0])
+	options.brake_speed = test_kmh
+	options.step_speed = test_kmh / 3.6
 	var jobs := []
 	var index := []
 	for config in configs:
@@ -112,6 +117,14 @@ func _run_platform(platform: Dictionary, platform_hash: String, options: Diction
 			rows.append(base.merged({ "metric": metric, "value": value, "ref": ref_value, "delta_pct": check.delta, "pass": check.pass }))
 	report.ms = Time.get_ticks_msec() - t0
 	return report
+
+
+## 100 km/h, or 85% of the reference config's top speed rounded down to 10 km/h.
+static func _test_speed(platform: Dictionary, ref: Dictionary) -> float:
+	var fitted := Fitting.fit(platform, ref.fit)
+	var job := { "platform": platform, "geometry": { "ground_y": fitted.ground_y, "wheels": fitted.physics_wheels }, "maneuver": "top_speed", "options": {} }
+	var top: Variant = NossConformance.run_batch([job], 1)[0].metrics.get("v_60s_kmh")
+	return minf(100.0, floorf(0.85 * float(top) / 10.0) * 10.0) if top != null else 100.0
 
 
 ## {delta (percent), pass}. Not reached on both sides passes; on one side fails.

@@ -1,0 +1,39 @@
+{
+  "presets": [
+    {
+      "finish": "pearl",
+      "name": "Open Blue",
+      "primary": "#1F4FB5",
+      "secondary": "#F2F2F2"
+    },
+    {
+      "finish": "solid",
+      "name": "Open Red",
+      "primary": "#C2261D",
+      "secondary": "#1B1D22"
+    },
+    {
+      "finish": "metallic",
+      "name": "Open Yellow",
+      "primary": "#E8B71A",
+      "secondary": "#1B1D22"
+    }
+  ],
+  "schema": "noss.paint/1",
+  "slots": {
+    "primary": {
+      "color": "#1F4FB5",
+      "finish": "pearl",
+      "materials": [
+        "Paint_Primary"
+      ]
+    },
+    "secondary": {
+      "color": "#F2F2F2",
+      "finish": "solid",
+      "materials": [
+        "Paint_Secondary"
+      ]
+    }
+  }
+}

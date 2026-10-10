@@ -1,0 +1,76 @@
+{
+  "schema": "noss.platform/1",
+  "id": "official.kart.medium",
+  "name": "Medium",
+  "version": "0.1.0",
+  "family": "open",
+  "modes": ["kart"],
+  "accepts_families": ["car", "open", "truck"],
+
+  "layout": {
+    "drive": "rwd",
+    "axles": [
+      { "steer": true, "driven": false, "wheels": 2 },
+      { "steer": false, "driven": true, "wheels": 2 }
+    ]
+  },
+
+  "geometry": {
+    "wheelbase_m": { "ref": 1.80, "min": 1.10, "max": 2.80 },
+    "track_m": { "ref": 1.30, "min": 1.00, "max": 1.70 },
+    "ride_height_m": { "ref": 0.05, "min": 0.03, "max": 0.20 },
+    "wheel_radius_m": { "ref": 0.20, "min": 0.12, "max": 0.40 },
+    "envelope_m": { "length": [1.5, 4.6], "width": [1.10, 2.00], "height": [0.60, 1.80] }
+  },
+
+  "mass": {
+    "kg": 200,
+    "front_weight": 0.42,
+    "cog_height_over_track": 0.25,
+    "yaw_dynamic_index": 0.90
+  },
+
+  "engine": {
+    "torque_curve_nm": [[2000, 18], [6000, 26], [9000, 24], [11000, 20]],
+    "idle_rpm": 1800,
+    "redline_rpm": 10500,
+    "limiter_rpm": 11000,
+    "inertia_kgm2": 0.02,
+    "engine_brake_nm": 6
+  },
+  "gearbox": {
+    "type": "auto",
+    "ratios": [1.0],
+    "reverse": 1.0,
+    "final_drive": 8.3,
+    "shift_time_s": 0.0
+  },
+  "differential": { "type": "spool" },
+  "brakes": { "max_torque_nm": 600, "bias_front": 0.45 },
+  "suspension": {
+    "type": "rigid",
+    "front": { "freq_hz": 6.0, "damping_bump": 0.60, "damping_rebound": 0.80, "travel_m": 0.02 },
+    "rear": { "freq_hz": 6.0, "damping_bump": 0.60, "damping_rebound": 0.80, "travel_m": 0.02 },
+    "roll_gradient_deg_per_g": 0.6,
+    "roll_stiffness_front_share": 0.50
+  },
+  "steering": { "max_road_angle_deg": 25, "wheel_rotation_deg": 270 },
+  "aero": { "cd_a": 0.50, "cl_a_front": 0.0, "cl_a_rear": 0.0, "slipstream": true },
+  "tires": {
+    "model": "pacejka_lite",
+    "compound": "kart",
+    "mu_peak": 1.35,
+    "load_sensitivity": 0.10,
+    "peak_slip_ratio": 0.12,
+    "peak_slip_angle_deg": 9.0,
+    "relaxation_length_m": 0.12,
+    "rolling_resistance": 0.015,
+    "wear": false,
+    "temperature": false
+  },
+
+  "assists_allowed": ["abs", "tcs", "auto_gearbox", "auto_clutch", "steer_aid"],
+  "damage": { "cosmetic": true, "mechanical": [] },
+  "tunable": {},
+  "ffb": { "reference_rack_nm": 5.0 }
+}

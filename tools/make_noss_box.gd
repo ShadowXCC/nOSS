@@ -1,26 +1,46 @@
 extends SceneTree
-## Builds "nOSS Box", the original low-poly default car, as an unpacked package in
-## content/cars/noss_box/ (docs/ART_AUDIO.md §3). It follows the package conventions
-## (docs/VEHICLE_PACKAGE.md §3) so it exercises the same loader as player cars.
-##   tools/godot.sh --headless -s res://tools/make_noss_box.gd
+## Builds the original low-poly default cars as unpacked packages (docs/ART_AUDIO.md §3):
+## "nOSS Box" (family car) in content/cars/noss_box/, and with --open "nOSS Open" (an
+## open-wheeler, family open) in content/cars/noss_open/. They follow the package conventions
+## (docs/VEHICLE_PACKAGE.md §3) so they exercise the same loader as player cars.
+##   tools/godot.sh --headless -s res://tools/make_noss_box.gd [-- --open]
 
-const OUT := "res://content/cars/noss_box/"
-const WHEELBASE := 2.60
-const TRACK := 1.55
-const WHEEL_R := 0.32
-const WHEEL_W := 0.23
+const BOX := {
+	"out": "res://content/cars/noss_box/", "id": "6e0c6a51-5d0f-4a2b-9a52-3b1f0d7c2e11", "name": "nOSS Box",
+	"family": "car", "wheelbase": 2.60, "track": 1.55, "wheel_r": 0.32, "wheel_w": 0.23, "sound": "v8_crossplane",
+}
+const OPEN := {
+	"out": "res://content/cars/noss_open/", "id": "3f6c2b8e-91d4-4f0a-b7e2-5c8a1d9e4f20", "name": "nOSS Open",
+	"family": "open", "wheelbase": 2.90, "track": 1.60, "wheel_r": 0.33, "wheel_w": 0.32, "sound": "flat6",
+}
 const HALF_W := 0.86
 const ARCH_R := 0.40
 const BODY_BOTTOM := 0.22
-const PACKAGE_ID := "6e0c6a51-5d0f-4a2b-9a52-3b1f0d7c2e11"
 
+var OUT := ""
+var WHEELBASE := 0.0
+var TRACK := 0.0
+var WHEEL_R := 0.0
+var WHEEL_W := 0.0
+var _car := {}
+var _open := false
 var _materials := {}
 
 
 func _init() -> void:
+	_open = "--open" in OS.get_cmdline_user_args()
+	_car = OPEN if _open else BOX
+	OUT = _car.out
+	WHEELBASE = _car.wheelbase
+	TRACK = _car.track
+	WHEEL_R = _car.wheel_r
+	WHEEL_W = _car.wheel_w
 	var root := Node3D.new()
-	root.name = "noss_box"
-	_build(root)
+	root.name = OUT.trim_suffix("/").get_file()
+	if _open:
+		_build_open(root)
+	else:
+		_build(root)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT + "model"))
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT + "sound"))
 
@@ -37,9 +57,9 @@ func _init() -> void:
 		return
 
 	var files := {
-		"fit.json": _json(_fit()),
-		"paint.json": _json(_paint()),
-		"sound/profile.json": _json({ "schema": "noss.sound/1", "name": "Default", "base": "v8_crossplane" }),
+		"fit.json": _json(_fit_open() if _open else _fit()),
+		"paint.json": _json(_paint_open() if _open else _paint()),
+		"sound/profile.json": _json({ "schema": "noss.sound/1", "name": "Default", "base": _car.sound }),
 	}
 	for rel: String in files:
 		_write(OUT + rel, files[rel].to_utf8_buffer())
@@ -47,15 +67,15 @@ func _init() -> void:
 	for rel: String in files.keys() + ["model/body.glb"]:
 		hashes[rel] = "sha256:" + PlatformLoader.sha256_hex(FileAccess.get_file_as_bytes(OUT + rel))
 	var manifest := {
-		"schema": "noss.package/1", "id": PACKAGE_ID, "version": 1, "name": "nOSS Box",
-		"author": "nOSS contributors", "license": "CC-BY-SA-4.0", "family": "car",
+		"schema": "noss.package/1", "id": _car.id, "version": 1, "name": _car.name,
+		"author": "nOSS contributors", "license": "CC-BY-SA-4.0", "family": _car.family,
 		"tags": ["default", "original"], "source": "tools/make_noss_box.gd", "created": "2026-10-10",
 		"game_min_version": "0.1.0", "files": hashes,
 	}
 	_write(OUT + "manifest.json", _json(manifest).to_utf8_buffer())
 	# Ship the GLB as-is instead of letting the editor import it.
 	_write(OUT + "model/body.glb.import", "[remap]\n\nimporter=\"keep\"\n".to_utf8_buffer())
-	print("nOSS Box written to ", OUT)
+	print(_car.name, " written to ", OUT)
 	quit()
 
 
@@ -86,6 +106,84 @@ func _build(root: Node3D) -> void:
 		_mesh_node("wheel_" + id, hub, _wheel_mesh(side))
 		var caliper := _mesh_node("caliper_" + id, hub, _box(Vector3(-0.05 * side, 0.12, -0.10), Vector3(0.06, 0.12, 0.10), "caliper"))
 		caliper.position = Vector3.ZERO
+
+
+## nOSS Open: a narrow tub with sidepods, wings and exposed wheels.
+func _build_open(root: Node3D) -> void:
+	var body := _node("body", root)
+	_mesh_node("tub", body, _open_tub_mesh())
+	var pods := _begin("Paint_Primary")
+	for side in [1.0, -1.0]:
+		_box_into(pods, Vector3(0.52 * side, 0.36, -0.35), Vector3(0.34, 0.34, 1.5))
+	_mesh_node("sidepods", body, pods.commit())
+	var wings := _begin("Paint_Secondary")
+	_box_into(wings, Vector3(0, 0.12, 2.32), Vector3(1.62, 0.04, 0.42)) # front wing
+	for side in [1.0, -1.0]:
+		_box_into(wings, Vector3(0.80 * side, 0.18, 2.32), Vector3(0.02, 0.16, 0.46))
+		_box_into(wings, Vector3(0.50 * side, 0.82, -1.95), Vector3(0.02, 0.30, 0.48)) # rear endplates
+	_box_into(wings, Vector3(0, 0.94, -1.95), Vector3(1.00, 0.04, 0.42)) # rear wing
+	_box_into(wings, Vector3(0, 0.70, -1.90), Vector3(0.06, 0.40, 0.10)) # pylon
+	_mesh_node("wings", body, wings.commit())
+	_mesh_node("helmet", body, _box(Vector3(0, 0.80, -0.20), Vector3(0.24, 0.26, 0.28), "helmet"))
+	_mesh_node("taillight_C", body, _box(Vector3(0, 0.30, -1.92), Vector3(0.14, 0.06, 0.02), "tail_light"))
+
+	var interior := _node("interior", root)
+	_mesh_node("seatC", interior, _box(Vector3(0, 0.30, -0.35), Vector3(0.40, 0.10, 0.50), "seat"))
+	var wheel := _mesh_node("steering_wheel", interior, _steering_wheel_mesh())
+	wheel.position = Vector3(0, 0.62, 0.22)
+	wheel.scale = Vector3.ONE * 0.75
+
+	for id in ["LF", "RF", "LR", "RR"]:
+		var side := 1.0 if id[0] == "L" else -1.0
+		var z := WHEELBASE / 2.0 if id[1] == "F" else -WHEELBASE / 2.0
+		var hub := _node("hub_" + id, root)
+		hub.position = Vector3(TRACK / 2.0 * side, WHEEL_R, z)
+		_mesh_node("wheel_" + id, hub, _wheel_mesh(side))
+		# Suspension arms from the tub to the hub, painted dark.
+		var arms := _begin("black_trim")
+		var inner := Vector3(-side * (TRACK / 2.0 - 0.34), 0.0, 0.0)
+		for dy in [-0.06, 0.08]:
+			var a := Vector3(0, dy, 0)
+			var mid := (a + inner) / 2.0
+			_box_into(arms, mid, Vector3(absf(inner.x), 0.025, 0.04))
+		_mesh_node("arms_" + id, hub, arms.commit())
+
+
+## Side silhouette of the tub (z, y): low nose, cockpit, airbox, tapering tail.
+func _open_tub_mesh() -> ArrayMesh:
+	var p := PackedVector2Array([
+		Vector2(-1.85, 0.20), Vector2(2.45, 0.16), Vector2(2.45, 0.24), Vector2(1.20, 0.46),
+		Vector2(0.30, 0.58), Vector2(0.05, 0.62), Vector2(-0.05, 0.52), Vector2(-0.45, 0.56),
+		Vector2(-0.55, 0.92), Vector2(-0.80, 0.94), Vector2(-1.85, 0.48),
+	])
+	var st := _begin("Paint_Primary")
+	_extrude(st, p, 0.34, 0.34)
+	return st.commit()
+
+
+func _fit_open() -> Dictionary:
+	var fit := _fit()
+	fit.steering_wheel = { "node": "steering_wheel", "visual_lock_deg": 300 }
+	fit.eye_point = [0.0, 0.84, -0.12]
+	fit.envelope = { "min": [-0.97, 0.0, -2.18], "max": [0.97, 0.98, 2.53] }
+	fit.lights = { "head": [], "brake": ["tail_light"], "reverse": [], "indicator_L": [], "indicator_R": [] }
+	fit.exhaust_points = [[0.0, 0.40, -1.90]]
+	return fit
+
+
+func _paint_open() -> Dictionary:
+	return {
+		"schema": "noss.paint/1",
+		"slots": {
+			"primary": { "materials": ["Paint_Primary"], "color": "#1F4FB5", "finish": "pearl" },
+			"secondary": { "materials": ["Paint_Secondary"], "color": "#F2F2F2", "finish": "solid" },
+		},
+		"presets": [
+			{ "name": "Open Blue", "primary": "#1F4FB5", "secondary": "#F2F2F2", "finish": "pearl" },
+			{ "name": "Open Red", "primary": "#C2261D", "secondary": "#1B1D22", "finish": "solid" },
+			{ "name": "Open Yellow", "primary": "#E8B71A", "secondary": "#1B1D22", "finish": "metallic" },
+		],
+	}
 
 
 func _fit() -> Dictionary:
@@ -353,6 +451,9 @@ func _material(material_name: String) -> StandardMaterial3D:
 		"tail_light":
 			m.albedo_color = Color(0.45, 0.02, 0.02)
 			m.roughness = 0.2
+		"helmet":
+			m.albedo_color = Color(0.92, 0.92, 0.94)
+			m.roughness = 0.25
 		"seat", "dash_plastic", "wheel_leather":
 			m.albedo_color = Color(0.12, 0.12, 0.13)
 			m.roughness = 0.8
