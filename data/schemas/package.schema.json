@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noss:schema:package:1",
+  "title": "nOSS package manifest",
+  "description": "manifest.json inside a .noss package. See docs/VEHICLE_PACKAGE.md §2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "version", "name", "author", "license", "family", "files"],
+  "properties": {
+    "schema": { "const": "noss.package/1" },
+    "id": {
+      "description": "UUID. Stays the same across versions of the same car.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "version": { "type": "integer", "minimum": 1 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 96 },
+    "author": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "license": {
+      "description": "SPDX identifier or free text. Shown, not enforced.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "family": { "enum": ["car", "open", "truck", "moto"] },
+    "tags": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$", "maxLength": 32 }
+    },
+    "source": { "type": "string", "maxLength": 256 },
+    "created": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "game_min_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "files": {
+      "description": "Hash of every other file in the package, by path.",
+      "type": "object",
+      "required": ["fit.json", "paint.json", "model/body.glb"],
+      "maxProperties": 511,
+      "propertyNames": {
+        "description": "Relative path, allowed file types only, no '..' or hidden segments.",
+        "pattern": "^(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*\\.(?:json|glb|gltf|png|jpg|ogg|wav)$",
+        "maxLength": 200
+      },
+      "additionalProperties": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+    }
+  }
+}

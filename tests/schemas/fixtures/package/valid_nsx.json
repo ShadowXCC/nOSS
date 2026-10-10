@@ -1,0 +1,25 @@
+{
+  "schema": "noss.package/1",
+  "id": "5b0d3f0e-2c1a-4f53-9a57-1c8e2f6b7a10",
+  "version": 3,
+  "name": "1997 Acura NSX",
+  "author": "ShadowXCC",
+  "license": "personal-use-only",
+  "family": "car",
+  "tags": [
+    "coupe",
+    "1990s",
+    "mid-engine"
+  ],
+  "source": "fm4_to_noss 0.1 from ACU_NSX_97",
+  "created": "2026-10-09",
+  "game_min_version": "0.1.0",
+  "files": {
+    "fit.json": "sha256:3faa0be340a3eba1553566e8ce58b0e795f4a63643ebcbe3b11e25525253255e",
+    "paint.json": "sha256:3faa0be340a3eba1553566e8ce58b0e795f4a63643ebcbe3b11e25525253255e",
+    "model/body.glb": "sha256:3faa0be340a3eba1553566e8ce58b0e795f4a63643ebcbe3b11e25525253255e",
+    "model/lod1.glb": "sha256:3faa0be340a3eba1553566e8ce58b0e795f4a63643ebcbe3b11e25525253255e",
+    "sound/profile.json": "sha256:42c2e4f03318921145f17ff66a5a37e8b80894fadd26a60bd5a45a008a9f8b24",
+    "thumb.png": "sha256:42c2e4f03318921145f17ff66a5a37e8b80894fadd26a60bd5a45a008a9f8b24"
+  }
+}

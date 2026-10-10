@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noss:schema:fit:1",
+  "title": "nOSS fit",
+  "description": "fit.json inside a .noss package. Model space is glTF: +Y up, +Z forward, +X left, metres. See docs/VEHICLE_PACKAGE.md §4.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "model_transform", "ground_y", "wheel_mode", "wheels", "envelope"],
+  "properties": {
+    "schema": { "const": "noss.fit/1" },
+    "model_transform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scale", "rotation_deg", "offset_m"],
+      "properties": {
+        "scale": { "type": "number", "exclusiveMinimum": 0 },
+        "rotation_deg": { "$ref": "#/$defs/vec3" },
+        "offset_m": { "$ref": "#/$defs/vec3" }
+      }
+    },
+    "ground_y": { "type": "number" },
+    "wheel_mode": { "enum": ["model", "stock", "static"] },
+    "wheels": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "axle", "side", "center", "radius", "width"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^(?:LF|RF|LR|RR|[LRC][1-8])$" },
+          "axle": { "type": "integer", "minimum": 1, "maximum": 8 },
+          "side": { "enum": ["L", "R", "C"] },
+          "node": { "$ref": "#/$defs/node_name" },
+          "spin_node": { "$ref": "#/$defs/node_name" },
+          "fixed_nodes": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/node_name" } },
+          "center": { "$ref": "#/$defs/vec3" },
+          "radius": { "type": "number", "exclusiveMinimum": 0 },
+          "width": { "type": "number", "exclusiveMinimum": 0 }
+        }
+      }
+    },
+    "steering_wheel": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["node", "visual_lock_deg"],
+      "properties": {
+        "node": { "$ref": "#/$defs/node_name" },
+        "visual_lock_deg": { "type": "number", "exclusiveMinimum": 0, "maximum": 2520 }
+      }
+    },
+    "eye_point": { "$ref": "#/$defs/vec3_or_auto" },
+    "cameras": {
+      "description": "null places the camera from the envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hood": { "$ref": "#/$defs/vec3_or_auto" },
+        "bumper": { "$ref": "#/$defs/vec3_or_auto" }
+      }
+    },
+    "envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min", "max"],
+      "properties": {
+        "min": { "$ref": "#/$defs/vec3" },
+        "max": { "$ref": "#/$defs/vec3" }
+      }
+    },
+    "lights": {
+      "description": "Node or material name patterns (globs) per light group.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "head": { "$ref": "#/$defs/patterns" },
+        "brake": { "$ref": "#/$defs/patterns" },
+        "reverse": { "$ref": "#/$defs/patterns" },
+        "indicator_L": { "$ref": "#/$defs/patterns" },
+        "indicator_R": { "$ref": "#/$defs/patterns" }
+      }
+    },
+    "exhaust_points": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/vec3" } },
+    "hide_nodes": { "$ref": "#/$defs/patterns" },
+    "lod_distances_m": {
+      "description": "Start distance per LOD, LOD0 first.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": { "type": "number", "minimum": 0 }
+    }
+  },
+  "$defs": {
+    "vec3": {
+      "type": "array",
+      "prefixItems": [{ "type": "number" }, { "type": "number" }, { "type": "number" }],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "vec3_or_auto": {
+      "oneOf": [{ "$ref": "#/$defs/vec3" }, { "type": "null" }]
+    },
+    "node_name": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "patterns": {
+      "type": "array",
+      "maxItems": 64,
+      "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+    }
+  }
+}

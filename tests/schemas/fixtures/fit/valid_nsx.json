@@ -1,0 +1,134 @@
+{
+  "schema": "noss.fit/1",
+  "model_transform": {
+    "scale": 1.0,
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "offset_m": [
+      0,
+      0,
+      0
+    ]
+  },
+  "ground_y": -0.1445,
+  "wheel_mode": "model",
+  "wheels": [
+    {
+      "id": "LF",
+      "axle": 1,
+      "side": "L",
+      "node": "hub_LF",
+      "spin_node": "wheel_LF",
+      "fixed_nodes": [
+        "caliper_LF"
+      ],
+      "center": [
+        0.7963,
+        0.1568,
+        1.3335
+      ],
+      "radius": 0.2999,
+      "width": 0.215
+    },
+    {
+      "id": "RF",
+      "axle": 1,
+      "side": "R",
+      "node": "hub_RF",
+      "spin_node": "wheel_RF",
+      "fixed_nodes": [
+        "caliper_RF"
+      ],
+      "center": [
+        -0.7963,
+        0.1568,
+        1.3335
+      ],
+      "radius": 0.2999,
+      "width": 0.215
+    },
+    {
+      "id": "LR",
+      "axle": 2,
+      "side": "L",
+      "node": "hub_LR",
+      "spin_node": "wheel_LR",
+      "fixed_nodes": [
+        "caliper_LR"
+      ],
+      "center": [
+        0.7757,
+        0.168,
+        -1.2177
+      ],
+      "radius": 0.3139,
+      "width": 0.245
+    },
+    {
+      "id": "RR",
+      "axle": 2,
+      "side": "R",
+      "node": "hub_RR",
+      "spin_node": "wheel_RR",
+      "fixed_nodes": [
+        "caliper_RR"
+      ],
+      "center": [
+        -0.7757,
+        0.168,
+        -1.2177
+      ],
+      "radius": 0.3139,
+      "width": 0.245
+    }
+  ],
+  "steering_wheel": {
+    "node": "steering_wheel",
+    "visual_lock_deg": 450
+  },
+  "eye_point": [
+    0.36,
+    0.78,
+    -0.25
+  ],
+  "cameras": {
+    "hood": null,
+    "bumper": null
+  },
+  "envelope": {
+    "min": [
+      -0.89,
+      -0.146,
+      -2.13
+    ],
+    "max": [
+      0.89,
+      1.04,
+      2.05
+    ]
+  },
+  "lights": {
+    "head": [
+      "headlight*"
+    ],
+    "brake": [
+      "light_brake_*"
+    ],
+    "reverse": [],
+    "indicator_L": [],
+    "indicator_R": []
+  },
+  "exhaust_points": [],
+  "hide_nodes": [],
+  "lod_distances_m": [
+    0,
+    12,
+    30,
+    70,
+    150,
+    300
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "schema": "noss.paint/1",
+  "slots": {
+    "primary": {
+      "materials": [
+        "Paint_Primary"
+      ],
+      "color": "#FFD4",
+      "finish": "solid"
+    },
+    "secondary": {
+      "materials": [
+        "Paint_Secondary"
+      ],
+      "color": "#FFD400",
+      "finish": "solid"
+    }
+  },
+  "presets": [
+    {
+      "name": "Factory 1",
+      "primary": "#FFD400",
+      "finish": "solid"
+    },
+    {
+      "name": "Factory 2",
+      "primary": "#252295",
+      "finish": "metallic"
+    }
+  ]
+}

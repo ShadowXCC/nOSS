@@ -1,0 +1,288 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noss:schema:platform:1",
+  "title": "nOSS platform",
+  "description": "Mechanical identity of a vehicle class. See docs/PLATFORMS.md §2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "name", "version", "family", "modes", "layout", "geometry", "mass", "engine", "gearbox", "tires"],
+  "properties": {
+    "schema": { "const": "noss.platform/1" },
+    "id": {
+      "description": "Namespaced id. official.* is reserved for the game's own data/.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)+$",
+      "maxLength": 128
+    },
+    "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "version": { "$ref": "#/$defs/semver" },
+    "family": { "$ref": "#/$defs/family" },
+    "modes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["track", "kart", "highway", "endless"] }
+    },
+    "accepts_families": {
+      "description": "Model families that can mount this platform. Defaults to [family].",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/family" }
+    },
+
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["drive", "axles"],
+      "properties": {
+        "drive": { "enum": ["fwd", "rwd", "awd"] },
+        "axles": {
+          "description": "Front to back.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["steer", "driven", "wheels"],
+            "properties": {
+              "steer": { "type": "boolean" },
+              "driven": { "type": "boolean" },
+              "wheels": { "type": "integer", "minimum": 1, "maximum": 2 }
+            }
+          }
+        }
+      }
+    },
+
+    "geometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["wheelbase_m", "track_m", "ride_height_m", "wheel_radius_m", "envelope_m"],
+      "properties": {
+        "wheelbase_m": { "$ref": "#/$defs/range" },
+        "track_m": { "$ref": "#/$defs/range" },
+        "ride_height_m": { "$ref": "#/$defs/range" },
+        "wheel_radius_m": { "$ref": "#/$defs/range" },
+        "envelope_m": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["length", "width", "height"],
+          "properties": {
+            "length": { "$ref": "#/$defs/min_max" },
+            "width": { "$ref": "#/$defs/min_max" },
+            "height": { "$ref": "#/$defs/min_max" }
+          }
+        }
+      }
+    },
+
+    "mass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kg", "front_weight", "cog_height_over_track", "yaw_dynamic_index"],
+      "properties": {
+        "kg": { "$ref": "#/$defs/positive" },
+        "front_weight": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+        "cog_height_over_track": { "$ref": "#/$defs/positive" },
+        "yaw_dynamic_index": { "$ref": "#/$defs/positive" }
+      }
+    },
+
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["torque_curve_nm", "idle_rpm", "redline_rpm", "limiter_rpm"],
+      "properties": {
+        "torque_curve_nm": {
+          "description": "[rpm, torque_nm] points, ascending rpm.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 64,
+          "items": {
+            "type": "array",
+            "prefixItems": [{ "$ref": "#/$defs/positive" }, { "type": "number", "minimum": 0 }],
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "idle_rpm": { "$ref": "#/$defs/positive" },
+        "redline_rpm": { "$ref": "#/$defs/positive" },
+        "limiter_rpm": { "$ref": "#/$defs/positive" },
+        "inertia_kgm2": { "$ref": "#/$defs/positive" },
+        "engine_brake_nm": { "type": "number", "minimum": 0 }
+      }
+    },
+
+    "gearbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "ratios", "reverse", "final_drive", "shift_time_s"],
+      "properties": {
+        "type": { "enum": ["manual_h", "sequential", "auto"] },
+        "ratios": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": { "$ref": "#/$defs/positive" }
+        },
+        "reverse": { "$ref": "#/$defs/positive" },
+        "final_drive": { "$ref": "#/$defs/positive" },
+        "shift_time_s": { "type": "number", "minimum": 0 }
+      }
+    },
+
+    "differential": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["open", "lsd_clutch", "locked", "spool"] },
+        "preload_nm": { "type": "number", "minimum": 0 },
+        "power_lock": { "$ref": "#/$defs/unit" },
+        "coast_lock": { "$ref": "#/$defs/unit" }
+      }
+    },
+
+    "brakes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_torque_nm", "bias_front"],
+      "properties": {
+        "max_torque_nm": { "$ref": "#/$defs/positive" },
+        "bias_front": { "$ref": "#/$defs/unit" }
+      }
+    },
+
+    "suspension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["front", "rear", "roll_gradient_deg_per_g", "roll_stiffness_front_share"],
+      "properties": {
+        "front": { "$ref": "#/$defs/suspension_axle" },
+        "rear": { "$ref": "#/$defs/suspension_axle" },
+        "roll_gradient_deg_per_g": { "$ref": "#/$defs/positive" },
+        "roll_stiffness_front_share": { "$ref": "#/$defs/unit" }
+      }
+    },
+
+    "steering": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_road_angle_deg", "wheel_rotation_deg"],
+      "properties": {
+        "max_road_angle_deg": { "type": "number", "exclusiveMinimum": 0, "maximum": 90 },
+        "wheel_rotation_deg": { "type": "number", "exclusiveMinimum": 0, "maximum": 2520 }
+      }
+    },
+
+    "aero": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cd_a"],
+      "properties": {
+        "cd_a": { "type": "number", "minimum": 0 },
+        "cl_a_front": { "type": "number" },
+        "cl_a_rear": { "type": "number" },
+        "slipstream": { "type": "boolean" }
+      }
+    },
+
+    "tires": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "mu_peak", "peak_slip_ratio", "peak_slip_angle_deg"],
+      "properties": {
+        "model": { "enum": ["pacejka_lite"] },
+        "compound": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "mu_peak": { "$ref": "#/$defs/positive" },
+        "load_sensitivity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "peak_slip_ratio": { "$ref": "#/$defs/positive" },
+        "peak_slip_angle_deg": { "$ref": "#/$defs/positive" },
+        "relaxation_length_m": { "$ref": "#/$defs/positive" },
+        "rolling_resistance": { "type": "number", "minimum": 0 },
+        "wear": { "type": "boolean" },
+        "temperature": { "type": "boolean" }
+      }
+    },
+
+    "assists_allowed": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid", "racing_line"] }
+    },
+
+    "damage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cosmetic": { "type": "boolean" },
+        "mechanical": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["alignment", "aero", "engine", "suspension"] }
+        }
+      }
+    },
+
+    "tunable": {
+      "description": "Setup values players may change. Keys are dotted paths into this file.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z_]+(\\.[a-z_]+)+$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["min", "max", "step"],
+        "properties": {
+          "mode": { "enum": ["per_gear"] },
+          "min": { "type": "number" },
+          "max": { "type": "number" },
+          "step": { "$ref": "#/$defs/positive" }
+        }
+      }
+    },
+
+    "ffb": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reference_rack_nm": { "$ref": "#/$defs/positive" }
+      }
+    }
+  },
+
+  "$defs": {
+    "semver": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "family": { "enum": ["car", "open", "truck", "moto"] },
+    "positive": { "type": "number", "exclusiveMinimum": 0 },
+    "unit": { "type": "number", "minimum": 0, "maximum": 1 },
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "min", "max"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/positive" },
+        "min": { "$ref": "#/$defs/positive" },
+        "max": { "$ref": "#/$defs/positive" }
+      }
+    },
+    "min_max": {
+      "type": "array",
+      "prefixItems": [{ "$ref": "#/$defs/positive" }, { "$ref": "#/$defs/positive" }],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "suspension_axle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["freq_hz", "damping_bump", "damping_rebound", "travel_m"],
+      "properties": {
+        "freq_hz": { "$ref": "#/$defs/positive" },
+        "damping_bump": { "$ref": "#/$defs/positive" },
+        "damping_rebound": { "$ref": "#/$defs/positive" },
+        "travel_m": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}
