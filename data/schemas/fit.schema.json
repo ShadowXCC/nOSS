@@ -35,6 +35,11 @@
           "node": { "$ref": "#/$defs/node_name" },
           "spin_node": { "$ref": "#/$defs/node_name" },
           "fixed_nodes": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/node_name" } },
+          "pivot": {
+            "description": "node: node/spin_node exist in the model. insert: the game makes them at center and moves spin_nodes and fixed_nodes under them.",
+            "enum": ["node", "insert"]
+          },
+          "spin_nodes": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/node_name" } },
           "center": { "$ref": "#/$defs/vec3" },
           "radius": { "type": "number", "exclusiveMinimum": 0 },
           "width": { "type": "number", "exclusiveMinimum": 0 }

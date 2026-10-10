@@ -24,3 +24,12 @@ All original, made for nOSS, CC-BY-SA 4.0 ([LICENSE-ASSETS.md](LICENSE-ASSETS.md
 | Proving Ground test track | `content/tracks/proving_ground/` (built at load time by `game/world/track_builder.gd`) |
 | Retro world textures and sky | Generated at load time (`game/world/retro_textures.gd`, `game/world/retro_sky.gdshader`) |
 | Placeholder engine, tire and wind sounds | Synthesized at load time (`game/audio/engine_sound.gd`) |
+
+## Third-party assets
+
+Used for testing only; not part of the game.
+
+| Asset | Author | License | Where |
+|---|---|---|---|
+| [Car Kit](https://kenney.nl/assets/car-kit) 3.1 (3 models and their texture) | Kenney | CC0 1.0 | `tests/fixtures/models/kenney/` (Fitting Bay import tests) |
+| [Toy Car](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/ToyCar) | Guido Odendahl, Eric Chadwick | CC0 1.0 | Downloaded to `.tools/test_models/` for the M2 acceptance run; not committed |

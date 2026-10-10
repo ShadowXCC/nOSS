@@ -110,6 +110,7 @@ These match the FM4 rips, so those convert with no manual work. Models that don'
 }
 ```
 
+- `pivot` (per wheel): `node` (default) means `node` and `spin_node` exist in the model (FM4 convention). `insert` means the model has no hub nodes: the game makes `node` and `spin_node` at `center`, with the hub's X along the car's axle, and moves `spin_nodes` (and `fixed_nodes`) under them. The Fitting Bay writes this for wheels it detects, so the model never needs editing.
 - `wheel_mode`:
   - `model`: the model's wheels are used.
   - `stock`: the model's wheels are hidden and the platform's stock wheels are drawn at the anchors.
@@ -191,6 +192,13 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 ## 7. Fitting Bay (in-game import)
 
 *Requirements: PKG-02…PKG-04. Milestone M2.*
+
+**How the automatic steps work** (`ModelImport`, `ModelAnalysis`):
+- **Import:** a GLB that already passes §9 is stored byte for byte. Anything else (FBX through `FBXDocument`, `.gltf` with separate files, external, WebP or oversized textures) is re-exported through Godot into a plain GLB (PNG textures, JPEG if PNG would pass 50 MB; textures over 4096 are scaled down). Draco- and meshopt-compressed files are refused with "Re-export without compression". The resulting GLB is parsed again, so the bay sees exactly what the game will load.
+- **Wheels:** named hubs if present. Otherwise round, thin parts: whole meshes, or connected parts inside a merged mesh (meshoptimizer-based, `NossMesh.components`). Parts on one axle line (tire, rim, disc) form a wheel; the wheels kept share an axle direction and similar radii. Wheel-like names (`wheel`, `tire`, `rim`…) count as extra evidence. Wheels merged into the body are split out into their own meshes.
+- **Orientation:** the axle direction is the car's left-right; the spread of the wheel centres is its length; up is the side the car reaches further from its wheels. Front comes from names (`front`, `head`, `FL`… against `rear`, `tail`, `back`…) and the steering wheel; glTF's +Z breaks a tie. Rotations within 3° of a right angle snap to it.
+- **Scale:** the wheelbase decides: a common unit (m, cm, mm, inch, foot) if one gives 1.8–3.6 m, otherwise whatever gives 2.6 m.
+- **Other parts:** ground planes, stands and cloths (by name, or much bigger than the car's footprint) are hidden. `Paint_*` materials become slots; otherwise the body's main material is offered unless the wheels or glass use it too. Lights and the steering wheel come from names, the eye point from the steering wheel, hood and bumper cameras from the body's shape. A model whose wheels stand outside its body is `open`, others `car`.
 
 | Step | What happens | Automatic? |
 |---|---|---|

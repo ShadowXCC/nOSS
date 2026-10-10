@@ -93,6 +93,32 @@ static func write(path: String, info: Dictionary, files: Dictionary, limits := {
 	return result
 
 
+## Writes `files` and their manifest into a folder: an unpacked package the loader can open
+## (Fitting Bay drafts and test drives). No checks; write() does those. Returns an error or "".
+static func write_folder(dir: String, info: Dictionary, files: Dictionary) -> String:
+	var hashes := {}
+	for rel: String in files:
+		var target := dir.path_join(rel)
+		DirAccess.make_dir_recursive_absolute(target.get_base_dir())
+		var f := FileAccess.open(target, FileAccess.WRITE)
+		if f == null:
+			return "Can't write " + target
+		f.store_buffer(files[rel])
+		f.close()
+		hashes[rel] = "sha256:" + PlatformLoader.sha256_hex(files[rel])
+	var manifest := {
+		"schema": "noss.package/1", "id": info.get("id", new_uuid()), "version": 1, "name": info.name,
+		"author": info.author, "license": info.license, "family": info.family, "tags": info.get("tags", []),
+		"source": info.get("source", "nOSS Fitting Bay"), "files": hashes,
+	}
+	var f := FileAccess.open(dir.path_join("manifest.json"), FileAccess.WRITE)
+	if f == null:
+		return "Can't write the manifest"
+	f.store_string(canonical_json(manifest))
+	f.close()
+	return ""
+
+
 ## Unpacks a package (zip or folder) into `dir` for editing. Returns an error or "".
 static func unpack(path: String, dir: String) -> String:
 	var source := PackageSource.open(path, PackageLoader.DEFAULT_LIMITS)

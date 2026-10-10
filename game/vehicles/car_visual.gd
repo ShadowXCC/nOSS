@@ -107,6 +107,10 @@ func _setup() -> void:
 	for pattern: String in fit.get("hide_nodes", []):
 		for node in model_root.find_children(pattern, "Node3D", true, false):
 			node.visible = false
+	for fw: Dictionary in fit.wheels:
+		if fw.get("pivot", "node") == "insert":
+			_insert_pivots(fw)
+
 	# model: the model's wheels move; static: they're part of the body and stay put;
 	# stock: they're hidden and the platform's stock wheels are drawn at the anchors.
 	var mode: String = fit.wheel_mode
@@ -153,6 +157,44 @@ func _setup() -> void:
 			var m := mi.get_active_material(s) as BaseMaterial3D
 			if m:
 				m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+
+
+## A detected wheel (pivot "insert"): makes hub and spin nodes at the wheel's centre in each LOD,
+## with the hub's X along the car's axle, and moves the wheel's parts under them.
+func _insert_pivots(fw: Dictionary) -> void:
+	var to_model := fitted.model_xform.basis.inverse()
+	var axle := (to_model * Vector3.RIGHT).normalized()
+	var up := (to_model * Vector3.UP).normalized()
+	var basis := Basis(axle, up, axle.cross(up).normalized())
+	var center := Vector3(fw.center[0], fw.center[1], fw.center[2])
+	for lod in model_root.get_children():
+		var hub := Node3D.new()
+		hub.name = fw.node
+		hub.transform = Transform3D(basis, center)
+		lod.add_child(hub)
+		var spin := Node3D.new()
+		spin.name = fw.spin_node
+		hub.add_child(spin)
+		for list: Array in [[fw.get("spin_nodes", []), spin], [fw.get("fixed_nodes", []), hub]]:
+			for node_name: String in list[0]:
+				var part := lod.find_child(node_name, true, false) as Node3D
+				if part == null or part == hub:
+					continue
+				var in_lod := _xform_to_node(part, lod)
+				part.owner = null
+				part.get_parent().remove_child(part)
+				list[1].add_child(part)
+				part.transform = _xform_to_node(list[1], lod).affine_inverse() * in_lod
+
+
+## `node`'s transform relative to its ancestor `root`.
+static func _xform_to_node(node: Node, root: Node) -> Transform3D:
+	var t := Transform3D.IDENTITY
+	while node and node != root:
+		if node is Node3D:
+			t = (node as Node3D).transform * t
+		node = node.get_parent()
+	return t
 
 
 ## Generated LODs carry plain materials (LodBuilder); they use LOD0's, matched by name.
