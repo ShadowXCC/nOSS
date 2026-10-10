@@ -202,15 +202,19 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 
 | Step | What happens | Automatic? |
 |---|---|---|
-| 1. Import | Pick a `.glb`, `.gltf` or `.fbx`. It's validated (§9) and parsed on a worker thread. | — |
-| 2. Orient | Forward is guessed from the longest horizontal axis plus wheel and headlight positions. Buttons rotate it 90°/180°. | Yes, overridable |
-| 3. Wheels | Named hubs are used. Otherwise wheels are detected by name (`wheel`, `tire`, `tyre`, `rim`, `FL/FR/RL/RR`…) and then by shape (cylinder-like meshes near the bottom corners). If both fail, the player clicks 4 anchor points and picks `stock` or `static` wheels. | Mostly |
-| 4. Scale | Auto from wheel radius and typical car length. The player can type the real length. | Yes, overridable |
-| 5. Paint | Click materials to assign them to primary, secondary or tertiary slots, then pick colors and finishes. | `Paint_*` materials are automatic |
-| 6. Cockpit | Drag the eye point, pick the steering-wheel node, map lights. | Guessed |
-| 7. Sound | Pick a built-in profile and tune it, or add your own recordings (§6). Rev it in the bay and listen live. | Family default |
-| 8. Preview | Mount it on any platform. The fitted geometry, clamps and warnings are shown ("Scaled to 92%", "Wheels moved 4 cm in"). Test-drive on the Proving Ground. | — |
-| 9. Save | Writes `.noss` to the garage, generates missing LODs (meshoptimizer) and renders the thumbnail. | Yes |
+| 1. Import | Pick a `.glb`, `.gltf` or `.fbx` (Browse, or the `import/` folder next to the garage). It's checked, converted if needed and analysed on a worker thread. Name, author, license and type (car, open-wheel, truck) are set here. | Yes |
+| 2. Orient | The yellow arrow shows the front. Buttons turn it 90°/180° or tip and roll it. | Yes, overridable |
+| 3. Wheels | Found wheels are shown as rings. Without any (or by choice), `stock` or `static` wheels are placed with sliders: front and rear axle, track, radius, height. | Mostly |
+| 4. Scale | From the wheelbase. The player can type the real length; the class may still scale it to fit (shown, e.g. "Scaled to 92%"). | Yes, overridable |
+| 5. Paint | Each material can be primary, secondary, tertiary or not painted; then colour and finish per slot. | `Paint_*` materials, or the body's main material |
+| 6. Cockpit | Sliders for the driver's eye, hood and bumper cameras, with a view from each. | Guessed |
+| 7. Sound | Pick a built-in profile and tune it (§6); Rev to listen. Own recordings come in M5. | Type default |
+| 8. Save | Pick a class and test-drive on the Proving Ground (the pause menu leads back), or save to the garage. **Save and drive** is there from step 1 on. | — |
+
+- **Preview:** the car is always shown as the game will draw it, fitted to the chosen class, with that class's notes ("Scaled to 92%", "Wheels moved 4 cm in").
+- **Saving** generates the LODs (meshoptimizer, D50) and renders the 512×288 thumbnail.
+- **Drafts** live in `user://fitting/<id>/` as unpacked packages while being fitted, and are removed once the car is saved or thrown away.
+- Not in M2: placing wheel anchors by clicking on the model, and own recordings.
 
 ## 8. Garage and hotswap
 

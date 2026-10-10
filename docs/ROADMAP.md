@@ -59,8 +59,10 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
 - Hood and bumper cameras. 4 built-in engine sound profiles (AV-05). LOD generation (meshoptimizer).
 
 **Acceptance:**
-- [ ] A non-FM4 CC0 car model with no Blender prep becomes drivable in under 2 minutes in the Fitting Bay.
-- [ ] Conformance passes (±2%) for every official platform across its geometry grid.
+- [x] A non-FM4 CC0 car model with no Blender prep becomes drivable in under 2 minutes in the Fitting Bay. *The Khronos ToyCar (CC0: one merged mesh with the wheels inside, 4 cm long, standing on a cloth) fits with no input: wheels split out and found, cloth hidden, scaled ×108. Import 1.0 s, save with LODs and thumbnail 0.7 s, drivable about 2 s after the file is picked. Clicks: Fitting Bay, Browse, the file, Save and drive. Kenney CC0 cars (GLB with an external texture, FBX, a kart) take under 1 s each. The exported Windows build (under Wine) imports and drives an FBX.*
+- [x] Conformance passes (±2%) for every official platform across its geometry grid. *All six platforms, 32 configurations each (the 27-point grid plus scaled, clamped, asymmetric, ground-offset and strict fits), 7 maneuvers: worst deviation 0.59%. The harness matches Jolt within 0.4%.*
+
+**Notes:** manual wheel anchors are set with sliders (front and rear axle, track, radius, height); clicking points on the model is not done. The kart platform runs on the core sim; its arcade layer is M8. Own engine recordings are M5.
 
 ## M3: Local multiplayer
 

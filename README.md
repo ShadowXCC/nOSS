@@ -14,12 +14,14 @@ nOSS (NOS + Open Source Software) is a free, open-source racing game. You can im
 
 ## Status
 
-**M1 (first demo, `v0.1.0-demo`) is done:** free-drive on the Proving Ground with the Track / GT platform, your own cars loaded as `.noss` packages, keyboard, controller and wheel (with force feedback), chase and cockpit cameras, a lap timer, and car hotswap. Deferred: a wheel test on real hardware and a test on Windows itself (the Windows build runs under Wine). Next up is **M2**, the Garage and Fitting Bay ([roadmap](docs/ROADMAP.md)).
+**M2 (`v0.2.0`) is done:** bring your own car. The **Fitting Bay** turns a GLB, glTF or FBX into a car with no preparation: it finds the wheels (even when they're part of the body), works out which way is up and forward, scales it, and picks up paint slots, lights and the cockpit. Save and drive, or adjust each step. The **Garage** lists your cars with thumbnails: drive, edit, paint, tune the engine sound, copy, delete. Six classes now: Track Touring, GT, Prototype and Formula, Kart Medium, and Highway Street, each checked by the conformance runner so every model drives exactly the same. Also new: hood and bumper cameras, four synthesized engine sounds you can tune per car, generated LODs. Next up is **M3**, local multiplayer ([roadmap](docs/ROADMAP.md)).
 
 ## Playing
 
-- **Free Drive** on the title screen, pick a car, drive. The original **nOSS Box** always works; your own cars come from the garage (`~/.local/share/nOSS/garage/` on Linux, `%APPDATA%\nOSS\garage` on Windows).
-- **Keys:** arrows or WASD to drive, Space handbrake, E/Q shift, C camera, B look back, R reset car, Tab change car while driving, Esc pause, F3 frame rate. Keys can be rebound in Settings. Controllers work out of the box.
+- **Free Drive** on the title screen: pick a class (how the car drives), then a car (how it looks). The original **nOSS Box** and **nOSS Open** always work; your own cars come from the garage (`~/.local/share/nOSS/garage/` on Linux, `%APPDATA%\nOSS\garage` on Windows).
+- **Fitting Bay** on the title screen: Browse to a `.glb`, `.gltf` or `.fbx` (or drop files in the `import` folder next to the garage) and press **Save and drive**. The steps (Orient, Wheels, Scale, Paint, Cockpit, Sound, Save) adjust what it found; Save also offers a test drive that comes back to the bay.
+- **Garage** on the title screen: your cars and the built-in ones.
+- **Keys:** arrows or WASD to drive, Space handbrake, E/Q shift, C camera (chase near and far, hood, bumper, cockpit), B look back, R reset car, Tab change car while driving, Esc pause, F3 frame rate. Keys can be rebound in Settings. Controllers work out of the box.
 - **Wheel:** Settings → Wheel setup. Pick the device, set its rotation, detect steering and pedals by moving them, tune and test force feedback. Linux needs the system SDL3 (`libsdl3-0` on Ubuntu); Windows builds ship it.
 - **Assists** (ABS, traction control, auto gearbox, steer aid) and comfort options (camera shake, head movement, speed FOV, horizon lock) are in Settings. With the auto gearbox, holding the brake at a standstill selects reverse.
 
@@ -39,7 +41,8 @@ Needs `git`, `curl`, `unzip`, `python3` (with `venv`) and a C++20 compiler (GCC 
 git clone --recursive https://github.com/ShadowXCC/nOSS.git   # or: git submodule update --init --recursive
 tools/setup_dev.sh                 # pinned Godot in .tools/, SCons in .venv/ (nothing system-wide)
 tools/build_native.sh              # builds noss_core into native/bin/
-tools/run_tests.sh                 # native, schema, tools and GDScript tests, plus a boot check
+tools/run_tests.sh                 # native, schema, tools, GDScript and conformance tests, boot check
+tools/run_conformance.sh           # platform conformance only; report in tests/conformance/out/
 tools/godot.sh                     # runs the game; add -e for the editor
 ```
 
@@ -50,7 +53,7 @@ tools/setup_export.sh              # pinned export templates, LLVM MinGW, SDL3.d
 tools/export.sh                    # builds release noss_core and exports to export/linux, export/windows
 ```
 
-**Dev options** go after `--`, e.g. `tools/godot.sh -- --drive --autodrive --camera=cockpit`: `--drive`, `--car=<path>`, `--autodrive` (the line follower drives), `--camera=<chase_near|chase_far|cockpit>`, `--shot=<file.png> --shot-at=<s>`, `--quit-at=<s>`, `--fps`, `--log-drive`, `--swap-car=<path> --swap-at=<s>`, `--menu=<cars|settings>`.
+**Dev options** go after `--`, e.g. `tools/godot.sh -- --drive --autodrive --camera=cockpit`: `--drive`, `--car=<path>`, `--platform=<id>`, `--autodrive` (the line follower drives), `--camera=<chase_near|chase_far|hood|bumper|cockpit>`, `--shot=<file.png> --shot-at=<s>`, `--quit-at=<s>`, `--fps`, `--log-drive`, `--swap-car=<path> --swap-at=<s>`, `--menu=<classes|cars|settings>`, `--garage`, `--bay`, `--import=<model>`, `--bay-auto` (save and drive as soon as the import is in), `--bay-step=<step>`.
 
 ## Docs
 

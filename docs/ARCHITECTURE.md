@@ -37,7 +37,7 @@ How nOSS is put together: engine, languages, code layout and the main runtime sy
 | Layer | Language | Contents |
 |---|---|---|
 | Gameplay and UI | **GDScript** | Game flow, modes, menus, HUD, track editor, Fitting Bay, networking glue, high-level AI behavior |
-| Native core: `noss_core` | **C++20** GDExtension (godot-cpp) | Vehicle sim (tires, suspension, drivetrain, aero), wheel input and FFB (SDL3), package validation and hashing, traffic bulk update, procedural road and terrain mesh generation, LOD generation (meshoptimizer) |
+| Native core: `noss_core` | **C++20** GDExtension (godot-cpp) | Vehicle sim (tires, suspension, drivetrain, aero), conformance maneuvers, wheel input and FFB (SDL3), package validation, mesh work (LODs, connected parts, principal axes; meshoptimizer), engine sound synthesis, traffic bulk update, procedural road and terrain mesh generation |
 | Tools | **Python 3** (stdlib only) | `fm4_to_noss.py`, packers, conformance report tools |
 
 **Rule:** start in GDScript and move code to C++ once profiling shows it's hot, or when it needs a native library. The vehicle sim is C++ from day one.
@@ -52,16 +52,17 @@ nOSS/
 ├─ game/                  GDScript + scenes
 │  ├─ app/                boot, settings, save paths, style profiles
 │  ├─ players/            local player slots, device join, viewports and windows
-│  ├─ vehicles/           platform loader, package loader, fitting, visual rig, cameras
+│  ├─ vehicles/           platform loader, package loader and writer, fitting, visual rig,
+│  │                      cameras; import/ (model import, analysis, LODs)
 │  ├─ modes/              common/, track/, kart/, highway/, endless/
 │  ├─ world/              track runtime, terrain, procedural gen, weather, time of day
 │  ├─ ai/                 racing, traffic, police
 │  ├─ net/                session, replication, content transfer
 │  ├─ editor/             track editor, Fitting Bay, Track Fitting
 │  ├─ audio/              engine sound player, SFX, music
-│  └─ ui/                 menus, HUD, themes
+│  └─ ui/                 menus, HUD, themes, garage
 ├─ native/                C++ GDExtension "noss_core"
-│  ├─ src/core/  src/vehicle/  src/input/  src/package/  src/traffic/  src/mesh/
+│  ├─ src/core/  src/vehicle/  src/input/  src/package/  src/traffic/  src/mesh/  src/audio/
 │  ├─ thirdparty/         godot-cpp, SDL3, doctest, meshoptimizer (M2) (submodules)
 │  └─ SConstruct
 ├─ data/
@@ -197,7 +198,7 @@ user://
 - **Run everything:** `tools/run_tests.sh` (native build, doctest, schemas, gdUnit4 headless, boot smoke test).
 - **GDScript:** gdUnit4, run headless (`godot --headless`).
 - **Native:** doctest unit tests for tire, suspension and drivetrain math.
-- **Platform conformance:** headless scenes drive standard maneuvers across each platform's geometry range ([PLATFORMS.md §5](PLATFORMS.md#5-conformance-tests)).
+- **Platform conformance:** `tools/run_conformance.sh` drives standard maneuvers across each platform's geometry range on a native flat-ground harness, and checks the harness against Jolt ([PLATFORMS.md §5](PLATFORMS.md#5-conformance-tests)).
 - **Network:** headless bot clients load-test 16-player sessions.
 - **CI (after the GitHub repo exists):** GitHub Actions builds `noss_core` for Linux, Windows and macOS, runs all tests, and exports builds.
 
