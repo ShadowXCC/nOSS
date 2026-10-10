@@ -63,6 +63,26 @@ func test_pause_menu_belongs_to_who_paused() -> void:
 	await get_tree().process_frame
 
 
+func test_a_free_pad_drops_in_mid_drive() -> void:
+	Players.clear()
+	var pad := { "kind": "gamepad", "key": "pad:test#9", "name": "Test pad", "id": 9, "guid": "test9", "preset": "pad_standard" }
+	Devices.test_devices = [pad]
+	var s := FreeDrive.new()
+	s.autodrive = true
+	add_child(s)
+	await _wait_for_cars(s)
+	assert_bool(Players.joining).is_true()
+	var slot := Players.join(pad)
+	await _wait_for_cars(s)
+	Devices.test_devices = []
+	assert_int(s.players.size()).is_equal(2)
+	assert_object(s.views.view(slot)).is_not_null()
+	assert_object(s.players[1].vehicle).is_not_null()
+	assert_float(s.players[1].vehicle.global_position.distance_to(s.players[0].vehicle.global_position)).is_greater(3.0)
+	s.queue_free()
+	await get_tree().process_frame
+
+
 func test_auto_resolution_steps_down_on_slow_frames() -> void:
 	Players.clear()
 	var s := FreeDrive.new()
