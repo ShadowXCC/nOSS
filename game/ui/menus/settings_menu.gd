@@ -51,13 +51,13 @@ func _ready() -> void:
 	_add(rows, UiKit.slider("Stick deadzone", p.pad_deadzone / 0.4, func(v: float) -> void: Settings.set_value("pad_deadzone", v * 0.4)))
 
 	_section(rows, "Keyboard")
-	for action: String in Bindings.REBINDABLE:
+	for action: String in Bindings.DRIVING:
 		var row := HBoxContainer.new()
 		var l := UiKit.label(Bindings.ACTIONS[action].name)
 		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(l)
 		var b := Button.new()
-		b.text = Bindings.key_label(action)
+		b.text = _key_label(action)
 		b.accessibility_name = "%s: %s" % [Bindings.ACTIONS[action].name, b.text]
 		b.accessibility_description = "Press, then press a key"
 		b.custom_minimum_size = Vector2(300, 56)
@@ -65,8 +65,8 @@ func _ready() -> void:
 		row.add_child(b)
 		_add(rows, row)
 	_add(rows, UiKit.button("Reset keys", func() -> void:
-		Settings.reset_bindings()
-		_refresh_bindings()))
+		Settings.primary.data.input.bindings.erase("kb_full")
+		_save_keys()))
 
 	var back := UiKit.button("Back", func() -> void: closed.emit())
 	list.add_child(back)
@@ -110,9 +110,9 @@ func _refresh_bindings() -> void:
 	for row in _rows:
 		if row is HBoxContainer and row.get_child_count() == 2 and row.get_child(1) is Button:
 			var b: Button = row.get_child(1)
-			for action: String in Bindings.REBINDABLE:
+			for action: String in Bindings.DRIVING:
 				if row.get_child(0).text == Bindings.ACTIONS[action].name:
-					b.text = Bindings.key_label(action)
+					b.text = _key_label(action)
 					b.accessibility_name = "%s: %s" % [Bindings.ACTIONS[action].name, b.text]
 
 
@@ -121,8 +121,23 @@ func _input(event: InputEvent) -> void:
 		return
 	get_viewport().set_input_as_handled()
 	if event.physical_keycode != KEY_ESCAPE:
-		Settings.set_binding(_rebinding, [event.physical_keycode])
+		var overrides: Dictionary = Settings.primary.data.input.bindings.get("kb_full", {}).duplicate(true)
+		overrides[_rebinding] = [{ "key": event.physical_keycode }]
+		Settings.primary.data.input.bindings["kb_full"] = overrides
+		_save_keys()
 	_rebinding = ""
+	_refresh_bindings()
+
+
+## P1's keys on the whole keyboard (kb_full).
+func _key_label(action: String) -> String:
+	var map := Bindings.effective("kb_full", Settings.primary.data.input.bindings.get("kb_full", {}))
+	return Bindings.refs_label(map.get(action, []), "keyboard")
+
+
+func _save_keys() -> void:
+	Settings.primary.save()
+	Players.refresh_all()
 	_refresh_bindings()
 
 

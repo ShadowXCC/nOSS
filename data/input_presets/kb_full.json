@@ -1,0 +1,130 @@
+{
+  "schema": "noss.input_preset/1",
+  "id": "kb_full",
+  "name": "Keyboard",
+  "device": "keyboard",
+  "description": "The whole keyboard: arrows or WASD.",
+  "verified": true,
+  "bindings": {
+    "steer_left": [
+      {
+        "key": "Left"
+      },
+      {
+        "key": "A"
+      }
+    ],
+    "steer_right": [
+      {
+        "key": "Right"
+      },
+      {
+        "key": "D"
+      }
+    ],
+    "throttle": [
+      {
+        "key": "Up"
+      },
+      {
+        "key": "W"
+      }
+    ],
+    "brake": [
+      {
+        "key": "Down"
+      },
+      {
+        "key": "S"
+      }
+    ],
+    "handbrake": [
+      {
+        "key": "Space"
+      }
+    ],
+    "shift_up": [
+      {
+        "key": "E"
+      }
+    ],
+    "shift_down": [
+      {
+        "key": "Q"
+      }
+    ],
+    "camera_next": [
+      {
+        "key": "C"
+      }
+    ],
+    "look_back": [
+      {
+        "key": "B"
+      }
+    ],
+    "reset_car": [
+      {
+        "key": "R"
+      }
+    ],
+    "hotswap_menu": [
+      {
+        "key": "Tab"
+      }
+    ],
+    "pause": [
+      {
+        "key": "Escape"
+      }
+    ],
+    "menu_up": [
+      {
+        "key": "Up"
+      },
+      {
+        "key": "W"
+      }
+    ],
+    "menu_down": [
+      {
+        "key": "Down"
+      },
+      {
+        "key": "S"
+      }
+    ],
+    "menu_left": [
+      {
+        "key": "Left"
+      },
+      {
+        "key": "A"
+      }
+    ],
+    "menu_right": [
+      {
+        "key": "Right"
+      },
+      {
+        "key": "D"
+      }
+    ],
+    "menu_confirm": [
+      {
+        "key": "Enter"
+      },
+      {
+        "key": "Space"
+      }
+    ],
+    "menu_cancel": [
+      {
+        "key": "Escape"
+      },
+      {
+        "key": "Backspace"
+      }
+    ]
+  }
+}

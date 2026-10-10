@@ -1,114 +1,154 @@
 extends Node
 ## Settings (autoload "Settings"). Machine settings live in user://settings.cfg; everything
-## that follows a player (bindings, assists, cameras, comfort options) lives in their
-## profile, user://profiles/<id>.json (docs/ACCESSIBILITY.md §1, ACC-01).
+## that follows a player (bindings, assists, cameras, comfort and accessibility options) lives
+## in their profile, user://profiles/<id>.json (PlayerProfile, docs/ACCESSIBILITY.md §1, ACC-01).
+## `profile` is the primary player's (P1) profile data, used by shared menus.
 
 signal changed
 
-const SETTINGS_PATH := "user://settings.cfg"
-const PROFILE_DIR := "user://profiles/"
 const PRESETS := ["low", "medium", "high"]
-
-const DEFAULT_PROFILE := {
-	"name": "Player 1",
-	"bindings": {},
-	"assists": { "abs": true, "tcs": true, "auto_gearbox": true, "steer_aid": true },
-	"camera": "chase_near",
-	"camera_shake": 0.5,
-	"head_movement": 0.5,
-	"speed_fov": true,
-	"horizon_lock": false,
-	"pad_deadzone": 0.08,
-	"pad_linearity": 1.6,
-	"wheel": {},
-	"last_car": "",
-	"last_platform": "official.track.gt",
+## Machine settings, saved in settings.cfg as [section] key.
+const MACHINE := {
+	"graphics": ["graphics", "preset"],
+	"units": ["game", "units"],
+	"fullscreen": ["display", "fullscreen"],
+	"master_volume": ["audio", "master"],
+	"split_two": ["splitscreen", "two"],
+	"split_three": ["splitscreen", "three"],
+	"split_audio": ["splitscreen", "audio"],
+	"auto_resolution": ["splitscreen", "auto_resolution"],
+	"primary_profile": ["players", "primary"],
 }
 
 var graphics := "medium"
 var units := "metric"
 var fullscreen := false
 var master_volume := 0.8
+## Two players: "stacked" (one above the other) or "side" (side by side).
+var split_two := "stacked"
+## Three players: "wide" (one wide view, two below) or "map" (2×2 with a track map).
+var split_three := "wide"
+## Splitscreen audio: "all" (every player's view listens) or "p1" (only P1's).
+var split_audio := "all"
+## Lower each view's render scale to hold the frame rate.
+var auto_resolution := true
+var primary_profile := "player1"
+
+var primary: PlayerProfile
 var profile := {}
-var profile_id := "player1"
+var settings_path := "user://settings.cfg"
+
+var _profiles := {} # id -> PlayerProfile, so two users of one id share it
 
 
 func _ready() -> void:
 	load_all()
 	apply_display()
-	Bindings.apply(profile.bindings)
+	Bindings.apply()
 
 
 func load_all() -> void:
 	var cfg := ConfigFile.new()
-	if cfg.load(SETTINGS_PATH) == OK:
-		graphics = cfg.get_value("graphics", "preset", graphics)
-		units = cfg.get_value("game", "units", units)
-		fullscreen = cfg.get_value("display", "fullscreen", fullscreen)
-		master_volume = cfg.get_value("audio", "master", master_volume)
+	if cfg.load(settings_path) == OK:
+		for key: String in MACHINE:
+			var at: Array = MACHINE[key]
+			set(key, cfg.get_value(at[0], at[1], get(key)))
 	if graphics not in PRESETS:
 		graphics = "medium"
-	profile = DEFAULT_PROFILE.duplicate(true)
-	var path := PROFILE_DIR + profile_id + ".json"
-	var saved: Variant = JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
-	if saved is Dictionary:
-		for key: String in saved:
-			if profile.has(key) and typeof(profile[key]) == typeof(saved[key]):
-				profile[key] = saved[key]
-		for key: String in DEFAULT_PROFILE.assists:
-			profile.assists[key] = bool(profile.assists.get(key, DEFAULT_PROFILE.assists[key]))
-	# JSON numbers come back as floats; key codes must be ints.
-	for action: String in profile.bindings.keys():
-		profile.bindings[action] = profile.bindings[action].map(func(k: Variant) -> int: return int(k))
+	_profiles.clear()
+	_set_primary(get_profile(primary_profile))
 
 
 func save() -> void:
 	var cfg := ConfigFile.new()
-	cfg.set_value("graphics", "preset", graphics)
-	cfg.set_value("game", "units", units)
-	cfg.set_value("display", "fullscreen", fullscreen)
-	cfg.set_value("audio", "master", master_volume)
-	cfg.save(SETTINGS_PATH)
-	DirAccess.make_dir_recursive_absolute(PROFILE_DIR)
-	var f := FileAccess.open(PROFILE_DIR + profile_id + ".json", FileAccess.WRITE)
-	if f:
-		f.store_string(JSON.stringify(profile, "  ", true) + "\n")
+	for key: String in MACHINE:
+		var at: Array = MACHINE[key]
+		cfg.set_value(at[0], at[1], get(key))
+	cfg.save(settings_path)
+	primary.save()
+
+
+## Points settings, profiles and the players' memory at another folder and reloads (tests use
+## "user://tests/..."; "user://" is the normal place).
+func use_folder(folder: String) -> void:
+	DirAccess.make_dir_recursive_absolute(folder)
+	settings_path = folder.path_join("settings.cfg")
+	PlayerProfile.dir = folder.path_join("profiles/")
+	Players.memory_path = folder.path_join("players.json")
+	primary_profile = "player1"
+	load_all()
+	Players.load_memory()
+
+
+## A profile by id, loaded once.
+func get_profile(id: String) -> PlayerProfile:
+	if not _profiles.has(id):
+		_profiles[id] = PlayerProfile.load_id(id)
+	return _profiles[id]
+
+
+## Saved profile ids, the primary one included even before its first save.
+func profile_ids() -> PackedStringArray:
+	var ids := PlayerProfile.saved_ids()
+	for id: String in _profiles:
+		if id not in ids:
+			ids.append(id)
+	ids.sort()
+	return ids
+
+
+## A new profile, "Player N", saved right away.
+func new_profile() -> PlayerProfile:
+	var ids := profile_ids()
+	var n := 1
+	while "player%d" % n in ids:
+		n += 1
+	var p := PlayerProfile.create("player%d" % n, { "name": "Player %d" % n })
+	_profiles[p.id] = p
+	p.save()
+	return p
+
+
+func delete_profile(id: String) -> void:
+	if id == primary.id:
+		return
+	_profiles.erase(id)
+	DirAccess.remove_absolute(PlayerProfile.path_for(id))
+
+
+## Makes `p` the primary (P1) profile, the one shared menus edit.
+func set_primary(p: PlayerProfile) -> void:
+	if p == primary:
+		return
+	_set_primary(p)
+	set_value("primary_profile", p.id)
+
+
+func _set_primary(p: PlayerProfile) -> void:
+	if primary and primary.changed.is_connected(_on_profile_changed):
+		primary.changed.disconnect(_on_profile_changed)
+	primary = p
+	primary_profile = p.id
+	profile = p.data
+	p.changed.connect(_on_profile_changed)
+
+
+func _on_profile_changed() -> void:
 	changed.emit()
 
 
 func set_value(key: String, value: Variant) -> void:
-	match key:
-		"graphics":
-			graphics = value
+	if MACHINE.has(key):
+		set(key, value)
+		if key in ["graphics", "fullscreen", "master_volume"]:
 			apply_display()
-		"units":
-			units = value
-		"fullscreen":
-			fullscreen = value
-			apply_display()
-		"master_volume":
-			master_volume = value
-			apply_display()
-		_:
-			profile[key] = value
+	else:
+		profile[key] = value
 	save()
 
 
 func set_assist(assist: String, on: bool) -> void:
-	profile.assists[assist] = on
-	save()
-
-
-func set_binding(action: String, keys: Array) -> void:
-	profile.bindings[action] = keys
-	Bindings.apply(profile.bindings)
-	save()
-
-
-func reset_bindings() -> void:
-	profile.bindings = {}
-	Bindings.apply({})
-	save()
+	primary.set_assist(assist, on)
 
 
 ## Speed in the player's units, with its label.
@@ -120,24 +160,27 @@ func speed_unit() -> String:
 	return "mph" if units == "imperial" else "km/h"
 
 
+## Render settings of the graphics preset for one viewport (the root, or a player's view).
+func apply_graphics(viewport: Viewport, scale := 1.0) -> void:
+	match graphics:
+		"low":
+			viewport.scaling_3d_scale = 0.75 * scale
+			viewport.msaa_3d = Viewport.MSAA_DISABLED
+		"medium":
+			viewport.scaling_3d_scale = 1.0 * scale
+			viewport.msaa_3d = Viewport.MSAA_2X
+		"high":
+			viewport.scaling_3d_scale = 1.0 * scale
+			viewport.msaa_3d = Viewport.MSAA_4X
+	viewport.anisotropic_filtering_level = Viewport.ANISOTROPY_16X if graphics == "high" else Viewport.ANISOTROPY_4X
+
+
 func apply_display() -> void:
 	var viewport := get_viewport()
 	if viewport == null:
 		return
-	match graphics:
-		"low":
-			viewport.scaling_3d_scale = 0.75
-			viewport.msaa_3d = Viewport.MSAA_DISABLED
-			RenderingServer.directional_shadow_atlas_set_size(1024, true)
-		"medium":
-			viewport.scaling_3d_scale = 1.0
-			viewport.msaa_3d = Viewport.MSAA_2X
-			RenderingServer.directional_shadow_atlas_set_size(2048, true)
-		"high":
-			viewport.scaling_3d_scale = 1.0
-			viewport.msaa_3d = Viewport.MSAA_4X
-			RenderingServer.directional_shadow_atlas_set_size(4096, true)
-	viewport.anisotropic_filtering_level = Viewport.ANISOTROPY_16X if graphics == "high" else Viewport.ANISOTROPY_4X
+	apply_graphics(viewport)
+	RenderingServer.directional_shadow_atlas_set_size({ "low": 1024, "medium": 2048, "high": 4096 }[graphics], true)
 	if DisplayServer.get_name() != "headless":
 		var mode := DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen else DisplayServer.WINDOW_MODE_WINDOWED
 		if DisplayServer.window_get_mode() != mode:

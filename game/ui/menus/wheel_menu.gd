@@ -1,9 +1,13 @@
 class_name WheelMenu
 extends Control
-## Wheel setup (docs/INPUT.md §5-6): pick the device, set its rotation range, detect the
-## steering and pedal axes by moving them, tune force feedback and test it.
+## Wheel setup for one player (docs/INPUT.md §5-6): pick the device, set its rotation range,
+## detect the steering and pedal axes by moving them (on any of the player's sim devices, so
+## separate pedals work), tune force feedback and test it. Saved in the player's profile.
 
 signal closed
+
+## Whose wheel; default P1.
+var slot: PlayerSlot
 
 const ROTATIONS := [270, 360, 540, 720, 900, 1080]
 const DETECT_S := 4.0
@@ -16,6 +20,7 @@ var _device_option: OptionButton
 var _devices: Array = []
 var _detecting := ""
 var _detect_time := 0.0
+var _sims: Array = []
 var _snapshot := PackedFloat32Array()
 var _extreme := PackedFloat32Array()
 
@@ -24,12 +29,13 @@ func _ready() -> void:
 	theme = UiKit.theme()
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_cfg = WheelInput.DEFAULTS.duplicate()
-	_cfg.merge(Settings.profile.get("wheel", {}), true)
+	if slot == null:
+		slot = Players.primary_slot()
+	_cfg = slot.input.wheel.config.duplicate(true)
 	var list := UiKit.panel(self, "Wheel", 980)
 	if not Devices.native_ok:
 		list.add_child(UiKit.label("Wheel support off: SDL3 not found"))
-	_devices = Devices.sim_devices()
+	_devices = _sim_devices()
 
 	var row := HBoxContainer.new()
 	var l := UiKit.label("Device")
@@ -56,14 +62,14 @@ func _ready() -> void:
 	_add(list, UiKit.check("Invert steering", _cfg.get("steer", {}).get("invert", false), func(on: bool) -> void:
 		if _cfg.get("steer") is Dictionary:
 			_cfg.steer.invert = on
-			Devices.save_wheel(_cfg)))
+			_save()))
 	_add(list, UiKit.slider("FFB strength", _cfg.ffb_gain, func(v: float) -> void: _set_value("ffb_gain", v)))
 	_add(list, UiKit.slider("FFB damping", _cfg.ffb_damper, func(v: float) -> void: _set_value("ffb_damper", v)))
 	_add(list, UiKit.slider("FFB min force", _cfg.ffb_min / 0.3, func(v: float) -> void: _set_value("ffb_min", v * 0.3)))
 	_add(list, UiKit.check("Invert FFB", _cfg.ffb_invert, func(on: bool) -> void: _set_value("ffb_invert", on)))
 	_add(list, UiKit.button("Test FFB", func() -> void:
-		if Devices.wheel.device_id >= 0:
-			NossInput.ffb_test(Devices.wheel.device_id)))
+		if slot.input.wheel.device_id >= 0:
+			NossInput.ffb_test(slot.input.wheel.device_id)))
 	_status = UiKit.label("")
 	_status.accessibility_live = AccessibilityServer.AccessibilityLiveMode.LIVE_POLITE
 	list.add_child(_status)
@@ -82,7 +88,19 @@ func _add(parent: Control, control: Control) -> void:
 
 func _set_value(key: String, value: Variant) -> void:
 	_cfg[key] = value
-	Devices.save_wheel(_cfg)
+	_save()
+
+
+func _save() -> void:
+	slot.profile.set_value("wheel", _cfg.duplicate(true))
+	slot.refresh(Devices.list())
+
+
+## The player's sim devices, then free ones (picking a free one claims it).
+func _sim_devices() -> Array:
+	var out := slot.input.devices.filter(func(d: Dictionary) -> bool: return d.kind == "sim")
+	out.append_array(Players.free_devices().filter(func(d: Dictionary) -> bool: return d.kind == "sim"))
+	return out
 
 
 func _on_device(index: int) -> void:
@@ -91,41 +109,44 @@ func _on_device(index: int) -> void:
 		_cfg.erase("steer")
 	else:
 		var d: Dictionary = _devices[index - 1]
+		if Players.owner_of(d.key) == null:
+			Players.add_device(slot, d)
 		_cfg.guid = d.guid
 		_cfg.name = d.name
 		if not _cfg.get("steer") is Dictionary:
 			_cfg.steer = { "axis": 0, "center": 0.0 }
-	Devices.save_wheel(_cfg)
+	_save()
 
 
 func _start_detect(which: String) -> void:
-	var id := Devices.wheel.device_id
-	if id < 0:
+	_sims = slot.input.devices.filter(func(d: Dictionary) -> bool: return d.kind == "sim")
+	if _sims.is_empty():
 		_status.text = "Pick a device first"
 		return
 	_detecting = which
 	_detect_time = 0.0
-	var count := _axis_count(id)
-	_snapshot.resize(count)
-	_extreme.resize(count)
-	for i in count:
-		_snapshot[i] = NossInput.axis(id, i)
-		_extreme[i] = _snapshot[i]
+	_snapshot.clear()
+	for d: Dictionary in _sims:
+		for i in int(d.axes):
+			_snapshot.append(NossInput.axis(d.id, i))
+	_extreme = _snapshot.duplicate()
 	_status.text = "Turn the wheel from centre to full lock" if which == "steer" else "Press %s fully, then release" % which
 
 
 func _process(delta: float) -> void:
-	var w := Devices.wheel
+	var w := slot.input.wheel
 	if w.is_active():
 		_live.text = "Steer %+.2f   Throttle %.2f   Brake %.2f   Clutch %.2f   FFB %d%%" % [w.steer(), w.throttle(), w.brake(), w.clutch(), roundi(NossInput.ffb_peak(w.device_id) * 100.0)]
 	if _detecting.is_empty():
 		return
 	_detect_time += delta
-	var id := w.device_id
-	for i in _snapshot.size():
-		var v := NossInput.axis(id, i)
-		if absf(v - _snapshot[i]) > absf(_extreme[i] - _snapshot[i]):
-			_extreme[i] = v
+	var n := 0
+	for d: Dictionary in _sims:
+		for i in int(d.axes):
+			var v := NossInput.axis(d.id, i)
+			if absf(v - _snapshot[n]) > absf(_extreme[n] - _snapshot[n]):
+				_extreme[n] = v
+			n += 1
 	if _detect_time < DETECT_S:
 		return
 	var best := -1
@@ -137,21 +158,25 @@ func _process(delta: float) -> void:
 			best = i
 	if best < 0:
 		_status.text = "Nothing moved"
-	elif _detecting == "steer":
-		_cfg.steer = { "axis": best, "center": _snapshot[best], "invert": false }
-		_status.text = "Steering: axis %d" % best
 	else:
-		_cfg[_detecting] = { "axis": best, "rest": _snapshot[best], "full": _extreme[best] }
-		_status.text = "%s: axis %d" % [_detecting.capitalize(), best]
+		# Which device and axis the best one was.
+		var device: Dictionary = {}
+		var axis := best
+		for d: Dictionary in _sims:
+			if axis < int(d.axes):
+				device = d
+				break
+			axis -= int(d.axes)
+		if _detecting == "steer":
+			_cfg.guid = device.guid
+			_cfg.name = device.name
+			_cfg.steer = { "axis": axis, "center": _snapshot[best], "invert": false, "guid": device.guid }
+			_status.text = "Steering: axis %d" % axis
+		else:
+			_cfg[_detecting] = { "axis": axis, "rest": _snapshot[best], "full": _extreme[best], "guid": device.guid }
+			_status.text = "%s: axis %d%s" % [_detecting.capitalize(), axis, "" if device.guid == _cfg.get("guid", "") else " on " + String(device.name)]
 	_detecting = ""
-	Devices.save_wheel(_cfg)
-
-
-func _axis_count(id: int) -> int:
-	for d: Dictionary in Devices.sim_devices():
-		if d.id == id:
-			return d.axes
-	return 0
+	_save()
 
 
 func _unhandled_input(event: InputEvent) -> void:

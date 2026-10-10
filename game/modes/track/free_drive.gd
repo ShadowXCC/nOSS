@@ -27,6 +27,7 @@ var cameras: CameraRig
 var hud: Hud
 var timer := LapTimer.new()
 var sound: EngineSound
+var slot: PlayerSlot
 
 var _ui := CanvasLayer.new()
 var _overlay: Control
@@ -53,7 +54,8 @@ func _ready() -> void:
 		push_warning("Platform %s: %s" % [platform_id, platform.errors])
 		platform_id = DEFAULT_PLATFORM
 		platform = PlatformLoader.load_official(platform_id)
-	Settings.profile.last_platform = platform_id
+	slot = Players.primary_slot()
+	slot.profile.data.last_platform = platform_id
 	_default_car = GameModes.default_car(platform.platform)
 
 	cameras = CameraRig.new()
@@ -74,7 +76,7 @@ func _ready() -> void:
 	hud.timer = timer
 	hud.show_message("Loading", 30.0)
 
-	var path := car_path if car_path else String(Settings.profile.get("last_car", ""))
+	var path := car_path if car_path else String(slot.profile.data.get("last_car", ""))
 	if path.is_empty() or not (FileAccess.file_exists(path) or DirAccess.dir_exists_absolute(path)) \
 			or not Fitting.compatible(platform.platform, PackageLoader.read_manifest(path).get("family", "")):
 		path = _default_car
@@ -118,8 +120,7 @@ func _on_car_loaded(pkg: VehiclePackage) -> void:
 		return
 	print("Loaded %s in %d ms (%d tris)" % [pkg.display_name(), pkg.load_ms, pkg.triangles])
 	if not bay_return:
-		Settings.profile.last_car = pkg.path
-		Settings.save()
+		slot.profile.set_value("last_car", pkg.path)
 	if vehicle == null:
 		_spawn(pkg)
 		hud.show_message("Go", 1.0)
@@ -159,20 +160,21 @@ func _spawn(pkg: VehiclePackage) -> void:
 	else:
 		controller = VehicleController.new()
 		controller.vehicle = vehicle
-		controller.wheel_input = Devices.wheel
-		Devices.wheel.platform_lock_deg = float(platform.platform.steering.wheel_rotation_deg)
+		controller.input = slot.input
+		slot.input.wheel.platform_lock_deg = float(platform.platform.steering.wheel_rotation_deg)
 		controller.reset_requested.connect(reset_car)
 		controller.camera_next_requested.connect(_next_camera)
 		add_child(controller)
 		controller.apply_assists()
-		Settings.changed.connect(controller.apply_assists)
+		slot.profile.changed.connect(controller.apply_assists)
 	sound = EngineSound.new()
 	sound.vehicle = vehicle
 	vehicle.add_child(sound)
 	sound.position = Vector3(0, 0.5, 0)
 	vehicle.package_changed.connect(func(pkg: VehiclePackage) -> void: sound.set_profile(pkg.sound))
+	cameras.input = slot.input if not autodrive else null
 	cameras.set_vehicle(vehicle)
-	cameras.set_mode(Settings.profile.get("camera", "chase_near"))
+	cameras.set_mode(slot.profile.data.get("camera", "chase_near"))
 	hud.vehicle = vehicle
 
 
@@ -185,10 +187,15 @@ func _physics_process(delta: float) -> void:
 			var pkg := _pending_swap
 			_pending_swap = null
 			_swap(pkg, _pending_time >= 2.0)
-	if controller and Devices.wheel.is_active():
-		Devices.wheel.update_ffb(vehicle.sim.get_rack_force())
+	if controller and slot.input.wheel.is_active():
+		slot.input.wheel.update_ffb(vehicle.sim.get_rack_force())
 		# The in-car wheel turns with the real one.
-		vehicle.steering_wheel_lock_deg = Devices.wheel.platform_lock_deg
+		vehicle.steering_wheel_lock_deg = slot.input.wheel.platform_lock_deg
+	if controller and _overlay == null:
+		if slot.input.just_pressed("pause"):
+			_open_pause()
+		elif slot.input.just_pressed("hotswap_menu") and hotswap_allowed:
+			_open_picker(false)
 	var proj := track.project(vehicle.global_position, _hint)
 	_hint = proj.index
 	timer.update(track.from_start(proj.distance), delta, vehicle.linear_velocity.length())
@@ -212,7 +219,7 @@ func reset_car() -> void:
 
 func _next_camera() -> void:
 	cameras.next_mode()
-	Settings.set_value("camera", cameras.mode)
+	slot.profile.set_value("camera", cameras.mode)
 
 
 func _on_lap(time: float, valid: bool, best: bool) -> void:
@@ -228,23 +235,17 @@ func _on_lap(time: float, valid: bool, best: bool) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _overlay:
 		return
-	if event.is_action_pressed("pause"):
-		get_viewport().set_input_as_handled()
-		_open_pause()
-	elif event is InputEventKey and event.pressed and event.physical_keycode == KEY_F3:
+	if event is InputEventKey and event.pressed and event.physical_keycode == KEY_F3:
 		hud.show_fps = not hud.show_fps
-	elif event.is_action_pressed("hotswap_menu") and hotswap_allowed:
-		get_viewport().set_input_as_handled()
-		_open_picker(false)
 
 
 func _exit_tree() -> void:
-	Devices.wheel.stop_ffb()
+	slot.input.wheel.stop_ffb()
 
 
 func _open_pause() -> void:
 	get_tree().paused = true
-	Devices.wheel.stop_ffb()
+	slot.input.wheel.stop_ffb()
 	var menu := PauseMenu.new()
 	menu.resumed.connect(_close_overlay)
 	menu.reset_car.connect(func() -> void:
@@ -278,9 +279,7 @@ func _show_overlay(control: Control) -> void:
 	_overlay = control
 	if controller:
 		controller.set_physics_process(false) # menu keys don't drive; the car coasts
-		vehicle.throttle = 0.0
-		vehicle.brake = 0.0
-		vehicle.steer = 0.0
+		controller.release()
 	_ui.add_child(control)
 
 

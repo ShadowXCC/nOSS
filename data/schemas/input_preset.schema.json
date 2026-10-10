@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noss:schema:input_preset:1",
+  "title": "nOSS input preset",
+  "description": "data/input_presets/<id>.json: default bindings for one kind of device. Device presets match USB vendor and product ids and can carry wheel calibration. See docs/INPUT.md §7.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "name", "device", "bindings"],
+  "properties": {
+    "schema": { "const": "noss.input_preset/1" },
+    "id": { "type": "string", "pattern": "^[a-z0-9_]+$", "maxLength": 32 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 48 },
+    "description": { "type": "string", "maxLength": 200 },
+    "device": { "enum": ["keyboard", "gamepad", "sim"] },
+    "match": {
+      "description": "USB ids this device preset is picked for.",
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vendor", "product"],
+        "properties": {
+          "vendor": { "type": "integer", "minimum": 0, "maximum": 65535 },
+          "product": { "type": "integer", "minimum": 0, "maximum": 65535 }
+        }
+      }
+    },
+    "verified": { "description": "Tested on the real device.", "type": "boolean" },
+    "bindings": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/action" },
+      "additionalProperties": { "type": "array", "maxItems": 4, "items": { "$ref": "#/$defs/ref" } }
+    },
+    "wheel": {
+      "description": "Calibration for wheels and pedals (sim devices only).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rotation_deg": { "type": "number", "minimum": 90, "maximum": 2520 },
+        "steer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["axis"],
+          "properties": { "axis": { "$ref": "#/$defs/axis_index" }, "invert": { "type": "boolean" } }
+        },
+        "throttle": { "$ref": "#/$defs/pedal" },
+        "brake": { "$ref": "#/$defs/pedal" },
+        "clutch": { "$ref": "#/$defs/pedal" }
+      }
+    }
+  },
+  "$defs": {
+    "action": {
+      "enum": [
+        "steer_left", "steer_right", "throttle", "brake", "handbrake", "shift_up", "shift_down",
+        "camera_next", "look_back", "reset_car", "hotswap_menu", "pause",
+        "menu_up", "menu_down", "menu_left", "menu_right", "menu_confirm", "menu_cancel"
+      ]
+    },
+    "axis_index": { "type": "integer", "minimum": 0, "maximum": 15 },
+    "pedal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["axis", "rest", "full"],
+      "properties": {
+        "axis": { "$ref": "#/$defs/axis_index" },
+        "rest": { "type": "number", "minimum": -1, "maximum": 1 },
+        "full": { "type": "number", "minimum": -1, "maximum": 1 }
+      }
+    },
+    "ref": {
+      "description": "One input: a keyboard key (Godot key name), a button, or one direction of an axis.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["key"],
+          "properties": { "key": { "type": "string", "minLength": 1, "maxLength": 24 } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["button"],
+          "properties": {
+            "button": {
+              "oneOf": [
+                { "type": "integer", "minimum": 0, "maximum": 127 },
+                {
+                  "enum": [
+                    "a", "b", "x", "y", "back", "guide", "start", "left_stick", "right_stick",
+                    "left_shoulder", "right_shoulder", "dpad_up", "dpad_down", "dpad_left", "dpad_right"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["axis", "dir"],
+          "properties": {
+            "axis": {
+              "oneOf": [
+                { "$ref": "#/$defs/axis_index" },
+                { "enum": ["left_x", "left_y", "right_x", "right_y", "trigger_left", "trigger_right"] }
+              ]
+            },
+            "dir": { "enum": [-1, 1] }
+          }
+        }
+      ]
+    }
+  }
+}

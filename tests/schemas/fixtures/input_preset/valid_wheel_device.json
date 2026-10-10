@@ -1,0 +1,15 @@
+{
+  "schema": "noss.input_preset/1",
+  "id": "test_wheel",
+  "name": "Test wheel",
+  "device": "sim",
+  "match": [{ "vendor": 1133, "product": 49743 }],
+  "verified": false,
+  "bindings": { "shift_up": [{ "button": 4 }], "shift_down": [{ "button": 5 }], "pause": [{ "button": 9 }] },
+  "wheel": {
+    "rotation_deg": 900,
+    "steer": { "axis": 0 },
+    "throttle": { "axis": 2, "rest": 1.0, "full": -1.0 },
+    "brake": { "axis": 3, "rest": 1.0, "full": -1.0 }
+  }
+}

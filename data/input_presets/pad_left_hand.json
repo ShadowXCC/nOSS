@@ -1,0 +1,117 @@
+{
+  "schema": "noss.input_preset/1",
+  "id": "pad_left_hand",
+  "name": "Controller left hand",
+  "device": "gamepad",
+  "description": "Everything on the left half. Reset and car change are in the pause menu.",
+  "verified": true,
+  "bindings": {
+    "steer_left": [
+      {
+        "axis": "left_x",
+        "dir": -1
+      }
+    ],
+    "steer_right": [
+      {
+        "axis": "left_x",
+        "dir": 1
+      }
+    ],
+    "throttle": [
+      {
+        "axis": "trigger_left",
+        "dir": 1
+      }
+    ],
+    "brake": [
+      {
+        "button": "left_shoulder"
+      },
+      {
+        "axis": "left_y",
+        "dir": 1
+      }
+    ],
+    "handbrake": [
+      {
+        "button": "left_stick"
+      }
+    ],
+    "shift_up": [
+      {
+        "button": "dpad_up"
+      }
+    ],
+    "shift_down": [
+      {
+        "button": "dpad_down"
+      }
+    ],
+    "camera_next": [
+      {
+        "button": "dpad_right"
+      }
+    ],
+    "look_back": [
+      {
+        "button": "dpad_left"
+      }
+    ],
+    "pause": [
+      {
+        "button": "back"
+      }
+    ],
+    "menu_up": [
+      {
+        "button": "dpad_up"
+      },
+      {
+        "axis": "left_y",
+        "dir": -1
+      }
+    ],
+    "menu_down": [
+      {
+        "button": "dpad_down"
+      },
+      {
+        "axis": "left_y",
+        "dir": 1
+      }
+    ],
+    "menu_left": [
+      {
+        "button": "dpad_left"
+      },
+      {
+        "axis": "left_x",
+        "dir": -1
+      }
+    ],
+    "menu_right": [
+      {
+        "button": "dpad_right"
+      },
+      {
+        "axis": "left_x",
+        "dir": 1
+      }
+    ],
+    "menu_confirm": [
+      {
+        "button": "left_shoulder"
+      },
+      {
+        "button": "left_stick"
+      }
+    ],
+    "menu_cancel": [
+      {
+        "axis": "trigger_left",
+        "dir": 1
+      }
+    ]
+  }
+}

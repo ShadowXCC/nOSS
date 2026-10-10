@@ -1,9 +1,9 @@
 class_name CameraRig
 extends Node3D
 ## Chase (near, far), hood, bumper and cockpit cameras for one player (docs/ART_AUDIO.md §4,
-## AV-04), with
-## the comfort options from docs/ACCESSIBILITY.md §4: camera shake, head movement, speed FOV
-## and horizon lock.
+## AV-04), with that player's comfort options (docs/ACCESSIBILITY.md §4): camera shake, head
+## movement, speed FOV and horizon lock. The camera is current in the viewport the rig is in,
+## so in splitscreen each player's view has its own.
 
 const MODES := ["chase_near", "chase_far", "hood", "bumper", "cockpit"]
 const MOUNTED_FOV := { "hood": 70.0, "bumper": 76.0 }
@@ -16,6 +16,8 @@ const SPEED_FOV_EXTRA := 10.0
 const SPEED_FOV_AT := 70.0 # m/s
 
 var vehicle: Vehicle
+## Whose settings and look-back control this camera follows; null: P1's settings, no look-back.
+var input: PlayerInput
 var mode := "chase_near"
 var camera := Camera3D.new()
 
@@ -57,8 +59,8 @@ func _process(delta: float) -> void:
 		return
 	var xf := vehicle.get_global_transform_interpolated()
 	var speed := vehicle.linear_velocity.length()
-	var look_back := Input.is_action_pressed("look_back")
-	var profile: Dictionary = Settings.profile
+	var look_back := input != null and input.held("look_back")
+	var profile: Dictionary = input.profile.data if input else Settings.profile
 	var fov_extra := SPEED_FOV_EXTRA * clampf(speed / SPEED_FOV_AT, 0.0, 1.0) if profile.get("speed_fov", true) else 0.0
 	if mode == "cockpit":
 		_cockpit(xf, delta, look_back, fov_extra, profile)

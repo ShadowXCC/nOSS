@@ -1,0 +1,9 @@
+{
+  "schema": "noss.input_preset/1",
+  "id": "sim_generic",
+  "name": "Wheel or pedals",
+  "device": "sim",
+  "description": "Any wheel, pedals, shifter or button box: no buttons bound until you bind them.",
+  "verified": true,
+  "bindings": {}
+}

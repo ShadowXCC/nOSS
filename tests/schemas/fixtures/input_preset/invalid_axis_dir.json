@@ -1,0 +1,1 @@
+{ "schema": "noss.input_preset/1", "id": "x", "name": "X", "device": "gamepad", "bindings": { "throttle": [{ "axis": "left_y", "dir": 2 }] } }

@@ -1,0 +1,11 @@
+{
+  "schema": "noss.input_preset/1",
+  "id": "test_pad",
+  "name": "Test pad",
+  "device": "gamepad",
+  "bindings": {
+    "steer_left": [{ "axis": "left_x", "dir": -1 }],
+    "throttle": [{ "axis": 5, "dir": 1 }],
+    "menu_confirm": [{ "button": "a" }, { "button": 2 }]
+  }
+}

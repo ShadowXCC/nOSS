@@ -1,0 +1,106 @@
+{
+  "schema": "noss.input_preset/1",
+  "id": "kb_left",
+  "name": "Keyboard left",
+  "device": "keyboard",
+  "description": "WASD side only. For a shared keyboard, or one hand.",
+  "verified": true,
+  "bindings": {
+    "steer_left": [
+      {
+        "key": "A"
+      }
+    ],
+    "steer_right": [
+      {
+        "key": "D"
+      }
+    ],
+    "throttle": [
+      {
+        "key": "W"
+      }
+    ],
+    "brake": [
+      {
+        "key": "S"
+      }
+    ],
+    "handbrake": [
+      {
+        "key": "Space"
+      }
+    ],
+    "shift_up": [
+      {
+        "key": "E"
+      }
+    ],
+    "shift_down": [
+      {
+        "key": "Q"
+      }
+    ],
+    "camera_next": [
+      {
+        "key": "C"
+      }
+    ],
+    "look_back": [
+      {
+        "key": "X"
+      }
+    ],
+    "reset_car": [
+      {
+        "key": "R"
+      }
+    ],
+    "hotswap_menu": [
+      {
+        "key": "Tab"
+      }
+    ],
+    "pause": [
+      {
+        "key": "Escape"
+      }
+    ],
+    "menu_up": [
+      {
+        "key": "W"
+      }
+    ],
+    "menu_down": [
+      {
+        "key": "S"
+      }
+    ],
+    "menu_left": [
+      {
+        "key": "A"
+      }
+    ],
+    "menu_right": [
+      {
+        "key": "D"
+      }
+    ],
+    "menu_confirm": [
+      {
+        "key": "Space"
+      },
+      {
+        "key": "F"
+      }
+    ],
+    "menu_cancel": [
+      {
+        "key": "Escape"
+      },
+      {
+        "key": "G"
+      }
+    ]
+  }
+}

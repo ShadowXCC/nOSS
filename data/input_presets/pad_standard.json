@@ -1,0 +1,120 @@
+{
+  "schema": "noss.input_preset/1",
+  "id": "pad_standard",
+  "name": "Controller",
+  "device": "gamepad",
+  "description": "Left stick steers, triggers drive.",
+  "verified": true,
+  "bindings": {
+    "steer_left": [
+      {
+        "axis": "left_x",
+        "dir": -1
+      }
+    ],
+    "steer_right": [
+      {
+        "axis": "left_x",
+        "dir": 1
+      }
+    ],
+    "throttle": [
+      {
+        "axis": "trigger_right",
+        "dir": 1
+      }
+    ],
+    "brake": [
+      {
+        "axis": "trigger_left",
+        "dir": 1
+      }
+    ],
+    "handbrake": [
+      {
+        "button": "a"
+      }
+    ],
+    "shift_up": [
+      {
+        "button": "right_shoulder"
+      }
+    ],
+    "shift_down": [
+      {
+        "button": "left_shoulder"
+      }
+    ],
+    "camera_next": [
+      {
+        "button": "y"
+      }
+    ],
+    "look_back": [
+      {
+        "button": "right_stick"
+      }
+    ],
+    "reset_car": [
+      {
+        "button": "back"
+      }
+    ],
+    "hotswap_menu": [
+      {
+        "button": "dpad_up"
+      }
+    ],
+    "pause": [
+      {
+        "button": "start"
+      }
+    ],
+    "menu_up": [
+      {
+        "button": "dpad_up"
+      },
+      {
+        "axis": "left_y",
+        "dir": -1
+      }
+    ],
+    "menu_down": [
+      {
+        "button": "dpad_down"
+      },
+      {
+        "axis": "left_y",
+        "dir": 1
+      }
+    ],
+    "menu_left": [
+      {
+        "button": "dpad_left"
+      },
+      {
+        "axis": "left_x",
+        "dir": -1
+      }
+    ],
+    "menu_right": [
+      {
+        "button": "dpad_right"
+      },
+      {
+        "axis": "left_x",
+        "dir": 1
+      }
+    ],
+    "menu_confirm": [
+      {
+        "button": "a"
+      }
+    ],
+    "menu_cancel": [
+      {
+        "button": "b"
+      }
+    ]
+  }
+}

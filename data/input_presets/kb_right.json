@@ -1,0 +1,100 @@
+{
+  "schema": "noss.input_preset/1",
+  "id": "kb_right",
+  "name": "Keyboard right",
+  "device": "keyboard",
+  "description": "Arrow side only, no number pad needed. For a shared keyboard, or one hand.",
+  "verified": true,
+  "bindings": {
+    "steer_left": [
+      {
+        "key": "Left"
+      }
+    ],
+    "steer_right": [
+      {
+        "key": "Right"
+      }
+    ],
+    "throttle": [
+      {
+        "key": "Up"
+      }
+    ],
+    "brake": [
+      {
+        "key": "Down"
+      }
+    ],
+    "handbrake": [
+      {
+        "key": "Slash"
+      }
+    ],
+    "shift_up": [
+      {
+        "key": "Period"
+      }
+    ],
+    "shift_down": [
+      {
+        "key": "Comma"
+      }
+    ],
+    "camera_next": [
+      {
+        "key": "Semicolon"
+      }
+    ],
+    "look_back": [
+      {
+        "key": "Apostrophe"
+      }
+    ],
+    "reset_car": [
+      {
+        "key": "BracketRight"
+      }
+    ],
+    "hotswap_menu": [
+      {
+        "key": "BracketLeft"
+      }
+    ],
+    "pause": [
+      {
+        "key": "Backspace"
+      }
+    ],
+    "menu_up": [
+      {
+        "key": "Up"
+      }
+    ],
+    "menu_down": [
+      {
+        "key": "Down"
+      }
+    ],
+    "menu_left": [
+      {
+        "key": "Left"
+      }
+    ],
+    "menu_right": [
+      {
+        "key": "Right"
+      }
+    ],
+    "menu_confirm": [
+      {
+        "key": "Enter"
+      }
+    ],
+    "menu_cancel": [
+      {
+        "key": "Backspace"
+      }
+    ]
+  }
+}

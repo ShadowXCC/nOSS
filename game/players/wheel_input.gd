@@ -1,11 +1,13 @@
 class_name WheelInput
 extends RefCounted
-## One wheel (plus pedals on the same device) through noss_core (docs/INPUT.md §5-6):
-## calibrated axes, the wheel's rotation range with a soft lock at the platform's lock, and
-## force feedback from the sim's rack force (docs/PHYSICS.md §11).
+## A player's wheel and pedals through noss_core (docs/INPUT.md §5-6): calibrated axes, the
+## wheel's rotation range with a soft lock at the platform's lock, and force feedback from the
+## sim's rack force (docs/PHYSICS.md §11). Each axis can be on any of the player's sim devices
+## (a wheel plus separate pedals); force feedback goes to the steering device.
 ##
-## Config (profile "wheel"): {guid, name, rotation_deg, steer: {axis, center, invert},
-## throttle/brake/clutch: {axis, rest, full}, ffb_gain, ffb_damper, ffb_min, ffb_invert}.
+## Config (profile "wheel"): {guid, name, rotation_deg, steer: {axis, center, invert, guid?},
+## throttle/brake/clutch: {axis, rest, full, guid?}, ffb_gain, ffb_damper, ffb_min, ffb_invert}.
+## An axis without its own guid is on the device named by the top-level guid.
 
 const DEFAULTS := {
 	"rotation_deg": 900.0,
@@ -16,18 +18,42 @@ const DEFAULTS := {
 }
 const SOFT_LOCK_RAMP_DEG := 8.0
 
+## The steering device (gets force feedback), -1 without one.
 var device_id := -1
 var config := {}
 ## Lock-to-lock of the platform being driven; the wheel stops here (soft lock).
 var platform_lock_deg := 540.0
+var _ids := {} # guid -> SDL id, for the player's sim devices
 
 
-func configure(id: int, cfg: Dictionary) -> void:
-	device_id = id
-	config = DEFAULTS.duplicate()
-	config.merge(cfg, true)
+## `devices`: the player's sim devices (Devices.list() entries). With no saved calibration for
+## them, the first wheel gets its device preset's calibration, or steering on axis 0.
+func configure(devices: Array, cfg: Dictionary) -> void:
+	_ids.clear()
+	var first_wheel := {}
+	for d: Dictionary in devices:
+		if d.kind == "sim":
+			_ids[d.guid] = d.id
+			if d.wheel and first_wheel.is_empty():
+				first_wheel = d
+	config = DEFAULTS.duplicate(true)
+	config.merge(cfg.duplicate(true), true)
+	if not _ids.has(String(config.get("guid", ""))) and not first_wheel.is_empty():
+		config = DEFAULTS.duplicate(true)
+		config.guid = first_wheel.guid
+		config.name = first_wheel.name
+		config.steer = { "axis": 0, "center": 0.0 }
+		config.merge(Bindings.preset(String(first_wheel.get("preset", ""))).get("wheel", {}).duplicate(true), true)
+	device_id = device_for("steer")
 	if device_id >= 0:
 		NossInput.set_ffb_options(device_id, config.ffb_gain, config.ffb_min, config.ffb_invert)
+
+
+## SDL id of the device an axis is on, -1 if that device isn't the player's.
+func device_for(role: String) -> int:
+	var c: Variant = config.get(role)
+	var guid := String(c.get("guid", config.get("guid", ""))) if c is Dictionary else String(config.get("guid", ""))
+	return int(_ids.get(guid, -1))
 
 
 func is_active() -> bool:
@@ -35,7 +61,7 @@ func is_active() -> bool:
 
 
 func has_clutch() -> bool:
-	return device_id >= 0 and config.get("clutch") is Dictionary and config.clutch.has("axis")
+	return config.get("clutch") is Dictionary and config.clutch.has("axis") and device_for("clutch") >= 0
 
 
 ## Wheel angle in degrees, + = right.
@@ -69,13 +95,14 @@ func clutch() -> float:
 ## 0..1 between the calibrated rest and full positions (handles inverted pedals).
 func pedal(which: String) -> float:
 	var p: Variant = config.get(which)
-	if device_id < 0 or not p is Dictionary or not p.has("axis"):
+	var id := device_for(which)
+	if id < 0 or not p is Dictionary or not p.has("axis"):
 		return 0.0
 	var rest := float(p.rest)
 	var full := float(p.full)
 	if is_equal_approx(rest, full):
 		return 0.0
-	return clampf((NossInput.axis(device_id, int(p.axis)) - rest) / (full - rest), 0.0, 1.0)
+	return clampf((NossInput.axis(id, int(p.axis)) - rest) / (full - rest), 0.0, 1.0)
 
 
 ## Sends this tick's force: rack force, soft lock at the platform's lock, damper.
