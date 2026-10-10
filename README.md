@@ -14,7 +14,7 @@ nOSS (NOS + Open Source Software) is a free, open-source racing game. You can im
 
 ## Status
 
-**M1 (first demo) is nearly done:** free-drive on the Proving Ground with the Track / GT platform, your own cars loaded as `.noss` packages, keyboard, controller and wheel (with force feedback), chase and cockpit cameras, a lap timer, and car hotswap. Still open: a wheel test on real hardware and a test on Windows itself. See the [roadmap](docs/ROADMAP.md).
+**M1 (first demo, `v0.1.0-demo`) is done:** free-drive on the Proving Ground with the Track / GT platform, your own cars loaded as `.noss` packages, keyboard, controller and wheel (with force feedback), chase and cockpit cameras, a lap timer, and car hotswap. Deferred: a wheel test on real hardware and a test on Windows itself (the Windows build runs under Wine). Next up is **M2**, the Garage and Fitting Bay ([roadmap](docs/ROADMAP.md)).
 
 ## Playing
 
@@ -36,7 +36,7 @@ Converted packages are marked `personal-use-only` and must never be shared or co
 Needs `git`, `curl`, `unzip`, `python3` (with `venv`) and a C++20 compiler (GCC or Clang).
 
 ```sh
-git clone --recursive <repo>       # or: git submodule update --init --recursive
+git clone --recursive https://github.com/ShadowXCC/nOSS.git   # or: git submodule update --init --recursive
 tools/setup_dev.sh                 # pinned Godot in .tools/, SCons in .venv/ (nothing system-wide)
 tools/build_native.sh              # builds noss_core into native/bin/
 tools/run_tests.sh                 # native, schema, tools and GDScript tests, plus a boot check

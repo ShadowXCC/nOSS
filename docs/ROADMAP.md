@@ -2,7 +2,7 @@
 
 The build order. Each milestone ends with something playable and lists acceptance criteria. IDs refer to [Requirements.md](../Requirements.md).
 
-The GitHub repo (`git@github.com:ShadowXCC/nOSS.git`) is created and pushed after **M1**.
+The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
 
 ---
 
@@ -46,9 +46,9 @@ The GitHub repo (`git@github.com:ShadowXCC/nOSS.git`) is created and pushed afte
 **Acceptance:**
 - [x] ACU_NSX_97 and at least 3 other FM4 cars load as `.noss` and drive on Track / GT at 60+ fps on the dev machine (RTX 3080, Linux). *All 8 converted cars load in about 2 s; 165 fps at 1080p (vsync-capped).*
 - [x] The lap timer counts valid laps. *The autopilot laps the Proving Ground in about 1:09; shortcuts and resets invalidate a lap.*
-- [ ] A wheel with FFB is usable on Linux, and a Windows build boots and drives. *Wheel input and FFB are implemented, but no wheel has been tested yet. The Windows build boots and drives under Wine 10; a test on Windows itself is pending.*
+- [ ] A wheel with FFB is usable on Linux, and a Windows build boots and drives. *Deferred: wheel input and FFB are implemented but no wheel is available to test them yet. The Windows build boots and drives under Wine 10; a test on Windows itself comes later.*
 - [x] A swap between two cars mid-drive keeps the car moving. *NSX → Saleen S7 at about 200 km/h kept its speed.*
-- [ ] Docs updated, then **the public GitHub repo is created** and the demo is tagged `v0.1.0-demo` (no ripped content). *Docs updated; repo pending.*
+- [x] Docs updated, then **the public GitHub repo is created** and the demo is tagged `v0.1.0-demo` (no ripped content).
 
 ## M2: Garage and Fitting Bay
 
