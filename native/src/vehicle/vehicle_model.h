@@ -69,6 +69,7 @@ struct PlatformSpec {
 	double cog_height_over_track = 0.3;
 	double yaw_dynamic_index = 1.0;
 	double wheelbase_ref = 2.6;
+	double track_ref = 1.6;
 	double wheel_radius_ref = 0.33;
 	Drive drive = Drive::RWD;
 	EngineSpec engine;

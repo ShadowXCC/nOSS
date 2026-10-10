@@ -7,6 +7,7 @@
 #include "core/noss_core.h"
 #include "input/gd_input.h"
 #include "package/gd_package.h"
+#include "vehicle/gd_conformance.h"
 #include "vehicle/gd_vehicle_sim.h"
 
 using namespace godot;
@@ -19,6 +20,7 @@ static void initialize_noss_core(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(noss::NossPackage);
 	GDREGISTER_CLASS(noss::VehicleSim);
 	GDREGISTER_ABSTRACT_CLASS(noss::NossInput);
+	GDREGISTER_ABSTRACT_CLASS(noss::NossConformance);
 }
 
 static void uninitialize_noss_core(ModuleInitializationLevel p_level) {

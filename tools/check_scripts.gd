@@ -1,5 +1,6 @@
 extends SceneTree
-## Compiles every GDScript under res://game and res://tests and reports failures.
+## Compiles every GDScript under res://game, res://tests/game and res://tests/conformance and
+## reports failures.
 ##   tools/godot.sh --headless -s res://tools/check_scripts.gd
 
 
@@ -12,7 +13,7 @@ func _process(_delta: float) -> bool:
 	_done = true # autoload names exist from the first frame on
 	var failed := 0
 	var count := 0
-	for root in ["res://game", "res://tests/game"]:
+	for root in ["res://game", "res://tests/game", "res://tests/conformance"]:
 		for path in _scripts(root):
 			count += 1
 			var script := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as Script

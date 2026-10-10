@@ -251,10 +251,12 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 	}
 
 	// TCS: cut torque while a driven wheel spins past the peak. In a corner the tire is
-	// already busy sideways, so it watches the combined slip too.
+	// already busy sideways, so it watches the combined slip too. While the clutch slips it
+	// limits the torque itself; cutting then would stop the engine from revving up to engage
+	// it, and the car would sit at idle.
 	bool spinning = false;
 	double drive_sign = gearbox.ratio() >= 0.0 ? 1.0 : -1.0;
-	for (int i : _driven) {
+	for (int i : (clutch_out > 0.9 ? _driven : std::vector<int>())) {
 		const WheelState &w = wheels[size_t(i)];
 		if (!w.contact) {
 			continue;

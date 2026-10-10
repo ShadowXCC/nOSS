@@ -40,3 +40,6 @@ Thumbs.db
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Conformance runner output (tools/run_conformance.sh)
+/tests/conformance/out/
