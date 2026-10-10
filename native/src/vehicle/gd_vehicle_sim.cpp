@@ -142,6 +142,7 @@ void VehicleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_throttle"), &VehicleSim::get_throttle);
 	ClassDB::bind_method(D_METHOD("get_brake"), &VehicleSim::get_brake);
 	ClassDB::bind_method(D_METHOD("get_engine_load"), &VehicleSim::get_engine_load);
+	ClassDB::bind_method(D_METHOD("get_acceleration"), &VehicleSim::get_acceleration);
 	ClassDB::bind_method(D_METHOD("get_telemetry"), &VehicleSim::get_telemetry);
 
 	BIND_CONSTANT(SURFACE_ASPHALT);
@@ -332,6 +333,10 @@ double VehicleSim::get_brake() const {
 
 double VehicleSim::get_engine_load() const {
 	return _model ? _model->engine_load : 0.0;
+}
+
+Vector3 VehicleSim::get_acceleration() const {
+	return _model ? gv(_model->acceleration) : Vector3();
 }
 
 Dictionary VehicleSim::get_telemetry() const {

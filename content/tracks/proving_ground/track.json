@@ -1,0 +1,21 @@
+{
+  "schema": "noss.track/0",
+  "id": "proving_ground",
+  "name": "Proving Ground",
+  "author": "nOSS contributors",
+  "license": "CC-BY-SA-4.0",
+  "style": "retro_ps2",
+  "width_m": 12.0,
+  "points": [
+    [-300, 0], [-100, 0], [100, 0], [300, 0], [420, 0], [480, 25], [500, 80], [480, 130],
+    [430, 150], [370, 160], [330, 190], [320, 240], [340, 290], [400, 320], [420, 380],
+    [380, 430], [300, 440], [200, 420], [120, 380], [60, 400], [0, 440], [-60, 420],
+    [-150, 380], [-250, 360], [-340, 320], [-380, 250], [-390, 150], [-370, 60], [-330, 10]
+  ],
+  "start_m": 150,
+  "sectors_m": [880, 1690],
+  "checkpoint_spacing_m": 100,
+  "skidpad": { "center": [100, 200], "radius_m": 60, "pad_radius_m": 72 },
+  "grandstand": { "at_m": 330, "length_m": 110, "side": "left" },
+  "pit_building": { "at_m": 300, "length_m": 120, "side": "right" }
+}

@@ -18,6 +18,11 @@ config/use_custom_user_dir=true
 config/custom_user_dir_name="nOSS"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
+[autoload]
+
+Settings="*res://game/app/settings.gd"
+Game="*res://game/app/game.gd"
+
 [display]
 
 window/size/viewport_width=1920
@@ -41,3 +46,18 @@ common/physics_interpolation=true
 [rendering]
 
 renderer/rendering_method="forward_plus"
+
+[shader_globals]
+
+style_tint={
+"type": "color",
+"value": Color(1, 1, 1, 1)
+}
+style_mip_bias={
+"type": "float",
+"value": 0.0
+}
+style_saturation={
+"type": "float",
+"value": 1.0
+}

@@ -46,6 +46,21 @@ static func list_available() -> PackedStringArray:
 	return paths
 
 
+## Manifest only, for listings. Not validated: loading the package does that.
+static func read_manifest(path: String) -> Dictionary:
+	var bytes := PackedByteArray()
+	if DirAccess.dir_exists_absolute(path):
+		bytes = FileAccess.get_file_as_bytes(path.path_join("manifest.json"))
+	else:
+		var zip := ZIPReader.new()
+		if zip.open(path) == OK:
+			if zip.file_exists("manifest.json"):
+				bytes = zip.read_file("manifest.json")
+			zip.close()
+	var data: Variant = JSON.parse_string(bytes.get_string_from_utf8()) if bytes.size() < 65536 and not bytes.is_empty() else null
+	return data if data is Dictionary else {}
+
+
 ## Loads on a worker thread; `on_done` gets the VehiclePackage on the main thread.
 static func load_async(path: String, on_done: Callable, limits := {}) -> void:
 	var job := _Job.new()

@@ -1,0 +1,22 @@
+{
+  "schema": "noss.style/0",
+  "id": "retro_ps2",
+  "name": "Retro PS2",
+  "sky": {
+    "top": "#2f63b4",
+    "horizon": "#c9d6e2",
+    "ground": "#5d6b52",
+    "clouds": 0.45,
+    "cloud_color": "#f4f6f8",
+    "mountains": "#7f8fa6",
+    "mountains_far": "#a5b3c4",
+    "mountain_height": 0.055
+  },
+  "fog": { "color": "#c3d0dc", "density": 0.0016, "sky_affect": 0.25, "sun_scatter": 0.15 },
+  "sun": { "color": "#fff1d6", "energy": 1.25, "elevation_deg": 38, "azimuth_deg": 140, "shadows": true, "shadow_distance_m": 120 },
+  "ambient": { "energy": 0.9, "sky_contribution": 0.85 },
+  "tonemap": "filmic",
+  "exposure": 1.0,
+  "glow": 0.25,
+  "world": { "max_texture": 512, "mip_bias": 0.4, "tint": "#ffffff", "saturation": 1.05 }
+}

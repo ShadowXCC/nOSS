@@ -15,7 +15,18 @@ func test_shows_game_version() -> void:
 	assert_str(version.text).is_equal("v" + ProjectSettings.get_setting("application/config/version"))
 
 
-func test_quit_button_has_focus() -> void:
+func test_free_drive_button_has_focus() -> void:
 	var runner := scene_runner(TITLE_SCENE)
-	var quit: Button = runner.find_child("QuitButton")
-	assert_bool(quit.has_focus()).is_true()
+	await runner.simulate_frames(2)
+	var drive: Button = runner.find_child("FreeDriveButton")
+	assert_bool(drive.has_focus()).is_true()
+
+
+func test_buttons_have_accessible_names_and_focus_order() -> void:
+	var runner := scene_runner(TITLE_SCENE)
+	var names := ["FreeDriveButton", "SettingsButton", "QuitButton"]
+	for i in names.size():
+		var b: Button = runner.find_child(names[i])
+		assert_str(b.accessibility_name).is_not_empty()
+		var below := b.get_node(b.focus_neighbor_bottom) as Button
+		assert_str(below.name).is_equal(names[(i + 1) % names.size()])

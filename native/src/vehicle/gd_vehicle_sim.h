@@ -58,6 +58,8 @@ public:
 	double get_throttle() const;
 	double get_brake() const;
 	double get_engine_load() const;
+	// Body-frame acceleration, m/s^2 (without gravity).
+	godot::Vector3 get_acceleration() const;
 	godot::Dictionary get_telemetry() const;
 };
 

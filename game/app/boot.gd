@@ -9,7 +9,10 @@ func _ready() -> void:
 	if core.is_empty():
 		push_error("noss_core not loaded")
 	print("nOSS %s (core %s)" % [game_version(), core if core else "missing"])
-	get_tree().change_scene_to_file.call_deferred(TITLE_SCENE)
+	if Game.first_scene().is_empty():
+		Game.start_free_drive.call_deferred()
+	else:
+		get_tree().change_scene_to_file.call_deferred(TITLE_SCENE)
 
 
 static func game_version() -> String:
