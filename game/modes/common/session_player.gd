@@ -48,9 +48,9 @@ func setup(world_env: Environment) -> void:
 	cameras.input = null if slot.ai else slot.input
 	view.add_3d(cameras)
 	view.set_camera(cameras.camera, world_env)
-	hud.theme = UiKit.theme()
 	hud.process_mode = Node.PROCESS_MODE_ALWAYS # shows "Paused by P2" while paused
 	view.hud_root.add_child(hud)
+	hud.apply_profile(slot.profile)
 	hud.timer = timer
 	hud.show_message("Loading", 30.0)
 	update_badge(1)

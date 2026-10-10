@@ -21,6 +21,7 @@ var _main := Control.new()
 var _views := {} # PlayerSlot -> PlayerView
 var _windows := {} # screen -> Window
 var _root_embedded := true
+var _root_scale_mode := Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 
 
 func _init() -> void:
@@ -34,7 +35,14 @@ func _init() -> void:
 
 
 func _ready() -> void:
-	_root_embedded = get_tree().root.gui_embed_subwindows
+	var root := get_tree().root
+	_root_embedded = root.gui_embed_subwindows
+	# Views render at the window's real pixel size: with the main window's canvas_items stretch
+	# their SubViewports would render at the 1920×1080 base size and be rescaled. Their own
+	# HUDs and menus scale themselves (PlayerView).
+	_root_scale_mode = root.content_scale_mode
+	root.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
+	root.content_scale_factor = 1.0
 	Settings.changed.connect(_on_settings)
 
 
@@ -46,6 +54,7 @@ func _on_settings() -> void:
 
 func _exit_tree() -> void:
 	get_tree().root.gui_embed_subwindows = _root_embedded
+	get_tree().root.content_scale_mode = _root_scale_mode
 
 
 func add(slot: PlayerSlot) -> PlayerView:

@@ -14,7 +14,7 @@ var _rows: Array = []
 
 
 func _ready() -> void:
-	theme = UiKit.theme()
+	theme = UiKit.theme_for(self)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	var list := UiKit.panel(self, "Settings", 980)

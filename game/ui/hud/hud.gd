@@ -28,6 +28,7 @@ var _fps := _label(24, DIM)
 var _badge := _label(34)
 ## F3 toggles a frame-rate readout.
 var show_fps := false
+var high_contrast := false
 var _delta_timer := 0.0
 var _message_timer := 0.0
 
@@ -75,9 +76,25 @@ func set_player(tag: String, color: Color, show: bool) -> void:
 	_badge.accessibility_name = "Player %s" % tag.substr(1)
 
 
-## Re-reads the player's HUD options (docs/ACCESSIBILITY.md §2).
-func apply_profile(_profile: PlayerProfile) -> void:
-	pass
+## Re-reads the player's HUD options (docs/ACCESSIBILITY.md §2): font, and high contrast
+## (solid plates behind text, thicker outlines).
+func apply_profile(profile: PlayerProfile) -> void:
+	theme = UiKit.theme_with(String(profile.data.get("font", "retro")))
+	high_contrast = bool(profile.data.get("high_contrast", false))
+	var plate := StyleBoxFlat.new()
+	plate.bg_color = Color(0, 0, 0, 0.82)
+	plate.set_corner_radius_all(4)
+	plate.content_margin_left = 8
+	plate.content_margin_right = 8
+	for l: Label in [_speed, _unit, _gear, _lap, _time, _last, _best, _delta, _message, _assists, _car, _fps]:
+		var size := l.get_theme_font_size("font_size")
+		if high_contrast:
+			l.add_theme_stylebox_override("normal", plate)
+			l.add_theme_constant_override("outline_size", maxi(6, size / 5))
+		else:
+			l.remove_theme_stylebox_override("normal")
+			l.add_theme_constant_override("outline_size", maxi(4, size / 8))
+	_rpm.high_contrast = high_contrast
 
 
 func show_message(text: String, seconds := 2.0) -> void:
@@ -114,6 +131,7 @@ func _process(delta: float) -> void:
 		if t.abs:
 			active.append("ABS")
 		_assists.text = "  ".join(active)
+		_assists.visible = not _assists.text.is_empty() # no empty plate in high contrast
 	if timer:
 		_lap.text = "Lap %d" % timer.lap if timer.lap > 0 else "Out lap"
 		_time.text = format_time(timer.lap_time) + ("" if timer.valid else "  ✕")
@@ -166,6 +184,7 @@ class RpmBar:
 	extends Control
 	var value := 0.0
 	var shift_at := 0.9
+	var high_contrast := false
 	var _t := 0.0
 
 	func _process(delta: float) -> void:
@@ -174,7 +193,9 @@ class RpmBar:
 
 	func _draw() -> void:
 		var r := Rect2(Vector2.ZERO, size)
-		draw_rect(r, Color(0, 0, 0, 0.55))
+		draw_rect(r, Color(0, 0, 0, 0.95 if high_contrast else 0.55))
+		if high_contrast:
+			draw_rect(r.grow(2.0), Color.WHITE, false, 2.0)
 		var segments := 24
 		var w := size.x / segments
 		for i in segments:

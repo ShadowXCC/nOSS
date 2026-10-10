@@ -8,6 +8,7 @@ extends Node
 ##   --players=<n>        free drive with n players; the extra ones are driven by the line follower
 ##   --screens=0,0,1,1    monitor per player (multi-monitor)
 ##   --split=<s>          two players: stacked or side; --three=<s>: wide or map
+##   --ai-profile=<json>  options for the line-follower players' throwaway profiles
 ##   --pause-at=<s>       open the last player's pause menu
 ##   --menu=<m>           title: open classes, players or settings (--join=<n>: n devices join)
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit

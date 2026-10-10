@@ -204,7 +204,7 @@ class PlayerCard:
 	var _status: Label
 
 	func _ready() -> void:
-		theme = UiKit.theme() # themes don't reach into a view's viewport
+		theme = UiKit.theme_with(String(slot.profile.data.font)) # themes don't reach into a view's viewport
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		var box := StyleBoxFlat.new()
 		box.bg_color = UiKit.PANEL
@@ -220,6 +220,7 @@ class PlayerCard:
 		var owner := UiKit.focus_owner(self) if is_inside_tree() else null
 		if owner is Button:
 			focus_text = owner.text.get_slice(" ", 0)
+		theme = UiKit.theme_with(String(slot.profile.data.font))
 		for c in get_children():
 			c.free()
 		_rows.clear()

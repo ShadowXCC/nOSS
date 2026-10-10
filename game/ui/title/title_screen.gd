@@ -13,6 +13,9 @@ var _settings: SettingsMenu
 
 func _ready() -> void:
 	theme = UiKit.theme()
+	_apply_text_scale()
+	Settings.changed.connect(_apply_text_scale)
+	Players.slots_changed.connect(_apply_text_scale)
 	_version_label.text = "v%s" % ProjectSettings.get_setting("application/config/version")
 	_drive_button.accessibility_description = "Drive the Proving Ground"
 	_drive_button.pressed.connect(_open_classes)
@@ -74,3 +77,13 @@ func _open_settings() -> void:
 		_settings.queue_free()
 		_settings_button.grab_focus())
 	add_child(_settings)
+
+
+## Menu text size (docs/ACCESSIBILITY.md §2): the whole menu screen scales.
+func _apply_text_scale() -> void:
+	get_tree().root.content_scale_factor = Players.menu_text_scale()
+	theme = UiKit.theme()
+
+
+func _exit_tree() -> void:
+	get_tree().root.content_scale_factor = 1.0

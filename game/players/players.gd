@@ -97,6 +97,16 @@ static func focus_of(viewport: Viewport) -> Control:
 	return null
 
 
+## Text size for shared menus: the largest of the joined players' (P1's if nobody joined),
+## docs/ACCESSIBILITY.md §8.
+func menu_text_scale() -> float:
+	var scale := float(Settings.primary.data.get("text_scale", 1.0))
+	for slot in slots:
+		if not slot.ai:
+			scale = maxf(scale, float(slot.profile.data.get("text_scale", 1.0)))
+	return clampf(scale, 1.0, 2.0)
+
+
 func count() -> int:
 	return slots.size()
 
@@ -136,7 +146,12 @@ func add_ai() -> PlayerSlot:
 	var slot := PlayerSlot.new()
 	slot.index = slots.size()
 	slot.ai = true
-	slot.profile = PlayerProfile.create("ai%d" % slot.number(), { "name": "AI %d" % slot.number() })
+	var data := { "name": "AI %d" % slot.number() }
+	# Dev: --ai-profile='{"hud_scale": 1.5}' sets options on these throwaway profiles.
+	var extra: Variant = JSON.parse_string(String(Game.dev.get("ai-profile", "{}")))
+	if extra is Dictionary:
+		data.merge(extra, true)
+	slot.profile = PlayerProfile.create("ai%d" % slot.number(), data)
 	slots.append(slot)
 	slot.refresh(Devices.list())
 	slots_changed.emit()

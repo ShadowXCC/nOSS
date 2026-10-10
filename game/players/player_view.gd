@@ -11,9 +11,8 @@ extends SubViewportContainer
 ##   factor. Brightness is the player's (a copy of the world's environment on the camera).
 
 const REF := Vector2(1920, 1080)
-## Room a menu needs; the text scale stops growing menus past it. (The 2D space itself is
-## always at least REF.)
-const MIN_SPACE := Vector2(1100, 900)
+## Room a menu needs; menus shrink below it, and the text scale stops growing them past it.
+const MIN_SPACE := Vector2(1100, 700)
 
 var slot: PlayerSlot
 ## Size the 2D content is laid out for (a full view: 1080p; a Players screen card: card size).
@@ -111,9 +110,16 @@ func apply_graphics() -> void:
 	Settings.apply_graphics(viewport, render_scale)
 
 
-## Scale of the 2D layout relative to 1080p.
+## Scale of the 2D layout relative to its reference. A half-height or half-width view gets a
+## bigger HUD than a quarter (the mean of the two ratios), as long as it still fits.
 func base_scale() -> float:
-	return minf(size.x / reference.x, size.y / reference.y) if size.x > 0.0 and size.y > 0.0 else 1.0
+	if size.x <= 0.0 or size.y <= 0.0:
+		return 1.0
+	var rx := size.x / reference.x
+	var ry := size.y / reference.y
+	if reference != REF:
+		return minf(rx, ry)
+	return minf(sqrt(rx * ry), minf(size.x / MIN_SPACE.x, size.y / MIN_SPACE.y))
 
 
 func _fit() -> void:
@@ -127,7 +133,7 @@ func _fit() -> void:
 	var text := clampf(float(slot.profile.data.get("text_scale", 1.0)), 1.0, 2.0) if slot else 1.0
 	_place(hud_root, space, hud)
 	# Menus grow with the text scale, as far as they still fit.
-	_place(overlay_root, space, minf(text, maxf(minf(space.x / MIN_SPACE.x, space.y / MIN_SPACE.y), 1.0)) if reference == REF else 1.0)
+	_place(overlay_root, space, minf(text, minf(space.x / MIN_SPACE.x, space.y / MIN_SPACE.y)) if reference == REF else 1.0)
 
 
 static func _place(root: Control, space: Vector2, factor: float) -> void:

@@ -9,12 +9,41 @@ const PANEL := Color(0.07, 0.07, 0.09, 0.97)
 const BUTTON := Color(0.16, 0.16, 0.19)
 const FONT_SIZE := 30
 
-static var _theme: Theme
+## Font choices (docs/ACCESSIBILITY.md §2): "retro" is the game's look, "clear" a plain
+## high-legibility font.
+const FONTS := { "clear": "res://content/fonts/atkinson_hyperlegible/AtkinsonHyperlegible-Regular.ttf" }
+
+static var _themes := {}
 
 
+## The menu theme in P1's font (shared menus follow P1).
 static func theme() -> Theme:
-	if _theme:
-		return _theme
+	return theme_with(String(Settings.primary.data.get("font", "retro")) if Settings.primary else "retro")
+
+
+## The theme for a control: in a player's view, that player's font; elsewhere P1's. Themes
+## don't reach into a view's viewport, so menus there set it themselves.
+static func theme_for(node: Node) -> Theme:
+	var vp := node.get_viewport() if node.is_inside_tree() else null
+	var view := vp.get_parent() as PlayerView if vp else null
+	if view and view.slot:
+		return theme_with(String(view.slot.profile.data.get("font", "retro")))
+	return theme()
+
+
+static func theme_with(font_id: String) -> Theme:
+	if not FONTS.has(font_id):
+		font_id = "retro"
+	if _themes.has(font_id):
+		return _themes[font_id]
+	var t := _base_theme()
+	if FONTS.has(font_id):
+		t.default_font = load(FONTS[font_id])
+	_themes[font_id] = t
+	return t
+
+
+static func _base_theme() -> Theme:
 	var t := Theme.new()
 	t.default_font_size = FONT_SIZE
 	t.set_stylebox("panel", "PanelContainer", _box(PANEL, Color(0, 0, 0, 0), 0, 24))
@@ -33,7 +62,6 @@ static func theme() -> Theme:
 	t.set_color("font_color", "Label", Color(0.95, 0.95, 0.93))
 	t.set_constant("separation", "VBoxContainer", 12)
 	t.set_constant("separation", "HBoxContainer", 16)
-	_theme = t
 	return t
 
 
@@ -65,6 +93,19 @@ static func panel(parent: Control, title: String, width := 760.0) -> VBoxContain
 		var heading := label(title, 44)
 		heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		list.add_child(heading)
+	# Fit the room there is (a small splitscreen view, big text): narrower panel, shorter
+	# scroll areas. A scroll area's starting height is its largest.
+	var fit := func() -> void:
+		if parent.size.x <= 0.0:
+			return
+		box.custom_minimum_size.x = minf(width, parent.size.x - 40.0)
+		for sc: ScrollContainer in list.find_children("*", "ScrollContainer", true, false):
+			if not sc.has_meta(&"max_height"):
+				sc.set_meta(&"max_height", sc.custom_minimum_size.y)
+			var others := box.get_combined_minimum_size().y - sc.custom_minimum_size.y
+			sc.custom_minimum_size.y = clampf(parent.size.y - 40.0 - others, 160.0, sc.get_meta(&"max_height"))
+	parent.resized.connect(fit)
+	fit.call_deferred()
 	return list
 
 
