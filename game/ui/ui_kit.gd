@@ -135,6 +135,67 @@ static func slider(text: String, value: float, on_changed: Callable) -> HBoxCont
 	return row
 
 
+## Slider over any range, with its value shown as `format` (e.g. "%.2f m").
+static func number(text: String, value: float, min_value: float, max_value: float, step: float, format: String, on_changed: Callable) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	var l := label(text)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(l)
+	var s := HSlider.new()
+	s.accessibility_name = text
+	s.min_value = min_value
+	s.max_value = max_value
+	s.step = step
+	s.value = value
+	s.custom_minimum_size = Vector2(240, 48)
+	var shown := label(format % value)
+	shown.custom_minimum_size = Vector2(130, 0)
+	s.value_changed.connect(func(v: float) -> void:
+		shown.text = format % v
+		on_changed.call(v))
+	row.add_child(s)
+	row.add_child(shown)
+	return row
+
+
+## Labelled text field. `on_changed` gets the text when editing ends.
+static func text_field(text: String, value: String, on_changed: Callable, max_length := 96) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	var l := label(text)
+	l.custom_minimum_size = Vector2(180, 0)
+	row.add_child(l)
+	var e := LineEdit.new()
+	e.accessibility_name = text
+	e.text = value
+	e.max_length = max_length
+	e.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	e.custom_minimum_size = Vector2(0, 56)
+	e.text_changed.connect(func(t: String) -> void: on_changed.call(t))
+	row.add_child(e)
+	return row
+
+
+## Labelled colour: a picker button plus the hex value.
+static func color(text: String, value: Color, on_changed: Callable) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	var l := label(text)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(l)
+	var b := ColorPickerButton.new()
+	b.accessibility_name = text
+	b.color = value
+	b.edit_alpha = false
+	b.custom_minimum_size = Vector2(160, 56)
+	var hex := label("#" + value.to_html(false).to_upper(), 24)
+	hex.custom_minimum_size = Vector2(130, 0)
+	b.color_changed.connect(func(c: Color) -> void:
+		hex.text = "#" + c.to_html(false).to_upper()
+		on_changed.call(c))
+	row.add_child(b)
+	row.add_child(hex)
+	return row
+
+
 ## Links the focusable controls in `controls` top to bottom (wrapping) and focuses the first.
 static func chain_focus(controls: Array) -> void:
 	var focusable: Array[Control] = []
@@ -155,9 +216,9 @@ static func chain_focus(controls: Array) -> void:
 
 
 static func _focus_target(c: Control) -> Control:
-	if c.focus_mode != Control.FOCUS_NONE and (c is BaseButton or c is Range):
+	if c.focus_mode != Control.FOCUS_NONE and (c is BaseButton or c is Range or c is LineEdit):
 		return c
 	for child in c.get_children():
-		if child is Control and child.focus_mode != Control.FOCUS_NONE and (child is BaseButton or child is Range):
+		if child is Control and child.focus_mode != Control.FOCUS_NONE and (child is BaseButton or child is Range or child is LineEdit):
 			return child
 	return null

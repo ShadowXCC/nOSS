@@ -134,6 +134,12 @@ func pack(thumbnail := PackedByteArray()) -> Dictionary:
 	return result
 
 
+## Removes the draft's folder (the car is saved, or thrown away).
+func delete_draft() -> void:
+	if id and DirAccess.dir_exists_absolute(draft_dir()):
+		_remove_tree(draft_dir())
+
+
 func free_scene() -> void:
 	if scene:
 		scene.free()

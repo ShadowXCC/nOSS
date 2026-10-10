@@ -10,6 +10,8 @@ const GRID_BEHIND_LINE := 40.0
 var track_path := DEFAULT_TRACK
 var car_path := ""
 var platform_id := DEFAULT_PLATFORM
+## Test-driving a Fitting Bay draft: the pause menu leads back, and the car isn't remembered.
+var bay_return := false
 var autodrive := false
 
 var track: TrackData
@@ -110,8 +112,9 @@ func _on_car_loaded(pkg: VehiclePackage) -> void:
 			load_car(_default_car)
 		return
 	print("Loaded %s in %d ms (%d tris)" % [pkg.display_name(), pkg.load_ms, pkg.triangles])
-	Settings.profile.last_car = pkg.path
-	Settings.save()
+	if not bay_return:
+		Settings.profile.last_car = pkg.path
+		Settings.save()
 	if vehicle == null:
 		_spawn(pkg)
 		hud.show_message("Go", 1.0)
@@ -226,6 +229,8 @@ func _open_pause() -> void:
 		_close_overlay()
 		_open_picker(true))
 	menu.quit_to_title.connect(func() -> void: Game.go_title())
+	menu.bay_return = bay_return
+	menu.back_to_bay.connect(func() -> void: Game.open_fitting_bay())
 	_show_overlay(menu)
 
 

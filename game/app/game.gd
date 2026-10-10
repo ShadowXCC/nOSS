@@ -8,12 +8,19 @@ extends Node
 ##   --camera=<mode>      chase_near, chase_far or cockpit
 ##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5)
 ##   --quit-at=<s>        quit after this many seconds
+##   --bay                open the Fitting Bay
+##   --import=<path>      Fitting Bay: import this model
+##   --bay-auto           Fitting Bay: save and drive as soon as the import is in (timed runs)
+##   --bay-step=<step>    Fitting Bay: show this step after the import (screenshots)
 
 const TITLE := "res://game/ui/title/title_screen.tscn"
 
 var dev := {}
+## The Fitting Bay's draft, kept while the player test-drives it.
+var bay_draft: Variant = null
 var _time := 0.0
 var _shot_done := false
+var _dev_import_used := false
 
 
 func _ready() -> void:
@@ -26,12 +33,13 @@ func _ready() -> void:
 
 ## First scene after boot.
 func first_scene() -> String:
-	return "" if dev.has("drive") else TITLE
+	return "" if dev.has("drive") or dev.has("bay") else TITLE
 
 
-func start_free_drive(car_path := "", platform_id := "") -> void:
+func start_free_drive(car_path := "", platform_id := "", bay_return := false) -> void:
 	get_tree().paused = false
 	var session := FreeDrive.new()
+	session.bay_return = bay_return
 	session.car_path = car_path if car_path else String(dev.get("car", ""))
 	session.platform_id = platform_id if platform_id else String(dev.get("platform", Settings.profile.get("last_platform", "")))
 	session.autodrive = dev.has("autodrive")
@@ -40,9 +48,25 @@ func start_free_drive(car_path := "", platform_id := "") -> void:
 	get_tree().change_scene_to_node(session)
 
 
+func open_fitting_bay(import_path := "") -> void:
+	get_tree().paused = false
+	var bay := FittingBay.new()
+	if not _dev_import_used:
+		_dev_import_used = true
+		import_path = import_path if import_path else String(dev.get("import", ""))
+		bay.auto = dev.has("bay-auto")
+	bay.import_path = import_path
+	get_tree().change_scene_to_node(bay)
+
+
 func go_title() -> void:
 	get_tree().paused = false
 	get_tree().change_scene_to_file(TITLE)
+
+
+func _exit_tree() -> void:
+	if bay_draft is FittingDraft:
+		bay_draft.free_scene()
 
 
 func quit() -> void:

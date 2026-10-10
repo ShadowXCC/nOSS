@@ -6,7 +6,10 @@ signal resumed
 signal reset_car
 signal change_car
 signal quit_to_title
+signal back_to_bay
 
+## Test-driving a Fitting Bay draft: offers the way back.
+var bay_return := false
 var _settings: SettingsMenu
 var _buttons: Array = []
 
@@ -23,6 +26,8 @@ func _ready() -> void:
 		UiKit.button("Settings", _open_settings),
 		UiKit.button("Quit to title", func() -> void: quit_to_title.emit()),
 	]
+	if bay_return:
+		_buttons.insert(1, UiKit.button("Back to Fitting Bay", func() -> void: back_to_bay.emit()))
 	for b: Button in _buttons:
 		list.add_child(b)
 	UiKit.chain_focus(_buttons)
