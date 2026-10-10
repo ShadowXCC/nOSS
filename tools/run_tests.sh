@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Runs every test suite: native (doctest), JSON schemas, GDScript (gdUnit4, headless), boot smoke test.
+# Runs every test suite: native (doctest), JSON schemas, tools (unittest), GDScript (gdUnit4, headless),
+# boot smoke test.
 # Exits non-zero if any fails. Run tools/setup_dev.sh once first.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -17,6 +18,9 @@ tools/build_native.sh -Q tests || failed+=("doctest")
 
 step "Schemas"
 .venv/bin/python tests/schemas/check_schemas.py || failed+=("schemas")
+
+step "Tools"
+.venv/bin/python -m unittest discover -s tests/tools -p 'test_*.py' -q || failed+=("tools")
 
 step "Godot: import"
 $GODOT --headless --import >/dev/null 2>&1 || failed+=("godot import")
