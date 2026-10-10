@@ -13,7 +13,7 @@ var _buttons: Array = []
 
 func _ready() -> void:
 	theme = UiKit.theme()
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	var list := UiKit.panel(self, "Paused", 560)
 	_buttons = [

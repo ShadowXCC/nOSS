@@ -12,7 +12,7 @@ var _rebind_button: Button
 
 func _ready() -> void:
 	theme = UiKit.theme()
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	var list := UiKit.panel(self, "Settings", 980)
 	var scroll := ScrollContainer.new()
@@ -44,6 +44,9 @@ func _ready() -> void:
 		var key: String = item[0]
 		_add(rows, UiKit.check(item[1], p.assists.get(key, true), func(on: bool) -> void: Settings.set_assist(key, on)))
 
+	_section(rows, "Wheel")
+	_add(rows, UiKit.button("Wheel setup", _open_wheel, "Device, axes, rotation and force feedback"))
+
 	_section(rows, "Controller")
 	_add(rows, UiKit.slider("Stick deadzone", p.pad_deadzone / 0.4, func(v: float) -> void: Settings.set_value("pad_deadzone", v * 0.4)))
 
@@ -69,6 +72,21 @@ func _ready() -> void:
 	list.add_child(back)
 	_rows.append(back)
 	UiKit.chain_focus(_rows)
+
+
+func _open_wheel() -> void:
+	var menu := WheelMenu.new()
+	var panel_nodes := get_children()
+	for child in panel_nodes:
+		if child is CanvasItem:
+			child.visible = false
+	menu.closed.connect(func() -> void:
+		menu.queue_free()
+		for child in panel_nodes:
+			if child is CanvasItem:
+				child.visible = true
+		UiKit.chain_focus(_rows))
+	add_child(menu)
 
 
 func _section(parent: Control, text: String) -> void:

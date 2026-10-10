@@ -5,6 +5,7 @@
 #include <godot_cpp/godot.hpp>
 
 #include "core/noss_core.h"
+#include "input/gd_input.h"
 #include "package/gd_package.h"
 #include "vehicle/gd_vehicle_sim.h"
 
@@ -17,9 +18,13 @@ static void initialize_noss_core(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(noss::NossCore);
 	GDREGISTER_ABSTRACT_CLASS(noss::NossPackage);
 	GDREGISTER_CLASS(noss::VehicleSim);
+	GDREGISTER_ABSTRACT_CLASS(noss::NossInput);
 }
 
 static void uninitialize_noss_core(ModuleInitializationLevel p_level) {
+	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
+		noss::NossInput::stop(); // joins the FFB thread before the library unloads
+	}
 }
 
 extern "C" {

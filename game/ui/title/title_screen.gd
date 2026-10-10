@@ -20,6 +20,9 @@ func _ready() -> void:
 	for b: Button in [_drive_button, _settings_button, _quit_button]:
 		b.accessibility_name = b.text
 	UiKit.chain_focus([_drive_button, _settings_button, _quit_button])
+	match Game.dev.get("menu", ""): # dev: open a menu directly
+		"cars": _open_picker()
+		"settings": _open_settings()
 
 
 func _open_picker() -> void:

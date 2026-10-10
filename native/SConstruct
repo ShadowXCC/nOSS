@@ -18,7 +18,9 @@ def use_cxx20(e):
 # Extension. Objects go to build/, the library to bin/.
 env = env.Clone()
 use_cxx20(env)
-env.Append(CPPPATH=["src/"])
+env.Append(CPPPATH=["src/", "thirdparty/SDL/include/"])
+if env["platform"] == "linux":
+    env.Append(LIBS=["dl"])
 VariantDir("build/src", "src", duplicate=False)
 sources = Glob("build/src/*.cpp") + Glob("build/src/*/*.cpp")
 

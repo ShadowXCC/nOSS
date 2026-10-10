@@ -29,7 +29,7 @@ var _message_timer := 0.0
 
 
 func _init() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_place(_speed, Vector2(1, 1), Vector2(-420, -220), HORIZONTAL_ALIGNMENT_RIGHT, 300)
 	_place(_unit, Vector2(1, 1), Vector2(-110, -150), HORIZONTAL_ALIGNMENT_LEFT, 100)

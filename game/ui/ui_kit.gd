@@ -5,7 +5,7 @@ extends RefCounted
 ## directions + confirm + cancel alone.
 
 const ACCENT := Color("#E8B71A")
-const PANEL := Color(0.07, 0.07, 0.09, 0.92)
+const PANEL := Color(0.07, 0.07, 0.09, 0.97)
 const BUTTON := Color(0.16, 0.16, 0.19)
 const FONT_SIZE := 30
 
@@ -25,6 +25,9 @@ static func theme() -> Theme:
 	t.set_stylebox("disabled", "Button", _box(BUTTON.darkened(0.3), Color(0.2, 0.2, 0.22), 2, 14))
 	for cls in ["CheckButton", "OptionButton", "HSlider"]:
 		t.set_stylebox("focus", cls, _box(Color(0, 0, 0, 0), ACCENT, 4, 8))
+	# A check's state shows in its switch, not as a pressed button.
+	for state in ["normal", "pressed", "hover", "hover_pressed"]:
+		t.set_stylebox(state, "CheckButton", _box(BUTTON if state.begins_with("hover") else Color(0, 0, 0, 0), Color(0, 0, 0, 0), 0, 10))
 	t.set_color("font_color", "Button", Color(0.95, 0.95, 0.93))
 	t.set_color("font_focus_color", "Button", Color.WHITE)
 	t.set_color("font_color", "Label", Color(0.95, 0.95, 0.93))
@@ -48,10 +51,10 @@ static func _box(bg: Color, border: Color, border_w: int, pad: int) -> StyleBoxF
 static func panel(parent: Control, title: String, width := 760.0) -> VBoxContainer:
 	var backdrop := ColorRect.new()
 	backdrop.color = Color(0, 0, 0, 0.45)
-	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	parent.add_child(backdrop)
 	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	parent.add_child(center)
 	var box := PanelContainer.new()
 	box.custom_minimum_size = Vector2(width, 0)

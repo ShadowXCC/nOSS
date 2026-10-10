@@ -32,6 +32,8 @@ func _ready() -> void:
 	add_child(camera)
 	camera.make_current()
 	top_level = true
+	# The rig follows the car's interpolated transform itself.
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 
 
 func set_vehicle(v: Vehicle) -> void:

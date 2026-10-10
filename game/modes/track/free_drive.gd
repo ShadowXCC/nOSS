@@ -109,6 +109,8 @@ func _spawn(pkg: VehiclePackage) -> void:
 	else:
 		controller = VehicleController.new()
 		controller.vehicle = vehicle
+		controller.wheel_input = Devices.wheel
+		Devices.wheel.platform_lock_deg = float(platform.platform.steering.wheel_rotation_deg)
 		controller.reset_requested.connect(reset_car)
 		controller.camera_next_requested.connect(_next_camera)
 		add_child(controller)
@@ -126,6 +128,10 @@ func _spawn(pkg: VehiclePackage) -> void:
 func _physics_process(delta: float) -> void:
 	if vehicle == null:
 		return
+	if controller and Devices.wheel.is_active():
+		Devices.wheel.update_ffb(vehicle.sim.get_rack_force())
+		# The in-car wheel turns with the real one.
+		vehicle.steering_wheel_lock_deg = Devices.wheel.platform_lock_deg
 	var proj := track.project(vehicle.global_position, _hint)
 	_hint = proj.index
 	timer.update(track.from_start(proj.distance), delta, vehicle.linear_velocity.length())
@@ -151,7 +157,7 @@ func _next_camera() -> void:
 
 
 func _on_lap(time: float, valid: bool, best: bool) -> void:
-	print("Lap %d: %s%s%s" % [timer.lap - 1, Hud.format_time(time), "" if valid else " (invalid)", " best" if best else ""])
+	print("Lap %d: %s%s%s" % [timer.lap, Hud.format_time(time), "" if valid else " (invalid)", " best" if best else ""])
 	if not valid:
 		hud.show_message("Lap invalid", 2.0)
 	elif best:
@@ -171,8 +177,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		_open_picker(false)
 
 
+func _exit_tree() -> void:
+	Devices.wheel.stop_ffb()
+
+
 func _open_pause() -> void:
 	get_tree().paused = true
+	Devices.wheel.stop_ffb()
 	var menu := PauseMenu.new()
 	menu.resumed.connect(_close_overlay)
 	menu.reset_car.connect(func() -> void:
