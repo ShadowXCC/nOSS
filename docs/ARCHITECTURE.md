@@ -127,15 +127,22 @@ Vehicle (RigidBody3D, Jolt)       mass, inertia, CoG from platform (never from t
 
 ## 6. Local players: splitscreen and multi-monitor
 
-*Requirements: LOC-01…LOC-05.*
+*Requirements: LOC-01…LOC-05. Built in M3 (decisions D54–D61).*
 
-- **PlayerSlot (1–4):** holds the player's devices, profile, chosen car and camera.
-- **ViewManager:** gives each slot a `SubViewport` showing the shared `World3D`, with its own camera and HUD.
-- **Layouts inside one window:** 1 = full screen. 2 = horizontal or vertical split (player's choice). 3 = one wide panel plus two below, or 2×2 with a map in the spare quarter. 4 = 2×2.
-- **Multi-monitor:** each slot can be assigned a monitor, which creates a borderless fullscreen `Window` (`current_screen = n`). Each window can hold 1–4 slots in its own split layout, so 1+3 or 2+2 across two monitors works.
-- **Performance:** each viewport has its own render scale, and quality steps down automatically to hold the frame rate.
-- **Audio:** each viewport's camera has a listener. The mix is normalized, and other players' engines are attenuated. A "P1 focus" option is available.
-- **Menus:** shared menus show on the primary window; in-race HUDs are per viewport.
+- **Players** (autoload, `game/players/players.gd`): up to 4 **PlayerSlots**, each with a profile, the devices it claimed, a car and a monitor. While joining is open, the first press on a free device claims the next slot; "Add device" gives a slot another one. Which profile a device belongs to and each profile's monitor are remembered in `user://players.json`.
+- **Devices** (autoload): lists what can be claimed: the keyboard (whole, or its left and right sides, D55), Godot's gamepads (by GUID) and noss_core's sim devices.
+- **PlayerInput** (one per slot): polls only that player's devices through presets and overrides (D54). Each physics tick it gives analog values and edges; each frame, menu navigation with repeat, pushed into the player's own viewport as `InputEventAction`.
+- **ViewManager** (per session): one **PlayerView** per player. A view is a `SubViewport` showing the shared `World3D`, with the player's camera, HUD layer, menu layer and focus cursor (D57). Each window is split by **SplitLayout**:
+  - 1 player: full window.
+  - 2 players: stacked or side by side (a setting).
+  - 3 players: one wide view on top and two below, or 2×2 with a **track map** in the spare quarter.
+  - 4 players: 2×2.
+- **Multi-monitor:** a player can pick a monitor. Each monitor in use, other than the main window's, gets a native borderless fullscreen `Window` split the same way, so 1+3 or 2+2 across two monitors works (D56).
+- **Scaling:** views render at the window's real pixel size. Their 2D is laid out for 1080p and scaled to the view (more in half views than in quarters), then by the player's HUD size or menu text size.
+- **Performance:** each view has its own render scale. With auto resolution on, it steps down to 0.5 while frames are slower than 60 fps. Car LODs switch closer with more views (D60).
+- **Audio:** each view listens; car sound is scaled by 1/√views, or only P1's view listens (a setting, D58).
+- **Menus:** shared menus (title, class, game settings) use the main window and any device; their text size is the largest of the joined players'. Each player's own menus (Players screen card, pause, car picker, their settings) open in their view and take only their input. Pause stops everyone and belongs to whoever paused.
+- **SessionPlayer** (`game/modes/common/`): one player's car, controller, camera rig, HUD, lap timer, engine sound, reset spot and hotswap in a session. The session keeps the shared parts and the grid, and handles drop-in and drop-out.
 
 ## 7. Render style profiles
 
@@ -181,7 +188,8 @@ Endless mode and large real-world maps go far beyond single-precision range.
 ```
 user://
 ├─ settings.cfg
-├─ profiles/<player>.json      bindings, assists, FFB, preferred cameras
+├─ profiles/<player>.json      bindings, assists, FFB, preferred cameras, HUD and comfort options
+├─ players.json                which profile each device belongs to, each profile's monitor
 ├─ garage/<id>.noss            player car packages
 ├─ tracks/<id>.nosstrack       player tracks (+ .autosave/)
 ├─ platforms/                  custom and downloaded platforms

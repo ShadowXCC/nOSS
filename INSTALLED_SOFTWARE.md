@@ -22,5 +22,6 @@ Already on the system and used, but not installed by this project: `libsdl3-0` (
 | meshoptimizer 1.3 | `native/thirdparty/meshoptimizer` (submodule) | LOD generation and mesh analysis (M2) | `git submodule deinit -f native/thirdparty/meshoptimizer` |
 | doctest 2.5.3 | `native/thirdparty/doctest` (submodule) | Native unit tests | `git submodule deinit -f native/thirdparty/doctest` |
 | gdUnit4 6.2.2 | `addons/gdUnit4/` (committed) | GDScript unit tests | `rm -rf addons/gdUnit4` and remove it from `project.godot` `[editor_plugins]` |
+| Atkinson Hyperlegible 1.006 font (OFL, ~110 KB) | `content/fonts/atkinson_hyperlegible/` (committed) | The "Clear" font option (ACC-02, M3) | `rm -rf content/fonts/atkinson_hyperlegible` and drop `"clear"` from `UiKit.FONTS` |
 
 Build output (safe to delete any time): `native/bin/` (except you'd re-run `tools/setup_export.sh` for `SDL3.dll`), `native/build/`, `.godot/`, `reports/`, `export/`.

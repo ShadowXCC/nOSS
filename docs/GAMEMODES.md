@@ -34,6 +34,7 @@ Rules and flow for each mode. Every mode uses the same vehicle core ([PHYSICS.md
 - **Flags:** green, yellow (stopped or slow car ahead), blue (being lapped, shown only), checkered.
 - **Wrong way:** a warning, then a respawn.
 - **Free-drive (M1):** a car reset puts the car back on the track at the last valid spot and stops the current lap counting. Jumping ahead along the track (cutting across) does the same.
+- **Local players (M3):** up to 4, one class for everyone, each with their own car, view, timer and reset spot. Cars start from a two-column grid behind the line; a reset steps back along the track if another car is on the spot. Players drop in with a free device and drop out from their pause menu; pause stops everyone.
 - **Collisions:** on, or **ghosted** (no car-to-car contact), set per server.
 - **Results:** position, total time, best lap, gaps. Championship points in career events.
 - **Pit lane, repairs, tire wear:** later (M10).

@@ -2,6 +2,11 @@
 
 Everyone should be able to drive. This doc covers options for vision, hearing, motion comfort, motor and input, and pacing. Requirements: ACC-01…ACC-09, NFR-08.
 
+**Built so far:**
+- M1: comfort options, accessible names and focus order.
+- M3: every setting per player in their profile (ACC-01). From ACC-02: HUD size 50–200% and menu text 100–200%, high-contrast HUD, the Clear font (Atkinson Hyperlegible), brightness per view. From ACC-06: hold or toggle, one-handed layouts (`pad_left_hand`, `pad_right_hand`; `kb_left` and `kb_right` for one hand on the keyboard), two devices driving one car, menus with directions + confirm + cancel only (choices step with left and right), adjustable menu repeat.
+- The rest is M4.
+
 ---
 
 ## 1. Principles
@@ -119,7 +124,7 @@ Each new local player who joins (press-to-join, [INPUT.md §3](INPUT.md#3-joinin
 ## 8. Splitscreen and online
 
 - **Per viewport:** HUD scale, palette, camera, shake, flashing and brightness follow that viewport's player.
-- **Shared menus** (primary window) use the settings of the player navigating them, and the largest text size of any joined player.
+- **Shared menus** (primary window) use P1's font and the largest text size of any joined player (M3; the game can't tell which player is navigating a shared menu).
 - **One audio output:** in local play, audio settings (volumes, mono, spotter) are shared and any player can change them.
 - **Online:** presentation and input settings stay local. Only assist use is sent, for rules and results.
 

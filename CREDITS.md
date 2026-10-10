@@ -27,6 +27,12 @@ All original, made for nOSS, CC-BY-SA 4.0 ([LICENSE-ASSETS.md](LICENSE-ASSETS.md
 
 ## Third-party assets
 
+Part of the game:
+
+| Asset | Author | License | Where |
+|---|---|---|---|
+| [Atkinson Hyperlegible](https://github.com/googlefonts/atkinson-hyperlegible) 1.006 (Regular, Bold): the "Clear" font option | Braille Institute of America | SIL OFL 1.1 | `content/fonts/atkinson_hyperlegible/` |
+
 Used for testing only; not part of the game.
 
 | Asset | Author | License | Where |
