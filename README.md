@@ -9,6 +9,7 @@ nOSS (NOS + Open Source Software) is a free, open-source racing game. You can im
 - **Online:** up to 16 players on self-hosted servers. Cars and tracks auto-transfer.
 - **Input:** keyboard, controller, wheel/pedals/shifter with force feedback
 - **Tools:** in-game track editor, plus 3D scene and real-world map import
+- **Accessibility:** per-player vision, hearing, motion and input options, plus screen-reader menus
 - **Platforms:** Linux, Windows, macOS. Built with Godot 4 + C++.
 
 ## Status
@@ -29,6 +30,7 @@ Design phase: there is no code yet. The spec is complete. Next up is milestone *
 | [Networking](docs/NETWORKING.md) | Hosting, replication, content transfer |
 | [Input](docs/INPUT.md) | Devices, joining, wheels, FFB |
 | [Art & audio](docs/ART_AUDIO.md) | Style profiles, cameras, UI, engine sound |
+| [Accessibility](docs/ACCESSIBILITY.md) | Vision, hearing, motion, motor and input, pacing |
 | [Roadmap](docs/ROADMAP.md) | Milestones and acceptance criteria |
 | [Decisions](docs/DECISIONS.md) | Decision log, risks, open questions |
 

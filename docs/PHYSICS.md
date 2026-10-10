@@ -112,6 +112,7 @@ The surface type comes from the collider (track material tag).
 - **Stability control:** compares the target yaw rate (from steering and speed) with the measured rate, then brakes individual wheels.
 - **Auto-gearbox, auto-clutch, ABS:** see above.
 - **Racing line:** visual only (from the track's AI line), colored by target speed.
+- **Access assists:** auto-throttle, brake assist and steering assist follow the AI line ([ACCESSIBILITY.md §5.2](ACCESSIBILITY.md#52-driving-assists-for-access)).
 - Each assist is allowed and defaulted per platform, then mode, then server ([PLATFORMS.md §3](PLATFORMS.md#3-mode-overrides-and-tuning)).
 
 ## 9. Mode layers

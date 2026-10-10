@@ -37,6 +37,7 @@ Append-only log. To change a decision, add a new row that supersedes the old one
 | D27 | 2026-10-09 | Ripped reference content | FM4 models and GT4 textures are local-only, for testing and reference. Never committed or shipped. | Copyright. GPL/CC-BY-SA project. |
 | D28 | 2026-10-09 | Engine sound customization (extends D19) | Players tune a built-in profile or add their own recordings. Either way it is saved in the car's `.noss` and travels with it. Servers can turn off own recordings only. | Owner's choice. Tuned built-ins are tiny and use shipped samples, so they're always safe to allow. |
 | D29 | 2026-10-09 | Highway loop (extends D14) | Add a **Loop** sub-mode: a closed two-way highway with persistent traffic. The first highway map is a loop with ramps, so it serves every sub-mode. | Owner's choice. Meeting the same players and cars again makes the world feel lived-in. |
+| D30 | 2026-10-09 | Accessibility | Own doc and `ACC` requirements. Settings are per player. Servers can't restrict what only changes what you see, hear or press. Access assists follow the normal assist rules. | Owner's choice. Fairness rules should only touch what changes driving. |
 
 ## Risks
 

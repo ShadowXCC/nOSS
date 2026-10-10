@@ -40,7 +40,8 @@ The GitHub repo (`git@github.com:ShadowXCC/nOSS.git`) is created and pushed afte
   - **SDL3 coexistence spike** ([DECISIONS.md](DECISIONS.md) risk R1).
 - Cameras: chase and cockpit (AV-04). One placeholder engine sound.
 - Debug menu: switch between converted cars on the fly (hotswap prototype).
-- Settings: graphics preset, basic bindings, units.
+- Settings: graphics preset, basic bindings, units, camera shake and head movement (ACC-04).
+- Every UI control gets an accessible name and focus order from the start (ACC-03 groundwork).
 
 **Acceptance:**
 - [ ] ACU_NSX_97 and at least 3 other FM4 cars load as `.noss` and drive on Track / GT at 60+ fps on the dev machine (RTX 3080, Linux).
@@ -66,6 +67,7 @@ The GitHub repo (`git@github.com:ShadowXCC/nOSS.git`) is created and pushed afte
 - 4 player slots, press-to-join, multi-device claiming, profiles, shared keyboard (LOC-01, LOC-04, INP-06).
 - Splitscreen layouts and multi-monitor windows, which can be mixed (LOC-02, LOC-03).
 - Per-viewport HUD, render scale, audio mix.
+- Per-player accessibility settings and HUD scale. Hold/toggle, one-handed presets, two devices for one car (ACC-01, ACC-02, ACC-06).
 
 **Acceptance:**
 - [ ] 4 players (2 controllers, a wheel and a keyboard) drive together across two monitors (2+2 and 1+3 layouts).
@@ -78,11 +80,13 @@ The GitHub repo (`git@github.com:ShadowXCC/nOSS.git`) is created and pushed afte
 - Racing AI v1: line following, braking points, overtaking and defending, skill 0–100, same physics (AI-01, AI-05).
 - Tuning UI and setups (PLT-04). All assists (INP-07).
 - H-shifter, clutch, handbrake, button boxes, multi-device (INP-04). Full FFB effects (INP-05).
+- Accessibility: colorblind palettes, screen reader and narration, spotter, audio cues, access assists, game speed, first-boot screen (ACC-02, ACC-03, ACC-05, ACC-07…ACC-09).
 
 **Acceptance:**
 - [ ] 1 human and 11 AI race 5 laps on Proving Ground with no AI pile-ups.
 - [ ] Setups save and load.
 - [ ] A ghost replays the best lap.
+- [ ] Boot → race → results works with a screen reader, with controller only, and with keyboard only.
 
 ## M5: Online
 
@@ -115,6 +119,7 @@ The GitHub repo (`git@github.com:ShadowXCC/nOSS.git`) is created and pushed afte
 - Highway map with ramps that closes into a two-way loop, so one map serves every sub-mode (EDT-10). Traffic AI, server-seeded, persistent on the loop (AI-03).
 - Cruise, score attack, runs, loop (MODE-03). Police v1 with heat, pursuit, bust and evade (MODE-04, AI-04).
 - Highway Super and Interceptor platforms. Original traffic vehicle set.
+- "Reduce flashing" covers police lights (ACC-04).
 
 **Acceptance:**
 - [ ] 16 players plus 150 traffic cars stay in sync online at 60 fps on mid-range hardware.
@@ -127,6 +132,7 @@ The GitHub repo (`git@github.com:ShadowXCC/nOSS.git`) is created and pushed afte
 - 9 items with position-based odds (MODE-05). Kart AI with items (AI-02).
 - Kart classes. `open` family including karts and 3-wheelers (PLT-08).
 - Stunt pieces in the editor (EDT-04). Battle mode and arenas. Cups.
+- Item assist (ACC-07). "Reduce flashing" covers item effects (ACC-04).
 
 **Acceptance:**
 - [ ] An 8-player kart race (mixed human and AI) on a stunt track and on a normal track.

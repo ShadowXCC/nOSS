@@ -112,3 +112,4 @@ Each local player has their own set of actions:
 ABS, TCS, stability control, steer aid, auto-clutch, automatic gearbox and racing line ([PHYSICS.md §8](PHYSICS.md#8-steering-and-assists)).
 - **Defaults by device:** keyboard and controller default to steer aid, auto-clutch and the automatic gearbox. Wheels default to none of those.
 - What can be enabled is limited by the platform, mode and server rules.
+- **Access assists** (auto-throttle, brake and steering assist), hold/toggle and one-handed presets: [ACCESSIBILITY.md §5](ACCESSIBILITY.md#5-motor-and-input).

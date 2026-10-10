@@ -179,6 +179,22 @@ Detail: [ART_AUDIO.md](docs/ART_AUDIO.md)
 | ENV-02 | Dynamic weather. Wet roads lower grip through the tire model. | M9 |
 | ENV-03 | Environment set per event; in endless mode it progresses continuously. | M9 |
 
+### 4.11 Accessibility (`ACC`)
+
+Detail: [ACCESSIBILITY.md](docs/ACCESSIBILITY.md)
+
+| ID | Requirement | M |
+|---|---|---|
+| ACC-01 | Accessibility settings are per player and saved in their profile. Each splitscreen viewport follows its own player's settings. Servers can't restrict settings that don't change driving. | M1 / M3 |
+| ACC-02 | Vision: colorblind palettes, no color-only cues, HUD and text scale, high-contrast HUD, high-legibility font. | M3 / M4 |
+| ACC-03 | Menus work with screen readers (AccessKit). Optional narration, race-event callouts and a spotter. | M4 |
+| ACC-04 | Motion comfort: camera shake, head movement, speed FOV and roll can be reduced or turned off. "Reduce flashing" caps flashes at 3 per second. | M1 / M7 |
+| ACC-05 | Hearing: volume groups, mono audio, visual cues for key sounds. All speech is also shown as text. | M4 |
+| ACC-06 | Motor: hold or toggle for every hold action, one-handed presets, two devices driving one car, menus usable with directions + confirm + cancel. | M3 |
+| ACC-07 | Access assists (auto-throttle, brake assist, steering assist, item assist) follow assist rules. Results show which assists were used. | M4 / M8 |
+| ACC-08 | Pause any time offline. Offline single-player game speed 50–100%, kept off leaderboards. | M4 |
+| ACC-09 | First boot opens an accessibility screen with quick presets and a photosensitivity notice. | M4 |
+
 ## 5. Non-functional requirements
 
 | ID | Requirement |
@@ -190,7 +206,7 @@ Detail: [ART_AUDIO.md](docs/ART_AUDIO.md)
 | NFR-05 | **Network:** playable at ≤150 ms RTT. Content transfer never stalls gameplay. Steady-state traffic ≤64 KB/s per client. |
 | NFR-06 | **In-game text** is short and direct: "Lap 2/5", "Car loaded", "Busted". |
 | NFR-07 | Strings are localizable; English first. |
-| NFR-08 | **Accessibility:** full rebinding, assists, colorblind-safe UI, HUD scale. |
+| NFR-08 | **Accessibility:** full rebinding, assists, colorblind-safe UI, HUD scale. Full list: ACC-01…ACC-09, [ACCESSIBILITY.md](docs/ACCESSIBILITY.md). |
 | NFR-09 | All user data lives under Godot `user://` (standard per-OS paths). |
 | NFR-10 | **Security:** untrusted content (cars, tracks, platforms, sounds) never executes code. Limits are enforced before parsing. |
 | NFR-11 | No central infrastructure is required to play, host or share. |
