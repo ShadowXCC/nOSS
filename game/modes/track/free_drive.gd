@@ -82,6 +82,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	CarVisual.lod_scale = 1.0
 	Players.joining = false
 	Players.joined.disconnect(_on_joined)
 	Players.left.disconnect(_on_left)
@@ -122,7 +123,7 @@ func _add_player(slot: PlayerSlot) -> SessionPlayer:
 	slot.profile.data.last_platform = platform_id
 	var path := car_path if car_path and slot.index == 0 else String(slot.profile.data.get("last_car", ""))
 	if slot.ai and slot.index > 0:
-		path = ""
+		path = String(Game.dev.get("ai-car", "")) # dev: --ai-car=<path>; else the class's default
 	if path.is_empty() or not (FileAccess.file_exists(path) or DirAccess.dir_exists_absolute(path)) \
 			or not Fitting.compatible(platform.platform, PackageLoader.read_manifest(path).get("family", "")):
 		path = _default_car
@@ -153,8 +154,12 @@ func _on_left(slot: PlayerSlot) -> void:
 
 func _on_views_changed() -> void:
 	EngineSound.set_listeners(views.listener_count())
+	# Car LODs switch closer with more views (risk R8).
+	CarVisual.lod_scale = 1.0 / (1.0 + 0.25 * (players.size() - 1))
 	for p in players:
 		p.update_badge(players.size())
+		if p.vehicle and p.vehicle.visual:
+			p.vehicle.visual.apply_lod_scale()
 
 
 func _process(delta: float) -> void:

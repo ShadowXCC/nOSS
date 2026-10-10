@@ -8,7 +8,10 @@ extends Node
 ##   --players=<n>        free drive with n players; the extra ones are driven by the line follower
 ##   --screens=0,0,1,1    monitor per player (multi-monitor)
 ##   --split=<s>          two players: stacked or side; --three=<s>: wide or map
+##   --ai-car=<path>      car for the line-follower players
 ##   --ai-profile=<json>  options for the line-follower players' throwaway profiles
+##   --perf               print frame, CPU, physics and per-view GPU times every second
+##   --fullscreen         fullscreen for this run; --no-vsync: no vsync (measurements)
 ##   --pause-at=<s>       open the last player's pause menu
 ##   --menu=<m>           title: open classes, players or settings (--join=<n>: n devices join)
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
@@ -36,6 +39,11 @@ func _ready() -> void:
 		if arg.begins_with("--"):
 			var kv := arg.substr(2).split("=", true, 1)
 			dev[kv[0]] = kv[1] if kv.size() > 1 else "true"
+	if dev.has("fullscreen"): # this run only; not saved
+		Settings.fullscreen = true
+		Settings.apply_display()
+	if dev.has("no-vsync"):
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 
 
 ## First scene after boot.

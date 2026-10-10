@@ -26,6 +26,10 @@ var _steering: Array[Array] = [] # [node, rest, pivot, axis]
 var _paint := {} # slot -> ShaderMaterial
 var _brake_materials: Array[BaseMaterial3D] = []
 var _brake_on := false
+var _lod_distances: Array = []
+
+## Car LOD distances are multiplied by this (splitscreen lowers it, docs/ARCHITECTURE.md §6).
+static var lod_scale := 1.0
 
 
 ## Takes ownership of the package's LOD scenes.
@@ -38,18 +42,25 @@ static func create(pkg: VehiclePackage, fit_result: Fitting.Result) -> CarVisual
 	visual.model_root.name = "ModelRoot"
 	visual.model_root.transform = fit_result.model_xform
 	visual.add_child(visual.model_root)
-	var distances: Array = pkg.fit.get("lod_distances_m", [0])
+	visual._lod_distances = pkg.fit.get("lod_distances_m", [0])
 	for i in pkg.lods.size():
 		var lod := pkg.lods[i]
 		lod.name = "LOD%d" % i
 		visual.model_root.add_child(lod)
-		var begin: float = distances[i] if i < distances.size() else 0.0
-		var end: float = distances[i + 1] if i + 1 < distances.size() and i + 1 < pkg.lods.size() else 0.0
-		for mi: MeshInstance3D in lod.find_children("*", "MeshInstance3D", true, false):
-			mi.visibility_range_begin = begin
-			mi.visibility_range_end = end
+	visual.apply_lod_scale()
 	visual._setup()
 	return visual
+
+
+## Sets each LOD's distance range from the package's, times lod_scale.
+func apply_lod_scale() -> void:
+	var lods := package.lods.size()
+	for i in lods:
+		var begin: float = float(_lod_distances[i]) * lod_scale if i < _lod_distances.size() else 0.0
+		var end: float = float(_lod_distances[i + 1]) * lod_scale if i + 1 < _lod_distances.size() and i + 1 < lods else 0.0
+		for mi: MeshInstance3D in package.lods[i].find_children("*", "MeshInstance3D", true, false):
+			mi.visibility_range_begin = begin
+			mi.visibility_range_end = end
 
 
 ## Pose one wheel. steer: rad (+ = left), spin: rad (+ = rolling forward), lift: m (+ = up).

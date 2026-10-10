@@ -63,6 +63,27 @@ func test_pause_menu_belongs_to_who_paused() -> void:
 	await get_tree().process_frame
 
 
+func test_auto_resolution_steps_down_on_slow_frames() -> void:
+	Players.clear()
+	var s := FreeDrive.new()
+	s.autodrive = true
+	s.ai_players = 1
+	add_child(s)
+	await _wait_for_cars(s)
+	var auto := Settings.auto_resolution
+	Settings.auto_resolution = true
+	for i in 40: # 2 s of 20 fps
+		s.views._process(0.05)
+	var scale := s.views.render_scale
+	var vp_scale := s.views.views()[1].viewport.scaling_3d_scale
+	Settings.auto_resolution = auto
+	assert_float(scale).is_less(1.0)
+	assert_float(scale).is_greater_equal(ViewManager.MIN_RENDER_SCALE)
+	assert_float(vp_scale).is_less(1.0)
+	s.queue_free()
+	await get_tree().process_frame
+
+
 func _wait_for_cars(s: FreeDrive) -> void:
 	for i in 600:
 		await get_tree().process_frame

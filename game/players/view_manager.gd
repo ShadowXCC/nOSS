@@ -5,8 +5,15 @@ extends Node
 ## split on its own by SplitLayout, so 1+3 and 2+2 across two monitors work. Re-flows when
 ## players join, leave or move monitor. A `map` control fills the spare quarter of the
 ## 3-player "map" layout.
+##
+## Performance (risk R8): with auto resolution on, every view's render scale steps down
+## (to 0.5) while frames take longer than 1/60 s, and back up when there's room. Car LODs
+## switch closer with more views. --perf prints frame, CPU, physics and per-view GPU times.
 
 signal views_changed
+
+const MIN_RENDER_SCALE := 0.5
+const TARGET_FRAME_S := 1.0 / 60.0
 
 var map: Control:
 	set(m):
@@ -20,7 +27,15 @@ var _layer := CanvasLayer.new()
 var _main := Control.new()
 var _views := {} # PlayerSlot -> PlayerView
 var _windows := {} # screen -> Window
+## Auto-resolution factor shared by all views, 0.5..1.
+var render_scale := 1.0
+
 var _root_embedded := true
+var _frame_avg := 0.0
+var _slow_time := 0.0
+var _fast_time := 0.0
+var _perf_time := 0.0
+var _perf_frames := 0
 var _root_scale_mode := Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 
 
@@ -61,6 +76,7 @@ func add(slot: PlayerSlot) -> PlayerView:
 	var v := PlayerView.new()
 	v.slot = slot
 	v.name = "View%s" % slot.tag()
+	v.render_scale = render_scale
 	_views[slot] = v
 	_main.add_child(v)
 	layout()
@@ -127,6 +143,9 @@ func layout() -> void:
 				map.reparent(map_area, false)
 			_anchor(map, map_rect)
 	_apply_listeners()
+	for v: PlayerView in _views.values():
+		v.viewport.mesh_lod_threshold = 1.0 + 0.5 * (_views.size() - 1)
+		RenderingServer.viewport_set_measure_render_time(v.viewport.get_viewport_rid(), Game.dev.has("perf"))
 	views_changed.emit()
 
 
@@ -140,6 +159,52 @@ func _apply_listeners() -> void:
 ## engine is loud in their own view.
 func listener_count() -> int:
 	return 1 if Settings.split_audio == "p1" else maxi(_views.size(), 1)
+
+
+func _process(delta: float) -> void:
+	_frame_avg = lerpf(_frame_avg, delta, 0.1) if _frame_avg > 0.0 else delta
+	if Game.dev.has("perf"):
+		_print_perf(delta)
+	if not Settings.auto_resolution or get_tree().paused:
+		_slow_time = 0.0
+		_fast_time = 0.0
+		return
+	_slow_time = _slow_time + delta if _frame_avg > TARGET_FRAME_S * 1.05 else 0.0
+	_fast_time = _fast_time + delta if _frame_avg < TARGET_FRAME_S * 0.7 else 0.0
+	if _slow_time > 0.5 and render_scale > MIN_RENDER_SCALE:
+		_set_render_scale(render_scale - 0.1)
+	elif _fast_time > 3.0 and render_scale < 1.0:
+		_set_render_scale(render_scale + 0.05)
+
+
+func _set_render_scale(s: float) -> void:
+	render_scale = clampf(s, MIN_RENDER_SCALE, 1.0)
+	_slow_time = 0.0
+	_fast_time = 0.0
+	for v: PlayerView in _views.values():
+		v.render_scale = render_scale
+	print("Render scale %.2f" % render_scale)
+
+
+func _print_perf(delta: float) -> void:
+	_perf_time += delta
+	_perf_frames += 1
+	if _perf_time < 1.0:
+		return
+	var gpu := PackedStringArray()
+	var total := 0.0
+	for v in views():
+		var ms := RenderingServer.viewport_get_measured_render_time_gpu(v.viewport.get_viewport_rid())
+		total += ms
+		gpu.append("%s %.2f" % [v.slot.tag(), ms])
+	print("perf fps %.0f  frame %.2f ms  process %.2f  physics tick %.2f  render cpu %.2f  gpu %s  total %.2f ms  scale %.2f" % [
+		_perf_frames / _perf_time, _perf_time / _perf_frames * 1000.0,
+		Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+		Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+		RenderingServer.get_frame_setup_time_cpu(),
+		"  ".join(gpu), total, render_scale])
+	_perf_time = 0.0
+	_perf_frames = 0
 
 
 func _ordered() -> Array[PlayerSlot]:
@@ -177,6 +242,8 @@ func _window_area(screen: int) -> Control:
 	w.add_child(area)
 	add_child(w)
 	w.mode = Window.MODE_FULLSCREEN
+	if Game.dev.has("no-vsync"):
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED, w.get_window_id())
 	_windows[screen] = w
 	return area
 
