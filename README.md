@@ -14,7 +14,19 @@ nOSS (NOS + Open Source Software) is a free, open-source racing game. You can im
 
 ## Status
 
-Design phase: there is no code yet. The spec is complete. Next up is milestone **M0**, the foundations ([roadmap](docs/ROADMAP.md)).
+**M0 (foundations) is done:** the project skeleton, the `noss_core` C++ extension, tests and JSON schemas. The game boots to a title screen. Next up is **M1**, the first drivable demo ([roadmap](docs/ROADMAP.md)).
+
+## Development (Linux)
+
+Needs `git`, `curl`, `unzip`, `python3` (with `venv`) and a C++20 compiler (GCC or Clang).
+
+```sh
+git clone --recursive <repo>       # or: git submodule update --init --recursive
+tools/setup_dev.sh                 # pinned Godot in .tools/, SCons in .venv/ (nothing system-wide)
+tools/build_native.sh              # builds noss_core into native/bin/
+tools/run_tests.sh                 # native, schema and GDScript tests, plus a boot check
+tools/godot.sh                     # runs the game; add -e for the editor
+```
 
 ## Docs
 
@@ -36,4 +48,4 @@ Design phase: there is no code yet. The spec is complete. Next up is milestone *
 
 ## License
 
-The code will be GPL-3.0-or-later and original assets CC-BY-SA 4.0. License files are added in M0.
+Code is [GPL-3.0-or-later](LICENSE). Original assets are [CC-BY-SA 4.0](LICENSE-ASSETS.md). Third-party credits are in [CREDITS.md](CREDITS.md).

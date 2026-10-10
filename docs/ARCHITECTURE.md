@@ -6,7 +6,7 @@ How nOSS is put together: engine, languages, code layout and the main runtime sy
 
 ## 1. Engine: Godot 4
 
-**Godot 4**, on the latest stable release ≥ 4.5. The exact version is pinned in M0 and recorded in [DECISIONS.md](DECISIONS.md).
+**Godot 4.7.2** (pinned in M0, [DECISIONS.md](DECISIONS.md) D31).
 
 ### Why Godot (short version of the comparison)
 
@@ -42,7 +42,7 @@ How nOSS is put together: engine, languages, code layout and the main runtime sy
 
 **Rule:** start in GDScript and move code to C++ once profiling shows it's hot, or when it needs a native library. The vehicle sim is C++ from day one.
 
-**Build:** SCons, matching godot-cpp's primary build. CMake is acceptable if it is clearly better at M0. Third-party code is pulled in as git submodules under `native/thirdparty/`.
+**Build:** SCons, matching godot-cpp's primary build (D32). Third-party code is pulled in as git submodules under `native/thirdparty/`.
 
 ## 3. Repo layout (created in M0)
 
@@ -61,8 +61,8 @@ nOSS/
 │  ├─ audio/              engine sound player, SFX, music
 │  └─ ui/                 menus, HUD, themes
 ├─ native/                C++ GDExtension "noss_core"
-│  ├─ src/vehicle/  src/input/  src/package/  src/traffic/  src/mesh/
-│  ├─ thirdparty/         godot-cpp, SDL3, meshoptimizer (submodules)
+│  ├─ src/core/  src/vehicle/  src/input/  src/package/  src/traffic/  src/mesh/
+│  ├─ thirdparty/         godot-cpp, SDL3, doctest, meshoptimizer (M2) (submodules)
 │  └─ SConstruct
 ├─ data/
 │  ├─ platforms/<mode>/<class>.platform.json   official platforms
@@ -70,10 +70,14 @@ nOSS/
 │  ├─ items/                                   kart items
 │  ├─ sound_profiles/                          built-in engine sounds
 │  ├─ input_presets/                           device presets
-│  └─ schemas/                                 JSON schemas (platform, package, track, sound)
+│  └─ schemas/                                 JSON schemas (platform, package, fit, paint; track and sound later)
 ├─ content/               original CC-BY-SA assets: default car, test tracks, props, textures
-├─ tools/                 fm4_to_noss.py, conformance runner, packers
-├─ tests/                 gdUnit4 tests, native doctest tests, conformance scenes
+├─ tools/                 dev setup, build and test scripts; fm4_to_noss.py, conformance runner, packers
+├─ addons/gdUnit4/        GDScript test framework (vendored)
+├─ tests/
+│  ├─ game/               gdUnit4 tests, mirroring game/
+│  ├─ native/             doctest tests for noss_core
+│  └─ schemas/            JSON schema checks and fixtures
 └─ docs/
 ```
 
@@ -190,6 +194,7 @@ user://
 
 ## 11. Testing
 
+- **Run everything:** `tools/run_tests.sh` (native build, doctest, schemas, gdUnit4 headless, boot smoke test).
 - **GDScript:** gdUnit4, run headless (`godot --headless`).
 - **Native:** doctest unit tests for tire, suspension and drivetrain math.
 - **Platform conformance:** headless scenes drive standard maneuvers across each platform's geometry range ([PLATFORMS.md §5](PLATFORMS.md#5-conformance-tests)).

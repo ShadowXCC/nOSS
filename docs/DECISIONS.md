@@ -38,6 +38,9 @@ Append-only log. To change a decision, add a new row that supersedes the old one
 | D28 | 2026-10-09 | Engine sound customization (extends D19) | Players tune a built-in profile or add their own recordings. Either way it is saved in the car's `.noss` and travels with it. Servers can turn off own recordings only. | Owner's choice. Tuned built-ins are tiny and use shipped samples, so they're always safe to allow. |
 | D29 | 2026-10-09 | Highway loop (extends D14) | Add a **Loop** sub-mode: a closed two-way highway with persistent traffic. The first highway map is a loop with ramps, so it serves every sub-mode. | Owner's choice. Meeting the same players and cars again makes the world feel lived-in. |
 | D30 | 2026-10-09 | Accessibility | Own doc and `ACC` requirements. Settings are per player. Servers can't restrict what only changes what you see, hear or press. Access assists follow the normal assist rules. | Owner's choice. Fairness rules should only touch what changes driving. |
+| D31 | 2026-10-09 | Godot version (Q1) | **Godot 4.7.2-stable**, standard (non-.NET) build. Native code targets the 4.7 API (godot-cpp **10.0.0**, `api_version=4.7`). | Latest stable at M0. godot-cpp 10 is versioned separately from Godot and builds against a chosen API level. |
+| D32 | 2026-10-09 | Native build system (Q2) | **SCons** | godot-cpp's primary build. The project is small, and CMake brings no clear win. |
+| D33 | 2026-10-09 | Dev tools | Project-local and pinned: Godot in `.tools/godot/` (self-contained mode), SCons and jsonschema in `.venv/`, all set up by `tools/setup_dev.sh`. Third-party code is pinned by submodule tag. | Nothing installed system-wide, so it's easy to remove. Everyone builds with the same versions. |
 
 ## Risks
 
@@ -58,8 +61,8 @@ Append-only log. To change a decision, add a new row that supersedes the old one
 
 | # | Question | Decide by |
 |---|---|---|
-| Q1 | Exact Godot version to pin (latest stable at M0) | M0 |
-| Q2 | SCons vs. CMake for `noss_core` | M0 |
+| Q1 | ~~Exact Godot version to pin (latest stable at M0)~~ Decided: D31 | M0 |
+| Q2 | ~~SCons vs. CMake for `noss_core`~~ Decided: D32 | M0 |
 | Q3 | Run physics on Godot's separate physics thread? | M1 |
 | Q4 | Terrain: Terrain3D addon vs. our own | M6 |
 | Q5 | macOS signing and notarization (needs an Apple developer account) | First public release |

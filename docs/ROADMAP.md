@@ -19,9 +19,9 @@ The GitHub repo (`git@github.com:ShadowXCC/nOSS.git`) is created and pushed afte
 - JSON schemas: platform, package, fit, paint.
 
 **Acceptance:**
-- [ ] `godot --headless` runs the test suite and it passes.
-- [ ] `noss_core` loads, and a GDScript call into it returns.
-- [ ] The game boots to a title screen reading "nOSS".
+- [x] `godot --headless` runs the test suite and it passes.
+- [x] `noss_core` loads, and a GDScript call into it returns.
+- [x] The game boots to a title screen reading "nOSS".
 
 ## M1: First demo, track free-drive
 

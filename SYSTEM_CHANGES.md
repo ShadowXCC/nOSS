@@ -2,6 +2,11 @@
 
 Changes made outside this project directory, to be reversed later if wanted.
 
-None so far. All work lives inside `/home/shadowxcc/Projects/nOSS/`.
+| Change | Created by | Reverse with |
+|---|---|---|
+| `~/.local/share/nOSS/` (logs, shader and Vulkan caches, ObjectDB snapshots) | Running the game or its tests. This is the game's normal `user://` folder (NFR-09). | `rm -rf ~/.local/share/nOSS` |
 
-Project-local only, not a system change: git `user.name` and `user.email` are set in this repo's `.git/config`, not globally.
+Not system changes:
+- git `user.name` and `user.email` are set in this repo's `.git/config`, not globally.
+- Godot runs in self-contained mode, so it does not create `~/.config/godot`, `~/.local/share/godot` or `~/.cache/godot`.
+- pip ran with `--no-cache-dir`, so there is no `~/.cache/pip` entry from this project.
