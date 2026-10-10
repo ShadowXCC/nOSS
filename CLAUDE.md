@@ -3,7 +3,7 @@ This directory is for a driving/racing game where players bring their own 3d mod
 You can use git to interact with the github repository.
 Git Requirements:
 Short, concise messages for readability
-git@github.com:ShadowXCC/nOSS.git - Not created yet, will create after a working demo.
+git@github.com:ShadowXCC/nOSS.git
 Automatically commit at reasonable points
 
 For in game messages, prefer short and concise statements over long winded, wordy ones.

@@ -7,3 +7,6 @@
 [submodule "native/thirdparty/doctest"]
 	path = native/thirdparty/doctest
 	url = https://github.com/doctest/doctest.git
+[submodule "native/thirdparty/meshoptimizer"]
+	path = native/thirdparty/meshoptimizer
+	url = https://github.com/zeux/meshoptimizer.git
