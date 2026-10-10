@@ -6,6 +6,7 @@
 
 #include "core/noss_core.h"
 #include "package/gd_package.h"
+#include "vehicle/gd_vehicle_sim.h"
 
 using namespace godot;
 
@@ -15,6 +16,7 @@ static void initialize_noss_core(ModuleInitializationLevel p_level) {
 	}
 	GDREGISTER_ABSTRACT_CLASS(noss::NossCore);
 	GDREGISTER_ABSTRACT_CLASS(noss::NossPackage);
+	GDREGISTER_CLASS(noss::VehicleSim);
 }
 
 static void uninitialize_noss_core(ModuleInitializationLevel p_level) {
