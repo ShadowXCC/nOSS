@@ -24,6 +24,9 @@ var _delta := _label(44)
 var _message := _label(56)
 var _assists := _label(26, Color(1.0, 0.8, 0.3))
 var _car := _label(26, DIM)
+var _fps := _label(24, DIM)
+## F3 toggles a frame-rate readout.
+var show_fps := false
 var _delta_timer := 0.0
 var _message_timer := 0.0
 
@@ -52,6 +55,7 @@ func _init() -> void:
 	_place(_delta, Vector2(0.5, 0), Vector2(-200, 40), HORIZONTAL_ALIGNMENT_CENTER, 400)
 	_place(_message, Vector2(0.5, 0.3), Vector2(-500, 0), HORIZONTAL_ALIGNMENT_CENTER, 1000)
 	_place(_car, Vector2(0, 1), Vector2(40, -60), HORIZONTAL_ALIGNMENT_LEFT, 800)
+	_place(_fps, Vector2(1, 0), Vector2(-260, 28), HORIZONTAL_ALIGNMENT_RIGHT, 220)
 
 
 func show_message(text: String, seconds := 2.0) -> void:
@@ -96,6 +100,9 @@ func _process(delta: float) -> void:
 		_best.text = "Best  " + (format_time(timer.best_lap) if timer.best_lap >= 0.0 else "-")
 		if timer.wrong_way:
 			show_message("Wrong way", 0.2)
+	_fps.visible = show_fps
+	if show_fps:
+		_fps.text = "%d fps" % Engine.get_frames_per_second()
 	_delta_timer -= delta
 	_delta.visible = _delta_timer > 0.0
 	_message_timer -= delta

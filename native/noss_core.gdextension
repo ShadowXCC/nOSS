@@ -12,3 +12,8 @@ windows.debug.x86_64 = "res://native/bin/libnoss_core.windows.template_debug.x86
 windows.release.x86_64 = "res://native/bin/libnoss_core.windows.template_release.x86_64.dll"
 macos.debug = "res://native/bin/libnoss_core.macos.template_debug.framework"
 macos.release = "res://native/bin/libnoss_core.macos.template_release.framework"
+
+[dependencies]
+
+windows.debug.x86_64 = { "res://native/bin/SDL3.dll": "" }
+windows.release.x86_64 = { "res://native/bin/SDL3.dll": "" }

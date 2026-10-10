@@ -100,11 +100,15 @@ int AutoShifter::choose(const Gearbox &p_box, const EngineSpec &p_engine, const 
 	}
 	if (gear > 1) {
 		double down_rpm = p_in.rpm * p_box.ratio(gear - 1) / p_box.ratio(gear);
-		double down_at = std::lerp(idle * 1.5, red * 0.62, std::clamp(p_in.throttle, 0.0, 1.0));
+		// Kickdown only when the revs are well down; under braking, step down for engine
+		// braking but keep the new gear's revs moderate.
+		double down_at = p_in.throttle > 0.9 ? red * 0.4 : std::lerp(idle * 1.5, red * 0.35, std::clamp(p_in.throttle, 0.0, 1.0));
+		double max_after = red * 0.9;
 		if (p_in.brake > 0.2) {
-			down_at = std::max(down_at, red * 0.55); // downshift early for engine braking
+			down_at = std::max(down_at, red * 0.5);
+			max_after = red * 0.75;
 		}
-		if (p_in.rpm < down_at && down_rpm < red * 0.9) {
+		if (p_in.rpm < down_at && down_rpm < max_after) {
 			return gear - 1;
 		}
 	}

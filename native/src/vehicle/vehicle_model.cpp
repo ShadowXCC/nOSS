@@ -250,19 +250,28 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 		std::swap(throttle, brake); // the brake pedal drives backwards in auto reverse
 	}
 
-	// TCS: cut torque while a driven wheel spins well past the peak.
-	double max_drive_slip = 0.0;
+	// TCS: cut torque while a driven wheel spins past the peak. In a corner the tire is
+	// already busy sideways, so it watches the combined slip too.
+	bool spinning = false;
+	double drive_sign = gearbox.ratio() >= 0.0 ? 1.0 : -1.0;
 	for (int i : _driven) {
-		if (wheels[size_t(i)].contact) {
-			max_drive_slip = std::max(max_drive_slip, wheels[size_t(i)].kappa * signd(gearbox.ratio() >= 0 ? 1.0 : -1.0));
+		const WheelState &w = wheels[size_t(i)];
+		if (!w.contact) {
+			continue;
+		}
+		double kappa = w.kappa * drive_sign / spec.tire.peak_slip_ratio;
+		double alpha = w.tan_alpha / std::tan(spec.tire.peak_slip_angle);
+		double combined = std::sqrt(kappa * kappa + alpha * alpha);
+		if (kappa > 1.15 || (kappa > 0.4 && combined > 1.1)) {
+			spinning = true;
 		}
 	}
 	tcs_active = false;
-	if (assists.tcs && throttle > 0.05 && max_drive_slip > 1.3 * spec.tire.peak_slip_ratio) {
-		_tcs_factor = std::max(0.1, _tcs_factor - p_dt * 6.0);
+	if (assists.tcs && throttle > 0.05 && spinning) {
+		_tcs_factor = std::max(0.05, _tcs_factor - p_dt * 15.0);
 		tcs_active = true;
 	} else {
-		_tcs_factor = std::min(1.0, _tcs_factor + p_dt * 3.0);
+		_tcs_factor = std::min(1.0, _tcs_factor + p_dt * 2.5);
 	}
 	double throttle_drive = throttle * (assists.tcs ? _tcs_factor : 1.0);
 	tcs_active = tcs_active || (assists.tcs && _tcs_factor < 0.98 && throttle > 0.05);

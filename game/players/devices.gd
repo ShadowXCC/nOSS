@@ -83,4 +83,6 @@ func _pick_gamepad() -> void:
 		if Input.is_joy_known(pad) and key not in sim:
 			chosen = pad
 			break
+	if chosen != Bindings.gamepad:
+		print("Gamepad: %s" % (Input.get_joy_name(chosen) if chosen >= 0 else "none"))
 	Bindings.use_gamepad(chosen, Settings.profile.bindings)

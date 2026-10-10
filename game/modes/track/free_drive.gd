@@ -26,6 +26,10 @@ var _overlay: Control
 var _hint := -1
 var _last_valid := 0.0
 var _loading := false
+var _dev_time := 0.0
+var _dev_swapped := false
+var _fps_time := 0.0
+var _fps_frames := 0
 
 
 func _ready() -> void:
@@ -71,6 +75,23 @@ func load_car(path: String) -> void:
 	PackageLoader.load_async(path, _on_car_loaded)
 
 
+func _process(delta: float) -> void:
+	# Dev: --swap-car=<path> --swap-at=<s> swaps mid-drive and logs the speed around it.
+	if Game.dev.has("swap-car") and vehicle and not _dev_swapped:
+		_dev_time += delta
+		if _dev_time >= float(Game.dev.get("swap-at", "20")):
+			_dev_swapped = true
+			print("Swap at %.1f km/h" % (vehicle.speed() * 3.6))
+			load_car(Game.dev["swap-car"])
+	if Game.dev.has("fps"):
+		_fps_time += delta
+		_fps_frames += 1
+		if _fps_time >= 1.0:
+			print("fps %.0f" % (_fps_frames / _fps_time))
+			_fps_time = 0.0
+			_fps_frames = 0
+
+
 func _on_car_loaded(pkg: VehiclePackage) -> void:
 	_loading = false
 	if not is_inside_tree():
@@ -89,8 +110,10 @@ func _on_car_loaded(pkg: VehiclePackage) -> void:
 		_spawn(pkg)
 		hud.show_message("Go", 1.0)
 	else:
+		var before := vehicle.linear_velocity.length()
 		vehicle.mount(pkg) # hotswap: platform and physics state carry on
 		hud.show_message("Car loaded", 1.5)
+		print("Swapped to %s: %.1f -> %.1f km/h" % [pkg.display_name(), before * 3.6, vehicle.linear_velocity.length() * 3.6])
 	hud.set_car_name(pkg.display_name() + _fit_notes())
 
 
@@ -135,6 +158,8 @@ func _physics_process(delta: float) -> void:
 	var proj := track.project(vehicle.global_position, _hint)
 	_hint = proj.index
 	timer.update(track.from_start(proj.distance), delta, vehicle.linear_velocity.length())
+	if Game.dev.has("log-drive") and Engine.get_physics_frames() % 60 == 0:
+		print("d %.0f lat %.1f v %.0f gear %d yaw %.2f" % [track.from_start(proj.distance), proj.lateral, vehicle.speed() * 3.6, vehicle.sim.get_gear(), vehicle.angular_velocity.y])
 	# Last valid spot for resets: on the road, upright.
 	if absf(proj.lateral) < track.width / 2.0 + 1.0 and vehicle.global_basis.y.y > 0.8:
 		_last_valid = proj.distance
@@ -172,6 +197,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause"):
 		get_viewport().set_input_as_handled()
 		_open_pause()
+	elif event is InputEventKey and event.pressed and event.physical_keycode == KEY_F3:
+		hud.show_fps = not hud.show_fps
 	elif event.is_action_pressed("hotswap_menu"):
 		get_viewport().set_input_as_handled()
 		_open_picker(false)

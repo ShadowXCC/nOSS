@@ -25,6 +25,9 @@ step "Tools"
 step "Godot: import"
 $GODOT --headless --import >/dev/null 2>&1 || failed+=("godot import")
 
+step "Godot: scripts compile"
+$GODOT --headless -s res://tools/check_scripts.gd 2>&1 | tail -1 | grep -q " 0 failed" || failed+=("scripts")
+
 step "Godot: gdUnit4"
 # --remote-debug to a closed port stops Godot's interactive debugger from looping on script errors.
 $GODOT --headless -s -d --remote-debug tcp://127.0.0.1:0 res://addons/gdUnit4/bin/GdUnitCmdTool.gd \

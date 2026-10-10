@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <cmath>
+#include <string>
 
 #include "vehicle_harness.h"
 
@@ -120,7 +121,7 @@ TEST_CASE("sim: braking from 100 km/h with and without ABS") {
 			h.step();
 		}
 		double distance = h.chassis.com.z - start;
-		MESSAGE((use_abs ? "ABS" : "no ABS") << " 100-0: " << distance << " m");
+		MESSAGE(std::string(use_abs ? "ABS" : "no ABS") << " 100-0: " << distance << " m");
 		CHECK(distance > 22.0);
 		CHECK(distance < 45.0);
 	}
@@ -186,4 +187,33 @@ TEST_CASE("sim: same inputs give the same result") {
 	CHECK(a.chassis.com.x == b.chassis.com.x);
 	CHECK(a.chassis.com.z == b.chassis.com.z);
 	CHECK(a.model.rpm() == b.model.rpm());
+}
+
+TEST_CASE("sim: TCS keeps full throttle in first gear out of a tight corner") {
+	for (bool tcs : { true, false }) {
+		Harness h = gt();
+		h.model.assists.auto_gearbox = false;
+		h.model.assists.tcs = tcs;
+		h.model.controls.select_gear = 1;
+		h.model.controls.throttle = 0.6;
+		while (h.forward_speed() < 14.0) {
+			h.step();
+		}
+		h.model.controls.throttle = 0.0;
+		h.model.controls.steer = -0.45;
+		h.run(1.0); // settle into the corner
+		h.model.controls.throttle = 1.0;
+		double worst = 0.0;
+		for (int i = 0; i < 240; i++) {
+			h.step();
+			V3 v = h.chassis.basis.transposed() * h.chassis.velocity;
+			if (std::abs(v.z) > 1.0) {
+				worst = std::max(worst, std::abs(std::atan2(v.x, std::abs(v.z))));
+			}
+		}
+		MESSAGE(std::string(tcs ? "TCS" : "no TCS") << " body slip " << worst * 180.0 / PI << " deg");
+		if (tcs) {
+			CHECK(worst < 15.0 * PI / 180.0);
+		}
+	}
 }
