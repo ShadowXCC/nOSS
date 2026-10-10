@@ -106,7 +106,7 @@ The surface type comes from the collider (track material tag).
 
 ## 8. Steering and assists
 
-- **Steering:** `δ_road = δ_input · δ_max_ref · (L / L_ref)` (normalized, [PLATFORMS.md §4.2](PLATFORMS.md#42-invariants-that-keep-performance-equal)). Ackermann geometry factor.
+- **Steering:** `δ_road = δ_input · δ_max_ref`, the same on every fit, because grip forces act at the reference wheelbase ([PLATFORMS.md §4.2](PLATFORMS.md#42-invariants-that-keep-performance-equal), D44). Ackermann factor from the reference proportions.
 - **Steer aid** (controller and keyboard): speed-sensitive lock reduction, plus counter-steer help that nudges toward the slip angle.
 - **TCS:** limits driven-wheel slip by reducing torque. It also reacts to the combined slip, since a tire that's busy cornering breaks away before its slip ratio alone looks high.
 - **Auto-gearbox reverse:** holding the brake at a standstill selects reverse, and the brake pedal then drives backwards; throttle returns to first. Off throttle, it only upshifts near the redline.

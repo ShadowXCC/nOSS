@@ -109,6 +109,10 @@ struct Geometry {
 
 struct WheelConfig {
 	WheelGeometry geo;
+	// Horizontal offset (body x, z) from the fitted hub to where its tire forces act in the
+	// ground plane: the hub's position at the reference wheelbase and track.
+	double plane_dx = 0.0;
+	double plane_dz = 0.0;
 	bool steer = false;
 	bool driven = false;
 	double static_load = 0.0; // N
@@ -131,6 +135,12 @@ struct Config {
 	double axle_track[2] = { 0.0, 0.0 };
 	V3 axle_center[2]; // body frame, at hub height
 	double k_arb[2] = { 0.0, 0.0 };
+	// Roll damping bar per axle, N s/m between the two sides: brings each wheel's roll damping
+	// to what it is at the reference track. Negative on wide tracks.
+	double c_roll[2] = { 0.0, 0.0 };
+	// Extra CoG depth for the pitch moment of the longitudinal tire forces, so longitudinal
+	// load transfer matches the reference geometry (docs/PLATFORMS.md §4.2).
+	double pitch_arm_delta = 0.0;
 	double max_steer = 0.5; // rad at full input
 	double r_ref = 0.33;
 	double wheel_inertia = 1.2;

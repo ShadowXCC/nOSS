@@ -63,15 +63,17 @@ TEST_CASE("config keeps the platform's invariants") {
 	CHECK(c.wheelbase == doctest::Approx(L));
 	CHECK(c.com.z - c.axle_center[1].z == doctest::Approx(0.47 * L));
 	CHECK(c.cog_height == doctest::Approx(0.28 * 1.572));
-	double a = L * 0.53, b = L * 0.47;
-	CHECK(c.inertia.y == doctest::Approx(0.95 * 1300 * a * b));
+	// Yaw uses the reference wheelbase (tire forces act at the reference arms); pitch the fitted one.
+	CHECK(c.inertia.y == doctest::Approx(0.95 * 1300 * 0.53 * 0.47 * 2.6 * 2.6));
+	CHECK(c.inertia.x == doctest::Approx(0.9 * 0.95 * 1300 * 0.53 * 0.47 * L * L));
 	double m_corner = 1300 * 0.47 / 2.0;
 	CHECK(c.wheels[0].k == doctest::Approx(m_corner * std::pow(2 * PI * 2.8, 2)));
 	CHECK(c.k_arb[0] > 0.0);
 	CHECK(c.k_arb[1] > 0.0);
-	// Steering scales with wheelbase, so turning circle stays the same.
+	// Steering is the platform's, whatever the fit.
 	Config longer = make_config(gt_spec(), nsx_geometry(2.9));
-	CHECK(longer.max_steer / c.max_steer == doctest::Approx(2.9 / L).epsilon(1e-3));
+	CHECK(longer.max_steer == doctest::Approx(c.max_steer));
+	CHECK(c.max_steer == doctest::Approx(28.0 * PI / 180.0));
 }
 
 TEST_CASE("sim: settles at rest on its static ride height") {

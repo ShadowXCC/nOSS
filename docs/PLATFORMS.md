@@ -161,23 +161,27 @@ When a package is mounted on a platform:
 
 ### 4.2 Invariants that keep performance equal
 
-The sim uses the fitted geometry for contact points and collisions, and derives everything else from it so that handling stays the same as the reference.
+The sim uses the fitted geometry for contact points, vertical loads and collisions, and derives everything else so that handling stays the same as the reference. In the ground plane the tires act as if they were at the reference wheelbase and track (D44); vertically the springs sit at the fitted hubs and are normalized so load transfer matches the reference (D45).
 
 | Quantity | Rule | What stays equal |
 |---|---|---|
 | CoG position along the car | `b = w_f · L` (CoG to rear axle), `a = L − b` | Static weight distribution |
-| CoG height | `h = κ_h · T`, with `κ_h = cog_height_over_track` | Lateral load-transfer ratio `2h/T` |
-| Yaw inertia | `I_zz = DI · m · a · b` (scales with L²) | Transient yaw response (dynamic index) |
-| Roll and pitch inertia | `I_xx ∝ T²`, `I_yy ∝ L²` from the reference | Roll and pitch response |
-| Steering | `δ_road = δ_input · δ_max_ref · (L / L_ref)` | Low-speed yaw rate per input (`r = V·δ/L`) and turning circle |
-| Understeer gradient | `K = W_f/Cα_f − W_r/Cα_r` | Independent of L, given fixed `w_f` and tires |
+| Effective track | `T = Σ share_ax · T_ax`, weighted by each axle's share of roll stiffness | Per-axle lateral load transfer, also with front ≠ rear track |
+| CoG height | `h = κ_h · T`, with `κ_h = cog_height_over_track`, above the plane where the wheels touch down | Lateral load-transfer ratio `2h/T` |
+| Longitudinal load transfer | An extra pitch moment `−Δ · F_x` with `Δ = κ_h · (T_ref · L/L_ref − T)` | `h/L` as on the reference, so launch and braking match |
+| Grip forces in the ground plane | Tire slip velocities and the yaw moment of `Fx`, `Fy` use the hub positions scaled to `L_ref` and `T_ref` | Yaw and lateral dynamics, diff and ABS yaw moments |
+| Yaw inertia | `I_zz = DI · m · a_ref · b_ref` (the reference's) | Transient yaw response |
+| Pitch inertia | `I_xx = 0.9 · DI · m · a · b` (fitted) | Pitch response (springs act at the fitted hubs) |
+| Roll inertia | `I_zz,roll = m · 0.39² · T · T_ref` | Roll response, with roll stiffness ∝ T |
+| Steering | `δ_road = δ_input · δ_max_ref`; Ackermann from `T_ref/L_ref` | Yaw rate per input and turning circle |
 | Springs | `k = m_corner · (2π f)²` | Ride frequency |
-| Roll stiffness | Total `K_φ` set so `roll_gradient_deg_per_g` holds. Springs give `k·T²/2` per axle and the ARB makes up the rest, keeping the front/rear share | Roll gradient and balance |
+| Roll stiffness | Total `K_φ` set so `roll_gradient_deg_per_g` holds. Each axle takes `share · (T_ax/T) · K_φ`: springs give `k·T_ax²/2` and the bar the rest, negative if needed | Roll gradient and balance |
+| Roll damping | A damping bar per axle brings each wheel's roll damping to its value at `T_ref` | Transient load transfer |
 | Wheel radius | Drivetrain uses `r_ref` (effective rolling radius). `r_vis` is only used for rendering and the suspension contact offset. Visual spin = `ω · r_ref / r_vis` | Gearing and top speed; no visible tread slip |
 | Aero | Forces from fixed `CdA`/`ClA`, applied at the axles with a fixed balance | Drag, downforce, balance |
 | Mass | Fixed per platform | — |
 
-**Known residual:** longitudinal load transfer is `m·a_x·h/L`. With `h ∝ T`, it drifts when the fitted `T/L` ratio differs from the reference. Geometry ranges are chosen so that conformance (§5) stays within 2%. A server can set **`fitting: "strict"`**: physics then uses the reference geometry entirely and only the visuals adapt (wheels may sit slightly off their contact points).
+The conformance runner (§5) measures every official platform across its whole geometry grid. Since D44–D45 the residuals are well under 1%, so the ranges can stay wide. **Visual cost:** in very tight, slow turns a car far from the reference wheelbase scrubs its wheels slightly, because it turns like the reference. A server can set **`fitting: "strict"`**: physics then uses the reference geometry entirely and only the visuals adapt (wheels may sit slightly off their contact points).
 
 ### 4.3 Collision envelope
 
@@ -198,24 +202,26 @@ The convex hull of the model is clamped to `geometry.envelope_m` (length, width,
 
 ## 5. Conformance tests
 
-An automated, headless check that fitting never changes performance (PLT-06). It runs in CI on any change to a platform or the sim.
+An automated, headless check that fitting never changes performance (PLT-06). `tools/run_conformance.sh` runs it, and so does `tools/run_tests.sh`.
 
-- **Geometry grid:** wheelbase × track × wheel radius at `{min, ref, max}` = 27 configurations per platform.
-- **Driver:** a deterministic scripted controller with fixed assist settings per test.
-- **Maneuvers and metrics:**
+- **Geometry grid:** wheelbase × track × wheel radius at `{min, ref, max}` = 27 configurations per platform, plus four edge cases: a model too small (scaled up), a track too wide (clamped), front ≠ rear track, and a `fit.json` ground line 3 cm off.
+- **How it runs:** GDScript loads each official platform (validation and defaults), builds synthetic `fit.json`s and fits them with the game's own `Fitting`. The maneuvers run natively (`NossConformance.run_batch`) on a flat-ground harness at 120 Hz, on all CPU threads: about 2 s per platform.
+- **Driver:** deterministic. It follows a path with the centre of mass and commands curvature through the platform's reference wheelbase and steering lock, so it never sees the fitted geometry. Assists: ABS, TCS, auto gearbox and clutch. The gear is frozen during held-speed maneuvers.
+- **Maneuvers and metrics** (crossings interpolated between ticks):
 
 | Test | Metric |
 |---|---|
-| Launch | 0–100 km/h time, 0–200 km/h time (if reachable) |
-| Top speed | Speed after 60 s on the straight |
-| Braking | 100–0 km/h distance (ABS on) |
-| Skidpad | Steady-state lateral g on a 60 m radius |
-| Step steer | Yaw-rate rise time (10–90%) and overshoot at 100 km/h |
-| Slalom | Max speed through 18 m cone spacing |
-| Lap | Lap time on *Proving Ground* with the scripted line |
+| Launch | 0–100 and 0–200 km/h times (not reached on both = pass) |
+| Top speed | Speed after 60 s |
+| Braking | 100–0 km/h distance from a steady 102 km/h, ABS on |
+| Skidpad | Best 2 s of lateral g on a 60 m radius while the car holds the line (0.5 m) |
+| Step steer | At 100 km/h, a 0.05 s ramp to the input that gives 0.4 g on the reference: yaw-rate rise time (10–90%) and peak/steady ratio |
+| Slalom | Speed at which the path error through 10 gates 18 m apart reaches 1 m |
+| Lap | Flying lap of the *Proving Ground* centreline at 75% of the tires' grip; off track fails |
 
-- **Pass:** every metric is within **±2%** of the reference configuration.
-- **Output:** a CSV plus a short HTML report in `tests/conformance/out/`.
+- **Pass:** every metric is within **±2%** of the reference configuration (yaw rise time: or within 4 ms).
+- **Engine check:** the reference configuration also runs on a real `Vehicle` with Jolt; launch and braking must match the harness within 5%.
+- **Output:** `conformance.csv`, `summary.json` and `report.html` in `tests/conformance/out/` (gitignored).
 
 ## 6. Starter classes
 

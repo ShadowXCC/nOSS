@@ -67,7 +67,17 @@ static func fit(platform: Dictionary, fit_data: Dictionary) -> Result:
 			"radius": float(w.radius) * r.scale * float(mt.scale), "width": float(w.width) * r.scale * float(mt.scale),
 			"shift": side_shift,
 		})
-	r.ground_y = r.scale * (base * Vector3(0, float(fit_data.ground_y), 0)).y
+	# The ground is where the wheels touch down (the sim uses the same plane). A fit.json
+	# ground line that disagrees is overruled.
+	var declared := r.scale * (base * Vector3(0, float(fit_data.ground_y), 0)).y
+	r.ground_y = declared
+	if not r.wheels.is_empty():
+		var contact := 0.0
+		for w in r.wheels:
+			contact += w.center.y - w.radius
+		r.ground_y = contact / r.wheels.size()
+		if absf(r.ground_y - declared) > 0.01:
+			r.notes.append("Ground moved %d cm" % roundi(absf(r.ground_y - declared) * 100.0))
 
 	# 4. Envelope: model bounds, clamped to the platform's box (§4.3).
 	var env: Dictionary = fit_data.envelope

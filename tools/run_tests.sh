@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs every test suite: native (doctest), JSON schemas, tools (unittest), GDScript (gdUnit4, headless),
-# boot smoke test.
+# platform conformance, boot smoke test.
 # Exits non-zero if any fails. Run tools/setup_dev.sh once first.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -32,6 +32,9 @@ step "Godot: gdUnit4"
 # --remote-debug to a closed port stops Godot's interactive debugger from looping on script errors.
 $GODOT --headless -s -d --remote-debug tcp://127.0.0.1:0 res://addons/gdUnit4/bin/GdUnitCmdTool.gd \
 	-a res://tests/game --ignoreHeadlessMode -rd res://reports || failed+=("gdUnit4")
+
+step "Conformance"
+tools/run_conformance.sh || failed+=("conformance")
 
 step "Godot: boot"
 boot_log="$($GODOT --headless --quit-after 30 2>&1)"

@@ -73,23 +73,46 @@ Config make_config(const PlatformSpec &p_spec, const Geometry &p_geometry) {
 		c.axle_track[a] = (left_n[a] && right_n[a]) ? left_x[a] / left_n[a] - right_x[a] / right_n[a] : 0.0;
 	}
 	c.wheelbase = c.axle_center[0].z - c.axle_center[1].z;
-	c.track = (c.axle_track[0] + c.axle_track[1]) / 2.0;
+	double share[2] = { p_spec.roll_front_share, 1.0 - p_spec.roll_front_share };
+	// Effective track: the axles' tracks weighted by their share of roll stiffness, so each
+	// axle's lateral load transfer stays the reference's (docs/PLATFORMS.md §4.2).
+	double track_sum = 0.0, share_sum = 0.0;
+	for (int a = 0; a < 2; a++) {
+		if (c.axle_track[a] > 0.0) {
+			track_sum += share[a] * c.axle_track[a];
+			share_sum += share[a];
+		}
+	}
+	c.track = share_sum > 0.0 ? track_sum / share_sum : p_spec.track_ref;
+	// The ground is where the wheels touch down, whatever fit.json says.
+	double ground = 0.0;
+	for (const WheelGeometry &w : p_geometry.wheels) {
+		ground += w.hub.y - w.radius;
+	}
+	ground /= double(std::max<size_t>(p_geometry.wheels.size(), 1));
 
 	// CoG from the platform's invariants (docs/PLATFORMS.md §4.2).
 	double L = std::max(c.wheelbase, 0.5);
 	double b = p_spec.front_weight * L; // CoG to rear axle
 	double a = L - b;
 	c.cog_height = p_spec.cog_height_over_track * c.track;
-	c.com = V3(x_sum / std::max<size_t>(p_geometry.wheels.size(), 1), p_geometry.ground_y + c.cog_height, c.axle_center[1].z + b);
-	double yaw = p_spec.yaw_dynamic_index * p_spec.mass * a * b;
-	double roll = p_spec.mass * std::pow(ROLL_RADIUS_OVER_TRACK * c.track, 2.0);
-	c.inertia = V3(PITCH_INERTIA_RATIO * yaw, yaw, roll);
-	c.max_steer = p_spec.max_steer_deg * PI / 180.0 * (L / p_spec.wheelbase_ref);
+	c.com = V3(x_sum / std::max<size_t>(p_geometry.wheels.size(), 1), ground + c.cog_height, c.axle_center[1].z + b);
+	// Tire forces act at the reference wheelbase and track in the ground plane, so yaw uses
+	// the reference's inertia and steering. Pitch keeps the fitted wheelbase: the springs sit
+	// at the fitted hubs. Roll inertia grows with the track, not its square, so roll speed
+	// doesn't change with it.
+	double L_ref = p_spec.wheelbase_ref;
+	double yaw = p_spec.yaw_dynamic_index * p_spec.mass * (1.0 - p_spec.front_weight) * p_spec.front_weight * L_ref * L_ref;
+	double pitch = PITCH_INERTIA_RATIO * p_spec.yaw_dynamic_index * p_spec.mass * a * b;
+	double roll = p_spec.mass * ROLL_RADIUS_OVER_TRACK * ROLL_RADIUS_OVER_TRACK * c.track * p_spec.track_ref;
+	c.inertia = V3(pitch, yaw, roll);
+	c.max_steer = p_spec.max_steer_deg * PI / 180.0;
+	c.pitch_arm_delta = p_spec.cog_height_over_track * (p_spec.track_ref * L / p_spec.wheelbase_ref - c.track);
 
 	// Springs from ride frequency, roll bars from the roll gradient.
 	double weight = p_spec.mass * GRAVITY;
 	double axle_load[2] = { weight * p_spec.front_weight, weight * (1.0 - p_spec.front_weight) };
-	double k_axle[2] = { 0, 0 };
+	double k_axle[2] = { 0, 0 }, c_axle[2] = { 0, 0 };
 	for (const WheelGeometry &w : p_geometry.wheels) {
 		int ax = std::clamp(w.axle, 0, 1);
 		const AxleSpec &spec = p_spec.axles[ax];
@@ -106,9 +129,16 @@ Config make_config(const PlatformSpec &p_spec, const Geometry &p_geometry) {
 		wc.c_rebound = 2.0 * spec.damping_rebound * std::sqrt(wc.k * m_corner);
 		double bias = ax == 0 ? p_spec.brake_bias_front : 1.0 - p_spec.brake_bias_front;
 		wc.brake_share = bias / std::max(count[ax], 1);
+		double dx = w.hub.x - c.com.x, dz = w.hub.z - c.com.z;
+		double t = c.axle_track[ax];
+		wc.plane_dx = (t > 0.0 ? dx * p_spec.track_ref / t : dx) - dx;
+		wc.plane_dz = dz * L_ref / L - dz;
 		k_axle[ax] = wc.k;
+		c_axle[ax] = 0.5 * (wc.c_bump + wc.c_rebound);
 		c.wheels.push_back(wc);
 	}
+	// Each axle takes its share of the total roll stiffness. Springs give k T^2 / 2 and the
+	// bar makes up the rest, which can be negative on a wide track with stiff springs.
 	double roll_rad_per_g = std::max(p_spec.roll_gradient_deg_per_g, 0.05) * PI / 180.0;
 	double k_roll = weight * c.cog_height / roll_rad_per_g;
 	for (int ax = 0; ax < 2; ax++) {
@@ -116,9 +146,9 @@ Config make_config(const PlatformSpec &p_spec, const Geometry &p_geometry) {
 		if (t <= 0.0) {
 			continue;
 		}
-		double share = ax == 0 ? p_spec.roll_front_share : 1.0 - p_spec.roll_front_share;
-		double from_springs = k_axle[ax] * t * t / 2.0;
-		c.k_arb[ax] = std::max(0.0, share * k_roll - from_springs) / (t * t);
+		double k_ax = share[ax] / share_sum * (t / c.track) * k_roll;
+		c.k_arb[ax] = (k_ax - k_axle[ax] * t * t / 2.0) / (t * t);
+		c.c_roll[ax] = c_axle[ax] * (p_spec.track_ref / t - 1.0) / 2.0;
 	}
 
 	double peak = 0.0;
@@ -324,15 +354,16 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 			wheels[i].steer = 0.0;
 			continue;
 		}
+		// Ackermann from the reference proportions, so it doesn't change with the fit.
 		double t = std::tan(delta);
-		double half_track = _config.axle_track[std::clamp(wc.geo.axle, 0, 1)] / 2.0;
-		double ackermann = std::atan(L * t / std::max(L - wc.geo.side * half_track * t, 0.1));
+		double half_track = 0.5 * spec.track_ref / spec.wheelbase_ref;
+		double ackermann = std::atan(t / std::max(1.0 - wc.geo.side * half_track * t, 0.1 / L));
 		wheels[i].steer = delta + ACKERMANN * (ackermann - delta);
 	}
 
 	// --- Suspension (once per tick: the chassis doesn't move within a tick) -------------
-	std::vector<double> spring(n, 0.0);
-	std::vector<V3> fwd(n), lat(n), point(n);
+	std::vector<double> spring(n, 0.0), rate(n, 0.0);
+	std::vector<V3> fwd(n), lat(n), point(n), plane(n);
 	std::vector<double> v_long(n, 0.0), v_lat(n, 0.0);
 	for (size_t i = 0; i < n; i++) {
 		const WheelConfig &wc = _config.wheels[i];
@@ -362,6 +393,7 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 		}
 		f += (v_comp > 0.0 ? wc.c_bump : wc.c_rebound) * v_comp;
 		spring[i] = f;
+		rate[i] = v_comp;
 	}
 	for (size_t i = 0; i < n; i++) {
 		// Anti-roll bar: pairs each wheel with the other side of its axle.
@@ -369,7 +401,8 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 		for (size_t j = 0; j < n; j++) {
 			const WheelConfig &other = _config.wheels[j];
 			if (j != i && other.geo.axle == wc.geo.axle && other.geo.side == -wc.geo.side && wc.geo.side != 0) {
-				spring[i] += _config.k_arb[std::clamp(wc.geo.axle, 0, 1)] * (wheels[i].disp - wheels[j].disp);
+				int ax = std::clamp(wc.geo.axle, 0, 1);
+				spring[i] += _config.k_arb[ax] * (wheels[i].disp - wheels[j].disp) + _config.c_roll[ax] * (rate[i] - rate[j]);
 				break;
 			}
 		}
@@ -384,7 +417,8 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 		fwd[i] = normalized(dir - n_c * dot(dir, n_c), forward);
 		lat[i] = normalized(cross(n_c, fwd[i]));
 		point[i] = c.point;
-		V3 v_c = p_chassis.velocity + cross(p_chassis.angular_velocity, c.point - p_chassis.com) - c.ground_velocity;
+		plane[i] = c.point + R * V3(wc.plane_dx, 0.0, wc.plane_dz);
+		V3 v_c = p_chassis.velocity + cross(p_chassis.angular_velocity, plane[i] - p_chassis.com) - c.ground_velocity;
 		v_long[i] = dot(v_c, fwd[i]);
 		v_lat[i] = dot(v_c, lat[i]);
 	}
@@ -558,6 +592,7 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 	// --- Forces on the chassis ----------------------------------------------------------
 	StepResult out;
 	rack_torque = 0.0;
+	double longitudinal = 0.0; // tire force along the body's forward axis
 	for (size_t i = 0; i < n; i++) {
 		const WheelConfig &wc = _config.wheels[i];
 		WheelState &w = wheels[i];
@@ -571,14 +606,21 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 		}
 		double roll_coef = spec.rolling_resistance + surface_info(w.surface).drag;
 		double rolling = -roll_coef * w.fz * std::tanh(v_long[i] / 0.5);
-		V3 f = up * w.fz + fwd[i] * (w.fx + rolling) + lat[i] * w.fy;
-		out.force += f;
-		out.torque += cross(point[i] - p_chassis.com, f);
+		// Load at the fitted contact point; grip forces where the reference tire would be.
+		V3 load = up * w.fz;
+		V3 grip = fwd[i] * (w.fx + rolling) + lat[i] * w.fy;
+		out.force += load + grip;
+		out.torque += cross(point[i] - p_chassis.com, load) + cross(plane[i] - p_chassis.com, grip);
+		longitudinal += dot(grip, forward);
 		w.slip_speed = std::sqrt(std::pow(w.omega * r - v_long[i], 2.0) + v_lat[i] * v_lat[i]);
 		if (wc.steer) {
 			rack_torque += w.mz - MECHANICAL_TRAIL * w.fy;
 		}
 	}
+
+	// Longitudinal load transfer as if the CoG height had the reference's ratio to the
+	// wheelbase: a force along +Z at depth d gives -d F about the body's +X.
+	out.torque += R.c0 * (-_config.pitch_arm_delta * longitudinal);
 
 	// Aero: drag at the CoG, downforce at the axles.
 	double q_fwd = 0.5 * AIR_DENSITY * forward_speed * forward_speed;

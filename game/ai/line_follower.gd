@@ -15,13 +15,16 @@ var _hint := -1
 func _physics_process(_delta: float) -> void:
 	if vehicle == null or track == null:
 		return
-	var proj := track.project(vehicle.global_position, _hint)
+	# Everything is measured from the centre of mass, which the platform places; the model's
+	# origin is wherever its author put it, so the line would change with the car.
+	var com := vehicle.global_transform * vehicle.center_of_mass
+	var proj := track.project(com, _hint)
 	_hint = proj.index
 	var speed := maxf(vehicle.speed(), 0.0)
 
 	# Pure pursuit toward a point ahead on the line.
 	var ahead := track.point_at(proj.distance + 8.0 + speed * 0.7)
-	var local := vehicle.global_transform.affine_inverse() * ahead
+	var local := vehicle.global_basis.inverse() * (ahead - com)
 	var angle := atan2(local.x, maxf(local.z, 0.1)) # + = target is to the left
 	var max_steer := deg_to_rad(float(vehicle.platform.steering.max_road_angle_deg))
 	vehicle.steer = clampf(-angle * 1.6 / max_steer, -1.0, 1.0)

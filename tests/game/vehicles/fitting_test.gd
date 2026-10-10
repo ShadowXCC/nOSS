@@ -53,6 +53,14 @@ func test_model_transform_applies() -> void:
 	assert_float(r.wheels[0].radius).is_equal_approx(0.3, 0.0001)
 
 
+func test_ground_comes_from_the_wheels() -> void:
+	var data := _fit(2.6, 1.6)
+	data.ground_y = -0.05
+	var r := Fitting.fit(_platform, data)
+	assert_float(r.ground_y).is_equal_approx(0.0, 0.0001)
+	assert_array(r.notes).contains(["Ground moved 5 cm"])
+
+
 func _fit(wheelbase: float, track: float) -> Dictionary:
 	var wheels := []
 	for id in ["LF", "RF", "LR", "RR"]:
