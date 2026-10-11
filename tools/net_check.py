@@ -26,7 +26,6 @@ import re
 import signal
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 from pathlib import Path
@@ -101,11 +100,11 @@ def main(argv=None):
     p.add_argument("--plausibility", default="flag", choices=["off", "warn", "flag", "kick"])
     p.add_argument("--fresh", action="store_true", help="one bot with an empty cache fetches every car")
     p.add_argument("--within", type=float, default=60.0, help="--fresh: seconds allowed for every car")
-    p.add_argument("--logs", default="", help="keep the logs in this folder")
+    p.add_argument("--logs", default="", help="the logs' folder (default reports/net_check/<time>/)")
     p.add_argument("--verbose", action="store_true")
     args = p.parse_args(argv)
 
-    logs = Path(args.logs) if args.logs else Path(tempfile.mkdtemp(prefix="net_check_"))
+    logs = Path(args.logs) if args.logs else ROOT / "reports" / "net_check" / time.strftime("%Y%m%d_%H%M%S")
     logs.mkdir(parents=True, exist_ok=True)
     if args.fresh:
         args.clients, args.quad, args.event = 1, 0, "race"

@@ -22,7 +22,9 @@ func _ready() -> void:
 		config.password = ""
 	if config.name == ServerConfig.new().name:
 		config.name = "%s's game" % Settings.primary.display_name()
-	config.upnp = config.upnp if saved else true
+	config.upnp = (config.upnp if saved else true) and not Game.dev.has("no-upnp") # dev: never ask the router
+	if Game.dev.has("port"):
+		config.port = int(Game.dev.port)
 	_kind = config.event(0).kind
 	var list := UiKit.panel(self, "Host", 860)
 	var scroll := ScrollContainer.new()
@@ -58,7 +60,7 @@ func _ready() -> void:
 	_status = UiKit.label("", 24)
 	_status.accessibility_live = AccessibilityServer.AccessibilityLiveMode.LIVE_POLITE
 	list.add_child(_status)
-	var host := UiKit.button("Host", _host, "Start the server")
+	var host := UiKit.button("Start hosting", _host, "Start the server and open the lobby")
 	list.add_child(host)
 	_rows.append(host)
 	var back := UiKit.button("Back", func() -> void: closed.emit())

@@ -85,7 +85,7 @@ func test_host_a_game_and_leave_by_keys() -> void:
 	assert_str(_focused(runner)).is_equal("Name")
 	await _key(KEY_UP) # wraps to Back
 	await _key(KEY_UP)
-	assert_str(_focused(runner)).is_equal("Host")
+	assert_str(_focused(runner)).is_equal("Start hosting")
 	await _key(KEY_ENTER)
 	await _frames(6)
 	assert_bool(Net.is_server()).is_true()

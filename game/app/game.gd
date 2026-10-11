@@ -39,6 +39,7 @@ extends Node
 ##   --instance=<n>       keep settings, profiles and the identity in user://instances/<n>/, so two
 ##                        copies on one PC are two different players
 ##   --host               host at once with the last Host settings (--port, --password)
+##   --no-upnp            hosting never asks the router to open the port (checks)
 ##   --connect=<address>  join at once (--password)
 ##   --bot                a load-test client (tools/net_check.py): throwaway keys, nothing saved,
 ##                        cars without models, AI drives, --players=<n> on one connection

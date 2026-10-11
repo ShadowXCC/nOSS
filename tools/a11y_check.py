@@ -2,9 +2,10 @@
 """Screen-reader check (ACC-03; M4 acceptance: boot -> race -> results with a screen reader).
 
 Runs the game with accessibility on and walks title -> Race -> class -> event -> Players -> a
-1-lap race -> results -> title through AT-SPI, the interface screen readers (Orca) use: it
-finds controls by their accessible names, presses them with their accessibility actions, and
-checks that every focusable control on each screen has a name and that something has focus.
+1-lap race -> results -> title, then Online -> Host -> the lobby -> Leave (M5), through AT-SPI,
+the interface screen readers (Orca) use: it finds controls by their accessible names, presses
+them with their accessibility actions, and checks that every focusable control on each screen
+has a name and that something has focus.
 
 Runs in a private D-Bus session with the accessibility bus switched on in memory, so the
 desktop's settings are left alone. Needs python3-gi with Atspi (on GNOME by default) and a
@@ -19,7 +20,7 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GAME_ARGS = ["--skip-first-boot", "--no-save", "--screen-reader", "--autodrive", "--join=1", "--race-laps=1", "--race-ai=3",
-             "--race-practice=0", "--race-quali=0", "--race-grid=random"]
+             "--race-practice=0", "--race-quali=0", "--race-grid=random", "--port=47895", "--no-upnp"]
 
 if os.environ.get("NOSS_A11Y_PRIVATE") != "1":
     env = dict(os.environ, NOSS_A11Y_PRIVATE="1", GSETTINGS_BACKEND="memory")
@@ -195,7 +196,17 @@ def main():
                 if find("Race", "button", timeout=20.0) is None:
                     problems.append("Back at the title: no Race button")
                 else:
-                    check_screen("Title again")
+                    log("Online")
+                    ok = step("Title again", "Online")
+                    ok = ok and step("Online", "Host")
+                    ok = ok and find("LAN discovery", None, timeout=20.0) is not None  # the Host menu is up
+                    ok = ok and step("Host", "Start hosting")
+                    if ok and find("Leave", "button", timeout=20.0) is not None:
+                        find("Player 1", "button", timeout=10.0, prefix=True)  # the list arrives a tick later
+                        step("Lobby", "Leave")
+                        step("Online again", "Back")
+                    elif ok:
+                        problems.append("Lobby: no Leave button")
     finally:
         game.terminate()
         try:

@@ -354,10 +354,10 @@ static func chain_focus(controls: Array, focus_first := true) -> void:
 		focus_later(focusable[0])
 
 
-## Focuses `c` at the end of the frame, if it's still on screen then (a menu may close first).
+## Focuses `c` at the end of the frame, if it's still in the tree then (a menu may close first).
 static func focus_later(c: Control) -> void:
 	(func() -> void:
-		if is_instance_valid(c) and c.is_inside_tree() and c.is_visible_in_tree():
+		if is_instance_valid(c) and c.is_inside_tree():
 			c.grab_focus()).call_deferred()
 
 
