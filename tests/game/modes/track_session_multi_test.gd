@@ -104,8 +104,46 @@ func test_auto_resolution_steps_down_on_slow_frames() -> void:
 	await get_tree().process_frame
 
 
+func test_ai_racers_have_no_views_and_share_models() -> void:
+	Players.clear()
+	var s := TrackSession.new()
+	s.autodrive = true
+	s.ai_racers = 3
+	s.ai_builtin_cars = true
+	add_child(s)
+	await _wait_for_cars(s)
+	assert_int(s.racers.size()).is_equal(4)
+	assert_int(s.players.size()).is_equal(1)
+	assert_int(s.views.views().size()).is_equal(1)
+	var ai: Array = s.racers.filter(func(r: Racer) -> bool: return r is AiRacer)
+	assert_int(ai.size()).is_equal(3)
+	for r: AiRacer in ai:
+		assert_int(r.number).is_greater_equal(5)
+		assert_bool(r.is_human).is_false()
+		assert_object(r.driver).is_instanceof(RacingAI)
+	# Every car on its own grid spot.
+	for i in s.racers.size():
+		for j in range(i + 1, s.racers.size()):
+			assert_float(s.racers[i].vehicle.global_position.distance_to(s.racers[j].vehicle.global_position)).is_greater(3.0)
+	# Same package: separate scenes, shared meshes.
+	var same := ai.filter(func(r: AiRacer) -> bool: return r.vehicle.package.path == s.racers[0].vehicle.package.path)
+	if not same.is_empty():
+		var a: MeshInstance3D = s.racers[0].vehicle.visual.find_children("*", "MeshInstance3D", true, false)[0]
+		var b: MeshInstance3D = same[0].vehicle.visual.find_children("*", "MeshInstance3D", true, false)[0]
+		assert_object(a).is_not_same(b)
+		assert_object(a.mesh).is_same(b.mesh)
+	# The RaceField places everyone on the track once a tick.
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	for r in s.racers:
+		assert_int(r.track_index).is_greater_equal(0)
+		assert_float(absf(r.lateral)).is_less(s.track.width / 2.0)
+	s.queue_free()
+	await get_tree().process_frame
+
+
 func _wait_for_cars(s: TrackSession) -> void:
 	for i in 600:
 		await get_tree().process_frame
-		if not s.players.is_empty() and s.players.all(func(p: SessionPlayer) -> bool: return p.vehicle != null):
+		if not s.racers.is_empty() and s.racers.all(func(p: Racer) -> bool: return p.vehicle != null):
 			return

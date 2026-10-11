@@ -17,11 +17,21 @@ const BASE_DB := -6.0
 ## Every car sound plays on this bus (made at run time, sends to Master), so splitscreen can
 ## turn all of them down together.
 const BUS := &"Cars"
+## Sound levels of detail, picked by the session from how close the car is to a camera.
+enum Detail { FULL, DISTANT, OFF }
+## Distant cars play only their exhaust.
+const DISTANT_EMITTERS := ["exhaust"]
 
 static var _profiles := {} # id -> {profile, loops: {emitter: {on: [stream...], off: [...], rpm: [...]}}}
 static var _extras := {}
 
 var vehicle: Vehicle
+## FULL: every layer; DISTANT: the exhaust only; OFF: silent and stopped.
+var detail := Detail.FULL:
+	set(value):
+		if value != detail:
+			detail = value
+			_apply_detail()
 ## Without a vehicle (the Fitting Bay) the engine state comes from here:
 ## {rpm, load, throttle, idle, redline, speed}.
 var manual := {}
@@ -107,7 +117,7 @@ func _place_emitters() -> void:
 
 
 func _process(delta: float) -> void:
-	if _profile.is_empty():
+	if _profile.is_empty() or detail == Detail.OFF:
 		return
 	_time += delta
 	var state := _state()
@@ -135,12 +145,32 @@ func _process(delta: float) -> void:
 			"cut":
 				level *= 1.0 if fmod(_time * 23.0, 1.0) < 0.55 else 0.15
 	var mix: Dictionary = _tweaks.get("mix", {})
-	for emitter in EMITTERS:
+	for emitter in EMITTERS if detail == Detail.FULL else DISTANT_EMITTERS:
 		var gain := level * float(_profile.mix.get(emitter, 1.0)) * float(mix.get(emitter, 1.0))
 		_update_layer(emitter, rpm_p, gain, pitch)
-	if is_node_ready():
+	if is_node_ready() and detail == Detail.FULL:
 		_update_extras(state, norm, delta)
 		_update_road(state, delta)
+
+
+## Stops the players a lower detail doesn't use; a higher one starts them again on the next
+## update (the rpm layers re-pick their loops, the steady ones play now).
+func _apply_detail() -> void:
+	for emitter: String in _layers:
+		var used := detail == Detail.FULL or (detail == Detail.DISTANT and emitter in DISTANT_EMITTERS)
+		for kind in ["on", "off"]:
+			for slot: Dictionary in _layers[emitter].slots[kind]:
+				if not used:
+					(slot.player as AudioStreamPlayer3D).stop()
+					slot.index = -1
+	var full := detail == Detail.FULL
+	for player: AudioStreamPlayer3D in [_tires, _wind, _extra_players.get("turbo"), _extra_players.get("supercharger"), _extra_players.get("gear")]:
+		if player == null:
+			continue
+		if full and not player.playing:
+			player.play()
+		elif not full:
+			player.stop()
 
 
 ## rpm, load, throttle, idle and redline from the sim, or from `manual`.

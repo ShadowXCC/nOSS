@@ -4,12 +4,13 @@ extends Node
 ##   --drive              start free-drive right away
 ##   --car=<path>         car package for --drive
 ##   --platform=<id>      platform class for --drive, e.g. official.highway.street
-##   --autodrive          let the line follower drive (tests, screenshots)
-##   --players=<n>        free drive with n players; the extra ones are driven by the line follower
+##   --autodrive          let the racing AI drive the players (tests, screenshots)
+##   --players=<n>        free drive with n players; the extra ones are driven by the racing AI
+##   --ai=<n>             add n AI racers (no views); --ai-skill=<0-100>, --ai-builtin: built-in cars only
 ##   --screens=0,0,1,1    monitor per player (multi-monitor)
 ##   --split=<s>          two players: stacked or side; --three=<s>: wide or map
-##   --ai-car=<path>      car for the line-follower players
-##   --ai-profile=<json>  options for the line-follower players' throwaway profiles
+##   --ai-car=<path>      car for the AI-driven players
+##   --ai-profile=<json>  options for the AI-driven players' throwaway profiles
 ##   --perf               print frame, CPU, physics and per-view GPU times every second
 ##   --fullscreen         fullscreen for this run; --no-vsync: no vsync (measurements)
 ##   --pause-at=<s>       open the last player's pause menu
@@ -61,6 +62,9 @@ func start_free_drive(car_path := "", platform_id := "", bay_return := false, so
 	session.platform_id = platform_id if platform_id else String(dev.get("platform", Settings.profile.get("last_platform", "")))
 	session.autodrive = dev.has("autodrive")
 	session.ai_players = maxi(int(dev.get("players", "1")) - maxi(Players.count(), 1), 0)
+	session.ai_racers = int(dev.get("ai", "0"))
+	session.ai_skill = float(dev.get("ai-skill", "80"))
+	session.ai_builtin_cars = dev.has("ai-builtin")
 	if dev.has("camera"):
 		Settings.profile.camera = dev.camera
 	get_tree().change_scene_to_node(session)

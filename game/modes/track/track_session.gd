@@ -1,9 +1,10 @@
 class_name TrackSession
 extends Node3D
-## Track free-drive (MODE-01) for 1-4 local players (LOC-01…LOC-03): lap timer with sectors and
-## best lap, car reset, pause and car hotswap (docs/GAMEMODES.md §1). Each player has their own
-## car, view, HUD, timer and reset spot (SessionPlayer); the track, platform class, views and
-## pause are shared. Players can drop in with a free device and drop out from their pause menu.
+## A track session (docs/GAMEMODES.md §1) for 1-4 local players (LOC-01…LOC-03) and AI racers:
+## lap timer with sectors and best lap, car reset, pause and car hotswap. Each player has their
+## own car, view, HUD, timer and reset spot (SessionPlayer); AI racers (AiRacer) have no view.
+## The track, platform class, views, RaceField and pause are shared. Players can drop in with a
+## free device and drop out from their pause menu.
 
 const DEFAULT_TRACK := "res://content/tracks/proving_ground/track.json"
 const DEFAULT_PLATFORM := "official.track.gt"
@@ -11,6 +12,13 @@ const GRID_BEHIND_LINE := 40.0
 const GRID_ROW_M := 8.0
 ## A spot is taken if another car is closer than this.
 const CLEAR_M := 6.0
+const GRID_SPOTS := 20
+## Engine sound detail for AI cars: the nearest few within FULL_M of a camera get every layer,
+## the rest within DISTANT_M only their exhaust, and cars further away are silent.
+const SOUND_FULL_COUNT := 3
+const SOUND_FULL_M := 60.0
+const SOUND_DISTANT_M := 350.0
+const SOUND_UPDATE_S := 0.25
 
 var track_path := DEFAULT_TRACK
 ## P1's car; empty: their profile's last car.
@@ -24,13 +32,22 @@ var hotswap_allowed := true
 var solo := false
 ## Dev: the line follower drives every player.
 var autodrive := false
-## Dev: this many extra players driven by the line follower.
+## Dev: this many extra players driven by the RacingAI.
 var ai_players := 0
+## AI racers (no views).
+var ai_racers := 0
+## AI skill, 0-100.
+var ai_skill := 80.0
+## AI cars come only from the built-in cars.
+var ai_builtin_cars := false
 
 var track: TrackData
 var platform: PlatformLoader.Result
 var views := ViewManager.new()
 var players: Array[SessionPlayer] = []
+## Every car: players and AI.
+var racers: Array[Racer] = []
+var field := RaceField.new()
 var world_env: Environment
 ## Who has the game paused, or null.
 var paused_by: SessionPlayer
@@ -41,6 +58,7 @@ var _dev_time := 0.0
 var _dev_swapped := false
 var _fps_time := 0.0
 var _fps_frames := 0
+var _sound_time := 0.0
 
 
 func _ready() -> void:
@@ -59,6 +77,9 @@ func _ready() -> void:
 		platform_id = DEFAULT_PLATFORM
 		platform = PlatformLoader.load_official(platform_id)
 	_default_car = GameModes.default_car(platform.platform)
+	field.track = track
+	field.racers = racers
+	add_child(field)
 
 	add_child(views)
 	var map := TrackMap.new()
@@ -75,6 +96,9 @@ func _ready() -> void:
 		if autodrive:
 			slot.ai = true
 		_add_player(slot)
+	var pool := ai_car_pool()
+	for i in ai_racers:
+		_add_ai(i, pool)
 	Players.remember_all()
 	Players.joined.connect(_on_joined)
 	Players.left.connect(_on_left)
@@ -83,6 +107,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	CarVisual.lod_scale = 1.0
+	PackageLoader.clear_shared()
 	Players.joining = false
 	Players.joined.disconnect(_on_joined)
 	Players.left.disconnect(_on_left)
@@ -108,17 +133,12 @@ func _apply_dev_layout() -> void:
 func _add_player(slot: PlayerSlot) -> SessionPlayer:
 	var p := SessionPlayer.new()
 	p.slot = slot
-	p.session = self
-	p.track = track
-	p.platform = platform
 	p.bay_return = bay_return
-	p.default_car = _default_car
-	var i := players.size()
+	var i := racers.size()
 	p.spawn_at = track.transform_at(_grid_distance(i), _grid_lateral(i)) if _spot_clear(_grid_distance(i), _grid_lateral(i)) else _free_grid_spot()
 	p.view = views.add(slot)
 	players.append(p)
-	add_child(p)
-	p.setup(world_env)
+	_add_racer(p)
 	p.pause_requested.connect(_open_pause)
 	slot.profile.data.last_platform = platform_id
 	var path := car_path if car_path and slot.index == 0 else String(slot.profile.data.get("last_car", ""))
@@ -130,6 +150,38 @@ func _add_player(slot: PlayerSlot) -> SessionPlayer:
 	p.load_car(path)
 	_on_views_changed()
 	return p
+
+
+func _add_racer(r: Racer) -> void:
+	r.session = self
+	r.track = track
+	r.platform = platform
+	r.default_car = _default_car
+	racers.append(r)
+	add_child(r)
+	r.setup()
+
+
+## An AI racer on the next grid spot, with a random car from `pool`.
+func _add_ai(index: int, pool: PackedStringArray) -> AiRacer:
+	var a := AiRacer.new()
+	a.configure(index, ai_skill)
+	var i := racers.size()
+	a.spawn_at = track.transform_at(_grid_distance(i), _grid_lateral(i)) if _spot_clear(_grid_distance(i), _grid_lateral(i)) else _free_grid_spot()
+	_add_racer(a)
+	a.load_car(pool[randi() % pool.size()] if not pool.is_empty() else _default_car)
+	return a
+
+
+## Cars the AI can drive in this class: the garage's and the built-ins, or only the built-ins.
+func ai_car_pool() -> PackedStringArray:
+	var out := PackedStringArray()
+	for path in PackageLoader.list_available():
+		if ai_builtin_cars and not path.begins_with("res://"):
+			continue
+		if Fitting.compatible(platform.platform, PackageLoader.read_manifest(path).get("family", "")):
+			out.append(path)
+	return out
 
 
 func _on_joined(slot: PlayerSlot) -> void:
@@ -145,6 +197,7 @@ func _on_left(slot: PlayerSlot) -> void:
 			if paused_by == p:
 				_resume()
 			players.erase(p)
+			racers.erase(p)
 			p.remove()
 			break
 	views.remove(slot)
@@ -158,11 +211,16 @@ func _on_views_changed() -> void:
 	CarVisual.lod_scale = 1.0 / (1.0 + 0.25 * (players.size() - 1))
 	for p in players:
 		p.update_badge(players.size())
-		if p.vehicle and p.vehicle.visual:
-			p.vehicle.visual.apply_lod_scale()
+	for r in racers:
+		if r.vehicle and r.vehicle.visual:
+			r.vehicle.visual.apply_lod_scale()
 
 
 func _process(delta: float) -> void:
+	_sound_time += delta
+	if _sound_time >= SOUND_UPDATE_S:
+		_sound_time = 0.0
+		_update_sound_detail()
 	# Dev: --swap-car=<path> --swap-at=<s> swaps P1's car mid-drive and logs the speed around it.
 	var p1 := players[0] if not players.is_empty() else null
 	if Game.dev.has("swap-car") and p1 and p1.vehicle and not _dev_swapped:
@@ -186,6 +244,34 @@ func _process(delta: float) -> void:
 			_fps_frames = 0
 
 
+## Players' own cars always sound in full; AI cars by distance to the nearest camera.
+func _update_sound_detail() -> void:
+	var cameras: Array[Vector3] = []
+	for p in players:
+		cameras.append(p.cameras.camera.global_position)
+	var ranked := []
+	for r in racers:
+		if r.sound == null or r.vehicle == null:
+			continue
+		if r is SessionPlayer:
+			r.sound.detail = EngineSound.Detail.FULL
+			continue
+		var nearest := INF
+		for c in cameras:
+			nearest = minf(nearest, c.distance_to(r.vehicle.global_position))
+		ranked.append([nearest, r])
+	ranked.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	for k in ranked.size():
+		var d: float = ranked[k][0]
+		var sound: EngineSound = ranked[k][1].sound
+		if k < SOUND_FULL_COUNT and d < SOUND_FULL_M:
+			sound.detail = EngineSound.Detail.FULL
+		elif d < SOUND_DISTANT_M:
+			sound.detail = EngineSound.Detail.DISTANT
+		else:
+			sound.detail = EngineSound.Detail.OFF
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_F3:
 		_show_fps = not _show_fps
@@ -202,24 +288,24 @@ func _grid_lateral(i: int) -> float:
 	return track.width / 4.0 * (1.0 if i % 2 == 0 else -1.0)
 
 
-func _spot_clear(distance: float, lateral: float, except: SessionPlayer = null) -> bool:
+func _spot_clear(distance: float, lateral: float, except: Racer = null) -> bool:
 	var at := track.transform_at(distance, lateral).origin
-	for p in players:
-		if p != except and p.vehicle and p.vehicle.global_position.distance_to(at) < CLEAR_M:
+	for r in racers:
+		if r != except and r.vehicle and r.vehicle.global_position.distance_to(at) < CLEAR_M:
 			return false
 	return true
 
 
 ## The first grid spot nobody is on (for players who drop in mid-drive).
 func _free_grid_spot() -> Transform3D:
-	for i in 12:
+	for i in GRID_SPOTS:
 		if _spot_clear(_grid_distance(i), _grid_lateral(i)):
 			return track.transform_at(_grid_distance(i), _grid_lateral(i))
-	return track.transform_at(_grid_distance(12), 0.0)
+	return track.transform_at(_grid_distance(GRID_SPOTS), 0.0)
 
 
 ## A reset spot at or behind `distance` with no other car on it.
-func free_spot_near(distance: float, who: SessionPlayer) -> float:
+func free_spot_near(distance: float, who: Racer) -> float:
 	for step in 10:
 		var d := distance - step * GRID_ROW_M
 		if _spot_clear(d, 0.0, who):
@@ -229,9 +315,9 @@ func free_spot_near(distance: float, who: SessionPlayer) -> float:
 
 func _map_cars() -> Array:
 	var out := []
-	for p in players:
-		if p.vehicle:
-			out.append([p.slot.number(), p.slot.color(), p.vehicle.global_position])
+	for r in racers:
+		if r.vehicle:
+			out.append([r.number, r.color, r.vehicle.global_position])
 	return out
 
 

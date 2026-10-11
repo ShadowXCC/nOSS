@@ -23,6 +23,10 @@ var active_device := "keyboard"
 var _key_steer := 0.0
 
 
+func _ready() -> void:
+	process_physics_priority = -50 # after the RaceField, before the vehicles
+
+
 func _physics_process(delta: float) -> void:
 	if vehicle == null or input == null:
 		return

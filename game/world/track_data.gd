@@ -79,21 +79,37 @@ func transform_at(distance: float, lateral := 0.0) -> Transform3D:
 	return Transform3D(Basis(left, Vector3.UP, fwd), point_at(distance) + left * lateral)
 
 
-## Nearest point on the centreline. Searches around `hint` (a sample index) when given.
+## Nearest point on the centreline. With `hint` (a sample index, e.g. last tick's) it walks
+## from there to the nearest sample, which takes a step or two for a moving car.
 ## Returns {index, distance, lateral (+ = left), point}.
 func project(pos: Vector3, hint := -1) -> Dictionary:
 	var n := samples.size()
 	var best := -1
 	var best_d2 := INF
-	var window := range(hint - 60, hint + 61) if hint >= 0 else range(n)
-	for k: int in window:
-		var i := posmod(k, n)
-		var d2 := Vector2(samples[i].x - pos.x, samples[i].z - pos.z).length_squared()
-		if d2 < best_d2:
-			best_d2 = d2
-			best = i
-	if hint >= 0 and best_d2 > 2500.0:
-		return project(pos) # lost track of the hint; search everything
+	if hint >= 0:
+		best = posmod(hint, n)
+		best_d2 = _d2(best, pos)
+		for step in 200:
+			var fwd := (best + 1) % n
+			var back := (best - 1 + n) % n
+			var d_fwd := _d2(fwd, pos)
+			var d_back := _d2(back, pos)
+			if d_fwd < best_d2 and d_fwd <= d_back:
+				best = fwd
+				best_d2 = d_fwd
+			elif d_back < best_d2:
+				best = back
+				best_d2 = d_back
+			else:
+				break
+		if best_d2 > 2500.0:
+			return project(pos) # lost track of the hint; search everything
+	else:
+		for i in n:
+			var d2 := _d2(i, pos)
+			if d2 < best_d2:
+				best_d2 = d2
+				best = i
 	# Refine on the neighbouring segment.
 	var j := (best + 1) % n
 	var seg := samples[j] - samples[best]
@@ -120,6 +136,10 @@ func is_near_centreline(pos: Vector3, radius: float) -> bool:
 				if Vector2(samples[i].x - pos.x, samples[i].z - pos.z).length_squared() < r2:
 					return true
 	return false
+
+
+func _d2(i: int, pos: Vector3) -> float:
+	return Vector2(samples[i].x - pos.x, samples[i].z - pos.z).length_squared()
 
 
 func _cell(p: Vector3) -> Vector2i:

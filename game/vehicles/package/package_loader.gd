@@ -61,6 +61,59 @@ static func read_manifest(path: String) -> Dictionary:
 	return data if data is Dictionary else {}
 
 
+## Loaded packages kept for load_shared(): path -> VehiclePackage, or the callbacks waiting for it.
+static var _shared := {}
+
+
+## Like load_async(), but each path loads once while the cache lives: every caller gets its
+## own copy of the model scenes, sharing meshes and textures (a grid of AI cars on one model).
+## Paint and brake lights are per car (CarVisual uses its own material overrides).
+static func load_shared(path: String, on_done: Callable) -> void:
+	var entry: Variant = _shared.get(path)
+	if entry is VehiclePackage:
+		on_done.call_deferred(_copy(entry))
+		return
+	if entry is Array:
+		entry.append(on_done)
+		return
+	_shared[path] = [on_done]
+	load_async(path, func(pkg: VehiclePackage) -> void:
+		var waiting: Variant = _shared.get(path)
+		if not waiting is Array:
+			pkg.free_scenes() # the cache was cleared meanwhile
+			return
+		if pkg.ok():
+			_shared[path] = pkg
+		else:
+			_shared.erase(path)
+		for callback: Callable in waiting:
+			callback.call(_copy(pkg) if pkg.ok() else pkg))
+
+
+## Frees the cached packages' scenes (copies already handed out stay).
+static func clear_shared() -> void:
+	for entry: Variant in _shared.values():
+		if entry is VehiclePackage:
+			entry.free_scenes()
+	_shared.clear()
+
+
+static func _copy(pkg: VehiclePackage) -> VehiclePackage:
+	var c := VehiclePackage.new()
+	c.path = pkg.path
+	c.hash = pkg.hash
+	c.manifest = pkg.manifest
+	c.fit = pkg.fit
+	c.paint = pkg.paint
+	c.sound = pkg.sound
+	c.triangles = pkg.triangles
+	c.load_ms = pkg.load_ms
+	c.error = pkg.error
+	for lod in pkg.lods:
+		c.lods.append(lod.duplicate() as Node3D)
+	return c
+
+
 ## Loads on a worker thread; `on_done` gets the VehiclePackage on the main thread.
 static func load_async(path: String, on_done: Callable, limits := {}) -> void:
 	var job := _Job.new()
