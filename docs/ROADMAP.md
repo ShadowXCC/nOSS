@@ -103,9 +103,11 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
 - Plausibility checks.
 
 **Acceptance:**
-- [ ] 16 clients, using headless bot clients for load testing, race on a dedicated server.
-- [ ] A fresh client with an empty cache sees every real car within 60 s on a 50 Mbit link.
-- [ ] Playable at 150 ms simulated RTT.
+- [x] 16 clients, using headless bot clients for load testing, race on a dedicated server. *`tools/net_check.py --clients 12 --quad 1 --event race --laps 3`: 12 bots and one bot with 4 splitscreen players (16 players) raced 3 laps on the dedicated server. All classified, no pile-ups, about 43 KB/s down per client (target 64), remote cars within 1–3 cm of where their owners had them. Memory: about 240 MB per bot, 230 MB for the server.*
+- [x] A fresh client with an empty cache sees every real car within 60 s on a 50 Mbit link. *`--fresh --rate 50mbit` with 15 AI cars from the garage (all 11 garage cars, the 8 FM4 cars among them): placeholders at once, previews of all in 2.5 s, every car whole in 22.7 s at 20 ms; 3.3 s and 25.0 s at 150 ms.*
+- [ ] Playable at 150 ms simulated RTT. *Simulated: at 150 ms with 10 ms jitter and 1% loss, 11 cars raced 2 laps, all classified, no contacts, remote cars within 2 cm (median) and 12 cm (95%). A hands-on drive through `tools/net_sim.py` is pending.*
+
+**Notes:** Hands-on tests are pending: two copies on one PC (`--instance`), a Windows PC with a GTX 1060 on the LAN and a friend over the internet. Cheat bots (`--cheat=speed|teleport|time`) are caught and flagged or kicked. Content moves on our own ARQ over unreliable ENet rather than reliable ENet, which managed about 0.4 MB/s at 150 ms against about 4 MB/s (D80). Own engine recordings are imported from files; recording from a microphone isn't done (D88). DTLS is deferred (D82).
 
 ## M6: Track editor and 3D-scene import
 

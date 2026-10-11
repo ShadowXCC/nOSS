@@ -57,7 +57,7 @@ nOSS/
 │  ├─ modes/              common/, track/, kart/, highway/, endless/
 │  ├─ world/              track runtime, terrain, procedural gen, weather, time of day
 │  ├─ ai/                 racing, traffic, police
-│  ├─ net/                session, replication, content transfer
+│  ├─ net/                server, client, lobby, chat, content transfer, car states, race sync
 │  ├─ editor/             track editor, Fitting Bay, Track Fitting
 │  ├─ audio/              engine sound player, SFX, music
 │  └─ ui/                 menus, HUD, themes, garage
@@ -146,6 +146,16 @@ Vehicle (RigidBody3D, Jolt)       mass, inertia, CoG from platform (never from t
 - **RaceField** projects every car onto the track once per tick before anyone drives; drivers, the spotter, flags and standings read it. **RaceControl** runs the event's sessions (practice, qualifying, race, time trial, free drive): grid, countdown, standings, flags, track limits, finish and results (D63, D67).
 - **Physics order per tick:** player input (−90) → RaceField (−60) → RaceControl (−55) → drivers (−50) → vehicles (0).
 
+## 6b. Online
+
+*Requirements: MP-01…MP-07, LOC-05. Built in M5 (decisions D78–D88); the protocol is in [NETWORKING.md](NETWORKING.md).*
+
+- **Net** (autoload, `game/net/net.gd`): this game's role. Hosting, it holds a **NetServer** (ENet, join checks, players, kicks and bans), a **NetHost** (lobby, chat and commands, rotation, AI fill, discovery, UPnP) and a **NetContent**; joined, a **NetClient** and a NetContent. Menus make the same calls either way; the lobby and chat come back as the same messages.
+- **NetContent** (per role) decides who fetches which car, track and platform; one **NetTransfer** per link moves files by hash (zstd, unreliable chunks, own acks and rate control); **ContentStore** is the hash-addressed cache and **ContentIndex** what this game may send.
+- **In a session**, the TrackSession gets a **NetSession** (car states out and in, clock sync, contact relay, plausibility on the server) and a **NetRace** (the server's race state, grid, results and notes to clients, whose RaceControl only follows). Every car not driven here is a **NetRacer**: a kinematic Vehicle moved by its **MotionBuffer** to where its states put it now.
+- **The dedicated server** (`ServerMain`) runs the same code with no players of its own, no views, no sound and no car models.
+- **Physics order per tick** online: devices (−100) → network poll (−95) → lobby (−94) → content (−93) → player input (−90) → car states (−80) → remote cars (−70) → RaceField (−60) → RaceControl (−55) → NetRace (−54) → drivers (−50) → vehicles (0).
+
 ## 7. Render style profiles
 
 *Requirements: AV-01…AV-03.*
@@ -199,8 +209,10 @@ user://
 ├─ ghosts/<track>/<platform>/   best.json and ghosts from friends
 ├─ leaderboards/<track>.json    local time-trial leaderboards
 ├─ replays/
-├─ cache/<sha256>/             unpacked and imported content (own and downloaded)
-└─ logs/
+├─ identity/key.pem            this install's online key (fingerprint = SHA-256 of its public key)
+├─ cache/content/              downloaded cars (unpacked), platforms, tracks, by hash; tmp/
+├─ instances/<n>/              settings, profiles and key of a second copy on one PC (--instance)
+└─ logs/                       server.log (dedicated server)
 ```
 
 **Security rule:** Godot resource formats (`.tscn`, `.scn`, `.tres`, `.res`) are never loaded from packages or the network, because they can embed scripts. The import cache may hold `.scn` files only if this machine generated them.
@@ -211,7 +223,7 @@ user://
 - **GDScript:** gdUnit4, run headless (`godot --headless`).
 - **Native:** doctest unit tests for tire, suspension and drivetrain math.
 - **Platform conformance:** `tools/run_conformance.sh` drives standard maneuvers across each platform's geometry range on a native flat-ground harness, and checks the harness against Jolt ([PLATFORMS.md §5](PLATFORMS.md#5-conformance-tests)).
-- **Network:** headless bot clients load-test 16-player sessions.
+- **Network:** gdUnit4 tests run real ENet on 127.0.0.1 and a simulated lossy link for transfers. `tools/net_check.py` runs the dedicated server with headless bot clients (16 players), optionally through `tools/net_sim.py` (delay, jitter, loss, bandwidth); `run_tests.sh` includes a one-lap race at 150 ms.
 - **CI (after the GitHub repo exists):** GitHub Actions builds `noss_core` for Linux, Windows and macOS, runs all tests, and exports builds.
 
 ## 12. Build and distribution
@@ -219,6 +231,6 @@ user://
 *Requirement: NFR-01.*
 
 - Godot export templates: Linux x86_64, Windows x86_64, macOS universal.
-- **Dedicated server:** Linux headless export (`dedicated_server` feature tag), see [NETWORKING.md](NETWORKING.md).
+- **Dedicated server:** the "Linux Server" export preset (dedicated server mode; it runs headless on its own), `tools/export.sh server` → `export/server/noss_server.x86_64`; see [NETWORKING.md §9](NETWORKING.md#9-dedicated-server).
 - Releases on GitHub first. itch.io, Flatpak and Steam are later options.
 - macOS signing and notarization need an Apple developer account. Until then, builds ship unsigned with instructions (open question in [DECISIONS.md](DECISIONS.md)).

@@ -129,14 +129,15 @@ Each new local player who joins (press-to-join, [INPUT.md §3](INPUT.md#3-joinin
 - **Per viewport:** HUD scale, palette, camera, shake, flashing and brightness follow that viewport's player.
 - **Shared menus** (primary window) use P1's font and the largest text size of any joined player (M3; the game can't tell which player is navigating a shared menu).
 - **One audio output:** in local play, audio settings (volumes, mono, spotter) are shared and any player can change them.
-- **Online:** presentation and input settings stay local. Only assist use is sent, for rules and results.
+- **Online:** presentation and input settings stay local. Only assist use is sent, for rules and results (M5).
+- **Online menus (M5):** Online, Host and the lobby follow the menu rules (names, descriptions, focus order set by hand, directions and confirm are enough). Text fields wait for confirm before taking typing, so up and down still move between rows. New chat lines are announced to screen readers (a live region) and read out with menu narration; in a session they're captions and are read with race narration. Controller players have quick chat lines.
 
 ## 9. Testing
 
 - **Every milestone:** the main flow works with controller only and with keyboard only.
 - **From M4:** the main flow (boot → race → results) works with a screen reader.
 - **Colorblind check:** a test simulates each palette's colour vision (Machado 2009) and requires the colours that must differ to stay apart (CIE76 ΔE ≥ 20). For review, `tools/cvd_shots.gd` turns screenshots (taken with a display; headless can't render) into deuteranopia, protanopia and tritanopia versions.
-- **Screen reader:** `tools/a11y_check.py` walks boot → race → results over AT-SPI in a private session (accessible names, focus on every screen).
+- **Screen reader:** `tools/a11y_check.py` walks boot → race → results over AT-SPI in a private session (accessible names, focus on every screen). From M5 it also walks Online → Host → lobby.
 - **Flash check:** with Reduce flashing on, police lights (M7) and kart items (M8) stay at or under 3 flashes per second.
 - **Feedback:** once the GitHub repo exists, issues get an `accessibility` label.
 

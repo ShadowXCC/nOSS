@@ -183,7 +183,9 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 | `rpm_idle`, `rpm_max` | With `layers` | The RPM range the recordings cover. It is remapped onto the platform's idle–redline. |
 | `layers`, `extras` | No | Own recordings per emitter (`engine`, `exhaust`, `intake`). Omit them for a tuned built-in. |
 
-- **Audio files:** OGG Vorbis (preferred) or 16-bit PCM WAV. Mono, 44.1 or 48 kHz, seamless loops. Paths are relative to `sound/`.
+- **Audio files:** OGG Vorbis (preferred) or 16-bit PCM WAV. Mono, 44.1 or 48 kHz, seamless loops (20 s at most). Paths are relative to `sound/`. Each file's header is checked before it's decoded (`SoundImport`); a profile naming a file the package doesn't have doesn't load.
+- **Playing them:** each recorded emitter cross-fades its loops by rpm over `rpm_idle`–`rpm_max` (mapped onto the platform's idle–redline); an emitter without recordings plays the built-in `base`. An off-load loop falls back to the on-load one. Recorded extras replace the synthesized start, limiter, backfire, turbo and blow-off.
+- **Recording** happens outside the game (any audio editor); the Fitting Bay imports the files (§7). Recording from a microphone in-game isn't planned (D88).
 - **Hashed like everything else:** `profile.json` and every audio file are listed in the manifest `files`.
 - **Never affects performance:** the platform decides power, revs and boost. The sound only follows them.
 - **Limits:** 10 MB and 32 samples (§9).
@@ -208,13 +210,13 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 | 4. Scale | From the wheelbase. The player can type the real length; the class may still scale it to fit (shown, e.g. "Scaled to 92%"). | Yes, overridable |
 | 5. Paint | Each material can be primary, secondary, tertiary or not painted; then colour and finish per slot. | `Paint_*` materials, or the body's main material |
 | 6. Cockpit | Sliders for the driver's eye, hood and bumper cameras, with a view from each. | Guessed |
-| 7. Sound | Pick a built-in profile and tune it (§6); Rev to listen. Own recordings come in M5. | Type default |
+| 7. Sound | Pick a built-in profile and tune it (§6); Rev to listen. **Own recordings** (M5): pick what a file is for (an emitter at an rpm and load, or an extra), then Add file; each is listed and removed by pressing it; Recorded idle and top set the range they stand for. | Type default |
 | 8. Save | Pick a class and test-drive on the Proving Ground (the pause menu leads back), or save to the garage. **Save and drive** is there from step 1 on. | — |
 
 - **Preview:** the car is always shown as the game will draw it, fitted to the chosen class, with that class's notes ("Scaled to 92%", "Wheels moved 4 cm in").
 - **Saving** generates the LODs (meshoptimizer, D50) and renders the 512×288 thumbnail.
 - **Drafts** live in `user://fitting/<id>/` as unpacked packages while being fitted, and are removed once the car is saved or thrown away.
-- Not in M2: placing wheel anchors by clicking on the model, and own recordings.
+- Not done: placing wheel anchors by clicking on the model. Editing a car keeps its recordings.
 
 ## 8. Garage and hotswap
 
