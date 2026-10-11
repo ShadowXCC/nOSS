@@ -41,6 +41,12 @@ var manual := {}
 
 var _profile := {}
 var _loops := {}
+## Recorded emitters' own rpm range ([idle, max]); the others use the built-in profile's.
+var _spaces := {}
+## Own recorded extras (start, limiter, backfire, turbo, blowoff) -> stream(s).
+var _recorded := {}
+var _limiter: AudioStreamPlayer3D
+var _started := false
 var _tweaks := {}
 var _layers := {}
 var _extra_players := {}
@@ -74,18 +80,29 @@ func _ready() -> void:
 		add_child(player)
 		_extra_players[kind] = player
 	if _profile.is_empty():
-		set_profile(vehicle.package.sound if vehicle and vehicle.package else {})
+		set_profile(vehicle.package.sound if vehicle and vehicle.package else {}, vehicle.package.sound_streams if vehicle and vehicle.package else {})
 	_route()
 
 
-## Picks the car's profile and tweaks (its sound/profile.json; empty: the default).
-func set_profile(sound: Dictionary) -> void:
+## Picks the car's profile and tweaks (its sound/profile.json; empty: the default). `streams` are
+## its own recordings (VehiclePackage.sound_streams, AV-06): recorded emitters play them, over the
+## profile's rpm range; the built-in base fills the rest.
+func set_profile(sound: Dictionary, streams := {}) -> void:
 	var id := String(sound.get("base", DEFAULT_PROFILE))
 	var entry := _load_profile(id)
 	if entry.is_empty():
 		entry = _load_profile(DEFAULT_PROFILE)
 	_profile = entry.profile
-	_loops = entry.loops
+	_loops = entry.loops.duplicate()
+	_spaces.clear()
+	_recorded.clear()
+	if _limiter:
+		_limiter.queue_free()
+		_limiter = null
+	if _extra_players.has("turbo"):
+		(_extra_players.turbo as AudioStreamPlayer3D).stream = _extra("turbo")
+	if not streams.is_empty():
+		_use_recordings(sound, streams)
 	_tweaks = sound.get("tweaks", {})
 	for emitter in EMITTERS:
 		if not _layers.has(emitter):
@@ -135,6 +152,9 @@ func _process(delta: float) -> void:
 	var p_idle := float(_profile.rpm_idle)
 	var p_max := float(_profile.rpm_max)
 	var rpm_p := p_idle + norm * (p_max - p_idle)
+	if not _started and _recorded.has("start"):
+		_started = true
+		_play_recorded("start", 1.0)
 	_load = lerpf(_load, clampf(float(state.load), 0.0, 1.0), 1.0 - exp(-delta * 10.0))
 	var pitch := float(_tweaks.get("pitch", 1.0))
 	# Idle lope: a lumpy cam rocks the idle.
@@ -150,9 +170,14 @@ func _process(delta: float) -> void:
 			"cut":
 				level *= 1.0 if fmod(_time * 23.0, 1.0) < 0.55 else 0.15
 	var mix: Dictionary = _tweaks.get("mix", {})
+	var on_limiter := norm > 0.97 and float(state.throttle) > 0.7
+	if _limiter:
+		_limiter.volume_db = linear_to_db(0.8 if on_limiter and detail == Detail.FULL else 0.0001) + BASE_DB
 	for emitter in EMITTERS if detail == Detail.FULL else DISTANT_EMITTERS:
 		var gain := level * float(_profile.mix.get(emitter, 1.0)) * float(mix.get(emitter, 1.0))
-		_update_layer(emitter, rpm_p, gain, pitch)
+		var space: Array = _spaces.get(emitter, [])
+		var rpm_e := rpm_p if space.is_empty() else float(space[0]) + norm * (float(space[1]) - float(space[0]))
+		_update_layer(emitter, rpm_e, gain, pitch)
 	if is_node_ready() and detail == Detail.FULL:
 		_update_extras(state, norm, delta)
 		_update_road(state, delta)
@@ -280,10 +305,80 @@ func _update_road(state: Dictionary, _delta: float) -> void:
 
 
 func _one_shot(kind: String, pitch: float) -> void:
+	var own_kind := "backfire" if kind == "pop" else kind
+	if _recorded.has(own_kind):
+		_play_recorded(own_kind, pitch)
+		return
 	var player: AudioStreamPlayer3D = _extra_players[kind]
 	player.pitch_scale = pitch
 	player.position = _layers.exhaust.node.position if _layers.has("exhaust") else Vector3.ZERO
 	player.play()
+
+
+## Own recordings (AV-06): each recorded emitter's loops come from the files, sorted by rpm, over
+## the profile's rpm_idle-rpm_max; an off-load file falls back to the on-load one. Recorded extras
+## replace the synthesized start, limiter, backfire, turbo and blow-off.
+func _use_recordings(sound: Dictionary, streams: Dictionary) -> void:
+	var space := [float(sound.get("rpm_idle", 800.0)), float(sound.get("rpm_max", 7000.0))]
+	for layer: Dictionary in sound.get("layers", []):
+		var samples: Array = layer.samples.duplicate()
+		samples.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a.rpm) < float(b.rpm))
+		var entry := { "rpm": [], "on": [], "off": [], "exact": { "on": [], "off": [] } }
+		for sample: Dictionary in samples:
+			var on: AudioStream = streams.get(sample.on)
+			if on == null:
+				entry = {}
+				break
+			var off: AudioStream = streams.get(sample.get("off", ""), on)
+			entry.rpm.append(float(sample.rpm))
+			entry.on.append(on)
+			entry.off.append(off)
+			entry.exact.on.append(float(sample.rpm))
+			entry.exact.off.append(float(sample.rpm))
+		if entry.is_empty() or entry.rpm.is_empty():
+			continue
+		if entry.rpm.size() == 1: # one rpm point: pitched from it both ways
+			for key in ["rpm", "on", "off"]:
+				entry[key].append(entry[key][0])
+			entry.rpm[1] = float(entry.rpm[0]) + 1.0
+			entry.exact.on.append(entry.exact.on[0])
+			entry.exact.off.append(entry.exact.off[0])
+		_loops[layer.emitter] = entry
+		_spaces[layer.emitter] = space
+	var extras: Dictionary = sound.get("extras", {})
+	for key in ["start", "limiter", "turbo", "blowoff"]:
+		if extras.get(key) is String and streams.has(extras[key]):
+			_recorded[key] = streams[extras[key]]
+	var backfires := []
+	for rel: Variant in extras.get("backfire", []):
+		if streams.has(rel):
+			backfires.append(streams[rel])
+	if not backfires.is_empty():
+		_recorded.backfire = backfires
+	if _recorded.has("turbo") and _extra_players.has("turbo"):
+		(_extra_players.turbo as AudioStreamPlayer3D).stream = _recorded.turbo
+		(_extra_players.turbo as AudioStreamPlayer3D).play()
+	if _recorded.has("limiter") and is_inside_tree():
+		_limiter = AudioStreamPlayer3D.new()
+		_setup_player(_limiter, _recorded.limiter)
+		add_child(_limiter)
+		_limiter.play()
+		_route()
+
+
+func _play_recorded(kind: String, pitch: float) -> void:
+	var stream: Variant = _recorded.get(kind)
+	if stream is Array:
+		stream = (stream as Array)[_rng.randi() % (stream as Array).size()]
+	var player := AudioStreamPlayer3D.new()
+	_setup_player(player, stream)
+	player.volume_db = 0.0
+	player.pitch_scale = pitch
+	player.position = _layers.exhaust.node.position if _layers.has("exhaust") else Vector3.ZERO
+	add_child(player)
+	player.bus = &"OwnEngines" if own else &"OtherEngines"
+	player.play()
+	player.finished.connect(player.queue_free)
 
 
 ## Splitscreen mix: with n views listening, each player's own engine is loud in their own

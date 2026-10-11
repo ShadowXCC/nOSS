@@ -31,6 +31,9 @@ var edit_path := ""
 var kept_lods := {}
 var kept_lod_fit := {}
 var kept_thumbnail := PackedByteArray()
+## Own engine recordings (AV-06): "sound/<file>" -> bytes, each named in `sound`.
+var sound_files := {}
+var _streams := {} # file (relative to sound/) -> AudioStream, for the bay's engine
 
 
 ## A new car from an imported model, with everything the analysis could work out.
@@ -77,6 +80,9 @@ static func from_package(pkg: VehiclePackage) -> FittingDraft:
 				d.kept_lods[rel] = source.read(rel)
 		if source.has("thumb.png"):
 			d.kept_thumbnail = source.read("thumb.png")
+		for rel in source.files():
+			if rel.begins_with("sound/") and rel.get_extension() in PackageLoader.AUDIO_TYPES:
+				d.sound_files[rel] = source.read(rel)
 	source.close()
 	d.scene = ModelImport._parse_glb(d.glb, "")
 	for key in ["lod_materials", "lod_distances_m"]:
@@ -110,6 +116,10 @@ func files(lods := false, thumbnail := PackedByteArray()) -> Dictionary:
 		"paint.json": PackageWriter.canonical_json(paint).to_utf8_buffer(),
 		"sound/profile.json": PackageWriter.canonical_json(sound).to_utf8_buffer(),
 	}
+	var named := PackageLoader.recordings(sound)
+	for rel: String in sound_files:
+		if named.has(rel.trim_prefix("sound/")):
+			out[rel] = sound_files[rel]
 	var fit_out := fit.duplicate(true)
 	if lods and not kept_lods.is_empty():
 		out.merge(kept_lods)
@@ -130,6 +140,140 @@ func files(lods := false, thumbnail := PackedByteArray()) -> Dictionary:
 	elif not kept_thumbnail.is_empty():
 		out["thumb.png"] = kept_thumbnail
 	return out
+
+
+## Adds an own recording from `disk_path`: for an emitter's loop at `rpm` ("on" or "off" load),
+## or as an extra (`target` start, limiter, backfire, turbo, blowoff). Returns why not, or "".
+func add_recording(disk_path: String, target: String, rpm := 0.0, kind := "on") -> String:
+	var ext := disk_path.get_extension().to_lower()
+	var bytes := FileAccess.get_file_as_bytes(disk_path)
+	if bytes.size() > PackageLoader.DEFAULT_LIMITS.max_sound_bytes:
+		return "File too large"
+	var check := SoundImport.inspect(bytes, ext)
+	if not check.ok:
+		return check.error
+	var emitter := target in EngineSound.EMITTERS
+	var rel := ("%s_%s_%d.%s" % [target, kind, roundi(rpm), ext]) if emitter else "%s.%s" % [target, ext]
+	if target == "backfire":
+		var n := 1
+		while sound_files.has("sound/backfire%d.%s" % [n, ext]):
+			n += 1
+		rel = "backfire%d.%s" % [n, ext]
+	var total := bytes.size()
+	for other: String in sound_files:
+		if other != "sound/" + rel:
+			total += (sound_files[other] as PackedByteArray).size()
+	if total > PackageLoader.DEFAULT_LIMITS.max_sound_bytes:
+		return "Recordings over 10 MB"
+	if not sound_files.has("sound/" + rel) and sound_files.size() >= PackageLoader.DEFAULT_LIMITS.max_sound_samples:
+		return "32 recordings at most"
+	sound_files["sound/" + rel] = bytes
+	_streams.erase(rel)
+	if emitter:
+		_set_sample(target, rpm, kind, rel)
+	else:
+		var extras: Dictionary = sound.get("extras", {})
+		if target == "backfire":
+			var list: Array = extras.get("backfire", [])
+			list.append(rel)
+			extras.backfire = list.slice(-8)
+		else:
+			extras[target] = rel
+		sound.extras = extras
+	return ""
+
+
+func _set_sample(emitter: String, rpm: float, kind: String, rel: String) -> void:
+	var layers: Array = sound.get("layers", [])
+	var layer: Dictionary = {}
+	for l: Dictionary in layers:
+		if l.emitter == emitter:
+			layer = l
+	if layer.is_empty():
+		layer = { "emitter": emitter, "samples": [] }
+		layers.append(layer)
+	var sample: Dictionary = {}
+	for x: Dictionary in layer.samples:
+		if is_equal_approx(float(x.rpm), rpm):
+			sample = x
+	if sample.is_empty():
+		if layer.samples.size() >= 12:
+			return
+		sample = { "rpm": rpm, "on": rel } # an off-load file plays on-load too until there's one
+		layer.samples.append(sample)
+	sample[kind] = rel
+	sound.layers = layers
+	if not sound.has("rpm_idle"):
+		sound.rpm_idle = 800
+		sound.rpm_max = 7000
+
+
+## Takes a recording out (file name relative to sound/).
+func remove_recording(rel: String) -> void:
+	sound_files.erase("sound/" + rel)
+	_streams.erase(rel)
+	var layers: Array = sound.get("layers", [])
+	for layer: Dictionary in layers:
+		var keep := []
+		for sample: Dictionary in layer.samples:
+			if sample.get("off") == rel:
+				sample.erase("off")
+			if sample.on == rel:
+				if sample.has("off"):
+					sample.on = sample.off
+				else:
+					continue
+			keep.append(sample)
+		layer.samples = keep
+	layers = layers.filter(func(l: Dictionary) -> bool: return not (l.samples as Array).is_empty())
+	var extras: Dictionary = sound.get("extras", {})
+	for key: String in extras.keys():
+		if extras[key] == rel:
+			extras.erase(key)
+		elif extras[key] is Array:
+			extras[key] = (extras[key] as Array).filter(func(x: String) -> bool: return x != rel)
+			if (extras[key] as Array).is_empty():
+				extras.erase(key)
+	if layers.is_empty() and extras.is_empty():
+		sound = PackageLoader.without_recordings(sound)
+	else:
+		sound.layers = layers
+		sound.extras = extras
+		if layers.is_empty():
+			sound.erase("layers")
+
+
+func clear_recordings() -> void:
+	sound_files.clear()
+	_streams.clear()
+	sound = PackageLoader.without_recordings(sound)
+
+
+## The recordings as [label, file] for lists ("Exhaust 3000 rpm on-load: ex.ogg").
+func recordings_list() -> Array:
+	var out := []
+	for layer: Dictionary in sound.get("layers", []):
+		for sample: Dictionary in layer.samples:
+			for kind in ["on", "off"]:
+				if sample.get(kind) is String and (kind == "on" or sample.off != sample.on):
+					out.append(["%s %d rpm %s-load" % [String(layer.emitter).capitalize(), roundi(float(sample.rpm)), kind], sample[kind]])
+	var extras: Dictionary = sound.get("extras", {})
+	for key: String in extras:
+		for rel: Variant in (extras[key] if extras[key] is Array else [extras[key]]):
+			if rel is String:
+				out.append([key.capitalize(), rel])
+	return out
+
+
+## The recordings decoded, for the bay's engine.
+func sound_streams() -> Dictionary:
+	var named := PackageLoader.recordings(sound)
+	for rel: String in named:
+		if not _streams.has(rel) and sound_files.has("sound/" + rel):
+			var stream := SoundImport.stream(sound_files["sound/" + rel], rel.get_extension(), named[rel])
+			if stream:
+				_streams[rel] = stream
+	return _streams
 
 
 func draft_dir() -> String:

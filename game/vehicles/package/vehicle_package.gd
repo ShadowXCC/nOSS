@@ -9,6 +9,8 @@ var manifest := {}
 var fit := {}
 var paint := {}
 var sound := {}
+## Own recordings named in `sound`, decoded: path (relative to sound/) -> AudioStream (AV-06).
+var sound_streams := {}
 ## Generated glTF scenes, LOD0 first. Not in the tree; CarVisual takes ownership.
 var lods: Array[Node3D] = []
 var triangles := 0

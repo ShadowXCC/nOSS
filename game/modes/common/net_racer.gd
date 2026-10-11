@@ -46,7 +46,7 @@ func load_net_car() -> void:
 		path = default_car
 		tier = "default"
 	elif Game.dedicated or Game.dev.has("bot"):
-		opts = { "models": "none", "partial": true }
+		opts = { "models": "none", "partial": true, "audio": false }
 		tier = "data"
 	elif tier != "full":
 		opts = { "models": "smallest" if tier == "preview" else "none", "partial": true }

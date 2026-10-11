@@ -137,7 +137,7 @@ func load_car(path: String) -> void:
 		return
 	_loading = true
 	# Bots never draw: physics needs the car's data, not its model.
-	PackageLoader.load_shared(path, _on_car_loaded, { "models": "none" } if Game.dev.has("bot") else {})
+	PackageLoader.load_shared(path, _on_car_loaded, { "models": "none", "audio": false } if Game.dev.has("bot") else {})
 
 
 func _on_car_loaded(pkg: VehiclePackage) -> void:
@@ -198,7 +198,7 @@ func _spawn(pkg: VehiclePackage) -> void:
 	sound.own = is_human
 	vehicle.add_child(sound)
 	sound.position = Vector3(0, 0.5, 0)
-	vehicle.package_changed.connect(func(p: VehiclePackage) -> void: sound.set_profile(p.sound))
+	vehicle.package_changed.connect(func(p: VehiclePackage) -> void: sound.set_profile(p.sound, p.sound_streams))
 	_spawned()
 
 

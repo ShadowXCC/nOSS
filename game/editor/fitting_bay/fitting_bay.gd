@@ -35,6 +35,11 @@ var _t_open := 0
 var _engine: EngineSound
 var _rev_time := 0.0
 var _sound_json := ""
+var _audio_dialog: FileDialog
+## Own recordings: what the next file is for (an emitter or an extra), its rpm and load.
+var _rec_target := "exhaust"
+var _rec_rpm := 3000.0
+var _rec_kind := "on"
 
 
 func _ready() -> void:
@@ -262,7 +267,64 @@ func _step_sound() -> Array:
 	out.append(UiKit.option("Limiter", [["soft", "Soft"], ["bounce", "Bounce"], ["cut", "Cut"]], tweaks.get("limiter", "soft"), func(v: String) -> void: tweaks.limiter = v))
 	_start_engine()
 	out.append(UiKit.button("Rev", func() -> void: _rev_time = 0.9, "Rev the engine"))
+	out.append_array(_own_recordings())
 	return out
+
+
+## Own recordings (AV-06, docs/VEHICLE_PACKAGE.md §6): mono OGG or WAV loops, each at an rpm and
+## load for an emitter, or an extra. The built-in engine fills whatever isn't recorded.
+func _own_recordings() -> Array:
+	var out := [_text("Own recordings: mono OGG or WAV loops, 44.1 or 48 kHz. The engine above fills the rest.")]
+	var targets := [["exhaust", "Exhaust"], ["engine", "Engine"], ["intake", "Intake"], ["start", "Start"],
+		["limiter", "Limiter"], ["backfire", "Backfire"], ["turbo", "Turbo"], ["blowoff", "Blow-off"]]
+	out.append(UiKit.spinner("For", targets, _rec_target, func(v: String) -> void:
+		_rec_target = v
+		_show_step("Sound"), "An emitter's loop, or an extra sound"))
+	if _rec_target in EngineSound.EMITTERS:
+		out.append(UiKit.number("At rpm", _rec_rpm, 500.0, 12000.0, 100.0, "%d rpm", func(v: float) -> void: _rec_rpm = v))
+		out.append(UiKit.spinner("Load", [["on", "On-load (throttle)"], ["off", "Off-load (lifting)"]], _rec_kind, func(v: String) -> void: _rec_kind = v))
+	out.append(UiKit.button("Add file", _browse_audio, "Pick a recording"))
+	if draft.sound.has("layers"):
+		out.append(UiKit.number("Recorded idle", float(draft.sound.get("rpm_idle", 800)), 300.0, 3000.0, 50.0, "%d rpm",
+			func(v: float) -> void: draft.sound.rpm_idle = v, "The rpm your lowest recording stands for"))
+		out.append(UiKit.number("Recorded top", float(draft.sound.get("rpm_max", 7000)), 2000.0, 15000.0, 100.0, "%d rpm",
+			func(v: float) -> void: draft.sound.rpm_max = v, "The rpm your highest recording stands for"))
+	for item: Array in draft.recordings_list():
+		var rel: String = item[1]
+		out.append(UiKit.button("%s: %s" % [item[0], rel], func() -> void:
+			draft.remove_recording(rel)
+			_refresh()
+			_show_step("Sound"), "Press to remove"))
+	if not draft.sound_files.is_empty():
+		out.append(UiKit.button("Remove all recordings", func() -> void:
+			draft.clear_recordings()
+			_refresh()
+			_show_step("Sound")))
+	return out
+
+
+func _browse_audio() -> void:
+	if _audio_dialog == null:
+		_audio_dialog = FileDialog.new()
+		_audio_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+		_audio_dialog.access = FileDialog.ACCESS_FILESYSTEM
+		_audio_dialog.use_native_dialog = true
+		_audio_dialog.filters = PackedStringArray(["*.ogg, *.wav ; Engine recordings"])
+		_audio_dialog.title = "Add a recording"
+		_audio_dialog.file_selected.connect(add_recording)
+		add_child(_audio_dialog)
+	_audio_dialog.popup_file_dialog()
+
+
+## Adds the recording at `path` for what's picked in the Sound step.
+func add_recording(path: String) -> void:
+	var err := draft.add_recording(path, _rec_target, _rec_rpm, _rec_kind)
+	if err:
+		_set_status("%s: %s" % [path.get_file(), err])
+		return
+	_refresh()
+	_show_step("Sound")
+	_set_status("Added " + path.get_file())
 
 
 ## The engine idling in the bay while the Sound step is open; Rev blips it.
@@ -274,7 +336,7 @@ func _start_engine() -> void:
 	_engine = EngineSound.new()
 	_engine.manual = { "rpm": float(engine.idle_rpm), "load": 0.0, "throttle": 0.0, "speed": 0.0,
 		"idle": float(engine.idle_rpm), "redline": float(engine.redline_rpm) }
-	_engine.set_profile(draft.sound)
+	_engine.set_profile(draft.sound, draft.sound_streams())
 	_sound_json = JSON.stringify(draft.sound)
 	_preview.add_to_car(_engine)
 	_engine.position = Vector3(0, _preview.fitted.ground_y + 0.6, 0) if _preview.fitted else Vector3.UP * 0.6
@@ -300,7 +362,7 @@ func _process(delta: float) -> void:
 	var now := JSON.stringify(draft.sound)
 	if now != _sound_json:
 		_sound_json = now
-		_engine.set_profile(draft.sound)
+		_engine.set_profile(draft.sound, draft.sound_streams())
 
 
 func _step_save() -> Array:

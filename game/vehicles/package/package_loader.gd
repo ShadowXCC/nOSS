@@ -111,6 +111,7 @@ static func _copy(pkg: VehiclePackage) -> VehiclePackage:
 	c.load_ms = pkg.load_ms
 	c.error = pkg.error
 	c.tier = pkg.tier
+	c.sound_streams = pkg.sound_streams
 	for lod in pkg.lods:
 		c.lods.append(lod.duplicate() as Node3D)
 	return c
@@ -214,7 +215,61 @@ static func _read_data(source: PackageSource, pkg: VehiclePackage, lim: Dictiona
 		if not errors.is_empty():
 			return "sound/profile.json: " + errors[0]
 		pkg.sound = sound
+		var err := _read_recordings(source, pkg, opts)
+		if err:
+			return err
 	return ""
+
+
+## Own recordings (AV-06): every one the profile names must be in the package; they're decoded
+## here, off the main thread. A partial package (recordings not sent, D80) plays its base profile.
+static func _read_recordings(source: PackageSource, pkg: VehiclePackage, opts: Dictionary) -> String:
+	var named := recordings(pkg.sound)
+	if named.is_empty():
+		return ""
+	var missing := named.keys().filter(func(rel: String) -> bool: return not source.has("sound/" + rel))
+	if not missing.is_empty():
+		if not opts.get("partial", false):
+			return "Missing recording: " + String(missing[0])
+		pkg.sound = without_recordings(pkg.sound)
+		return ""
+	if not opts.get("audio", true):
+		return ""
+	for rel: String in named:
+		var stream := SoundImport.stream(source.read("sound/" + rel), rel.get_extension(), named[rel])
+		if stream == null:
+			return "Recording can't be played: " + rel
+		pkg.sound_streams[rel] = stream
+	return ""
+
+
+## The recordings a sound profile names: path -> loops (layers, limiter, turbo) or not (one-shots).
+static func recordings(sound: Dictionary) -> Dictionary:
+	var out := {}
+	for layer: Dictionary in sound.get("layers", []):
+		for sample: Dictionary in layer.get("samples", []):
+			for kind in ["on", "off"]:
+				if sample.get(kind) is String:
+					out[sample[kind]] = true
+	var extras: Dictionary = sound.get("extras", {})
+	for key in ["limiter", "turbo"]:
+		if extras.get(key) is String:
+			out[extras[key]] = true
+	for key in ["start", "blowoff"]:
+		if extras.get(key) is String:
+			out[extras[key]] = false
+	for rel: Variant in extras.get("backfire", []):
+		if rel is String:
+			out[rel] = false
+	return out
+
+
+## The profile with its own recordings taken out (a tuned built-in is left).
+static func without_recordings(sound: Dictionary) -> Dictionary:
+	var out := sound.duplicate(true)
+	for key in ["layers", "extras", "rpm_idle", "rpm_max"]:
+		out.erase(key)
+	return out
 
 
 ## LOD0 is model/body.glb, then model/lod1.glb, lod2… while they exist.
