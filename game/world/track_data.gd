@@ -5,6 +5,9 @@ extends RefCounted
 
 const SAMPLE_M := 2.0
 const GRID_M := 40.0
+## Curbs line both edges through corners tighter than this radius (and a little either side).
+const CURB_CURVATURE := 1.0 / 140.0
+const CURB_WIDTH := 1.1
 
 var id := ""
 var display_name := ""
@@ -19,6 +22,8 @@ var tangents := PackedVector3Array()
 var lefts := PackedVector3Array()
 ## Signed curvature, 1/m, + = turning left.
 var curvature := PackedFloat32Array()
+## 1 where the sample has curbs on both edges (TrackBuilder draws them, track limits allow them).
+var curbs := PackedByteArray()
 var length := 0.0
 var start_m := 0.0
 ## Sector end distances, measured from the start line.
@@ -171,6 +176,33 @@ func _sample(points: PackedVector3Array) -> void:
 		var b := tangents[(i + 1) % m]
 		var ds := samples[(i - 1 + m) % m].distance_to(samples[(i + 1) % m])
 		curvature.append(asin(clampf(a.cross(b).y, -1.0, 1.0)) / maxf(ds, 0.01))
+	_find_curbs()
+
+
+## Curbs through corners: smoothed curvature over ±6 samples above CURB_CURVATURE, extended
+## 5 samples either side.
+func _find_curbs() -> void:
+	var n := samples.size()
+	var smooth := PackedFloat32Array()
+	smooth.resize(n)
+	for i in n:
+		var sum := 0.0
+		for k in range(-6, 7):
+			sum += curvature[posmod(i + k, n)]
+		smooth[i] = sum / 13.0
+	curbs.resize(n)
+	for i in n:
+		var on := 0
+		for k in range(-5, 6):
+			if absf(smooth[posmod(i + k, n)]) > CURB_CURVATURE:
+				on = 1
+				break
+		curbs[i] = on
+
+
+## Extra width at `distance` that still counts as track: the curb, where there is one.
+func curb_at(distance: float) -> float:
+	return CURB_WIDTH if curbs[index_at(distance)] else 0.0
 
 
 ## Centripetal Catmull-Rom: no cusps or loops between unevenly spaced points.

@@ -28,6 +28,10 @@ var handbrake := 0.0
 var clutch := 0.0
 ## Lock-to-lock rotation of the in-car steering wheel, degrees.
 var steering_wheel_lock_deg := 540.0
+## Contact impulse this tick (N·s) with other cars and with anything else, and the car hit last.
+var car_impulse := 0.0
+var wall_impulse := 0.0
+var last_hit: Vehicle
 
 var _collision: CollisionShape3D
 
@@ -52,6 +56,8 @@ static func create(platform_result: PlatformLoader.Result, pkg: VehiclePackage, 
 	material.friction = 0.3
 	material.bounce = 0.1
 	v.physics_material_override = material
+	v.contact_monitor = true
+	v.max_contacts_reported = 4
 	v._collision = CollisionShape3D.new()
 	v._collision.name = "Collision"
 	v.add_child(v._collision)
@@ -127,6 +133,26 @@ func _physics_process(_delta: float) -> void:
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	sim.integrate(state)
+	car_impulse = 0.0
+	wall_impulse = 0.0
+	for i in state.get_contact_count():
+		var impulse := state.get_contact_impulse(i).length()
+		var other := state.get_contact_collider_object(i)
+		if other is Vehicle:
+			car_impulse += impulse
+			last_hit = other
+		else:
+			wall_impulse += impulse
+
+
+## No contact with other cars (a car rejoining, or a ghosted session), drawn see-through
+## if `see_through`.
+func set_ghost(on: bool, see_through := true) -> void:
+	collision_layer = 0 if on else LAYER_VEHICLES
+	collision_mask = LAYER_WORLD if on else LAYER_WORLD | LAYER_VEHICLES
+	if visual:
+		for mi: GeometryInstance3D in visual.find_children("*", "GeometryInstance3D", true, false):
+			mi.transparency = 0.5 if on and see_through else 0.0
 
 
 func speed() -> float:

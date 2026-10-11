@@ -11,6 +11,8 @@ signal invalidated(reason: String)
 
 ## Largest believable progress in one tick, m.
 const MAX_STEP := 30.0
+## The live delta compares lap times every this many metres.
+const TRACE_M := 10.0
 
 var track_length := 0.0
 var sector_ends := PackedFloat32Array() # from the start line; the last sector ends at the line
@@ -32,6 +34,8 @@ var _sector := 0
 var _sector_start := 0.0
 var _best_splits := PackedFloat32Array() # cumulative split times of the best lap
 var _backwards_time := 0.0
+var _trace := PackedFloat32Array() # lap time at each TRACE_M mark of this lap
+var _best_trace := PackedFloat32Array() # the same for the best lap
 
 
 func setup(length: float, sectors: PackedFloat32Array, spacing: float) -> void:
@@ -86,6 +90,17 @@ func teleported(pos: float) -> void:
 	_prev = pos
 
 
+## Live delta to the best lap at the current spot, or NAN: + = slower.
+func live_delta() -> float:
+	if _best_trace.is_empty() or lap == 0 or _prev < 0.0:
+		return NAN
+	var i := int(_prev / TRACE_M)
+	if i + 1 >= _best_trace.size():
+		return NAN
+	var f := (_prev - i * TRACE_M) / TRACE_M
+	return lap_time - lerpf(_best_trace[i], _best_trace[i + 1], f)
+
+
 ## Live delta to the best lap at the last split, or NAN.
 func delta_to_best() -> float:
 	if _best_splits.is_empty() or _sector == 0:
@@ -100,6 +115,14 @@ func _forward(from: float, distance: float, dt: float) -> void:
 	var to := from + distance
 	# Fraction of this tick at which a position was passed, for sub-tick timing.
 	var at := func(mark: float) -> float: return lap_time - dt * (1.0 - (mark - from) / distance)
+
+	# Live delta trace.
+	if lap > 0:
+		var mark := ceilf(from / TRACE_M) * TRACE_M
+		while mark <= to and mark < track_length:
+			if int(mark / TRACE_M) == _trace.size():
+				_trace.append(at.call(mark))
+			mark += TRACE_M
 
 	# Checkpoints.
 	if lap > 0:
@@ -135,6 +158,8 @@ func _forward(from: float, distance: float, dt: float) -> void:
 		_sector = 0
 		_sector_start = 0.0
 		current_sectors.clear()
+		_trace.clear()
+		_trace.append(0.0)
 		lap_started.emit(lap)
 
 
@@ -159,6 +184,8 @@ func _finish_lap(time: float) -> void:
 	var is_best := valid and (best_lap < 0.0 or time < best_lap)
 	if is_best:
 		best_lap = time
+		_best_trace = _trace.duplicate()
+		_best_trace.append(time) # the line
 		_best_splits.clear()
 		var split := 0.0
 		for s in current_sectors:

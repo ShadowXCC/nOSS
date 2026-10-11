@@ -5,9 +5,8 @@ extends RefCounted
 
 const WORLD_SHADER := preload("res://game/world/noss_world.gdshader")
 const ROAD_TILE_M := 8.0
-const CURB_WIDTH := 1.1
+const CURB_WIDTH := TrackData.CURB_WIDTH
 const CURB_HEIGHT := 0.045
-const CURB_CURVATURE := 1.0 / 140.0
 const GRASS_Y := -0.03
 const BARRIER_CURVATURE := 1.0 / 260.0
 const RUNOFF := 16.0
@@ -58,13 +57,6 @@ func _road() -> void:
 
 func _curbs() -> void:
 	var n := track.samples.size()
-	var smooth := PackedFloat32Array()
-	smooth.resize(n)
-	for i in n:
-		var sum := 0.0
-		for k in range(-6, 7):
-			sum += track.curvature[posmod(i + k, n)]
-		smooth[i] = sum / 13.0
 	var st := _begin()
 	var any := false
 	var half := track.width / 2.0
@@ -72,12 +64,7 @@ func _curbs() -> void:
 		for i in n:
 			var j := (i + 1) % n
 			# Curbs on both edges through corners, extended a little either side.
-			var on := false
-			for k in range(-5, 6):
-				if absf(smooth[posmod(i + k, n)]) > CURB_CURVATURE:
-					on = true
-					break
-			if not on:
+			if not track.curbs[i]:
 				continue
 			any = true
 			var v0 := track.distances[i] / 3.0

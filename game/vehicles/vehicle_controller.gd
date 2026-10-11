@@ -96,11 +96,13 @@ func apply_assists() -> void:
 	var a: Dictionary = input.profile.data.assists if input else PlayerProfile.DEFAULTS.assists
 	var allowed: Array = vehicle.platform.get("assists_allowed", [])
 	var has_clutch := input != null and input.wheel.has_clutch()
-	vehicle.sim.set_assists(
-		a.get("abs", true) and "abs" in allowed,
-		a.get("tcs", true) and "tcs" in allowed,
-		a.get("auto_gearbox", true) and "auto_gearbox" in allowed,
-		not has_clutch)
+	vehicle.sim.set_assists({
+		"abs": a.get("abs", true) and "abs" in allowed,
+		"tcs": a.get("tcs", true) and "tcs" in allowed,
+		"stability": a.get("stability", false) and "stability" in allowed,
+		"auto_gearbox": a.get("auto_gearbox", true) and "auto_gearbox" in allowed,
+		"auto_clutch": not has_clutch,
+	})
 
 
 ## Deadzone, then a power curve (1 = linear), keeping the sign.

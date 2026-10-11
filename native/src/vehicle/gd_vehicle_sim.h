@@ -43,7 +43,7 @@ public:
 	void set_controls(double p_steer, double p_throttle, double p_brake, double p_handbrake, double p_clutch);
 	void shift(int64_t p_direction);
 	void select_gear(int64_t p_gear);
-	void set_assists(bool p_abs, bool p_tcs, bool p_auto_gearbox, bool p_auto_clutch);
+	void set_assists(const godot::Dictionary &p_assists);
 	void reset();
 
 	double get_speed() const;

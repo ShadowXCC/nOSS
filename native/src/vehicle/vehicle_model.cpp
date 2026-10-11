@@ -28,6 +28,18 @@ constexpr double LOW_SPEED = 3.0;
 constexpr double LOW_SPEED_DAMPING = 0.6; // per N of load, N s/m
 constexpr double MECHANICAL_TRAIL = 0.02; // m, caster
 constexpr double ACKERMANN = 0.5;
+// Stability control: active above this speed, m/s; target yaw capped at this share of the
+// grip; acts past this yaw-rate error, rad/s, or this body slip, rad.
+constexpr double ESC_MIN_SPEED = 5.0;
+constexpr double ESC_GRIP = 0.9;
+constexpr double ESC_YAW_MARGIN = 0.06;
+constexpr double ESC_BETA = 0.07;
+constexpr double ESC_BETA_GAIN = 2.0;
+// Brake torque per rad/s of error, as a share of the full brake torque, and its cap.
+constexpr double ESC_GAIN = 0.8;
+constexpr double ESC_MAX = 0.35;
+// Understeer only counts against a car that understeers this much: characteristic speed, m/s.
+constexpr double ESC_CHARACTERISTIC_SPEED = 25.0;
 constexpr double PITCH_INERTIA_RATIO = 0.9;
 constexpr double ROLL_RADIUS_OVER_TRACK = 0.39;
 constexpr double BUMP_STOP_ZONE = 0.15; // last fraction of travel
@@ -389,6 +401,52 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 		wheels[i].steer = delta + ACKERMANN * (ackermann - delta);
 	}
 
+	// --- Stability control ---------------------------------------------------------------
+	// Compares the yaw rate the steering asks for (a neutral car, capped by grip) with the
+	// measured one. Turning more than asked, or sliding wide, brakes the outside front wheel
+	// and trims the throttle; turning much less brakes the inside rear (docs/PHYSICS.md §8).
+	std::vector<double> esc_brake(n, 0.0);
+	stability_active = false;
+	if (assists.stability && forward_speed > ESC_MIN_SPEED) {
+		double v = forward_speed;
+		double yaw = dot(p_chassis.angular_velocity, up); // + = turning left
+		double limit = ESC_GRIP * spec.tire.mu * 9.81 / v;
+		double target = clampd(v * std::tan(delta) / spec.wheelbase_ref, -limit, limit);
+		V3 vb = R.transposed() * p_chassis.velocity;
+		double beta = std::atan2(vb.x, std::max(std::abs(vb.z), 1.0)); // + = sliding to the left
+		double over = 0.0; // + = rotating too far left
+		if (yaw * target >= 0.0 && std::abs(yaw) > std::abs(target) + ESC_YAW_MARGIN) {
+			over = yaw - target;
+		} else if (yaw * target < 0.0 && std::abs(yaw) > ESC_YAW_MARGIN) {
+			over = yaw; // rotating against the steering: the driver is catching a slide
+		}
+		// Sliding: the rear swings out toward the side the car is sliding away from.
+		if (std::abs(beta) > ESC_BETA && over * -beta >= 0.0) {
+			over += -beta * ESC_BETA_GAIN;
+		}
+		if (over != 0.0) {
+			double torque = std::min(ESC_GAIN * std::abs(over) * spec.brake_torque, ESC_MAX * spec.brake_torque);
+			int outside = over > 0.0 ? -1 : 1;
+			for (size_t i = 0; i < n; i++) {
+				if (_config.wheels[i].geo.axle == 0 && _config.wheels[i].geo.side == outside) {
+					esc_brake[i] = torque;
+				}
+			}
+			throttle_drive *= clampd(1.0 - std::abs(over) * 2.0, 0.2, 1.0);
+			stability_active = true;
+		} else if (double under = std::abs(target) / (1.0 + v * v / (ESC_CHARACTERISTIC_SPEED * ESC_CHARACTERISTIC_SPEED)) - std::abs(yaw);
+				yaw * target >= 0.0 && under > 2.0 * ESC_YAW_MARGIN) {
+			double torque = std::min(0.5 * ESC_GAIN * under * spec.brake_torque, 0.5 * ESC_MAX * spec.brake_torque);
+			int inside = target > 0.0 ? 1 : -1;
+			for (size_t i = 0; i < n; i++) {
+				if (_config.wheels[i].geo.axle == 1 && _config.wheels[i].geo.side == inside) {
+					esc_brake[i] = torque;
+				}
+			}
+			stability_active = true;
+		}
+	}
+
 	// --- Suspension (once per tick: the chassis doesn't move within a tick) -------------
 	std::vector<double> spring(n, 0.0), rate(n, 0.0);
 	std::vector<V3> fwd(n), lat(n), point(n), plane(n);
@@ -517,7 +575,7 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 		// Brake torque per wheel, with ABS modulation.
 		for (size_t i = 0; i < n; i++) {
 			const WheelConfig &wc = _config.wheels[i];
-			double t_brake = brake * spec.brake_torque * wc.brake_share * (assists.abs ? wheels[i].abs_factor : 1.0);
+			double t_brake = (brake * spec.brake_torque * wc.brake_share + esc_brake[i]) * (assists.abs ? wheels[i].abs_factor : 1.0);
 			if (wc.geo.axle == 1 && controls.handbrake > 0.0) {
 				t_brake += controls.handbrake * spec.handbrake_torque / 2.0;
 			}

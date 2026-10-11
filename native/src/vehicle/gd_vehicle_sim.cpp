@@ -32,7 +32,7 @@ void VehicleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_controls", "steer", "throttle", "brake", "handbrake", "clutch"), &VehicleSim::set_controls);
 	ClassDB::bind_method(D_METHOD("shift", "direction"), &VehicleSim::shift);
 	ClassDB::bind_method(D_METHOD("select_gear", "gear"), &VehicleSim::select_gear);
-	ClassDB::bind_method(D_METHOD("set_assists", "abs", "tcs", "auto_gearbox", "auto_clutch"), &VehicleSim::set_assists);
+	ClassDB::bind_method(D_METHOD("set_assists", "assists"), &VehicleSim::set_assists);
 	ClassDB::bind_method(D_METHOD("reset"), &VehicleSim::reset);
 	ClassDB::bind_method(D_METHOD("get_speed"), &VehicleSim::get_speed);
 	ClassDB::bind_method(D_METHOD("get_rpm"), &VehicleSim::get_rpm);
@@ -167,10 +167,17 @@ void VehicleSim::select_gear(int64_t p_gear) {
 	}
 }
 
-void VehicleSim::set_assists(bool p_abs, bool p_tcs, bool p_auto_gearbox, bool p_auto_clutch) {
-	if (_model) {
-		_model->assists = { p_abs, p_tcs, p_auto_gearbox, p_auto_clutch };
+// Keys: abs, tcs, stability, auto_gearbox, auto_clutch. Missing keys keep their value.
+void VehicleSim::set_assists(const Dictionary &p_assists) {
+	if (!_model) {
+		return;
 	}
+	Assists &a = _model->assists;
+	a.abs = p_assists.get("abs", a.abs);
+	a.tcs = p_assists.get("tcs", a.tcs);
+	a.stability = p_assists.get("stability", a.stability);
+	a.auto_gearbox = p_assists.get("auto_gearbox", a.auto_gearbox);
+	a.auto_clutch = p_assists.get("auto_clutch", a.auto_clutch);
 }
 
 void VehicleSim::reset() {
@@ -246,6 +253,7 @@ Dictionary VehicleSim::get_telemetry() const {
 	d["engine_load"] = m.engine_load;
 	d["abs"] = m.abs_active;
 	d["tcs"] = m.tcs_active;
+	d["esc"] = m.stability_active;
 	d["accel"] = gv(m.acceleration);
 	d["rack"] = get_rack_force();
 	Array wheels;

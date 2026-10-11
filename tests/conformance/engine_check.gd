@@ -67,7 +67,7 @@ func _physics_process(delta: float) -> bool:
 			_vehicle.throttle = clampf(u, 0.0, 1.0)
 			_vehicle.brake = clampf(-u * 0.5, 0.0, 1.0)
 			if absf(error) < 0.5 * KMH and _hold == 0.0:
-				_vehicle.sim.set_assists(true, true, false, true)
+				_vehicle.sim.set_assists({ "abs": true, "tcs": true, "auto_gearbox": false, "auto_clutch": true })
 			if absf(error) < 0.5 * KMH or _hold > 0.0:
 				_hold += delta
 			if _hold >= 2.0:

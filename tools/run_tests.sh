@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs every test suite: native (doctest), JSON schemas, tools (unittest), GDScript (gdUnit4, headless),
-# platform conformance, boot smoke test.
+# platform conformance, a short AI race check, boot smoke test.
 # Exits non-zero if any fails. Run tools/setup_dev.sh once first.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -35,6 +35,9 @@ $GODOT --headless -s -d --remote-debug tcp://127.0.0.1:0 res://addons/gdUnit4/bi
 
 step "Conformance"
 tools/run_conformance.sh || failed+=("conformance")
+
+step "Race check (12 cars, 1 lap)"
+tools/race_check.sh --cars=12 --laps=1 --seed=1 --builtin --bad=stall | grep -E "^(Race|Time|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("race check")
 
 step "Godot: boot"
 boot_log="$($GODOT --headless --quit-after 30 2>&1)"

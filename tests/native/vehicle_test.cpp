@@ -220,6 +220,56 @@ TEST_CASE("sim: TCS keeps full throttle in first gear out of a tight corner") {
 	}
 }
 
+TEST_CASE("sim: stability control catches trail-braking oversteer") {
+	// Hard braking from speed into a corner on a rear-biased balance: the rear runs out of grip
+	// and the car turns round. Stability control brakes the outside front and keeps it straighter.
+	double worst_by[2] = { 0.0, 0.0 };
+	for (bool esc : { false, true }) {
+		Harness h = gt();
+		h.model.assists.stability = esc;
+		h.model.controls.throttle = 1.0;
+		while (kmh(h.forward_speed()) < 160.0) {
+			h.step();
+		}
+		h.model.controls.throttle = 0.0;
+		h.model.controls.brake = 0.9;
+		h.model.controls.steer = 0.18;
+		double worst = 0.0;
+		bool active = false;
+		for (int i = 0; i < 300 && h.forward_speed() > 5.0; i++) {
+			h.step();
+			worst = std::max(worst, std::abs(h.slip_angle()));
+			active = active || h.model.stability_active;
+		}
+		worst_by[esc ? 1 : 0] = worst;
+		MESSAGE(std::string(esc ? "stability" : "no stability") << " peak body slip " << worst * 180.0 / PI << " deg");
+		if (esc) {
+			CHECK(active);
+		}
+	}
+	CHECK(worst_by[1] < worst_by[0] * 0.7);
+	CHECK(worst_by[1] < 12.0 * PI / 180.0);
+}
+
+TEST_CASE("sim: stability control stays out of a steady corner") {
+	Harness h = gt();
+	h.model.assists.stability = true;
+	h.model.controls.throttle = 0.5;
+	while (kmh(h.forward_speed()) < 80.0) {
+		h.step();
+	}
+	h.model.controls.steer = 0.1;
+	h.model.controls.throttle = 0.35;
+	h.run(2.0); // settle
+	int active = 0;
+	for (int i = 0; i < 240; i++) {
+		h.step();
+		active += h.model.stability_active ? 1 : 0;
+	}
+	MESSAGE("stability active " << active << " of 240 ticks in a steady corner");
+	CHECK(active < 24);
+}
+
 namespace {
 
 PlatformSpec awd_spec(CenterType p_center) {

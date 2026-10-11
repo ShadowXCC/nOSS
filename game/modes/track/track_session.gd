@@ -38,8 +38,19 @@ var ai_players := 0
 var ai_racers := 0
 ## AI skill, 0-100.
 var ai_skill := 80.0
+## AI skills spread this much around ai_skill, fastest to slowest, shuffled over the grid.
+var ai_skill_spread := 10.0
 ## AI cars come only from the built-in cars.
 var ai_builtin_cars := false
+## No car-to-car contact (docs/GAMEMODES.md §1, "Collisions").
+var ghosted := false
+## Resets wait for a gap in traffic and rejoin at the road's edge (set when there's AI).
+var safe_rejoin := false
+## Standing start: every car waits on the grid until all have loaded, then all go together.
+var standing_start := false
+## Grid: the first spot's distance behind the line, and the gap between cars in one column.
+var grid_front_m := GRID_BEHIND_LINE
+var grid_row_m := GRID_ROW_M
 
 var track: TrackData
 var platform: PlatformLoader.Result
@@ -59,6 +70,8 @@ var _dev_swapped := false
 var _fps_time := 0.0
 var _fps_frames := 0
 var _sound_time := 0.0
+## The cars have been released (always true without a standing start).
+var started := false
 
 
 func _ready() -> void:
@@ -96,9 +109,14 @@ func _ready() -> void:
 		if autodrive:
 			slot.ai = true
 		_add_player(slot)
+	safe_rejoin = safe_rejoin or ai_racers > 0
 	var pool := ai_car_pool()
+	var skills := []
 	for i in ai_racers:
-		_add_ai(i, pool)
+		skills.append(clampf(ai_skill + ai_skill_spread * (0.5 - float(i) / maxf(ai_racers - 1, 1)), 0.0, 100.0))
+	skills.shuffle()
+	for i in ai_racers:
+		_add_ai(i, pool, skills[i])
 	Players.remember_all()
 	Players.joined.connect(_on_joined)
 	Players.left.connect(_on_left)
@@ -157,15 +175,16 @@ func _add_racer(r: Racer) -> void:
 	r.track = track
 	r.platform = platform
 	r.default_car = _default_car
+	r.held = standing_start and not started
 	racers.append(r)
 	add_child(r)
 	r.setup()
 
 
 ## An AI racer on the next grid spot, with a random car from `pool`.
-func _add_ai(index: int, pool: PackedStringArray) -> AiRacer:
+func _add_ai(index: int, pool: PackedStringArray, skill: float) -> AiRacer:
 	var a := AiRacer.new()
-	a.configure(index, ai_skill)
+	a.configure(index, skill)
 	var i := racers.size()
 	a.spawn_at = track.transform_at(_grid_distance(i), _grid_lateral(i)) if _spot_clear(_grid_distance(i), _grid_lateral(i)) else _free_grid_spot()
 	_add_racer(a)
@@ -217,6 +236,8 @@ func _on_views_changed() -> void:
 
 
 func _process(delta: float) -> void:
+	if not started and (not standing_start or (not racers.is_empty() and racers.all(func(r: Racer) -> bool: return r.vehicle != null))):
+		start_race()
 	_sound_time += delta
 	if _sound_time >= SOUND_UPDATE_S:
 		_sound_time = 0.0
@@ -242,6 +263,13 @@ func _process(delta: float) -> void:
 			print("fps %.0f" % (_fps_frames / _fps_time))
 			_fps_time = 0.0
 			_fps_frames = 0
+
+
+## Releases every car held on the grid.
+func start_race() -> void:
+	started = true
+	for r in racers:
+		r.held = false
 
 
 ## Players' own cars always sound in full; AI cars by distance to the nearest camera.
@@ -279,9 +307,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			p.hud.show_fps = _show_fps
 
 
+## Grid spot `i`: two staggered columns behind the line, the first `front` metres back and each
+## column's cars `row` metres apart.
+func grid_transform(i: int, front: float, row: float) -> Transform3D:
+	return track.transform_at(track.start_m - front - (i / 2) * row - (i % 2) * row * 0.5, _grid_lateral(i))
+
+
 ## Grid spots behind the start line: two columns, a row every GRID_ROW_M.
 func _grid_distance(i: int) -> float:
-	return track.start_m - GRID_BEHIND_LINE - (i / 2) * GRID_ROW_M - (i % 2) * GRID_ROW_M * 0.5
+	return track.start_m - grid_front_m - (i / 2) * grid_row_m - (i % 2) * grid_row_m * 0.5
 
 
 func _grid_lateral(i: int) -> float:
