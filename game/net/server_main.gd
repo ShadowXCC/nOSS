@@ -23,10 +23,15 @@ func _ready() -> void:
 		", password" if config.password else ""])
 	if not Game.headless:
 		NetLog.line("Not headless: start it with --headless to skip drawing")
+	Net.notice.connect(NetLog.line) # answers to console commands
+	Net.chat_line.connect(func(line: Dictionary) -> void:
+		if line.kind == "server":
+			NetLog.line(line.text))
 	if Net.host(config, [], NetLog.line) != OK:
 		get_tree().quit(1)
 		return
 	NetLog.line("Server key: " + NetIdentity.short(Net.identity().fingerprint))
+	add_child(ServerConsole.new())
 
 
 func _exit_tree() -> void:

@@ -30,6 +30,8 @@ const MACHINE := {
 	"vol_narration": ["audio", "narration"],
 	"mono": ["audio", "mono"],
 	"first_boot_done": ["game", "first_boot_done"],
+	"net_address": ["online", "address"],
+	"net_host": ["online", "host"],
 }
 
 var graphics := "medium"
@@ -60,6 +62,9 @@ var vol_narration := 1.0
 var mono := false
 ## The first-boot accessibility screen has been through (ACC-09).
 var first_boot_done := false
+## Online: the last address joined, and the last server hosted (ServerConfig.to_dict()).
+var net_address := ""
+var net_host := {}
 
 var primary: PlayerProfile
 var profile := {}

@@ -10,6 +10,8 @@ var _classes: ClassPicker
 var _players: PlayersMenu
 var _settings: SettingsMenu
 var _event: EventMenu
+var _online: OnlineMenu
+var _lobby: LobbyMenu
 ## What the class picker leads to: "free", "race" or "time_trial".
 var _mode := "free"
 
@@ -52,7 +54,14 @@ func _ready() -> void:
 	race_button.custom_minimum_size = _drive_button.custom_minimum_size
 	race_button.pressed.connect(_open_classes.bind("race"))
 	_drive_button.add_sibling(race_button)
-	var order := [_drive_button, race_button, trial_button, garage_button, bay_button, _settings_button, _quit_button]
+	var online_button := Button.new()
+	online_button.name = "OnlineButton"
+	online_button.text = "Online"
+	online_button.accessibility_description = "Host or join a game over the network"
+	online_button.custom_minimum_size = _drive_button.custom_minimum_size
+	online_button.pressed.connect(_open_online)
+	race_button.add_sibling(online_button)
+	var order := [_drive_button, race_button, online_button, trial_button, garage_button, bay_button, _settings_button, _quit_button]
 	for b: Button in order:
 		b.accessibility_name = b.text
 	UiKit.chain_focus(order)
@@ -69,6 +78,16 @@ func _ready() -> void:
 		"event": _open_event(String(Settings.profile.get("last_platform", "official.track.gt")))
 		"players": _open_players(String(Settings.profile.get("last_platform", "official.track.gt")))
 		"settings": _open_settings()
+		"online": _open_online()
+	if Net.online(): # back from an online session: its lobby
+		_open_online()
+		_open_lobby()
+	elif Game.dev.has("host"): # dev: host with the last settings (--port, --password)
+		_open_online()
+		_online.host_now()
+	elif Game.dev.has("connect"): # dev: --connect=<address> (--password)
+		_open_online()
+		_online._join(String(Game.dev.connect), String(Game.dev.get("password", "")))
 
 
 ## Free Drive: class first (how it drives), then the players, who each pick a car (how it looks).
@@ -131,6 +150,29 @@ func _open_players(platform_id: String, event: RaceEvent = null) -> void:
 		else:
 			_drive_button.grab_focus())
 	add_child(_players)
+
+
+func _open_online() -> void:
+	_online = OnlineMenu.new()
+	_online.entered_lobby.connect(_open_lobby)
+	_online.closed.connect(func() -> void:
+		_online.queue_free()
+		_drive_button.get_parent().get_node(^"OnlineButton").grab_focus())
+	add_child(_online)
+
+
+## The lobby, over the Online menu; leaving it comes back there with the reason, if any.
+func _open_lobby() -> void:
+	if is_instance_valid(_lobby):
+		return
+	_online.visible = false
+	_lobby = LobbyMenu.new()
+	_lobby.left.connect(func(reason: String) -> void:
+		_lobby.queue_free()
+		_online.visible = true
+		_online.show_status(reason)
+		_online.grab_focus_first())
+	add_child(_lobby)
 
 
 func _open_settings() -> void:

@@ -203,19 +203,29 @@ static func number(text: String, value: float, min_value: float, max_value: floa
 	return row
 
 
-## Labelled text field. `on_changed` gets the text when editing ends.
-static func text_field(text: String, value: String, on_changed: Callable, max_length := 96) -> HBoxContainer:
+## Labelled text field. `on_changed` gets the text as it's typed, `on_submit` when Enter is
+## pressed. `secret` hides what's typed (passwords). Reached with the keyboard or a controller,
+## it waits for confirm before taking typing, so up and down still move between rows.
+static func text_field(text: String, value: String, on_changed: Callable, max_length := 96, description := "",
+		on_submit := Callable(), secret := false) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	var l := label(text)
 	l.custom_minimum_size = Vector2(180, 0)
 	row.add_child(l)
 	var e := LineEdit.new()
 	e.accessibility_name = text
+	e.accessibility_description = (description + ". " if description else "") + "Enter to type"
 	e.text = value
 	e.max_length = max_length
+	e.secret = secret
 	e.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	e.custom_minimum_size = Vector2(0, 56)
 	e.text_changed.connect(func(t: String) -> void: on_changed.call(t))
+	if on_submit.is_valid():
+		e.text_submitted.connect(func(t: String) -> void: on_submit.call(t))
+	e.focus_entered.connect(func() -> void:
+		if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+			e.unedit.call_deferred())
 	row.add_child(e)
 	return row
 
@@ -324,8 +334,9 @@ static func focus_owner(node: Node) -> Control:
 	return c if c else vp.gui_get_focus_owner()
 
 
-## Links the focusable controls in `controls` top to bottom (wrapping) and focuses the first.
-static func chain_focus(controls: Array) -> void:
+## Links the focusable controls in `controls` top to bottom (wrapping) and focuses the first
+## (unless `focus_first` is off: lists that refresh while the player is on them).
+static func chain_focus(controls: Array, focus_first := true) -> void:
 	var focusable: Array[Control] = []
 	for c: Control in controls:
 		var target := _focus_target(c)
@@ -339,7 +350,7 @@ static func chain_focus(controls: Array) -> void:
 		c.focus_neighbor_bottom = c.get_path_to(next)
 		c.focus_previous = c.get_path_to(prev)
 		c.focus_next = c.get_path_to(next)
-	if not focusable.is_empty():
+	if focus_first and not focusable.is_empty():
 		focusable[0].grab_focus.call_deferred()
 
 

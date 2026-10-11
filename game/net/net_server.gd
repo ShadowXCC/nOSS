@@ -6,7 +6,8 @@ extends Node
 ## dedicated server. Polled every physics tick before anything reads input, or by hand in tests.
 
 signal peer_joined(peer: int)
-signal peer_left(peer: int, reason: String)
+## `names`: its players, as "Ann, Bo".
+signal peer_left(peer: int, reason: String, names: String)
 ## A control message from a client.
 signal message(peer: int, type: int, data: Dictionary)
 ## A car-state or content packet from a client (first byte: its type).
@@ -18,6 +19,12 @@ const AUTH_TIMEOUT_S := 10.0
 const DROP_DELAY_MS := 400
 ## Control messages a client may send per second before it's kicked.
 const MAX_CONTROL_PER_S := 120
+## Colours for players whose own colour is taken (16, far apart).
+const COLORS := [
+	Color("#e6194b"), Color("#3cb44b"), Color("#ffe119"), Color("#4363d8"), Color("#f58231"), Color("#911eb4"),
+	Color("#46f0f0"), Color("#f032e6"), Color("#bcf60c"), Color("#fabebe"), Color("#008080"), Color("#e6beff"),
+	Color("#9a6324"), Color("#fffac8"), Color("#aaffc3"), Color("#ffffff"),
+]
 
 class PeerInfo:
 	var fingerprint := ""
@@ -281,13 +288,71 @@ func _reject(id: int, reason: String) -> void:
 	_drops[id] = Time.get_ticks_msec() + DROP_DELAY_MS
 
 
+## A player joins on `peer` (at start, or a local guest later). Names are made unique ("Ann 2").
+func add_player(peer: int, entry: Dictionary) -> NetPlayer:
+	if not peers.has(peer) or peers[peer].players.size() >= NetProtocol.MAX_LOCAL or player_count() >= config.max_players:
+		return null
+	var used := []
+	for id in peers[peer].players:
+		used.append(players[id].local_index)
+	var index := 0
+	while index in used:
+		index += 1
+	return _add_player(peer, index, entry, peers[peer])
+
+
+func remove_player(id: int) -> void:
+	var p: NetPlayer = players.get(id)
+	if p == null:
+		return
+	players.erase(id)
+	if peers.has(p.peer):
+		var list: PackedInt32Array = peers[p.peer].players
+		list.remove_at(list.find(id))
+		peers[p.peer].players = list
+
+
+## `name`, or "name 2", "name 3"… if someone already has it.
+func unique_name(name: String) -> String:
+	var taken := {}
+	for p: NetPlayer in players.values():
+		taken[p.name.to_lower()] = true
+	if not taken.has(name.to_lower()):
+		return name
+	var n := 2
+	while taken.has(("%s %d" % [name.left(NetProtocol.MAX_NAME - 3), n]).to_lower()):
+		n += 1
+	return "%s %d" % [name.left(NetProtocol.MAX_NAME - 3), n]
+
+
+## `wanted`, unless another player has it: then the first colour of COLORS nobody has.
+func free_color(wanted: Color) -> Color:
+	var used := {}
+	for p: NetPlayer in players.values():
+		used[p.color.to_html(false)] = true
+	if not used.has(wanted.to_html(false)):
+		return wanted
+	for c: Color in COLORS:
+		if not used.has(c.to_html(false)):
+			return c
+	return wanted
+
+
+## The player called `name` (ignoring case), its id as text, or null.
+func find_player(name: String) -> NetPlayer:
+	for p: NetPlayer in players.values():
+		if p.name.to_lower() == name.strip_edges().to_lower() or str(p.id) == name.strip_edges():
+			return p
+	return null
+
+
 func _add_player(peer: int, local_index: int, entry: Dictionary, info: PeerInfo) -> NetPlayer:
 	var p := NetPlayer.new()
 	p.id = _free_id()
 	p.peer = peer
 	p.local_index = local_index
-	p.name = NetProtocol.clean_name(String(entry.get("name", "")))
-	p.color = Color.from_string(String(entry.get("color", "")), Color.WHITE)
+	p.name = unique_name(NetProtocol.clean_name(String(entry.get("name", ""))))
+	p.color = free_color(Color.from_string(String(entry.get("color", "")), Color.WHITE))
 	p.fingerprint = info.fingerprint
 	p.admin = info.admin
 	players[p.id] = p
@@ -318,14 +383,15 @@ func _forget(id: int, reason: String) -> void:
 	var info: PeerInfo = peers.get(id)
 	if info == null:
 		return
-	var was_joined := info.joined
+	var was_joined := info.connected
+	var who := _who(id)
 	if was_joined:
-		log_line.emit("Left: %s (%s)" % [_who(id), reason])
+		log_line.emit("Left: %s (%s)" % [who, reason])
 	for pid in info.players:
 		players.erase(pid)
 	peers.erase(id)
 	if was_joined:
-		peer_left.emit(id, reason)
+		peer_left.emit(id, reason, who)
 
 
 func _on_packet(id: int, bytes: PackedByteArray) -> void:

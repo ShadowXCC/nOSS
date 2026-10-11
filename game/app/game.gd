@@ -37,6 +37,8 @@ extends Node
 ##   --port=<n>           the server's port, over the config's
 ##   --instance=<n>       keep settings, profiles and the identity in user://instances/<n>/, so two
 ##                        copies on one PC are two different players
+##   --host               host at once with the last Host settings (--port, --password)
+##   --connect=<address>  join at once (--password)
 
 const TITLE := "res://game/ui/title/title_screen.tscn"
 

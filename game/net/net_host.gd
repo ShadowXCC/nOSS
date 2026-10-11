@@ -1,0 +1,298 @@
+class_name NetHost
+extends Node
+## The game server's rules on top of NetServer (docs/NETWORKING.md §4–5, MP-06, MP-07): the
+## lobby (players, their cars, who's ready), chat and its commands, kicks and bans, and which
+## event runs next (the config's rotation). A listen server's own players are peer 1: their
+## requests come in through handle(), and everything sent to all clients also reaches this
+## game's Net (`local_sink`), so the menus work the same when hosting and when joined.
+
+signal log_line(text: String)
+## An admin asked for the session to start.
+signal start_requested
+## The router mapping's result (UPnP), as a short line for the host.
+signal port_checked(ok: bool, message: String)
+
+var server: NetServer
+var config: ServerConfig
+## Called with (type, data) for messages to this game's own players.
+var local_sink := Callable()
+## Which rotation item is up.
+var rotation_index := 0
+## "lobby" or "session".
+var state := "lobby"
+## peer -> true when that connection's players are ready.
+var ready_peers := {}
+
+var discovery: NetDiscovery.Responder
+var upnp: UpnpMapper
+
+var _chat := NetChat.Limiter.new()
+var _dirty := false
+var _names := {} # track path / platform id -> display name
+
+
+func _init(p_server: NetServer) -> void:
+	server = p_server
+	config = p_server.config
+
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	process_physics_priority = -94 # right after the server polls
+	server.peer_joined.connect(_on_joined)
+	server.peer_left.connect(_on_left)
+	server.message.connect(handle)
+	_dirty = true
+	if config.lan:
+		discovery = NetDiscovery.Responder.new()
+		discovery.name = "Discovery"
+		add_child(discovery)
+		if discovery.start(config.port, discovery_info) != OK:
+			log_line.emit("LAN discovery off: UDP %d in use" % NetDiscovery.discovery_port(config.port))
+	if config.upnp:
+		upnp = UpnpMapper.new()
+		upnp.name = "Upnp"
+		add_child(upnp)
+		upnp.done.connect(func(ok: bool, _ip: String, message: String) -> void:
+			log_line.emit(message)
+			port_checked.emit(ok, message))
+		upnp.open(config.port)
+
+
+func _physics_process(_delta: float) -> void:
+	if _dirty:
+		_dirty = false
+		_to_all(NetProtocol.Msg.LOBBY, lobby_dict())
+
+
+func platform_id() -> String:
+	return String(config.rotation[rotation_index].get("class", "official.track.gt"))
+
+
+func track_path() -> String:
+	return config.track_path(rotation_index)
+
+
+func event() -> RaceEvent:
+	return config.event(rotation_index)
+
+
+## What every client's lobby shows.
+func lobby_dict() -> Dictionary:
+	var players := []
+	for p: NetPlayer in server.players.values():
+		var d := p.to_dict()
+		d.ready = ready_peers.get(p.peer, false)
+		players.append(d)
+	return {
+		"name": config.name, "motd": config.motd, "state": state, "max": config.max_players,
+		"track": track_path(), "track_name": _track_name(track_path()),
+		"class": platform_id(), "class_name": _class_name(platform_id()),
+		"event": event().to_dict(), "players": players,
+		"rules": { "own_sounds": config.caps.own_sounds, "custom_platforms": config.caps.custom_platforms,
+			"max_package_mb": config.caps.max_package_mb, "tuning": config.rules.tuning },
+	}
+
+
+## The answer to LAN discovery.
+func discovery_info() -> Dictionary:
+	return {
+		"name": config.name, "port": config.port, "players": server.player_count(), "max": config.max_players,
+		"password": not config.password.is_empty(), "track": _track_name(track_path()), "class": _class_name(platform_id()),
+		"state": state, "version": NetProtocol.game_version(),
+		"fp": NetIdentity.short(server.identity.fingerprint) if server.identity else "",
+	}
+
+
+## A request from a client, or from this game's own players (peer 1).
+func handle(peer: int, type: int, data: Dictionary) -> void:
+	match type:
+		NetProtocol.Msg.PICK:
+			if NetProtocol.has_fields(data, { "player": TYPE_INT, "car": [TYPE_STRING, 80], "car_name": [TYPE_STRING, 64], "family": [TYPE_STRING, 16] }):
+				_pick(peer, data)
+		NetProtocol.Msg.READY:
+			if NetProtocol.has_fields(data, { "ready": TYPE_BOOL }):
+				ready_peers[peer] = data.ready
+				_dirty = true
+		NetProtocol.Msg.CHAT:
+			if NetProtocol.has_fields(data, { "player": TYPE_INT, "text": [TYPE_STRING, NetChat.MAX_CHARS * 2] }):
+				chat(peer, data.player, data.text)
+		NetProtocol.Msg.ADMIN:
+			if NetProtocol.has_fields(data, { "cmd": [TYPE_STRING, 16], "target": [TYPE_STRING, 64] }):
+				admin(peer, data.cmd, data.target)
+		NetProtocol.Msg.ADD_LOCAL:
+			if NetProtocol.has_fields(data, { "name": [TYPE_STRING, 64], "color": [TYPE_STRING, 8] }):
+				var p := server.add_player(peer, data)
+				if p == null:
+					_notice(peer, "Server full")
+				else:
+					_say("%s joined" % p.name)
+					_send_ids(peer)
+					_dirty = true
+		NetProtocol.Msg.REMOVE_LOCAL:
+			if NetProtocol.has_fields(data, { "player": TYPE_INT }) and _owns(peer, data.player) and server.players_of(peer).size() > 1:
+				var name: String = server.players[data.player].name
+				server.remove_player(data.player)
+				_say("%s left" % name)
+				_send_ids(peer)
+				_dirty = true
+
+
+## A chat line from `player` on `peer`, or a command if it starts with "/".
+func chat(peer: int, player: int, text: String) -> void:
+	if not _owns(peer, player):
+		return
+	var line := NetChat.clean(text)
+	if line.is_empty():
+		return
+	if not _chat.allow(peer, Time.get_ticks_msec() / 1000.0):
+		_notice(peer, "Slow down")
+		return
+	var cmd := NetChat.command(line)
+	if not cmd.is_empty():
+		admin(peer, cmd.cmd, cmd.arg)
+		return
+	var p: NetPlayer = server.players[player]
+	log_line.emit("<%s> %s" % [p.name, line])
+	_to_all(NetProtocol.Msg.CHAT_LINE, { "from": p.id, "name": p.name, "color": p.color.to_html(false), "text": line, "kind": "chat" })
+
+
+## Admin commands: kick and ban (a player's name or id), start, next, restart. Peer 1 (the host,
+## or the dedicated server's console) may always use them.
+func admin(peer: int, cmd: String, target := "") -> void:
+	if cmd == "help":
+		_notice(peer, NetChat.COMMANDS.help)
+		return
+	if not NetChat.COMMANDS.has(cmd):
+		_notice(peer, "Unknown command")
+		return
+	if not server.is_admin(peer):
+		_notice(peer, "Admins only")
+		return
+	match cmd:
+		"kick", "ban":
+			var p := server.find_player(target)
+			if p == null:
+				_notice(peer, "No such player")
+			elif p.peer == 1:
+				_notice(peer, "Can't %s the host" % cmd)
+			else:
+				var name := p.name
+				_say("%s was %s" % [name, "kicked" if cmd == "kick" else "banned"])
+				if cmd == "kick":
+					server.kick(p.peer, "Kicked")
+				else:
+					server.ban(p.peer, "Banned")
+		"start":
+			start_requested.emit()
+		"next":
+			next_event()
+		"restart":
+			start_requested.emit()
+
+
+## The next event in the rotation (back in the lobby).
+func next_event() -> void:
+	rotation_index = (rotation_index + 1) % config.rotation.size()
+	state = "lobby"
+	ready_peers.clear()
+	_say("Next: %s, %s" % [_track_name(track_path()), _class_name(platform_id())])
+	_dirty = true
+
+
+## A line from the server to everyone.
+func say(text: String) -> void:
+	_say(text)
+
+
+## Everyone's players are ready (and there's someone to race).
+func all_ready() -> bool:
+	if server.player_count() == 0:
+		return false
+	for peer: int in server.peers:
+		if not server.peers[peer].players.is_empty() and not ready_peers.get(peer, false):
+			return false
+	return true
+
+
+func _pick(peer: int, data: Dictionary) -> void:
+	if not _owns(peer, data.player):
+		return
+	var family := String(data.family)
+	var platform := PlatformLoader.load_official(platform_id())
+	if platform.ok() and not Fitting.compatible(platform.platform, family):
+		_notice(peer, "Car doesn't fit this class")
+		return
+	var p: NetPlayer = server.players[data.player]
+	p.car = data.car if String(data.car).begins_with("sha256:") else ""
+	p.car_name = NetChat.clean(data.car_name).left(64)
+	p.family = family
+	_dirty = true
+
+
+func _owns(peer: int, player: int) -> bool:
+	return server.players.has(player) and server.players[player].peer == peer
+
+
+func _on_joined(peer: int) -> void:
+	var names := PackedStringArray()
+	for p in server.players_of(peer):
+		names.append(p.name)
+	_say("%s joined" % ", ".join(names))
+	if config.motd:
+		_notice(peer, config.motd)
+	_dirty = true
+
+
+func _on_left(peer: int, reason: String, names: String) -> void:
+	ready_peers.erase(peer)
+	_chat.forget(peer)
+	if reason in ["Left", "Kicked", "Banned"]:
+		_say("%s left" % names)
+	else:
+		_say("%s left (%s)" % [names, reason.to_lower()])
+	_dirty = true
+
+
+func _say(text: String) -> void:
+	_to_all(NetProtocol.Msg.CHAT_LINE, { "from": 0, "name": "", "color": "", "text": text, "kind": "server" })
+
+
+func _notice(peer: int, text: String) -> void:
+	if peer == 1:
+		if local_sink.is_valid():
+			local_sink.call(NetProtocol.Msg.NOTICE, { "text": text })
+	else:
+		server.send(peer, NetProtocol.Msg.NOTICE, { "text": text })
+
+
+func _send_ids(peer: int) -> void:
+	var ids := PackedInt32Array()
+	for p in server.players_of(peer):
+		ids.append(p.id)
+	if peer == 1:
+		if local_sink.is_valid():
+			local_sink.call(NetProtocol.Msg.YOUR_PLAYERS, { "players": ids })
+	else:
+		server.send(peer, NetProtocol.Msg.YOUR_PLAYERS, { "players": ids })
+
+
+## To every client and this game's own players.
+func _to_all(type: int, data: Dictionary) -> void:
+	server.broadcast(type, data)
+	if local_sink.is_valid():
+		local_sink.call(type, data)
+
+
+func _track_name(path: String) -> String:
+	if not _names.has(path):
+		var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
+		_names[path] = String(d.get("name", path.get_file())) if d is Dictionary else path.get_file()
+	return _names[path]
+
+
+func _class_name(id: String) -> String:
+	if not _names.has(id):
+		var r := PlatformLoader.load_official(id)
+		_names[id] = String(r.platform.get("name", id)) if r.ok() else id
+	return _names[id]

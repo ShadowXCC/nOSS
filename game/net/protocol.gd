@@ -33,6 +33,16 @@ enum Msg {
 	REJECT = 4, ## server: {reason}
 	# Control, reliable on channel 0.
 	BYE = 10, ## server: {reason} just before it disconnects the client
+	LOBBY = 11, ## server: the lobby (NetHost.lobby_dict)
+	PICK = 12, ## client: {player, car, car_name, family}: a player's car (package hash)
+	READY = 13, ## client: {ready}: the connection's players are ready
+	CHAT = 14, ## client: {player, text}
+	CHAT_LINE = 15, ## server: {from, name, color, text, kind ("chat" or "server")}
+	ADMIN = 16, ## client: {cmd, target}: kick, ban, start, next, restart
+	ADD_LOCAL = 17, ## client: {name, color}: a local player joins (LOC-05)
+	REMOVE_LOCAL = 18, ## client: {player}
+	YOUR_PLAYERS = 19, ## server: {players}: this connection's player ids, after a change
+	NOTICE = 20, ## server: {text}: a short message for this client only
 }
 
 
