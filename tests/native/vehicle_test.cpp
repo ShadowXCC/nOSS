@@ -220,6 +220,44 @@ TEST_CASE("sim: TCS keeps full throttle in first gear out of a tight corner") {
 	}
 }
 
+TEST_CASE("sim: an H-pattern box needs the clutch; an automatic platform shifts itself") {
+	PlatformSpec spec = gt_spec();
+	spec.gearbox.type = GearboxType::MANUAL_H;
+	Harness h(make_config(spec, nsx_geometry()));
+	h.model.assists.auto_gearbox = false;
+	h.model.assists.auto_clutch = false;
+	h.model.controls.clutch = 1.0;
+	h.model.controls.select_gear = 1;
+	h.run(0.5);
+	CHECK(h.model.gearbox.gear == 1);
+	// Clutch out: 2nd is refused and grinds; neutral still works.
+	h.model.controls.clutch = 0.0;
+	h.model.controls.select_gear = 2;
+	h.run(0.3);
+	CHECK(h.model.gearbox.gear == 1);
+	CHECK(h.model.grinds == 1);
+	h.model.controls.select_gear = 0;
+	h.run(0.3);
+	CHECK(h.model.gearbox.gear == 0);
+	// With the auto clutch the same change goes through.
+	h.model.assists.auto_clutch = true;
+	h.model.controls.select_gear = 2;
+	h.run(0.3);
+	CHECK(h.model.gearbox.gear == 2);
+
+	PlatformSpec auto_spec = gt_spec();
+	auto_spec.gearbox.type = GearboxType::AUTO;
+	Harness a(make_config(auto_spec, nsx_geometry()));
+	a.model.assists.auto_gearbox = false; // the platform is automatic anyway
+	a.model.controls.throttle = 1.0;
+	a.run(6.0);
+	CHECK(a.model.gearbox.gear >= 3);
+	int gear = a.model.gearbox.gear;
+	a.model.controls.shift = -1; // paddles do nothing on an automatic
+	a.step();
+	CHECK(a.model.gearbox.target == gear);
+}
+
 TEST_CASE("sim: stability control catches trail-braking oversteer") {
 	// Hard braking from speed into a corner on a rear-biased balance: the rear runs out of grip
 	// and the car turns round. Stability control brakes the outside front and keeps it straighter.

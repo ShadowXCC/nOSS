@@ -12,6 +12,8 @@ const FONTS := [["retro", "Game"], ["clear", "Clear"]]
 var profile: PlayerProfile
 ## The player whose devices rebinding and wheel setup use; null: every device.
 var slot: PlayerSlot
+## Assists allowed where this player is driving (AssistRules.allowed); empty: not in a session.
+var allowed_assists: Array = []
 
 var _rows: Array = []
 
@@ -41,11 +43,23 @@ func _build() -> void:
 	var d: Dictionary = profile.data
 
 	_section(rows, "Assists")
+	var by_device := [["auto", "Auto"], ["on", "On"], ["off", "Off"]]
 	for item: Array in [["abs", "ABS", "Brakes without locking"], ["tcs", "Traction control", "No wheelspin"],
-			["stability", "Stability control", "Brakes single wheels to stop slides"], ["auto_gearbox", "Auto gearbox", ""],
-			["steer_aid", "Steer aid", "Keyboard and controller: less lock at speed, help to catch slides"]]:
+			["stability", "Stability control", "Brakes single wheels to stop slides"]]:
 		var key: String = item[0]
-		_add(rows, UiKit.check(item[1], d.assists.get(key, key != "stability"), func(on: bool) -> void: profile.set_assist(key, on), item[2]))
+		_add(rows, _assist(UiKit.check(item[1], bool(d.assists.get(key, false)), func(on: bool) -> void: profile.set_assist(key, on), item[2]), key))
+	for item: Array in [["auto_gearbox", "Auto gearbox", "Auto: on with keyboard or controller, off with a wheel"],
+			["auto_clutch", "Auto clutch", "Auto: on unless you have a clutch pedal"],
+			["steer_aid", "Steer aid", "Less lock at speed, help to catch slides. Auto: off with a wheel"]]:
+		var key: String = item[0]
+		_add(rows, _assist(UiKit.spinner(item[1], by_device, String(d.assists.get(key, "auto")), func(v: String) -> void: profile.set_assist(key, v), item[2]), key))
+	_add(rows, _assist(UiKit.check("Racing line", bool(d.assists.racing_line), func(on: bool) -> void: profile.set_assist("racing_line", on), "The AI line on the road, coloured by speed"), "racing_line"))
+
+	_section(rows, "Access assists")
+	_add(rows, _assist(UiKit.check("Auto-throttle", bool(d.assists.auto_throttle), func(on: bool) -> void: profile.set_assist("auto_throttle", on), "Holds the line's speed; you steer and can brake"), "auto_throttle"))
+	_add(rows, _assist(UiKit.number("Brake assist", float(d.assists.brake_assist) * 100.0, 0, 100, 10, "%d%%", func(v: float) -> void: profile.set_assist("brake_assist", v / 100.0), "Brakes for corners and cars ahead"), "brake_assist"))
+	_add(rows, _assist(UiKit.number("Steering assist", float(d.assists.steering_assist) * 100.0, 0, 100, 10, "%d%%", func(v: float) -> void: profile.set_assist("steering_assist", v / 100.0), "Steers toward the line"), "steering_assist"))
+	_add(rows, _assist(UiKit.check("Autodrive", bool(d.assists.autodrive), func(on: bool) -> void: profile.set_assist("autodrive", on), "The car drives itself"), "autodrive"))
 
 	_section(rows, "Comfort")
 	_add(rows, UiKit.slider("Camera shake", d.camera_shake, func(v: float) -> void: profile.set_value("camera_shake", v)))
@@ -126,6 +140,20 @@ func _build() -> void:
 	list.add_child(back)
 	_rows.append(back)
 	UiKit.chain_focus(_rows)
+
+
+## Assists the class or mode doesn't allow show as "Not allowed here" and can't be changed.
+func _assist(c: Control, key: String) -> Control:
+	if allowed_assists.is_empty() or key in allowed_assists:
+		return c
+	var target := UiKit._focus_target(c)
+	if target is BaseButton:
+		(target as BaseButton).disabled = true
+	elif target is Range:
+		(target as Range).editable = false
+	if target:
+		target.accessibility_description = "Not allowed here"
+	return c
 
 
 ## Builds the menu again (rows came or went) with focus back on the row named `prefix`.

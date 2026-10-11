@@ -72,9 +72,14 @@ func _ready() -> void:
 	UiKit.chain_focus(_buttons)
 
 
+## Assists allowed in this session (shown in the player's settings).
+var allowed_assists: Array = []
+
+
 func _open_settings() -> void:
 	var menu := PlayerSettingsMenu.new()
 	menu.slot = slot
+	menu.allowed_assists = allowed_assists
 	UiKit.open_sub(self, menu, _ready_focus)
 
 

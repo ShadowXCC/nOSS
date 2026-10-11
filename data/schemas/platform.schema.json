@@ -232,7 +232,7 @@
     "assists_allowed": {
       "type": "array",
       "uniqueItems": true,
-      "items": { "enum": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid", "racing_line"] }
+      "items": { "enum": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid", "racing_line", "auto_throttle", "brake_assist", "steering_assist", "autodrive"] }
     },
 
     "damage": {

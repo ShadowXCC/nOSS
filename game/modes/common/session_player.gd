@@ -21,6 +21,8 @@ var _paused_tree := false
 var _cool_down: RacingAI
 ## This player's setup for the class and track (PLT-04).
 var car_setup: Setup
+## The racing line assist, while it's on.
+var line_view: RacingLineView
 
 ## Spotter (docs/ACCESSIBILITY.md §2): who's alongside ("", "left", "right", "three").
 const SPOTTER_HZ := 10.0
@@ -115,6 +117,7 @@ func _make_driver() -> Node:
 	controller.vehicle = vehicle
 	controller.input = slot.input
 	controller.racer = self
+	controller.mode = session.mode
 	slot.input.wheel.platform_lock_deg = float(platform.platform.steering.wheel_rotation_deg)
 	controller.reset_requested.connect(reset_car)
 	controller.camera_next_requested.connect(_next_camera)
@@ -133,7 +136,9 @@ func _spawned() -> void:
 		controller.apply_assists()
 	cameras.set_vehicle(vehicle)
 	cameras.set_mode(String(slot.profile.data.get("camera", "chase_near")))
+	cameras.camera.cull_mask = RacingLineView.cull_mask_for(slot.index, cameras.camera.cull_mask)
 	hud.vehicle = vehicle
+	_update_line_view()
 
 
 func _physics_process(delta: float) -> void:
@@ -233,6 +238,17 @@ func _race_callouts() -> void:
 			"blue": speak("Blue flag")
 
 
+## Draws or removes this player's racing line (the assist, if allowed and on).
+func _update_line_view(rebuild := false) -> void:
+	var want := controller != null and bool(controller.assists.get("racing_line", false))
+	if line_view and (not want or rebuild):
+		line_view.queue_free()
+		line_view = null
+	if want and line_view == null:
+		line_view = RacingLineView.create(track, vehicle.base_platform, slot.index, Palette.of(slot.profile))
+		session.add_child(line_view)
+
+
 ## The setup menu closed: drive with the changes from now on, and keep them for next time.
 func setup_changed() -> void:
 	if vehicle == null or car_setup == null:
@@ -268,6 +284,7 @@ func _next_camera() -> void:
 func _on_profile_changed() -> void:
 	if controller:
 		controller.apply_assists()
+	_update_line_view(true)
 	view.apply_profile()
 	hud.apply_profile(slot.profile)
 	session.apply_game_speed()
@@ -334,6 +351,8 @@ func close_overlay() -> void:
 
 
 func _exit_tree() -> void:
+	if line_view:
+		line_view.queue_free()
 	slot.menu_target = null
 	if not slot.ai:
 		slot.input.wheel.stop_ffb()

@@ -31,6 +31,9 @@ const LINE_NOISE := Vector2(0.7, 0.1)
 var racer: Racer
 ## 0-100 (docs/GAMEMODES.md §0).
 var skill := 80.0
+## Works out controls for a player's access assists instead of driving (VehicleController
+## blends them with the player's): it leaves the car's assists alone and never resets the car.
+var as_guide := false
 ## Planned offset from the racing line, m (+ = left). Moves toward the plan at OFFSET_RATE.
 var offset := 0.0
 ## What the planner decided last ("line", "follow", "pass", "side", "defend", "yield", "start").
@@ -66,11 +69,13 @@ func _ready() -> void:
 	_line = RacingLine.for_track(racer.track)
 	var s := _skill()
 	var grip := lerpf(GRIP.x, GRIP.y, s)
-	_profile = _line.speed_profile(racer.vehicle.platform, grip)
-	_caution_profile = _line.speed_profile(racer.vehicle.platform, grip * CAUTION_GRIP)
+	_profile = _line.speed_profile(racer.vehicle.base_platform, grip)
+	_caution_profile = _line.speed_profile(racer.vehicle.base_platform, grip * CAUTION_GRIP)
 	var p := racer.vehicle.platform
 	_brake_full = float(p.brakes.max_torque_nm) / float(p.geometry.wheel_radius_m.ref) / float(p.mass.kg)
 	_emergency_decel = 0.8 * RacingLine.max_braking(p, float(p.tires.mu_peak))
+	if as_guide:
+		return
 	# The assists a player can use on this platform (AI-05: no other help).
 	var allowed: Array = p.get("assists_allowed", [])
 	var assists := {}
@@ -88,12 +93,27 @@ func _skill() -> float:
 
 
 func _physics_process(delta: float) -> void:
+	if as_guide:
+		return
+	var c := controls(delta)
+	if c.is_empty():
+		return
+	var vehicle := racer.vehicle
+	vehicle.steer = c.steer
+	vehicle.throttle = c.throttle
+	vehicle.brake = c.brake
+	vehicle.handbrake = c.handbrake
+
+
+## This tick's controls: {steer, throttle, brake, handbrake}, or {} without a car.
+func controls(delta: float) -> Dictionary:
 	var vehicle := racer.vehicle
 	if vehicle == null or not is_instance_valid(vehicle):
-		return
+		return {}
+	var out := { "steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": 0.0 }
 	if racer.held or racer.waiting:
-		_hold(vehicle)
-		return
+		_hold(out)
+		return out
 	var v := maxf(racer.speed, 0.0)
 	_covered += v * delta
 	_plan_time -= delta
@@ -101,19 +121,20 @@ func _physics_process(delta: float) -> void:
 		_plan_time += 1.0 / PLAN_HZ
 		_plan()
 	offset = move_toward(offset, _want, OFFSET_RATE * delta)
-	if _recover(vehicle, delta):
-		return
-	_steer(vehicle, v)
-	_pedals(vehicle, v)
+	if not as_guide and _recover(out, delta):
+		return out
+	_steer(vehicle, v, out)
+	_pedals(vehicle, v, out)
+	return out
 
 
 ## Waits on the handbrake: holding the brake at a standstill would select reverse with the
 ## automatic gearbox.
-func _hold(vehicle: Vehicle) -> void:
-	vehicle.throttle = 0.0
-	vehicle.brake = 0.0
-	vehicle.steer = 0.0
-	vehicle.handbrake = 1.0
+func _hold(out: Dictionary) -> void:
+	out.throttle = 0.0
+	out.brake = 0.0
+	out.steer = 0.0
+	out.handbrake = 1.0
 	_covered = 0.0
 	_start_lateral = racer.lateral
 	offset = racer.lateral - _line.offset_at(racer.distance)
@@ -124,7 +145,7 @@ func _hold(vehicle: Vehicle) -> void:
 # --- control (every tick) -----------------------------------------------------------------
 
 
-func _steer(vehicle: Vehicle, v: float) -> void:
+func _steer(vehicle: Vehicle, v: float, out: Dictionary) -> void:
 	var look := clampf(5.0 + 0.32 * v, 6.0, 32.0)
 	var d := racer.distance + look
 	var lateral := clampf(_line.offset_at(d) + offset, _line.corridor(d).y, _line.corridor(d).x)
@@ -144,11 +165,11 @@ func _steer(vehicle: Vehicle, v: float) -> void:
 		var slip := atan2(local_v.x, absf(local_v.z)) # + = sliding left
 		if absf(slip) > deg_to_rad(2.0):
 			steer += clampf(-slip * 0.8 / max_steer, -0.5, 0.5)
-	vehicle.steer = clampf(steer, -1.0, 1.0)
-	vehicle.handbrake = 0.0
+	out.steer = clampf(steer, -1.0, 1.0)
+	out.handbrake = 0.0
 
 
-func _pedals(vehicle: Vehicle, v: float) -> void:
+func _pedals(vehicle: Vehicle, v: float, out: Dictionary) -> void:
 	var profile := _caution_profile if _cautious() else _profile
 	var here := racer.distance + v * 0.1
 	var target := _line.speed_at(profile, here)
@@ -178,8 +199,8 @@ func _pedals(vehicle: Vehicle, v: float) -> void:
 	if slip > 3.0 and not _emergency:
 		brake *= clampf(1.0 - (slip - 3.0) / 4.0, 0.0, 1.0)
 		throttle = minf(throttle, 0.3)
-	vehicle.throttle = throttle
-	vehicle.brake = brake
+	out.throttle = throttle
+	out.brake = brake
 
 
 func _cautious() -> bool:
@@ -386,7 +407,8 @@ func _ignore(other: Racer) -> bool:
 
 
 ## Reverses out when stuck, then resets if that doesn't work. True while it's handling the car.
-func _recover(vehicle: Vehicle, delta: float) -> bool:
+func _recover(out: Dictionary, delta: float) -> bool:
+	var vehicle := racer.vehicle
 	var v := absf(racer.speed)
 	var upright := vehicle.global_basis.y.y > 0.3
 	var heading := vehicle.global_basis.z.dot(racer.track.tangents[maxi(racer.track_index, 0)])
@@ -411,8 +433,9 @@ func _recover(vehicle: Vehicle, delta: float) -> bool:
 		_reverse_time = 1.6
 	if _reverse_time > 0.0:
 		_reverse_time -= delta
-		vehicle.throttle = 0.0
-		vehicle.brake = 0.7 # the auto gearbox selects reverse at a standstill
-		vehicle.steer = clampf((racer.lateral - _line.offset_at(racer.distance)) * 0.3, -1.0, 1.0)
+		out.throttle = 0.0
+		out.brake = 0.7 # the auto gearbox selects reverse at a standstill
+		out.steer = clampf((racer.lateral - _line.offset_at(racer.distance)) * 0.3, -1.0, 1.0)
+		out.handbrake = 0.0
 		return true
 	return false

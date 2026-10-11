@@ -271,6 +271,7 @@ public:
 	bool abs_active = false;
 	bool tcs_active = false;
 	bool stability_active = false;
+	int grinds = 0; // refused gear changes so far (H-pattern without the clutch)
 	double rack_torque = 0.0; // Nm about the steering axis, + = turns the wheels left
 	V3 acceleration; // body frame, m/s^2 (for g-forces)
 	double rpm() const { return engine_omega / RPM_TO_RAD; }

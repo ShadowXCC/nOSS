@@ -254,6 +254,7 @@ Dictionary VehicleSim::get_telemetry() const {
 	d["abs"] = m.abs_active;
 	d["tcs"] = m.tcs_active;
 	d["esc"] = m.stability_active;
+	d["grinds"] = m.grinds;
 	d["accel"] = gv(m.acceleration);
 	d["rack"] = get_rack_force();
 	Array wheels;

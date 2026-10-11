@@ -267,7 +267,10 @@ double VehicleModel::_driven_omega() const {
 }
 
 void VehicleModel::_update_gearbox(double p_driver_throttle, double p_driver_brake, double p_dt) {
-	if (assists.auto_gearbox) {
+	const GearboxType type = _config.spec.gearbox.type;
+	// An automatic platform always shifts itself; the assist does it on the others.
+	const bool automatic = assists.auto_gearbox || type == GearboxType::AUTO;
+	if (automatic) {
 		AutoShiftInput in;
 		in.rpm = rpm();
 		in.throttle = p_driver_throttle;
@@ -284,13 +287,29 @@ void VehicleModel::_update_gearbox(double p_driver_throttle, double p_driver_bra
 			gearbox.request(want);
 		}
 	}
+	// An H-pattern box needs the clutch in to change gear (the auto clutch does that for you).
+	// Out of gear into neutral always works. A refused shift grinds.
+	auto clutch_in = [&](int p_to) {
+		return type != GearboxType::MANUAL_H || assists.auto_clutch || controls.clutch > 0.5 || p_to == 0;
+	};
 	if (controls.select_gear != INT_MIN) {
-		gearbox.request(controls.select_gear);
+		int want = std::clamp(controls.select_gear, -1, gearbox.top_gear());
 		controls.select_gear = INT_MIN;
+		if (type != GearboxType::AUTO && want != gearbox.gear && want != gearbox.target) {
+			if (clutch_in(want)) {
+				gearbox.request(want);
+			} else {
+				grinds++;
+			}
+		}
 	}
-	if (controls.shift != 0 && !gearbox.shifting()) {
-		int next = gearbox.gear + (controls.shift > 0 ? 1 : -1);
-		gearbox.request(std::clamp(next, -1, gearbox.top_gear()));
+	if (controls.shift != 0 && !gearbox.shifting() && type != GearboxType::AUTO) {
+		int next = std::clamp(gearbox.gear + (controls.shift > 0 ? 1 : -1), -1, gearbox.top_gear());
+		if (clutch_in(next)) {
+			gearbox.request(next);
+		} else {
+			grinds++;
+		}
 	}
 	controls.shift = 0;
 	gearbox.update(p_dt);

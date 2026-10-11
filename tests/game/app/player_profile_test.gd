@@ -34,7 +34,8 @@ func test_v1_profile_migrates_keyboard_overrides() -> void:
 		"name": "Player 1", "pad_deadzone": 0.08, "pad_linearity": 1.6, "speed_fov": true, "wheel": {},
 	}
 	var p := PlayerProfile.create("player1", v1)
-	assert_int(p.data.version).is_equal(2)
+	assert_int(p.data.version).is_equal(PlayerProfile.VERSION)
+	assert_str(p.data.assists.steer_aid).is_equal("auto")
 	assert_bool(p.data.has("bindings")).is_false()
 	assert_array(p.data.input.bindings.kb_full.throttle).is_equal([{ "key": KEY_I }])
 	assert_str(p.data.camera).is_equal("hood")

@@ -460,6 +460,7 @@ func _open_pause(p: SessionPlayer) -> void:
 	menu.can_leave = p.slot.index > 0
 	menu.can_change_car = hotswap_allowed
 	menu.can_end_session = race.kind in ["practice", "qualifying"]
+	menu.allowed_assists = AssistRules.allowed(platform.platform, mode)
 	menu.can_restart = race.kind in ["race", "practice", "qualifying"]
 	menu.can_setup = race.kind != "race" and p.car_setup != null and not p.car_setup.allowed.is_empty()
 	menu.setup = p.car_setup

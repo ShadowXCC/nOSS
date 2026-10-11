@@ -4,7 +4,7 @@
   "name": "Kart",
   "classes": ["official.kart.medium"],
   "tuning": { "allow": [] },
-  "assists": { "allowed": ["auto_gearbox", "auto_clutch", "steer_aid"], "defaults": ["auto_gearbox", "auto_clutch"] },
+  "assists": { "allowed": ["auto_gearbox", "auto_clutch", "steer_aid", "auto_throttle", "brake_assist", "steering_assist", "autodrive"], "defaults": ["auto_gearbox", "auto_clutch"] },
   "damage": { "cosmetic": true, "mechanical": false },
   "physics_layer": "kart_arcade"
 }

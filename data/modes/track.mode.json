@@ -5,7 +5,7 @@
   "classes": ["official.track.touring", "official.track.gt", "official.track.prototype", "official.track.formula"],
   "tuning": { "allow": ["*"] },
   "assists": {
-    "allowed": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid", "racing_line"],
+    "allowed": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid", "racing_line", "auto_throttle", "brake_assist", "steering_assist", "autodrive"],
     "defaults": ["abs", "tcs", "auto_gearbox", "auto_clutch"]
   },
   "damage": { "cosmetic": true, "mechanical": false },

@@ -19,10 +19,17 @@ const COUNTER_STEER_GAIN := 0.8
 var input: PlayerInput
 ## The racer this controls: held on the grid, pace-limited on a rolling start.
 var racer: Racer
+## The mode's rules (which assists are allowed), from the session.
+var mode := {}
+## What's on now (AssistRules.effective).
+var assists := {}
+## Follows the AI line for the access assists (ACC-07); null when none is on.
+var _guide: RacingAI
 ## Which device steered last: "keyboard", "gamepad" or "wheel". Picks the filters and assists.
 var active_device := "keyboard"
 
 var _key_steer := 0.0
+var _had_wheel := false
 
 
 func _ready() -> void:
@@ -32,8 +39,11 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if vehicle == null or input == null:
 		return
+	# Steer aid "auto" and the auto gearbox follow the device; a wheel can come and go.
+	if Engine.get_physics_frames() % 60 == 0 and input.wheel.is_active() != _had_wheel:
+		_had_wheel = input.wheel.is_active()
+		apply_assists()
 	var speed := absf(vehicle.speed())
-	var assists: Dictionary = input.profile.data.assists
 
 	# Keyboard: digital steering with smoothing.
 	var key_target := input.value("steer_right", "keyboard") - input.value("steer_left", "keyboard")
@@ -57,8 +67,11 @@ func _physics_process(delta: float) -> void:
 	elif not is_zero_approx(key_target) or input.value("throttle", "keyboard") > 0.0 or input.value("brake", "keyboard") > 0.0:
 		active_device = "keyboard"
 
-	# Steer aid for keyboard and gamepad: less lock at speed, help to catch slides.
-	if assists.get("steer_aid", true) and active_device != "wheel":
+	# Steer aid for keyboard and gamepad: less lock at speed, help to catch slides. "Auto" turns
+	# it off while a wheel steers.
+	var aid_setting := String(input.profile.data.assists.get("steer_aid", "auto"))
+	var aid := bool(assists.get("steer_aid", false)) and (aid_setting == "on" or active_device != "wheel")
+	if aid:
 		steer *= 1.0 / (1.0 + pow(speed / AID_REF_SPEED, 2.0))
 		steer += _counter_steer(speed)
 		steer = clampf(steer, -1.0, 1.0)
@@ -75,6 +88,8 @@ func _physics_process(delta: float) -> void:
 		vehicle.handbrake = 1.0
 	elif racer and racer.pace_limit > 0.0 and speed > racer.pace_limit:
 		vehicle.throttle = 0.0
+	elif _guide:
+		_apply_access_assists(delta)
 
 	if input.just_pressed("shift_up"):
 		vehicle.sim.shift(1)
@@ -98,24 +113,47 @@ func release() -> void:
 		input.clear_toggles()
 
 
-## Applies the profile's assists to the sim. Keyboard and gamepad always get auto-clutch.
+## Applies the player's assists (allowed by the platform and mode, AssistRules) to the sim, and
+## starts or stops the line guide for the access assists.
 func apply_assists() -> void:
 	if vehicle == null:
 		return
-	var a: Dictionary = input.profile.data.assists if input else PlayerProfile.DEFAULTS.assists
-	var allowed: Array = vehicle.platform.get("assists_allowed", [])
-	var has_clutch := input != null and input.wheel.has_clutch()
-	var on := {
-		"abs": a.get("abs", true) and "abs" in allowed,
-		"tcs": a.get("tcs", true) and "tcs" in allowed,
-		"stability": a.get("stability", false) and "stability" in allowed,
-		"auto_gearbox": a.get("auto_gearbox", true) and "auto_gearbox" in allowed,
-		"auto_clutch": not has_clutch,
-	}
-	vehicle.sim.set_assists(on)
-	on.steer_aid = a.get("steer_aid", true) and "steer_aid" in allowed
+	var wheel := input != null and input.wheel.is_active()
+	var clutch_pedal := input != null and (input.wheel.has_clutch() or input.has_binding("clutch"))
+	assists = AssistRules.effective(input.profile if input else null, vehicle.platform, mode, wheel, clutch_pedal)
+	vehicle.sim.set_assists(assists)
 	if racer:
-		racer.note_assists(on)
+		racer.note_assists(assists.duplicate())
+	var guided: bool = assists.auto_throttle or assists.autodrive or assists.brake_assist > 0.0 or assists.steering_assist > 0.0
+	if guided and _guide == null and racer:
+		_guide = RacingAI.new()
+		_guide.racer = racer
+		_guide.as_guide = true
+		add_child(_guide)
+	elif not guided and _guide:
+		_guide.queue_free()
+		_guide = null
+
+
+## Access assists (docs/ACCESSIBILITY.md §5.2): the line guide's controls blended with the
+## player's. Auto-throttle holds the line's speed (the brake still wins); brake assist brakes for
+## corners and traffic; steering assist steers toward the line; autodrive does all of it.
+func _apply_access_assists(delta: float) -> void:
+	var g := _guide.controls(delta)
+	if g.is_empty():
+		return
+	if assists.autodrive:
+		vehicle.steer = g.steer
+		vehicle.throttle = g.throttle
+		vehicle.brake = g.brake
+		return
+	var steer_mix: float = assists.steering_assist
+	vehicle.steer = lerpf(vehicle.steer, g.steer, steer_mix)
+	if assists.auto_throttle and vehicle.brake < 0.1:
+		vehicle.throttle = g.throttle
+	if assists.brake_assist > 0.0 and g.brake > 0.0:
+		vehicle.brake = maxf(vehicle.brake, g.brake * assists.brake_assist)
+		vehicle.throttle = minf(vehicle.throttle, 1.0 - g.brake * assists.brake_assist)
 
 
 ## Deadzone, then a power curve (1 = linear), keeping the sign.

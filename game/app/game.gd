@@ -12,6 +12,7 @@ extends Node
 ##   --auto-continue      go straight on to the next session when results come up; quit after the last
 ##   --voices             print the text-to-speech voices
 ##   --no-save            write no settings or profiles (checks that walk the menus)
+##   --p1-profile=<json>  P1's options for this run, e.g. '{"assists": {"racing_line": true}}' (with --no-save)
 ##   --skip-first-boot    don't show the first-boot accessibility screen
 ##   --screen-reader      act as if a screen reader is running (with --accessibility always; checks)
 ##   --screens=0,0,1,1    monitor per player (multi-monitor)
@@ -52,6 +53,15 @@ func _ready() -> void:
 			var kv := arg.substr(2).split("=", true, 1)
 			dev[kv[0]] = kv[1] if kv.size() > 1 else "true"
 	PlayerProfile.read_only = dev.has("no-save")
+	# Dev: --p1-profile='{"assists": {"racing_line": true}}' sets P1's options for this run (use
+	# with --no-save to keep them out of the profile).
+	var p1: Variant = JSON.parse_string(String(dev.get("p1-profile", "{}")))
+	if p1 is Dictionary and not p1.is_empty():
+		for key: String in p1:
+			if Settings.primary.data.get(key) is Dictionary and p1[key] is Dictionary:
+				Settings.primary.data[key].merge(p1[key], true)
+			else:
+				Settings.primary.data[key] = p1[key]
 	if dev.has("fullscreen"): # this run only; not saved
 		Settings.fullscreen = true
 		Settings.apply_display()

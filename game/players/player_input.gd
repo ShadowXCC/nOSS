@@ -110,6 +110,11 @@ func analog(action: String) -> float:
 	return _source(action)
 
 
+## Any of this player's devices has something bound to `action`.
+func has_binding(action: String) -> bool:
+	return not _refs.get(action, []).is_empty()
+
+
 func held(action: String) -> bool:
 	return analog(action) > PRESS
 

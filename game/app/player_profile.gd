@@ -6,7 +6,7 @@ extends RefCounted
 
 signal changed
 
-const VERSION := 2
+const VERSION := 3
 const DEFAULTS := {
 	"version": VERSION,
 	"name": "Player 1",
@@ -21,7 +21,13 @@ const DEFAULTS := {
 		"menu_delay": 0.45,
 		"menu_rate": 10.0,
 	},
-	"assists": { "abs": true, "tcs": true, "stability": false, "auto_gearbox": true, "steer_aid": true },
+	# Steer aid, auto gearbox and auto clutch: "auto" (on with keyboard or controller, off with a
+	# wheel), "on" or "off". Brake and steering assist are strengths, 0 = off (AssistRules).
+	"assists": {
+		"abs": true, "tcs": true, "stability": false,
+		"auto_gearbox": "auto", "auto_clutch": "auto", "steer_aid": "auto",
+		"racing_line": false, "auto_throttle": false, "brake_assist": 0.0, "steering_assist": 0.0, "autodrive": false,
+	},
 	"camera": "chase_near",
 	"camera_shake": 0.5,
 	"head_movement": 0.5,
@@ -118,8 +124,8 @@ func set_value(key: String, value: Variant) -> void:
 	save()
 
 
-func set_assist(assist: String, on: bool) -> void:
-	data.assists[assist] = on
+func set_assist(assist: String, value: Variant) -> void:
+	data.assists[assist] = value
 	save()
 
 
@@ -135,7 +141,14 @@ static func merged(saved: Variant) -> Dictionary:
 		_overlay(p, migrate(saved))
 	p.version = VERSION
 	for key: String in DEFAULTS.assists:
-		p.assists[key] = bool(p.assists.get(key, DEFAULTS.assists[key]))
+		var want: Variant = DEFAULTS.assists[key]
+		var v: Variant = p.assists.get(key, want)
+		if want is bool:
+			p.assists[key] = bool(v)
+		elif want is float:
+			p.assists[key] = clampf(float(v), 0.0, 1.0)
+		elif String(v) not in ["auto", "on", "off"]:
+			p.assists[key] = want
 	return p
 
 
@@ -151,6 +164,14 @@ static func migrate(saved: Dictionary) -> Dictionary:
 				if old[action] is Array:
 					kb[action] = old[action].map(func(k: Variant) -> Dictionary: return { "key": int(k) })
 			s.input = { "bindings": { "kb_full": kb } }
+		s.version = 2
+	# v3 (M4): steer aid and auto gearbox go from on/off to auto (by device)/off.
+	if int(s.get("version", 1)) < 3:
+		var a: Variant = s.get("assists")
+		if a is Dictionary:
+			for key: String in ["steer_aid", "auto_gearbox"]:
+				if a.get(key) is bool:
+					a[key] = "auto" if a[key] else "off"
 		s.version = VERSION
 	return s
 
