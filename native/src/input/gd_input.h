@@ -26,8 +26,8 @@ public:
 	static double axis(int64_t p_device, int64_t p_axis);
 	static bool button(int64_t p_device, int64_t p_button);
 	// force: -1..1, + pulls the wheel left. damper: 0..1.
-	static void set_ffb(int64_t p_device, double p_force, double p_damper);
-	static void set_ffb_options(int64_t p_device, double p_gain, double p_min_force, bool p_invert);
+	static void set_ffb_inputs(int64_t p_device, const godot::Dictionary &p_inputs);
+	static void set_ffb_settings(int64_t p_device, const godot::Dictionary &p_settings);
 	static void ffb_test(int64_t p_device);
 	// Peak requested force (1 = clipping), decaying over about a second.
 	static double ffb_peak(int64_t p_device);

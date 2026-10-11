@@ -10,7 +10,6 @@ namespace {
 
 constexpr int FFB_HZ = 500;
 constexpr int REFRESH_EVERY = 60; // polls between device list checks
-constexpr float SMOOTHING = 0.25f; // per FFB tick, toward the target
 
 } // namespace
 
@@ -225,11 +224,12 @@ void DeviceManager::_close(Device &r_device) {
 	}
 }
 
-// ~500 Hz: smooths the latest target (set at the physics rate) and sends it to the wheel.
+// ~500 Hz: mixes the latest inputs (set at the physics rate) into one force and sends it.
 void DeviceManager::_ffb_loop() {
 	using clock = std::chrono::steady_clock;
 	auto next = clock::now();
 	const auto period = std::chrono::microseconds(1000000 / FFB_HZ);
+	const float dt = 1.0f / float(FFB_HZ);
 	while (_ffb_run) {
 		next += period;
 		{
@@ -240,24 +240,16 @@ void DeviceManager::_ffb_loop() {
 					continue;
 				}
 				FfbState &s = *d.state;
-				float target = s.target.load() * s.gain.load();
-				int test = s.test_ticks.load();
-				if (test > 0) {
-					// Test pattern: left, right, centre, 0.4 s each.
-					int phase = (FFB_HZ * 6 / 5 - test) / (FFB_HZ * 2 / 5);
-					target = phase == 0 ? 0.5f : phase == 1 ? -0.5f : 0.0f;
-					s.test_ticks = test - 1;
+				float out;
+				float damper;
+				{
+					std::lock_guard<std::mutex> mix(s.lock);
+					s.settings.hardware_damper = d.damper_supported;
+					out = s.mixer.step(s.inputs, s.settings, dt);
+					s.peak = s.mixer.peak();
+					damper = s.settings.damper;
 				}
-				float magnitude = std::abs(target);
-				s.peak = std::max(magnitude, s.peak.load() * 0.998f);
-				// Lift small forces past the wheel's deadband.
-				if (magnitude > 0.005f) {
-					float lifted = s.min_force + (1.0f - s.min_force) * std::min(magnitude, 1.0f);
-					target = std::copysign(lifted, target);
-				}
-				target = std::clamp(target, -1.0f, 1.0f);
-				d.output += (target - d.output) * SMOOTHING;
-				float level = s.invert ? d.output : -d.output; // + level turns most wheels right
+				float level = -out; // + level turns most wheels right; + out pulls left
 				SDL_HapticEffect e;
 				SDL_zero(e);
 				e.type = SDL_HAPTIC_CONSTANT;
@@ -267,7 +259,6 @@ void DeviceManager::_ffb_loop() {
 				e.constant.level = Sint16(std::lround(level * 32767.0f));
 				_sdl.UpdateHapticEffect(d.haptic, d.constant_effect, &e);
 
-				float damper = s.damper.load();
 				if (d.damper_supported && std::abs(damper - d.sent_damper) > 0.01f) {
 					d.sent_damper = damper;
 					SDL_HapticEffect c;

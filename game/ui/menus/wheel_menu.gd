@@ -63,13 +63,22 @@ func _ready() -> void:
 		if _cfg.get("steer") is Dictionary:
 			_cfg.steer.invert = on
 			_save()))
-	_add(list, UiKit.slider("FFB strength", _cfg.ffb_gain, func(v: float) -> void: _set_value("ffb_gain", v)))
-	_add(list, UiKit.slider("FFB damping", _cfg.ffb_damper, func(v: float) -> void: _set_value("ffb_damper", v)))
-	_add(list, UiKit.slider("FFB min force", _cfg.ffb_min / 0.3, func(v: float) -> void: _set_value("ffb_min", v * 0.3)))
-	_add(list, UiKit.check("Invert FFB", _cfg.ffb_invert, func(on: bool) -> void: _set_value("ffb_invert", on)))
+	var c := func(key: String) -> float: return float(_cfg.get(key, WheelInput.DEFAULTS[key]))
+	_add(list, UiKit.slider("FFB strength", c.call("ffb_gain"), func(v: float) -> void: _set_value("ffb_gain", v)))
+	_add(list, UiKit.number("Wheel torque", c.call("ffb_max_torque_nm"), 2, 25, 0.5, "%.1f Nm", func(v: float) -> void: _set_value("ffb_max_torque_nm", v),
+		"Your wheel's strongest force: about 2 for gear wheels, 3 to 4 belt, 8 and up direct drive"))
+	for item: Array in [["ffb_road", "Road", "Surface texture"], ["ffb_curb", "Curbs", "Rumble over curbs"], ["ffb_slip", "Slip", "Buzz while the front slides"],
+			["ffb_jolt", "Collisions", "A kick on contact"], ["ffb_engine", "Engine", "Engine vibration"], ["ffb_spring", "Centering", "Pulls to the middle when slow"]]:
+		var key: String = item[0]
+		_add(list, UiKit.slider(item[1], c.call(key), func(v: float) -> void: _set_value(key, v), item[2]))
+	_add(list, UiKit.slider("Damping", c.call("ffb_damper"), func(v: float) -> void: _set_value("ffb_damper", v), "Weight"))
+	_add(list, UiKit.slider("Friction", c.call("ffb_friction") / 0.3, func(v: float) -> void: _set_value("ffb_friction", v * 0.3)))
+	_add(list, UiKit.slider("Smoothing", 1.0 - c.call("ffb_smoothing"), func(v: float) -> void: _set_value("ffb_smoothing", clampf(1.0 - v, 0.05, 1.0)), "Filters noise on direct-drive wheels"))
+	_add(list, UiKit.slider("Min force", c.call("ffb_min") / 0.3, func(v: float) -> void: _set_value("ffb_min", v * 0.3), "Overcomes the dead spot on gear and belt wheels"))
+	_add(list, UiKit.check("Invert FFB", bool(_cfg.get("ffb_invert", false)), func(on: bool) -> void: _set_value("ffb_invert", on)))
 	_add(list, UiKit.button("Test FFB", func() -> void:
 		if slot.input.wheel.device_id >= 0:
-			NossInput.ffb_test(slot.input.wheel.device_id)))
+			NossInput.ffb_test(slot.input.wheel.device_id), "Pulls left, right, then curbs and a jolt"))
 	_status = UiKit.label("")
 	_status.accessibility_live = AccessibilityServer.AccessibilityLiveMode.LIVE_POLITE
 	list.add_child(_status)

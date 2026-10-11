@@ -119,6 +119,7 @@ func _make_driver() -> Node:
 	controller.racer = self
 	controller.mode = session.mode
 	slot.input.wheel.platform_lock_deg = float(platform.platform.steering.wheel_rotation_deg)
+	slot.input.wheel.apply_ffb_settings(float(platform.platform.get("ffb", {}).get("reference_rack_nm", 9.0)))
 	controller.reset_requested.connect(reset_car)
 	controller.camera_next_requested.connect(_next_camera)
 	slot.profile.changed.connect(_on_profile_changed)
@@ -153,8 +154,8 @@ func _physics_process(delta: float) -> void:
 	if finished and controller and _cool_down == null:
 		_start_cool_down()
 	if controller and overlay == null:
+		_feedback(delta)
 		if slot.input.wheel.is_active():
-			slot.input.wheel.update_ffb(vehicle.sim.get_rack_force())
 			# The in-car wheel turns with the real one.
 			vehicle.steering_wheel_lock_deg = slot.input.wheel.platform_lock_deg
 		if slot.input.just_pressed("pause"):
@@ -174,6 +175,65 @@ func new_session() -> void:
 		_cool_down = null
 		if controller and overlay == null:
 			controller.set_physics_process(true)
+
+
+## How rough each surface feels through the wheel (road texture), 0..1, by VehicleSim surface.
+const ROUGHNESS := { VehicleSim.SURFACE_ASPHALT: 0.15, VehicleSim.SURFACE_CONCRETE: 0.25, VehicleSim.SURFACE_CURB: 0.5,
+	VehicleSim.SURFACE_PAINT: 0.15, VehicleSim.SURFACE_GRASS: 0.8, VehicleSim.SURFACE_GRAVEL: 1.0,
+	VehicleSim.SURFACE_DIRT: 0.7, VehicleSim.SURFACE_SAND: 0.9, VehicleSim.SURFACE_SNOW: 0.4, VehicleSim.SURFACE_ICE: 0.05 }
+const RUMBLE_HZ := 20.0
+var _rumble_time := 0.0
+
+
+## Force feedback for a wheel (INP-05) and rumble for controllers (INP-02), from what the car
+## is doing: rack force, curbs, road texture, front slip, engine, collisions.
+func _feedback(delta: float) -> void:
+	var wheel := slot.input.wheel.is_active()
+	var pads := slot.input.devices.filter(func(d: Dictionary) -> bool: return d.kind == "gamepad")
+	var strength := float(slot.profile.data.get("rumble", 0.5))
+	if not wheel and (pads.is_empty() or strength <= 0.0):
+		return
+	var t := vehicle.sim.get_telemetry()
+	var curb := 0.0
+	var road := 0.0
+	var slip := 0.0
+	var fronts := 0
+	for i in mini(t.wheels.size(), vehicle.fitted.physics_wheels.size()):
+		if int(vehicle.fitted.physics_wheels[i].get("axle", 0)) != 1:
+			continue # front axle only: that's what the steering feels
+		var w: Dictionary = t.wheels[i]
+		fronts += 1
+		if w.contact:
+			curb += 1.0 if w.surface == VehicleSim.SURFACE_CURB else 0.0
+			road = maxf(road, float(ROUGHNESS.get(int(w.surface), 0.2)))
+			slip = maxf(slip, clampf((float(w.slip_speed) - 1.0) / 6.0, 0.0, 1.0))
+	curb /= maxf(fronts, 1)
+	var jolt := clampf((vehicle.car_impulse + vehicle.wall_impulse) / (vehicle.mass * 3.0), 0.0, 1.0)
+	if wheel:
+		slot.input.wheel.update_ffb({
+			"rack": vehicle.sim.get_rack_force(), "speed": absf(vehicle.speed()), "curb": curb, "road": road,
+			"slip": slip, "rpm_ratio": float(t.rpm) / float(vehicle.platform.engine.limiter_rpm), "jolt": jolt,
+		})
+	# Controllers: the small motor for slides and curbs, the big one for knocks.
+	_rumble_time -= delta
+	if _rumble_time > 0.0 and jolt < 0.05:
+		return
+	_rumble_time = 1.0 / RUMBLE_HZ
+	var speed_k := clampf(absf(vehicle.speed()) / 20.0, 0.0, 1.0)
+	var weak := clampf(slip * 0.6 + curb * 0.5 * speed_k + (road - 0.2) * 0.3 * speed_k, 0.0, 1.0) * strength
+	var strong := clampf(jolt * 1.5 + curb * 0.25 * speed_k + (1.0 if t.abs else 0.0) * 0.15, 0.0, 1.0) * strength
+	for d: Dictionary in pads:
+		if weak + strong > 0.02:
+			Input.start_joy_vibration(int(d.id), weak, strong, 0.15)
+		else:
+			Input.stop_joy_vibration(int(d.id))
+
+
+## Stops controller rumble (menus, pause, leaving).
+func stop_rumble() -> void:
+	for d: Dictionary in slot.input.devices:
+		if d.kind == "gamepad":
+			Input.stop_joy_vibration(int(d.id))
 
 
 ## Cars alongside: "Car left", "Car right", "Three wide", "Clear" (spoken with voice, always
@@ -332,6 +392,7 @@ func show_overlay(control: Control, pause := false) -> void:
 		controller.set_physics_process(false)
 		controller.release()
 	slot.input.wheel.stop_ffb()
+	stop_rumble()
 	view.overlay_root.add_child(control)
 	slot.input.settle()
 	slot.menu_target = view.viewport
@@ -356,6 +417,7 @@ func _exit_tree() -> void:
 	slot.menu_target = null
 	if not slot.ai:
 		slot.input.wheel.stop_ffb()
+		stop_rumble()
 
 
 ## Frees the car with the player (on drop out).

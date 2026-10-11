@@ -36,8 +36,8 @@ void NossInput::_bind_methods() {
 	ClassDB::bind_static_method("NossInput", D_METHOD("devices"), &NossInput::devices);
 	ClassDB::bind_static_method("NossInput", D_METHOD("axis", "device", "axis"), &NossInput::axis);
 	ClassDB::bind_static_method("NossInput", D_METHOD("button", "device", "button"), &NossInput::button);
-	ClassDB::bind_static_method("NossInput", D_METHOD("set_ffb", "device", "force", "damper"), &NossInput::set_ffb);
-	ClassDB::bind_static_method("NossInput", D_METHOD("set_ffb_options", "device", "gain", "min_force", "invert"), &NossInput::set_ffb_options);
+	ClassDB::bind_static_method("NossInput", D_METHOD("set_ffb_inputs", "device", "inputs"), &NossInput::set_ffb_inputs);
+	ClassDB::bind_static_method("NossInput", D_METHOD("set_ffb_settings", "device", "settings"), &NossInput::set_ffb_settings);
 	ClassDB::bind_static_method("NossInput", D_METHOD("ffb_test", "device"), &NossInput::ffb_test);
 	ClassDB::bind_static_method("NossInput", D_METHOD("ffb_peak", "device"), &NossInput::ffb_peak);
 }
@@ -96,24 +96,56 @@ bool NossInput::button(int64_t p_device, int64_t p_button) {
 	return d && p_button >= 0 && p_button < int64_t(d->buttons.size()) && d->buttons[size_t(p_button)];
 }
 
-void NossInput::set_ffb(int64_t p_device, double p_force, double p_damper) {
+namespace {
+float num(const Dictionary &p_d, const char *p_key, float p_default) {
+	Variant v = p_d.get(p_key, p_default);
+	return (v.get_type() == Variant::FLOAT || v.get_type() == Variant::INT) ? float(double(v)) : p_default;
+}
+} // namespace
+
+// What the car is doing this tick (keys as ffb::Inputs; missing ones are 0).
+void NossInput::set_ffb_inputs(int64_t p_device, const Dictionary &p_inputs) {
 	if (input::Device *d = device(p_device)) {
-		d->state->target = float(p_force);
-		d->state->damper = float(p_damper);
+		std::lock_guard<std::mutex> lock(d->state->lock);
+		ffb::Inputs &in = d->state->inputs;
+		in.rack = num(p_inputs, "rack", 0.0f);
+		in.speed = num(p_inputs, "speed", 0.0f);
+		in.curb = num(p_inputs, "curb", 0.0f);
+		in.road = num(p_inputs, "road", 0.0f);
+		in.slip = num(p_inputs, "slip", 0.0f);
+		in.rpm_ratio = num(p_inputs, "rpm_ratio", 0.0f);
+		in.jolt = num(p_inputs, "jolt", 0.0f);
+		in.wheel = num(p_inputs, "wheel", 0.0f);
+		in.lock = num(p_inputs, "lock", 0.0f);
 	}
 }
 
-void NossInput::set_ffb_options(int64_t p_device, double p_gain, double p_min_force, bool p_invert) {
+// The player's settings (keys as ffb::Settings; missing ones keep their value).
+void NossInput::set_ffb_settings(int64_t p_device, const Dictionary &p_settings) {
 	if (input::Device *d = device(p_device)) {
-		d->state->gain = float(p_gain);
-		d->state->min_force = float(p_min_force);
-		d->state->invert = p_invert;
+		std::lock_guard<std::mutex> lock(d->state->lock);
+		ffb::Settings &s = d->state->settings;
+		s.gain = num(p_settings, "gain", s.gain);
+		s.max_torque_nm = num(p_settings, "max_torque_nm", s.max_torque_nm);
+		s.reference_nm = num(p_settings, "reference_nm", s.reference_nm);
+		s.road = num(p_settings, "road", s.road);
+		s.curb = num(p_settings, "curb", s.curb);
+		s.slip = num(p_settings, "slip", s.slip);
+		s.jolt = num(p_settings, "jolt", s.jolt);
+		s.engine = num(p_settings, "engine", s.engine);
+		s.spring = num(p_settings, "spring", s.spring);
+		s.damper = num(p_settings, "damper", s.damper);
+		s.friction = num(p_settings, "friction", s.friction);
+		s.min_force = num(p_settings, "min_force", s.min_force);
+		s.smoothing = num(p_settings, "smoothing", s.smoothing);
+		s.invert = bool(p_settings.get("invert", s.invert));
 	}
 }
 
 void NossInput::ffb_test(int64_t p_device) {
 	if (input::Device *d = device(p_device)) {
-		d->state->test_ticks = 600;
+		std::lock_guard<std::mutex> lock(d->state->lock);
+		d->state->mixer.start_test();
 	}
 }
 

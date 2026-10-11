@@ -35,6 +35,8 @@ const DEFAULTS := {
 	"horizon_lock": false,
 	"pad_deadzone": 0.08,
 	"pad_linearity": 1.6,
+	# Controller rumble strength, 0 = off (slides, curbs, knocks).
+	"rumble": 0.5,
 	"hud_scale": 1.0,
 	"text_scale": 1.0,
 	"high_contrast": false,

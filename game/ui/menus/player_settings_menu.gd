@@ -120,6 +120,7 @@ func _build() -> void:
 	if slot == null or slot.keyboard_zone() in ["", "full"]:
 		_add(rows, UiKit.spinner("Keyboard", KEYBOARD, d.input.presets.keyboard, func(v: String) -> void: _set_input("presets", "keyboard", v)))
 	_add(rows, UiKit.spinner("Controller", Bindings.presets_for("gamepad"), d.input.presets.gamepad, func(v: String) -> void: _set_input("presets", "gamepad", v)))
+	_add(rows, UiKit.slider("Controller rumble", d.rumble, func(v: float) -> void: profile.set_value("rumble", v), "Slides, curbs and knocks"))
 	_add(rows, UiKit.slider("Stick deadzone", d.pad_deadzone / 0.4, func(v: float) -> void:
 		profile.set_value("pad_deadzone", v * 0.4)
 		Players.refresh_all()))

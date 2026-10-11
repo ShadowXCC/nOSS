@@ -454,6 +454,7 @@ func _open_pause(p: SessionPlayer) -> void:
 			other.hud.show_message("Paused by %s" % p.slot.tag(), 1e9)
 			if not other.slot.ai:
 				other.slot.input.wheel.stop_ffb()
+				other.stop_rumble()
 	var menu := PauseMenu.new()
 	menu.slot = p.slot
 	menu.bay_return = bay_return

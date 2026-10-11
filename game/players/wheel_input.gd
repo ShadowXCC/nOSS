@@ -6,7 +6,8 @@ extends RefCounted
 ## (a wheel plus separate pedals); force feedback goes to the steering device.
 ##
 ## Config (profile "wheel"): {guid, name, rotation_deg, steer: {axis, center, invert, guid?},
-## throttle/brake/clutch: {axis, rest, full, guid?}, ffb_gain, ffb_damper, ffb_min, ffb_invert}.
+## throttle/brake/clutch/handbrake: {axis, rest, full, guid?}, ffb_*: the force feedback settings
+## (FFB_SETTINGS)}.
 ## An axis without its own guid is on the device named by the top-level guid.
 
 const DEFAULTS := {
@@ -15,6 +16,22 @@ const DEFAULTS := {
 	"ffb_damper": 0.12,
 	"ffb_min": 0.0,
 	"ffb_invert": false,
+	"ffb_max_torque_nm": 8.0,
+	"ffb_road": 0.5,
+	"ffb_curb": 0.6,
+	"ffb_slip": 0.3,
+	"ffb_jolt": 0.8,
+	"ffb_engine": 0.0,
+	"ffb_spring": 0.3,
+	"ffb_friction": 0.05,
+	"ffb_smoothing": 0.25,
+}
+## Config key -> the mixer's setting (docs/INPUT.md §6).
+const FFB_SETTINGS := {
+	"ffb_gain": "gain", "ffb_damper": "damper", "ffb_min": "min_force", "ffb_invert": "invert",
+	"ffb_max_torque_nm": "max_torque_nm", "ffb_road": "road", "ffb_curb": "curb", "ffb_slip": "slip",
+	"ffb_jolt": "jolt", "ffb_engine": "engine", "ffb_spring": "spring", "ffb_friction": "friction",
+	"ffb_smoothing": "smoothing",
 }
 const SOFT_LOCK_RAMP_DEG := 8.0
 
@@ -45,8 +62,19 @@ func configure(devices: Array, cfg: Dictionary) -> void:
 		config.steer = { "axis": 0, "center": 0.0 }
 		config.merge(Bindings.preset(String(first_wheel.get("preset", ""))).get("wheel", {}).duplicate(true), true)
 	device_id = device_for("steer")
-	if device_id >= 0:
-		NossInput.set_ffb_options(device_id, config.ffb_gain, config.ffb_min, config.ffb_invert)
+	apply_ffb_settings()
+
+
+## Sends the force feedback settings (and the platform's reference rack force) to the wheel.
+func apply_ffb_settings(reference_nm := -1.0) -> void:
+	if device_id < 0:
+		return
+	var settings := {}
+	for key: String in FFB_SETTINGS:
+		settings[FFB_SETTINGS[key]] = config.get(key, DEFAULTS[key])
+	if reference_nm > 0.0:
+		settings.reference_nm = reference_nm
+	NossInput.set_ffb_settings(device_id, settings)
 
 
 ## SDL id of the device an axis is on, -1 if that device isn't the player's.
@@ -110,20 +138,20 @@ func pedal(which: String) -> float:
 	return clampf((NossInput.axis(id, int(p.axis)) - rest) / (full - rest), 0.0, 1.0)
 
 
-## Sends this tick's force: rack force, soft lock at the platform's lock, damper.
-## rack: the sim's normalized rack force (+ = pulls left).
-func update_ffb(rack: float) -> void:
+## Sends what the car is doing this tick (FfbMixer inputs: rack, speed, curb, road, slip,
+## rpm_ratio, jolt), plus the wheel's position and the soft lock at the platform's lock.
+func update_ffb(inputs: Dictionary) -> void:
 	if not is_active():
 		return
-	var force := rack
 	var half := platform_lock_deg / 2.0
 	var angle := angle_deg()
+	inputs.wheel = clampf(-angle / (float(config.rotation_deg) / 2.0), -1.0, 1.0) # + = turned left
+	inputs.lock = 0.0
 	if absf(angle) > half:
-		var push := clampf((absf(angle) - half) / SOFT_LOCK_RAMP_DEG, 0.0, 1.0)
-		force = -signf(angle) * maxf(push, absf(force)) # + angle (right) pushes left
-	NossInput.set_ffb(device_id, force, float(config.ffb_damper))
+		inputs.lock = -signf(angle) * clampf((absf(angle) - half) / SOFT_LOCK_RAMP_DEG, 0.0, 1.0) # + angle (right) pushes left
+	NossInput.set_ffb_inputs(device_id, inputs)
 
 
 func stop_ffb() -> void:
 	if device_id >= 0:
-		NossInput.set_ffb(device_id, 0.0, 0.0)
+		NossInput.set_ffb_inputs(device_id, {})

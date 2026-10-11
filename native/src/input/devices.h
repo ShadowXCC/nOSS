@@ -13,18 +13,18 @@
 #include <thread>
 #include <vector>
 
+#include "ffb/ffb_mixer.h"
 #include "input/sdl_api.h"
 
 namespace noss::input {
 
+// What the game sends (at the physics rate) and the FFB thread mixes (FfbMixer, ~500 Hz).
 struct FfbState {
-	std::atomic<float> target{ 0.0f }; // -1..1, + = pulls the wheel left
-	std::atomic<float> damper{ 0.0f }; // 0..1
-	std::atomic<float> gain{ 1.0f };
-	std::atomic<float> min_force{ 0.0f };
-	std::atomic<bool> invert{ false };
+	std::mutex lock;
+	ffb::Inputs inputs;
+	ffb::Settings settings;
+	ffb::Mixer mixer;
 	std::atomic<float> peak{ 0.0f }; // largest |output| before clamping, decays (clip meter)
-	std::atomic<int> test_ticks{ 0 }; // > 0 while the test pattern plays
 };
 
 struct Device {
