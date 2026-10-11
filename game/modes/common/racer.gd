@@ -34,6 +34,8 @@ var last_valid := 0.0
 ## Shown on standings, the track map and results.
 var display_name := ""
 var number := 0
+## Online: this car's id (its player's id, or an AI car's), 0 offline.
+var net_id := 0
 var color := Color.WHITE
 var is_human := false
 
@@ -187,6 +189,9 @@ func _spawn(pkg: VehiclePackage) -> void:
 		set_ghost(true)
 	driver = _make_driver()
 	add_child(driver)
+	if Game.dedicated or Game.dev.has("bot"):
+		_spawned() # nobody listens: no engine sound
+		return
 	sound = EngineSound.new()
 	sound.vehicle = vehicle
 	sound.own = is_human

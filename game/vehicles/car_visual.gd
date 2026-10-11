@@ -30,14 +30,18 @@ var _lod_distances: Array = []
 
 ## Car LOD distances are multiplied by this (splitscreen lowers it, docs/ARCHITECTURE.md §6).
 static var lod_scale := 1.0
+## A package without a model (only its data has arrived online) shows as a box the size of its
+## envelope in this colour, on stock wheels (D80).
+var placeholder_color := Color(0.6, 0.6, 0.62)
 
 
 ## Takes ownership of the package's LOD scenes.
-static func create(pkg: VehiclePackage, fit_result: Fitting.Result) -> CarVisual:
+static func create(pkg: VehiclePackage, fit_result: Fitting.Result, placeholder := Color(0.6, 0.6, 0.62)) -> CarVisual:
 	var visual := CarVisual.new()
 	visual.name = "CarVisual"
 	visual.package = pkg
 	visual.fitted = fit_result
+	visual.placeholder_color = placeholder
 	visual.model_root = Node3D.new()
 	visual.model_root.name = "ModelRoot"
 	visual.model_root.transform = fit_result.model_xform
@@ -48,8 +52,26 @@ static func create(pkg: VehiclePackage, fit_result: Fitting.Result) -> CarVisual
 		lod.name = "LOD%d" % i
 		visual.model_root.add_child(lod)
 	visual.apply_lod_scale()
+	if pkg.lods.is_empty():
+		visual._add_placeholder_body()
 	visual._setup()
 	return visual
+
+
+func _add_placeholder_body() -> void:
+	var e := fitted.envelope
+	var bottom := fitted.ground_y + 0.25
+	var box := BoxMesh.new()
+	box.size = Vector3(e.size.x * 0.96, maxf(e.end.y - bottom, 0.3), e.size.z * 0.96)
+	var m := StandardMaterial3D.new()
+	m.albedo_color = placeholder_color
+	m.roughness = 0.5
+	box.material = m
+	var mi := MeshInstance3D.new()
+	mi.name = "Placeholder"
+	mi.mesh = box
+	mi.position = Vector3(e.get_center().x, bottom + box.size.y / 2.0, e.get_center().z)
+	add_child(mi)
 
 
 ## Sets each LOD's distance range from the package's, times lod_scale.
@@ -124,7 +146,7 @@ func _setup() -> void:
 
 	# model: the model's wheels move; static: they're part of the body and stay put;
 	# stock: they're hidden and the platform's stock wheels are drawn at the anchors.
-	var mode: String = fit.wheel_mode
+	var mode: String = fit.wheel_mode if not package.lods.is_empty() else "stock"
 	var to_model := fitted.model_xform.basis.inverse()
 	for i in fit.wheels.size():
 		var fw: Dictionary = fit.wheels[i]

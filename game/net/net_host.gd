@@ -189,12 +189,43 @@ func admin(peer: int, cmd: String, target := "") -> void:
 					server.kick(p.peer, "Kicked")
 				else:
 					server.ban(p.peer, "Banned")
-		"start":
+		"start", "restart":
 			start_requested.emit()
+			start_session()
 		"next":
+			if state == "session":
+				end_session()
 			next_event()
-		"restart":
-			start_requested.emit()
+
+
+## Starts the rotation's current event for everyone in the lobby.
+func start_session() -> void:
+	state = "session"
+	_to_all(NetProtocol.Msg.SESSION, session_dict())
+	log_line.emit("Session: %s, %s, %s" % [_track_name(track_path()), _class_name(platform_id()), event().kind])
+	_dirty = true
+
+
+## Back to the lobby.
+func end_session() -> void:
+	if state != "session":
+		return
+	state = "lobby"
+	ready_peers.clear()
+	_to_all(NetProtocol.Msg.SESSION_END, {})
+	_dirty = true
+
+
+## What a session needs: track, class, event and everyone's car, in grid order.
+func session_dict() -> Dictionary:
+	return { "track": track_path(), "class": platform_id(), "event": event().to_dict(), "roster": roster() }
+
+
+func roster() -> Array:
+	var out := []
+	for p: NetPlayer in server.players.values():
+		out.append(p.to_dict())
+	return out
 
 
 ## The next event in the rotation (back in the lobby).
@@ -244,6 +275,7 @@ func _pick(peer: int, data: Dictionary) -> void:
 			content.share_car(p.car)
 		else:
 			content.fetch_car(p.car, peer, "full", bytes)
+	_roster_changed()
 	_dirty = true
 
 
@@ -252,6 +284,7 @@ func _on_car_refused(car_hash: String, reason: String) -> void:
 		if p.car == car_hash and p.car_note.is_empty():
 			p.car_note = reason
 			_notice(p.peer, reason)
+	_roster_changed()
 	_dirty = true
 
 
@@ -266,7 +299,20 @@ func _on_joined(peer: int) -> void:
 	_say("%s joined" % ", ".join(names))
 	if config.motd:
 		_notice(peer, config.motd)
+	if state == "session": # joins the session in progress
+		server.send(peer, NetProtocol.Msg.SESSION, session_dict())
+		_roster_changed(peer)
 	_dirty = true
+
+
+## Everyone already in the session hears who's in it now.
+func _roster_changed(except := 0) -> void:
+	if state != "session":
+		return
+	var data := { "roster": roster() }
+	server.broadcast(NetProtocol.Msg.ROSTER, data, except)
+	if local_sink.is_valid():
+		local_sink.call(NetProtocol.Msg.ROSTER, data)
 
 
 func _on_left(peer: int, reason: String, names: String) -> void:
@@ -276,6 +322,7 @@ func _on_left(peer: int, reason: String, names: String) -> void:
 		_say("%s left" % names)
 	else:
 		_say("%s left (%s)" % [names, reason.to_lower()])
+	_roster_changed()
 	_dirty = true
 
 

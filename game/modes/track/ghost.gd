@@ -55,11 +55,7 @@ func sample_at(t: float) -> Dictionary:
 	var p1 := _vec(j, 1)
 	var v0 := _vec(i, 8)
 	var v1 := _vec(j, 8)
-	# Cubic Hermite: matches position and velocity at both ends.
-	var u2 := u * u
-	var u3 := u2 * u
-	var pos := p0 * (2.0 * u3 - 3.0 * u2 + 1.0) + v0 * span * (u3 - 2.0 * u2 + u) \
-		+ p1 * (-2.0 * u3 + 3.0 * u2) + v1 * span * (u3 - u2)
+	var pos := Motion.hermite(p0, v0, p1, v1, span, u)
 	var q := _quat(i).slerp(_quat(j), u)
 	return {
 		"xform": Transform3D(Basis(q), pos),

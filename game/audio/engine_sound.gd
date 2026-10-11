@@ -180,6 +180,14 @@ func _apply_detail() -> void:
 
 ## rpm, load, throttle, idle and redline from the sim, or from `manual`.
 func _state() -> Dictionary:
+	if vehicle and is_instance_valid(vehicle) and vehicle.remote:
+		var r := vehicle.remote_state
+		if r == null:
+			return {}
+		return {
+			"rpm": r.rpm, "load": r.throttle, "throttle": r.throttle, "speed": vehicle.remote_velocity.length(),
+			"idle": float(vehicle.platform.engine.idle_rpm), "redline": float(vehicle.platform.engine.redline_rpm),
+		}
 	if vehicle and is_instance_valid(vehicle):
 		var sim := vehicle.sim
 		var load := maxf(sim.get_engine_load(), sim.get_throttle())
@@ -253,7 +261,7 @@ func _update_extras(state: Dictionary, norm: float, delta: float) -> void:
 
 func _update_road(state: Dictionary, _delta: float) -> void:
 	var slip := 0.0
-	if vehicle and is_instance_valid(vehicle):
+	if vehicle and is_instance_valid(vehicle) and not vehicle.remote:
 		var t := vehicle.sim.get_telemetry()
 		# A refused gear change (H-pattern without the clutch) grinds.
 		var grinds := int(t.get("grinds", 0))

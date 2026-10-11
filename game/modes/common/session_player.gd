@@ -384,7 +384,7 @@ func open_picker(pause: bool) -> void:
 ## Shows one of this player's menus; their navigation goes there and their car coasts.
 func show_overlay(control: Control, pause := false) -> void:
 	close_overlay()
-	if pause:
+	if pause and not session.is_online(): # online the game never stops (D86)
 		get_tree().paused = true
 		_paused_tree = true
 	overlay = control

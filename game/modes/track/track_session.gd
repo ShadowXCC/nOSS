@@ -71,6 +71,12 @@ var time_trial: TimeTrial
 var world_env: Environment
 ## Who has the game paused, or null.
 var paused_by: SessionPlayer
+## Online (D84): the session's SESSION message ({track, class, event, roster}); {} offline.
+var online := {}
+## The dedicated server's session: no players of its own, nothing drawn.
+var dedicated := false
+## Online play in this session, or null offline.
+var net: NetSession
 
 var _default_car := ""
 var _show_fps := false
@@ -117,26 +123,29 @@ func _ready() -> void:
 	views.map = map
 	views.views_changed.connect(_on_views_changed)
 
-	Players.primary_slot() # one player can just drive
-	for i in ai_players:
-		Players.add_ai()
-	_apply_dev_layout()
-	for slot in Players.slots.slice(0, 1 if solo else Players.MAX):
-		if autodrive:
-			slot.ai = true
-		_add_player(slot)
-	safe_rejoin = safe_rejoin or ai_racers > 0
-	var pool := ai_car_pool()
-	var skills := []
-	for i in ai_racers:
-		skills.append(clampf(ai_skill + ai_skill_spread * (0.5 - float(i) / maxf(ai_racers - 1, 1)), 0.0, 100.0))
-	skills.shuffle()
-	for i in ai_racers:
-		_add_ai(i, pool, skills[i])
+	if is_online():
+		_ready_online()
+	else:
+		Players.primary_slot() # one player can just drive
+		for i in ai_players:
+			Players.add_ai()
+		_apply_dev_layout()
+		for slot in Players.slots.slice(0, 1 if solo else Players.MAX):
+			if autodrive:
+				slot.ai = true
+			_add_player(slot)
+		safe_rejoin = safe_rejoin or ai_racers > 0
+		var pool := ai_car_pool()
+		var skills := []
+		for i in ai_racers:
+			skills.append(clampf(ai_skill + ai_skill_spread * (0.5 - float(i) / maxf(ai_racers - 1, 1)), 0.0, 100.0))
+		skills.shuffle()
+		for i in ai_racers:
+			_add_ai(i, pool, skills[i])
 	Players.remember_all()
 	Players.joined.connect(_on_joined)
 	Players.left.connect(_on_left)
-	Players.joining = not solo # drop in mid-drive
+	Players.joining = not solo and not is_online() # drop in mid-drive (offline)
 	var layer := CanvasLayer.new()
 	layer.name = "ResultsLayer"
 	layer.layer = 20
@@ -157,6 +166,10 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if Net.roster_changed.is_connected(_on_roster):
+		Net.roster_changed.disconnect(_on_roster)
+	if Net.content and Net.content.car_changed.is_connected(_on_net_car):
+		Net.content.car_changed.disconnect(_on_net_car)
 	Engine.time_scale = 1.0
 	Engine.physics_ticks_per_second = PHYSICS_HZ
 	CarVisual.lod_scale = 1.0
@@ -183,12 +196,15 @@ func _apply_dev_layout() -> void:
 		Settings.split_three = Game.dev.three
 
 
-func _add_player(slot: PlayerSlot) -> SessionPlayer:
+func _add_player(slot: PlayerSlot, at: Variant = null) -> SessionPlayer:
 	var p := SessionPlayer.new()
 	p.slot = slot
 	p.bay_return = bay_return
 	var i := racers.size()
-	p.spawn_at = track.transform_at(_grid_distance(i), _grid_lateral(i)) if _spot_clear(_grid_distance(i), _grid_lateral(i)) else _free_grid_spot()
+	if at is Transform3D:
+		p.spawn_at = at
+	else:
+		p.spawn_at = track.transform_at(_grid_distance(i), _grid_lateral(i)) if _spot_clear(_grid_distance(i), _grid_lateral(i)) else _free_grid_spot()
 	p.view = views.add(slot)
 	players.append(p)
 	_add_racer(p)
@@ -203,6 +219,93 @@ func _add_player(slot: PlayerSlot) -> SessionPlayer:
 	p.load_car(path)
 	_on_views_changed()
 	return p
+
+
+func is_online() -> bool:
+	return not online.is_empty()
+
+
+## An online session's cars (D84): this game's players drive their own (their ids are Net.my_ids,
+## in local order); everyone else's car is remote. Everyone's spot is their place in the roster.
+func _ready_online() -> void:
+	net = NetSession.new()
+	net.name = "NetSession"
+	net.session = self
+	add_child(net)
+	if not dedicated:
+		Players.primary_slot()
+	var roster: Array = online.roster
+	for i in roster.size():
+		_add_online_racer(roster[i], i)
+	Net.roster_changed.connect(_on_roster)
+	if Net.content:
+		Net.content.car_changed.connect(_on_net_car)
+	ai_racers = 0
+
+
+func _add_online_racer(d: Dictionary, index: int) -> Racer:
+	var id := int(d.id)
+	var spot := track.transform_at(_grid_distance(index), _grid_lateral(index))
+	var local := Array(Net.my_ids).find(id)
+	if local >= 0 and local < Players.slots.size() and not dedicated:
+		var slot := Players.slots[local]
+		if autodrive:
+			slot.ai = true
+		var p := _add_player(slot, spot)
+		p.net_id = id
+		net.add(p, true)
+		return p
+	var r := NetRacer.new()
+	r.net_id = id
+	r.peer = int(d.peer)
+	r.display_name = NetProtocol.clean_name(String(d.name))
+	r.color = Color.from_string(String(d.color), Color.WHITE)
+	r.number = index + 1
+	r.is_human = true
+	r.name = "Net%d" % id
+	r.spawn_at = spot
+	_add_racer(r)
+	r.car_hash = String(d.car) if String(d.get("car_note", "")).is_empty() else ""
+	r.load_net_car()
+	net.add(r, false)
+	return r
+
+
+## Someone joined or left mid-session, or changed car.
+func _on_roster(roster: Array) -> void:
+	var ids := {}
+	for i in roster.size():
+		var d: Dictionary = roster[i]
+		var id := int(d.id)
+		ids[id] = true
+		var r: Racer = net.racers.get(id)
+		if r == null:
+			_add_online_racer(d, _free_online_index())
+		elif r is NetRacer:
+			var car := String(d.car) if String(d.get("car_note", "")).is_empty() else ""
+			if car != (r as NetRacer).car_hash:
+				(r as NetRacer).car_hash = car
+				(r as NetRacer).load_net_car()
+	for id: int in net.racers.keys():
+		var r: Racer = net.racers[id]
+		if not ids.has(id) and r is NetRacer:
+			net.remove(id)
+			racers.erase(r)
+			r.remove()
+
+
+## The first grid spot no car stands on (for someone joining mid-session).
+func _free_online_index() -> int:
+	for i in GRID_SPOTS:
+		if _spot_clear(_grid_distance(i), _grid_lateral(i)):
+			return i
+	return GRID_SPOTS
+
+
+func _on_net_car(car_hash: String) -> void:
+	for r: Racer in racers:
+		if r is NetRacer and (r as NetRacer).car_hash == car_hash:
+			(r as NetRacer).load_net_car()
 
 
 ## The class's default car (built-in).
@@ -315,7 +418,7 @@ func _process(delta: float) -> void:
 func apply_game_speed() -> void:
 	var humans := players.filter(func(p: SessionPlayer) -> bool: return not p.slot.ai)
 	var speed := 1.0
-	if humans.size() == 1:
+	if humans.size() == 1 and not is_online():
 		speed = clampf(float(humans[0].slot.profile.data.get("game_speed", 1.0)), 0.5, 1.0)
 	Engine.time_scale = speed
 	Engine.physics_ticks_per_second = roundi(PHYSICS_HZ * speed)
@@ -450,15 +553,17 @@ func _open_pause(p: SessionPlayer) -> void:
 		return
 	paused_by = p
 	for other in players:
-		if other != p:
+		if other != p and not is_online():
 			other.hud.show_message("Paused by %s" % p.slot.tag(), 1e9)
 			if not other.slot.ai:
 				other.slot.input.wheel.stop_ffb()
 				other.stop_rumble()
+	if is_online():
+		paused_by = null # online the game never stops (D86): only this player's menu opens
 	var menu := PauseMenu.new()
 	menu.slot = p.slot
 	menu.bay_return = bay_return
-	menu.can_leave = p.slot.index > 0
+	menu.can_leave = p.slot.index > 0 and not is_online()
 	menu.can_change_car = hotswap_allowed
 	menu.can_end_session = race.kind in ["practice", "qualifying"]
 	menu.allowed_assists = AssistRules.allowed(platform.platform, mode)
@@ -489,9 +594,12 @@ func _open_pause(p: SessionPlayer) -> void:
 	menu.leave.connect(func() -> void:
 		_resume()
 		Players.leave(p.slot))
-	menu.quit_to_title.connect(func() -> void: Game.go_title())
+	menu.quit_to_title.connect(func() -> void:
+		if is_online():
+			Net.leave()
+		Game.go_title())
 	menu.back_to_bay.connect(func() -> void: Game.open_fitting_bay())
-	p.show_overlay(menu, true)
+	p.show_overlay(menu, not is_online())
 
 
 func _resume() -> void:

@@ -14,6 +14,10 @@ signal notice(text: String)
 signal joined
 ## Couldn't join, or cut off from the server.
 signal disconnected(reason: String)
+## A session starts ({track, class, event, roster}); who's in it changed; it ended.
+signal session_started(data: Dictionary)
+signal roster_changed(roster: Array)
+signal session_ended
 
 const CHAT_KEEP := 100
 
@@ -29,6 +33,8 @@ var roster: Array[NetPlayer] = []
 var my_ids := PackedInt32Array()
 ## Recent chat and server lines.
 var chat_log: Array[Dictionary] = []
+## The session on now (its SESSION message, roster kept up to date), or {} in the lobby.
+var session := {}
 ## Player ids whose chat this game hides.
 var muted := {}
 
@@ -231,6 +237,16 @@ static func local_players() -> Array:
 	return out
 
 
+## Checked roster entries (NetPlayer dicts) from a message.
+static func _roster(v: Variant) -> Array:
+	var out := []
+	if v is Array and (v as Array).size() <= 64:
+		for d: Variant in v:
+			if d is Dictionary and NetPlayer.from_dict(d):
+				out.append(d)
+	return out
+
+
 ## A package's hash ("sha256:" + its manifest's); "" if unreadable.
 static func package_hash(path: String) -> String:
 	return ContentIndex.package_hash(path)
@@ -238,6 +254,7 @@ static func package_hash(path: String) -> String:
 
 func _reset() -> void:
 	lobby = {}
+	session = {}
 	roster.clear()
 	my_ids = PackedInt32Array()
 	chat_log.clear()
@@ -292,3 +309,19 @@ func _handle(type: int, data: Dictionary) -> void:
 			if data.get("players") is PackedInt32Array:
 				my_ids = data.players
 				lobby_changed.emit()
+		NetProtocol.Msg.SESSION:
+			var roster := _roster(data.get("roster"))
+			if not NetProtocol.has_fields(data, { "track": [TYPE_STRING, 256], "class": [TYPE_STRING, 64], "event": TYPE_DICTIONARY }) \
+					or roster.is_empty() and not is_server():
+				return
+			session = { "track": data.track, "class": data["class"], "event": data.event, "roster": roster }
+			session_started.emit(session)
+		NetProtocol.Msg.ROSTER:
+			if session.is_empty():
+				return
+			var roster := _roster(data.get("roster"))
+			session.roster = roster
+			roster_changed.emit(roster)
+		NetProtocol.Msg.SESSION_END:
+			session = {}
+			session_ended.emit()

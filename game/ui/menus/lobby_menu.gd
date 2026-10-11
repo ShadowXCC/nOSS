@@ -124,10 +124,22 @@ func _refresh() -> void:
 	_start_button.visible = Net.is_admin()
 	_rechain(false)
 	if refocus:
-		refocus.grab_focus.call_deferred()
+		UiKit.focus_later(refocus)
 	elif not _focused_once and not _player_rows.is_empty() and _sub == null:
 		_focused_once = true # the list arrived after the menu opened: start on it
-		grab_focus_first.call_deferred()
+		(func() -> void: if is_inside_tree() and is_visible_in_tree(): grab_focus_first()).call_deferred()
+	_dev_auto()
+
+
+## Dev: --auto-ready readies once this game's cars are in; --auto-start (hosting) starts once
+## everyone is ready (bots, checks).
+func _dev_auto() -> void:
+	if Game.dev.has("auto-ready") and not _is_ready and not Net.my_ids.is_empty() \
+			and Net.roster.filter(func(p: NetPlayer) -> bool: return p.id in Net.my_ids and p.car != "").size() == Net.my_ids.size():
+		_toggle_ready()
+	if Game.dev.has("auto-start") and Net.host_logic and Net.host_logic.state == "lobby" and Net.host_logic.all_ready() \
+			and Net.server.player_count() >= int(Game.dev.get("auto-start", "1")):
+		Net.admin("start")
 
 
 func _rechain(focus_first: bool) -> void:

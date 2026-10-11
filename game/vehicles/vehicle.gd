@@ -34,6 +34,17 @@ var steering_wheel_lock_deg := 540.0
 var car_impulse := 0.0
 var wall_impulse := 0.0
 var last_hit: Vehicle
+## Each reset_to() counts up (network states flag the car as placed, not moved).
+var reset_count := 0
+## A package without a model shows as a box in this colour (an online car still arriving).
+var placeholder_color := Color(0.6, 0.6, 0.62)
+
+## Another game drives this car (D84): a kinematic body moved to its states; no sim here, and the
+## wheels, lights and sound follow the states.
+var remote := false
+var remote_state: CarState
+var remote_velocity := Vector3.ZERO
+var _remote_spin := PackedFloat32Array()
 
 var _collision: CollisionShape3D
 
@@ -90,7 +101,7 @@ func mount(pkg: VehiclePackage) -> void:
 
 	if visual:
 		visual.queue_free()
-	visual = CarVisual.create(pkg, fitted)
+	visual = CarVisual.create(pkg, fitted, placeholder_color)
 	add_child(visual)
 	var sw: Variant = pkg.fit.get("steering_wheel")
 	steering_wheel_lock_deg = sw.visual_lock_deg if sw is Dictionary else 540.0
@@ -124,6 +135,13 @@ func fits_here(pkg: VehiclePackage) -> bool:
 	return get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty()
 
 
+## Where the car stands: its ground point under the model's origin, with the body's rotation
+## (what reset_to takes; network states send this, D84).
+func ground_reference() -> Transform3D:
+	var b := global_basis.orthonormalized()
+	return Transform3D(b, global_position + b.y * (fitted.ground_y if fitted else 0.0))
+
+
 ## Puts the car at rest with its wheels on the ground at `xform` (ground point, +Z forward).
 func reset_to(xform: Transform3D) -> void:
 	var t := Transform3D(xform.basis.orthonormalized(), xform.origin - xform.basis.orthonormalized().y * fitted.ground_y)
@@ -135,14 +153,40 @@ func reset_to(xform: Transform3D) -> void:
 	angular_velocity = Vector3.ZERO
 	sim.reset()
 	reset_physics_interpolation()
+	reset_count += 1
 
 
-func _physics_process(_delta: float) -> void:
+## Makes this a remote car (D84): kinematic, moved by move_remote().
+func set_remote(on: bool) -> void:
+	remote = on
+	freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	freeze = on
+	continuous_cd = not on
+	sim.reset()
+
+
+## Moves a remote car to `ground` (its ground reference) going at `velocity`.
+func move_remote(ground: Transform3D, velocity: Vector3, angular: Vector3, snap := false) -> void:
+	var b := ground.basis.orthonormalized()
+	global_transform = Transform3D(b, ground.origin - b.y * (fitted.ground_y if fitted else 0.0))
+	remote_velocity = velocity
+	linear_velocity = velocity
+	angular_velocity = angular
+	if snap:
+		reset_physics_interpolation()
+
+
+func _physics_process(delta: float) -> void:
+	if remote:
+		_update_remote_visual(delta)
+		return
 	sim.set_controls(steer, throttle, brake, handbrake, clutch)
 	_update_visual()
 
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+	if remote:
+		return
 	sim.integrate(state)
 	car_impulse = 0.0
 	wall_impulse = 0.0
@@ -166,8 +210,9 @@ func set_ghost(on: bool, see_through := true) -> void:
 			mi.transparency = 0.5 if on and see_through else 0.0
 
 
+## Signed speed along the car's heading, m/s.
 func speed() -> float:
-	return sim.get_speed()
+	return remote_velocity.dot(global_basis.z) if remote else sim.get_speed()
 
 
 ## Eye point for the cockpit camera, body frame.
@@ -194,6 +239,30 @@ func _update_visual() -> void:
 		visual.set_wheel(i, steer, physics[mapped[0]].y, lift)
 	visual.set_steering_angle(-steer * deg_to_rad(steering_wheel_lock_deg) / 2.0)
 	visual.set_brake_lights(sim.get_brake() > 0.05)
+
+
+## Wheels and lights of a remote car from its newest state; wheels spin with its speed.
+func _update_remote_visual(delta: float) -> void:
+	if visual == null or fitted == null or remote_state == null:
+		return
+	var s := remote_state
+	var n := fitted.physics_wheels.size()
+	if _remote_spin.size() != n:
+		_remote_spin.resize(n)
+		_remote_spin.fill(0.0)
+	var fwd := remote_velocity.dot(global_basis.z)
+	for j in n:
+		var radius := maxf(float(fitted.physics_wheels[j].get("visual_radius", fitted.physics_wheels[j].radius)), 0.1)
+		_remote_spin[j] = fmod(_remote_spin[j] + fwd / radius * delta, TAU)
+	for i in mini(visual.wheel_count(), fitted.wheel_map.size()):
+		var mapped := fitted.wheel_map[i]
+		if mapped.is_empty() or mapped[0] >= n:
+			continue
+		var j := mapped[0]
+		var front := int(fitted.physics_wheels[j].axle) == 1
+		visual.set_wheel(i, s.steer if front else 0.0, _remote_spin[j], s.lift[mini(j, 3)])
+	visual.set_steering_angle(-s.steer * deg_to_rad(steering_wheel_lock_deg) / 2.0)
+	visual.set_brake_lights(s.flags & CarState.FLAG_BRAKE != 0)
 
 
 ## Convex hull of the clamped envelope, with its floor raised and its lower ends chamfered.

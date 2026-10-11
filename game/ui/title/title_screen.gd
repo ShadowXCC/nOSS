@@ -82,6 +82,10 @@ func _ready() -> void:
 	if Net.online(): # back from an online session: its lobby
 		_open_online()
 		_open_lobby()
+	elif Game.net_status: # cut off from a server: why
+		_open_online()
+		_online.show_status(Game.net_status)
+		Game.net_status = ""
 	elif Game.dev.has("host"): # dev: host with the last settings (--port, --password)
 		_open_online()
 		_online.host_now()

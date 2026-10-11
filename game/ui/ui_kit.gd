@@ -351,7 +351,14 @@ static func chain_focus(controls: Array, focus_first := true) -> void:
 		c.focus_previous = c.get_path_to(prev)
 		c.focus_next = c.get_path_to(next)
 	if focus_first and not focusable.is_empty():
-		focusable[0].grab_focus.call_deferred()
+		focus_later(focusable[0])
+
+
+## Focuses `c` at the end of the frame, if it's still on screen then (a menu may close first).
+static func focus_later(c: Control) -> void:
+	(func() -> void:
+		if is_instance_valid(c) and c.is_inside_tree() and c.is_visible_in_tree():
+			c.grab_focus()).call_deferred()
 
 
 static func _focus_target(c: Control) -> Control:

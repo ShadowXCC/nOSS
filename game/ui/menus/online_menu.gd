@@ -66,7 +66,7 @@ func _ready() -> void:
 	Players.slots_changed.connect(_show_players)
 	_show_players()
 	_rebuild_lan()
-	grab_focus_first.call_deferred()
+	(func() -> void: if is_inside_tree() and is_visible_in_tree(): grab_focus_first()).call_deferred()
 
 
 func _exit_tree() -> void:
@@ -123,11 +123,11 @@ func _rebuild_lan() -> void:
 	var all: Array = _rows.slice(0, _rows.size() - 1) + _list_rows + [_rows[-1]]
 	UiKit.chain_focus(all, false)
 	if refocus:
-		refocus.grab_focus.call_deferred()
+		UiKit.focus_later(refocus)
 	elif focused_key and is_inside_tree():
-		_join_button.grab_focus.call_deferred()
+		UiKit.focus_later(_join_button)
 	elif focused == null and is_visible_in_tree():
-		grab_focus_first.call_deferred()
+		(func() -> void: if is_inside_tree() and is_visible_in_tree(): grab_focus_first()).call_deferred()
 
 
 func _join(address: String, password: String) -> void:

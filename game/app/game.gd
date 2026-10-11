@@ -39,6 +39,8 @@ extends Node
 ##                        copies on one PC are two different players
 ##   --host               host at once with the last Host settings (--port, --password)
 ##   --connect=<address>  join at once (--password)
+##   --auto-ready         lobby: ready once the cars are picked
+##   --auto-start=<n>     hosting: start once n players are in and everyone's ready
 
 const TITLE := "res://game/ui/title/title_screen.tscn"
 
@@ -71,6 +73,9 @@ func _ready() -> void:
 		Engine.max_fps = Engine.physics_ticks_per_second # one physics tick per frame, no busy loop
 	if dev.has("instance"):
 		Settings.use_folder("user://instances/%d" % clampi(int(dev.instance), 1, 99))
+	Net.session_started.connect(start_online_session)
+	Net.session_ended.connect(_on_online_session_ended)
+	Net.disconnected.connect(_on_net_cut_off)
 	PlayerProfile.read_only = dev.has("no-save")
 	# Dev: --p1-profile='{"assists": {"racing_line": true}}' sets P1's options for this run (use
 	# with --no-save to keep them out of the profile).
@@ -175,9 +180,55 @@ func start_event(event: RaceEvent, platform_id: String) -> void:
 	get_tree().change_scene_to_node(session)
 
 
+## Why the last online game ended ("Server closed"), for the title's Online menu; then "".
+var net_status := ""
+
+
+## An online session ({track, class, event, roster}, Net.session) on this game: its players drive
+## their own cars, everyone else's are remote. The dedicated server builds its own (ServerMain).
+func start_online_session(data: Dictionary) -> void:
+	if dedicated or hold_events:
+		return
+	var session := online_session(data)
+	if session == null:
+		Net.leave()
+		net_status = "Track not found"
+		go_title()
+		return
+	get_tree().paused = false
+	get_tree().change_scene_to_node(session)
+
+
+## A TrackSession for an online session, or null if its track isn't here.
+func online_session(data: Dictionary) -> TrackSession:
+	var track := String(data.track)
+	if not track.begins_with(ServerConfig.TRACKS_DIR) or not FileAccess.file_exists(track):
+		return null # tracks from servers arrive with the editor (M6)
+	var session := TrackSession.new()
+	session.online = data
+	session.dedicated = dedicated
+	session.track_path = track
+	session.platform_id = String(data["class"])
+	session.event = RaceEvent.from_dict(data.event)
+	session.autodrive = dev.has("autodrive")
+	return session
+
+
 ## The dedicated server: no title, no players of its own.
 func start_server() -> void:
 	get_tree().change_scene_to_node(ServerMain.new())
+
+
+func _on_online_session_ended() -> void:
+	if not dedicated and get_tree().current_scene is TrackSession:
+		go_title() # the title opens the lobby while online
+
+
+## Cut off from the server mid-session: back to the Online menu with why.
+func _on_net_cut_off(reason: String) -> void:
+	if not dedicated and get_tree().current_scene is TrackSession and (get_tree().current_scene as TrackSession).is_online():
+		net_status = reason
+		go_title()
 
 
 func open_garage() -> void:

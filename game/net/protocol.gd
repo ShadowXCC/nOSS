@@ -53,6 +53,10 @@ enum Msg {
 	OFFER = 31, ## {xfer, hash, size, csize, from}: it's coming
 	NOT_FOUND = 32, ## {hash}
 	CANCEL = 33, ## {hash}: stop sending / no longer wanted
+	# Sessions.
+	SESSION = 40, ## server: {track, class, event, roster: [players]}: a session starts (or is on, to a late joiner)
+	ROSTER = 41, ## server: {roster}: who's in the session changed (join, leave, car)
+	SESSION_END = 42, ## server: {}: back to the lobby
 }
 
 
