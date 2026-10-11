@@ -17,6 +17,13 @@ var buffer := MotionBuffer.new()
 ## Where server time comes from (NetSession.now).
 var clock := Callable()
 
+## Bots measure how far off what they showed was (net_check): shown positions by time, and the
+## errors found when the true state for that time arrives.
+static var measure := false
+var errors := PackedFloat32Array()
+var _shown_t := PackedFloat64Array()
+var _shown_p := PackedVector3Array()
+
 var _tier := ""
 var _loading_tier := ""
 var _no_contact := 0
@@ -87,8 +94,22 @@ func _make_driver() -> Node:
 
 
 func push_state(s: CarState, now: float) -> void:
+	if measure:
+		_measure(s)
 	if buffer.push(s, now) and vehicle:
 		vehicle.remote_state = s
+
+
+## Compares the true position at `s.time` with what was shown then (between the two ticks
+## around it).
+func _measure(s: CarState) -> void:
+	if s.flags & (CarState.FLAG_TELEPORT | CarState.FLAG_WAITING) != 0:
+		return
+	for i in range(_shown_t.size() - 2, -1, -1):
+		if _shown_t[i] <= s.time and s.time <= _shown_t[i + 1]:
+			var u := (s.time - _shown_t[i]) / maxf(_shown_t[i + 1] - _shown_t[i], 1e-6)
+			errors.append(_shown_p[i].lerp(_shown_p[i + 1], u).distance_to(s.xform.origin))
+			return
 
 
 func _physics_process(delta: float) -> void:
@@ -109,6 +130,12 @@ func _apply(delta: float, snap: bool) -> void:
 	if placed:
 		_no_contact = TELEPORT_GHOST_TICKS
 	vehicle.move_remote(p.xform, p.velocity, p.angular, snap or placed)
+	if measure:
+		_shown_t.append(now)
+		_shown_p.append(p.xform.origin)
+		if _shown_t.size() > 120:
+			_shown_t = _shown_t.slice(60)
+			_shown_p = _shown_p.slice(60)
 	waiting = s.flags & CarState.FLAG_WAITING != 0
 	vehicle.visible = not waiting
 	var ghost := waiting or s.flags & CarState.FLAG_GHOSTED != 0 or _no_contact > 0

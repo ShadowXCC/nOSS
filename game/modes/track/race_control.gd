@@ -128,7 +128,7 @@ func begin(session_kind: String) -> void:
 		_laps[r] = 0
 		r.held = false
 	session.hotswap_allowed = kind != "race"
-	Players.joining = not session.solo and kind != "race"
+	Players.joining = not session.solo and kind != "race" and not session.is_online()
 	match kind:
 		"race":
 			phase = Phase.LOADING

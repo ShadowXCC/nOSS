@@ -1,0 +1,95 @@
+class_name NetBot
+extends Node
+## A headless bot client for load tests (`--bot`, tools/net_check.py, D88): joins with throwaway
+## keys and its own players (`--players=n`), picks cars, readies and drives with the racing AI. It
+## prints what it measured as one line, "NETCHECK {json}", when it quits: bytes per second down
+## and up, how far off the remote cars it showed were, and its cars' contacts with other cars (for
+## pile-ups), each also printed as it happens ("NETCHECK_CONTACT …").
+
+const CONTACT_IMPULSE := 150.0 # N·s in one tick counts as contact (as race_check)
+
+var _down: Array[float] = [] # bytes per second, while in a session
+var _up: Array[float] = []
+var _contacts := 0
+var _sample := 0.0
+var _sessions := 0
+var _last_hit := {} # own car id -> [other id, time]
+var _errors := PackedFloat32Array()
+var _remote_cars := 0
+
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	NetRacer.measure = true
+	Net.session_started.connect(func(_d: Dictionary) -> void: _sessions += 1)
+
+
+func _physics_process(delta: float) -> void:
+	var session := _session()
+	if session == null or session.net == null:
+		return
+	_sample += delta
+	if _sample >= 1.0:
+		_sample = 0.0
+		var host := Net.client.enet.host if Net.client and Net.client.enet else null
+		if host:
+			_down.append(host.pop_statistic(ENetConnection.HOST_TOTAL_RECEIVED_DATA))
+			_up.append(host.pop_statistic(ENetConnection.HOST_TOTAL_SENT_DATA))
+		# The session may be gone when this quits: collect as it goes.
+		var remote := 0
+		for r: Racer in session.racers:
+			if r is NetRacer:
+				remote += 1
+				_errors.append_array((r as NetRacer).errors)
+				(r as NetRacer).errors.clear()
+		_remote_cars = maxi(_remote_cars, remote) # the most seen at once
+	for id: int in session.net.owned:
+		var r: Racer = session.net.owned[id]
+		var v := r.vehicle
+		if v == null or v.car_impulse < CONTACT_IMPULSE or not v.last_hit or not is_instance_valid(v.last_hit):
+			continue
+		var other := _id_of(session, v.last_hit)
+		var now := session.net.now()
+		var last: Array = _last_hit.get(id, [-1, -10.0])
+		if other == last[0] and now - float(last[1]) < 0.5:
+			continue # the same knock
+		_last_hit[id] = [other, now]
+		_contacts += 1
+		var p := v.global_position
+		print("NETCHECK_CONTACT %.3f %d %d %.1f %.1f %.1f" % [now, id, other, p.x, p.y, p.z])
+
+
+func _session() -> TrackSession:
+	return get_tree().current_scene as TrackSession
+
+
+static func _id_of(session: TrackSession, v: Vehicle) -> int:
+	for id: int in session.net.racers:
+		var r: Racer = session.net.racers[id]
+		if r.vehicle == v:
+			return id
+	return -1
+
+
+func _exit_tree() -> void:
+	var e := Array(_errors)
+	e.sort()
+	# Bandwidth from the steady part: the first seconds carry the lobby and car data.
+	var steady := _down.slice(mini(10, _down.size() / 3))
+	var steady_up := _up.slice(mini(10, _up.size() / 3))
+	print("NETCHECK " + JSON.stringify({
+		"players": Net.my_ids.size(), "sessions": _sessions, "seconds": _down.size(),
+		"down_avg": _avg(steady) / 1024.0, "down_max": (steady.max() if not steady.is_empty() else 0.0) / 1024.0,
+		"up_avg": _avg(steady_up) / 1024.0,
+		"err_n": e.size(), "err_median": e[e.size() / 2] if not e.is_empty() else 0.0,
+		"err_p95": e[int(e.size() * 0.95)] if not e.is_empty() else 0.0, "err_max": e.back() if not e.is_empty() else 0.0,
+		"contacts": _contacts, "remote_cars": _remote_cars,
+		"rtt_ms": Net.client.rtt_ms() if Net.client else 0.0,
+	}))
+
+
+static func _avg(a: Array) -> float:
+	var total := 0.0
+	for x: float in a:
+		total += x
+	return total / a.size() if not a.is_empty() else 0.0

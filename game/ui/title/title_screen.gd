@@ -90,6 +90,12 @@ func _ready() -> void:
 		_open_online()
 		_online.host_now()
 	elif Game.dev.has("connect"): # dev: --connect=<address> (--password)
+		if Game.dev.has("bot"): # its players: P1 and AI slots
+			Players.primary_slot()
+			for i in clampi(int(Game.dev.get("players", "1")) - 1, 0, 3):
+				Players.add_ai()
+			for slot in Players.slots:
+				slot.profile.data.name = "Bot%s %s" % [OS.get_process_id() % 1000, slot.tag()]
 		_open_online()
 		_online._join(String(Game.dev.connect), String(Game.dev.get("password", "")))
 

@@ -47,7 +47,7 @@ func _process(delta: float) -> void:
 	if host == null:
 		return
 	if host.state == "lobby":
-		if host.all_ready():
+		if host.all_ready() and host.server.player_count() >= int(Game.dev.get("min-players", "1")):
 			if _countdown < 0.0:
 				_countdown = START_DELAY_S
 				host.say("Starting in %d" % int(START_DELAY_S))

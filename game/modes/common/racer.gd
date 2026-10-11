@@ -136,7 +136,8 @@ func load_car(path: String) -> void:
 	if _loading:
 		return
 	_loading = true
-	PackageLoader.load_shared(path, _on_car_loaded)
+	# Bots never draw: physics needs the car's data, not its model.
+	PackageLoader.load_shared(path, _on_car_loaded, { "models": "none" } if Game.dev.has("bot") else {})
 
 
 func _on_car_loaded(pkg: VehiclePackage) -> void:

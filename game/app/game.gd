@@ -35,10 +35,13 @@ extends Node
 ##   --server             run as a dedicated server (the "Linux Server" export always does)
 ##   --config=<file>      the dedicated server's config (data/server.example.json)
 ##   --port=<n>           the server's port, over the config's
+##   --min-players=<n>    the dedicated server starts once n players are in and ready
 ##   --instance=<n>       keep settings, profiles and the identity in user://instances/<n>/, so two
 ##                        copies on one PC are two different players
 ##   --host               host at once with the last Host settings (--port, --password)
 ##   --connect=<address>  join at once (--password)
+##   --bot                a load-test client (tools/net_check.py): throwaway keys, nothing saved,
+##                        cars without models, AI drives, --players=<n> on one connection
 ##   --auto-ready         lobby: ready once the cars are picked
 ##   --auto-start=<n>     hosting: start once n players are in and everyone's ready
 
@@ -76,6 +79,15 @@ func _ready() -> void:
 	Net.session_started.connect(start_online_session)
 	Net.session_ended.connect(_on_online_session_ended)
 	Net.disconnected.connect(_on_net_cut_off)
+	if dev.has("bot"):
+		dev["no-save"] = "true"
+		dev["auto-ready"] = "true"
+		dev["autodrive"] = "true"
+		dev["skip-first-boot"] = "true"
+		Engine.max_fps = int(dev.get("bot-fps", "60"))
+		Settings.use_folder("user://tests/bots") # never this machine's player's profile or car
+		Net.use_identity(NetIdentity.throwaway())
+		add_child(NetBot.new())
 	PlayerProfile.read_only = dev.has("no-save")
 	# Dev: --p1-profile='{"assists": {"racing_line": true}}' sets P1's options for this run (use
 	# with --no-save to keep them out of the profile).

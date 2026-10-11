@@ -119,6 +119,8 @@ func join(host_name: String, port: int, local: Array, password := "") -> Error:
 	client.message.connect(_handle)
 	content = NetContent.new()
 	content.name = "NetContent"
+	if Game.dev.has("bot"):
+		content.max_tier = "data" # bots never draw a car
 	content.setup(false, func(_peer: int, type: int, d: Dictionary) -> void: client.send(type, d),
 		func(_peer: int, bytes: PackedByteArray) -> void:
 			client.send_raw(bytes, NetProtocol.CH_CONTENT))
@@ -230,7 +232,7 @@ func mute(id: int, on: bool) -> void:
 static func local_players() -> Array:
 	var out := []
 	for slot in Players.slots:
-		if not slot.ai:
+		if not slot.ai or Game.dev.has("bot"):
 			out.append({ "name": slot.profile.display_name(), "color": slot.color().to_html(false) })
 	if out.is_empty():
 		out.append({ "name": Settings.primary.display_name(), "color": Palette.color(Settings.primary, "p1").to_html(false) })
