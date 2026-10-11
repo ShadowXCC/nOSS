@@ -14,6 +14,8 @@ signal port_checked(ok: bool, message: String)
 
 var server: NetServer
 var config: ServerConfig
+## Content transfer (set by Net before this enters the tree).
+var content: NetContent
 ## Called with (type, data) for messages to this game's own players.
 var local_sink := Callable()
 ## Which rotation item is up.
@@ -42,6 +44,8 @@ func _ready() -> void:
 	server.peer_joined.connect(_on_joined)
 	server.peer_left.connect(_on_left)
 	server.message.connect(handle)
+	if content:
+		content.car_refused.connect(_on_car_refused)
 	_dirty = true
 	if config.lan:
 		discovery = NetDiscovery.Responder.new()
@@ -106,6 +110,8 @@ func discovery_info() -> Dictionary:
 
 ## A request from a client, or from this game's own players (peer 1).
 func handle(peer: int, type: int, data: Dictionary) -> void:
+	if peer != 1 and content and content.handle_control(peer, type, data):
+		return
 	match type:
 		NetProtocol.Msg.PICK:
 			if NetProtocol.has_fields(data, { "player": TYPE_INT, "car": [TYPE_STRING, 80], "car_name": [TYPE_STRING, 64], "family": [TYPE_STRING, 16] }):
@@ -224,9 +230,28 @@ func _pick(peer: int, data: Dictionary) -> void:
 		_notice(peer, "Car doesn't fit this class")
 		return
 	var p: NetPlayer = server.players[data.player]
-	p.car = data.car if String(data.car).begins_with("sha256:") else ""
+	p.car = data.car if ContentStore.valid_hash(String(data.car)) else ""
 	p.car_name = NetChat.clean(data.car_name).left(64)
 	p.family = family
+	p.car_note = ""
+	var bytes := int(data.get("bytes", -1)) if data.get("bytes") is int else -1
+	if content and p.car:
+		var cap := int(config.caps.max_package_mb) << 20
+		if bytes > cap:
+			p.car_note = "Car too large for this server"
+			_notice(peer, p.car_note)
+		elif peer == 1:
+			content.share_car(p.car)
+		else:
+			content.fetch_car(p.car, peer, "full", bytes)
+	_dirty = true
+
+
+func _on_car_refused(car_hash: String, reason: String) -> void:
+	for p: NetPlayer in server.players.values():
+		if p.car == car_hash and p.car_note.is_empty():
+			p.car_note = reason
+			_notice(p.peer, reason)
 	_dirty = true
 
 

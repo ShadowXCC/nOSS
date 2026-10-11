@@ -62,6 +62,12 @@ func join(host: String, port: int, players: Array, password := "", ident: NetIde
 	api.allow_object_decoding = false
 	api.auth_timeout = NetServer.AUTH_TIMEOUT_S
 	api.auth_callback = _on_auth
+	# As soon as ENet is connected: its throttle drops unreliable packets while the round trip
+	# grows, and it had fallen to 2/32 by the end of the join, losing most car states and acks.
+	api.peer_authenticating.connect(func(_id: int) -> void:
+		var p := enet.get_peer(1) if enet else null
+		if p:
+			p.throttle_configure(NetProtocol.THROTTLE_INTERVAL_MS, 32, 0))
 	api.peer_authentication_failed.connect(func(_id: int) -> void: _fail(_reason if _reason else "Server didn't answer"))
 	api.connected_to_server.connect(_on_connected)
 	api.connection_failed.connect(func() -> void: _fail(_reason if _reason else "Server not found"))
@@ -105,9 +111,11 @@ func send(type: int, data: Dictionary) -> void:
 		api.send_bytes(NetProtocol.encode(type, data), 1, MultiplayerPeer.TRANSFER_MODE_RELIABLE, NetProtocol.CH_CONTROL)
 
 
-func send_raw(bytes: PackedByteArray, channel: int, reliable := false) -> void:
+## Packed binary to the server: car states or content, unreliable and sequenced (a late packet
+## is dropped; see NetServer.send_raw).
+func send_raw(bytes: PackedByteArray, channel: int, mode := MultiplayerPeer.TRANSFER_MODE_UNRELIABLE_ORDERED) -> void:
 	if state == State.JOINED:
-		api.send_bytes(bytes, 1, MultiplayerPeer.TRANSFER_MODE_RELIABLE if reliable else MultiplayerPeer.TRANSFER_MODE_UNRELIABLE_ORDERED, channel)
+		api.send_bytes(bytes, 1, mode, channel)
 
 
 ## Round-trip time to the server in ms.
@@ -142,7 +150,7 @@ func _on_auth(_id: int, bytes: PackedByteArray) -> void:
 				_fail("Password needed")
 				return
 			if identity == null:
-				identity = Net.identity()
+				identity = NetIdentity.throwaway()
 			var players := []
 			for p: Dictionary in _players:
 				players.append({ "name": String(p.get("name", "Player")).left(64), "color": String(p.get("color", "ffffff")).left(8) })
@@ -168,7 +176,7 @@ func _on_connected() -> void:
 	state = State.JOINED
 	var p := enet.get_peer(1)
 	if p:
-		p.throttle_configure(5000, 32, 0)
+		p.throttle_configure(NetProtocol.THROTTLE_INTERVAL_MS, 32, 0)
 		p.set_timeout(JOINED_TIMEOUT[0], JOINED_TIMEOUT[1], JOINED_TIMEOUT[2])
 	joined.emit(info)
 

@@ -20,6 +20,8 @@ const CHAT_KEEP := 100
 var server: NetServer
 var host_logic: NetHost
 var client: NetClient
+## Content transfer: cars, tracks and platforms by hash.
+var content: NetContent
 ## The lobby as last sent by the server (NetHost.lobby_dict), and its players.
 var lobby := {}
 var roster: Array[NetPlayer] = []
@@ -69,8 +71,21 @@ func host(config: ServerConfig, local: Array = [], on_log := Callable()) -> Erro
 		server = null
 		state_changed.emit()
 		return err
+	content = NetContent.new()
+	content.name = "NetContent"
+	content.setup(true, func(peer: int, type: int, d: Dictionary) -> void: server.send(peer, type, d),
+		func(peer: int, bytes: PackedByteArray) -> void:
+			server.send_raw(peer, bytes, NetProtocol.CH_CONTENT))
+	content.link_rate = int(config.caps.client_kbps) * 1024
+	content.file_rate = int(config.caps.transfer_kbps) * 1024
+	content.own_sounds = bool(config.caps.own_sounds)
+	content.car_cap = int(config.caps.max_package_mb) << 20
+	add_child(content)
+	server.raw.connect(func(peer: int, bytes: PackedByteArray) -> void: content.handle_raw(peer, bytes))
+	server.peer_left.connect(func(peer: int, _reason: String, _names: String) -> void: content.drop_link(peer))
 	host_logic = NetHost.new(server)
 	host_logic.name = "NetHost"
+	host_logic.content = content
 	host_logic.local_sink = _handle
 	if on_log.is_valid():
 		host_logic.log_line.connect(on_log)
@@ -96,6 +111,14 @@ func join(host_name: String, port: int, local: Array, password := "") -> Error:
 	client.failed.connect(_on_cut_off)
 	client.left.connect(_on_cut_off)
 	client.message.connect(_handle)
+	content = NetContent.new()
+	content.name = "NetContent"
+	content.setup(false, func(_peer: int, type: int, d: Dictionary) -> void: client.send(type, d),
+		func(_peer: int, bytes: PackedByteArray) -> void:
+			client.send_raw(bytes, NetProtocol.CH_CONTENT))
+	add_child(content)
+	client.raw.connect(func(bytes: PackedByteArray) -> void: content.handle_raw(1, bytes))
+	lobby_changed.connect(_fetch_cars)
 	var err := client.join(host_name, port, local, password, identity())
 	if err != OK:
 		client.queue_free()
@@ -105,6 +128,11 @@ func join(host_name: String, port: int, local: Array, password := "") -> Error:
 
 
 func leave() -> void:
+	if lobby_changed.is_connected(_fetch_cars):
+		lobby_changed.disconnect(_fetch_cars)
+	if content:
+		content.queue_free()
+		content = null
 	if host_logic:
 		host_logic.queue_free()
 		host_logic = null
@@ -165,7 +193,10 @@ func pick_car(local_index: int, path: String) -> void:
 	if local_index >= my_ids.size():
 		return
 	var m := PackageLoader.read_manifest(path)
-	request(NetProtocol.Msg.PICK, { "player": my_ids[local_index], "car": package_hash(path),
+	var h := package_hash(path)
+	if content:
+		content.share_car(h) # the server fetches it from here
+	request(NetProtocol.Msg.PICK, { "player": my_ids[local_index], "car": h, "bytes": NetContent.package_bytes(path),
 		"car_name": String(m.get("name", path.get_file())).left(64), "family": String(m.get("family", "car")).left(16) })
 
 
@@ -200,14 +231,9 @@ static func local_players() -> Array:
 	return out
 
 
-## A package's hash ("sha256:" + its manifest's), as PackageLoader computes it; "" if unreadable.
+## A package's hash ("sha256:" + its manifest's); "" if unreadable.
 static func package_hash(path: String) -> String:
-	var source := PackageSource.open(path, PackageLoader.DEFAULT_LIMITS)
-	if source.error or not source.has("manifest.json"):
-		return ""
-	var h := "sha256:" + PlatformLoader.sha256_hex(source.read("manifest.json"))
-	source.close()
-	return h
+	return ContentIndex.package_hash(path)
 
 
 func _reset() -> void:
@@ -223,8 +249,19 @@ func _on_cut_off(reason: String) -> void:
 	disconnected.emit(reason)
 
 
+## Clients fetch every car in the lobby they don't have (each tier for all of them first).
+func _fetch_cars() -> void:
+	if content == null or is_server():
+		return
+	for p in roster:
+		if p.car and p.car_note.is_empty() and not p.id in my_ids:
+			content.fetch_car(p.car, 1, content.max_tier)
+
+
 ## A message from the server (or from this game's NetHost).
 func _handle(type: int, data: Dictionary) -> void:
+	if content and content.handle_control(1, type, data):
+		return
 	match type:
 		NetProtocol.Msg.LOBBY:
 			if not data.get("players") is Array:

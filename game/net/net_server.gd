@@ -167,9 +167,12 @@ func broadcast(type: int, data: Dictionary, except := 0) -> void:
 			api.send_bytes(bytes, id, MultiplayerPeer.TRANSFER_MODE_RELIABLE, NetProtocol.CH_CONTROL)
 
 
-func send_raw(peer: int, bytes: PackedByteArray, channel: int, reliable := false) -> void:
+## Packed binary to a client: car states or content, unreliable and sequenced (a late packet is
+## dropped). Unsequenced packets (TRANSFER_MODE_UNRELIABLE) aren't used: from client to server
+## ENet lost a share of them even on a perfect link (Godot 4.7).
+func send_raw(peer: int, bytes: PackedByteArray, channel: int, mode := MultiplayerPeer.TRANSFER_MODE_UNRELIABLE_ORDERED) -> void:
 	if peer != 1 and peers.has(peer) and peers[peer].connected:
-		api.send_bytes(bytes, peer, MultiplayerPeer.TRANSFER_MODE_RELIABLE if reliable else MultiplayerPeer.TRANSFER_MODE_UNRELIABLE_ORDERED, channel)
+		api.send_bytes(bytes, peer, mode, channel)
 
 
 ## Round-trip time to a client in ms (0 for the server's own players).
@@ -219,7 +222,7 @@ func _on_authenticating(id: int) -> void:
 	var p := enet.get_peer(id)
 	if p:
 		info.address = p.get_remote_address()
-		p.throttle_configure(5000, 32, 0) # never let ENet's throttle drop car states
+		p.throttle_configure(NetProtocol.THROTTLE_INTERVAL_MS, 32, 0) # never let ENet's throttle drop car states
 	peers[id] = info
 	api.send_auth(id, NetProtocol.encode(NetProtocol.Msg.CHALLENGE, {
 		"protocol": NetProtocol.VERSION, "game": NetProtocol.game_version(), "nonce": info.nonce,

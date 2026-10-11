@@ -1,0 +1,170 @@
+extends GdUnitTestSuite
+## Cars travel by hash over real ENet (MP-05, D80): a client fetches the host's car tier by
+## tier and loads it from the cache; the server fetches a client's car when it's picked; a car
+## over the server's cap is refused.
+
+var port := 0
+var server: NetServer
+var host: NetHost
+var server_content: NetContent
+var client: NetClient
+var client_content: NetContent
+var pkg_path := ""
+var pkg_hash := ""
+var dir := "user://tests/net_content/"
+
+
+func before() -> void:
+	Settings.use_folder("user://tests/net_content")
+	ContentStore.root = dir.path_join("cache")
+	# A car only one side has: the built-in box under another name (so another hash).
+	pkg_path = dir.path_join("only_here.noss")
+	DirAccess.make_dir_recursive_absolute(dir)
+	DirAccess.remove_absolute(pkg_path)
+	var files := PackageWriter.read_folder("res://content/cars/noss_box")
+	var info := { "name": "Only Here", "author": "test", "license": "CC0-1.0", "family": "car" }
+	var result := PackageWriter.write(pkg_path, info, files)
+	assert_bool(result.ok).is_true()
+	pkg_hash = Net.package_hash(pkg_path)
+
+
+func after() -> void:
+	ContentStore.root = "user://cache/content/"
+	Settings.use_folder("user://")
+
+
+func before_test() -> void:
+	ContentStore.clear()
+	NetTransfer.clear_blobs()
+	port = 47900 + randi() % 90
+
+
+func after_test() -> void:
+	for n: Variant in [client_content, server_content, host, client]:
+		if is_instance_valid(n):
+			(n as Node).free()
+	if is_instance_valid(server):
+		server.stop()
+		server.free()
+
+
+func _start(cfg := ServerConfig.defaults(), server_has := {}, client_has := {}) -> void:
+	cfg.port = port
+	cfg.lan = false
+	server = NetServer.new()
+	server.manual_poll = true
+	add_child(server)
+	assert_int(server.start(cfg, NetIdentity.throwaway(), [{ "name": "Host", "color": "00ff00" }])).is_equal(OK)
+	server_content = NetContent.new()
+	server_content.setup(true, func(peer: int, type: int, d: Dictionary) -> void: server.send(peer, type, d),
+		func(peer: int, bytes: PackedByteArray) -> void: server.send_raw(peer, bytes, NetProtocol.CH_CONTENT))
+	server_content.car_cap = int(cfg.caps.max_package_mb) << 20
+	server_content._local = server_has
+	server_content._local_scanned = true
+	server_content.set_physics_process(false)
+	add_child(server_content)
+	server.raw.connect(func(peer: int, bytes: PackedByteArray) -> void: server_content.handle_raw(peer, bytes))
+	host = NetHost.new(server)
+	host.content = server_content
+	host.set_physics_process(false)
+	add_child(host)
+	client = NetClient.new()
+	client.manual_poll = true
+	add_child(client)
+	client_content = NetContent.new()
+	client_content.setup(false, func(_peer: int, type: int, d: Dictionary) -> void: client.send(type, d),
+		func(_peer: int, bytes: PackedByteArray) -> void: client.send_raw(bytes, NetProtocol.CH_CONTENT))
+	client_content._local = client_has
+	client_content._local_scanned = true
+	client_content.set_physics_process(false)
+	add_child(client_content)
+	client.raw.connect(func(bytes: PackedByteArray) -> void: client_content.handle_raw(1, bytes))
+	client.message.connect(func(type: int, d: Dictionary) -> void: client_content.handle_control(1, type, d))
+	client.join("127.0.0.1", port, [{ "name": "Ann", "color": "ff0000" }], "", NetIdentity.throwaway())
+
+
+func _pump(done: Callable, seconds := 8.0) -> bool:
+	var until := Time.get_ticks_msec() + int(seconds * 1000)
+	while Time.get_ticks_msec() < until:
+		server.poll()
+		host._physics_process(0.0)
+		client.poll()
+		server_content._physics_process(1.0 / 120.0)
+		client_content._physics_process(1.0 / 120.0)
+		await get_tree().process_frame
+		if done.call():
+			return true
+	return false
+
+
+func test_a_client_fetches_the_hosts_car_tier_by_tier() -> void:
+	_start(ServerConfig.defaults(), { pkg_hash: pkg_path }, {})
+	assert_bool(await _pump(func() -> bool: return client.state == NetClient.State.JOINED)).is_true()
+	server_content.share_car(pkg_hash)
+	var seen := []
+	client_content.car_changed.connect(func(h: String) -> void: seen.append(NetContent.cached_tier(h)))
+	assert_dict(client_content.car(pkg_hash)).is_empty() # nothing yet: a placeholder
+	client_content.fetch_car(pkg_hash, 1)
+	assert_bool(await _pump(func() -> bool: return client_content.car(pkg_hash).get("tier", "") == "full")).is_true()
+	assert_array(seen).contains(["data"])
+	assert_str(seen[-1]).is_equal("full")
+	var at := client_content.car(pkg_hash)
+	assert_str(at.path).is_equal(ContentStore.car_dir(pkg_hash))
+	var pkg := PackageLoader.load_package(at.path)
+	assert_str(pkg.error).is_empty()
+	assert_str(pkg.hash).is_equal(pkg_hash)
+	assert_str(pkg.display_name()).is_equal("Only Here")
+	pkg.free_scenes()
+
+
+func test_the_server_fetches_a_picked_car() -> void:
+	_start(ServerConfig.defaults(), {}, { pkg_hash: pkg_path })
+	assert_bool(await _pump(func() -> bool: return client.state == NetClient.State.JOINED)).is_true()
+	client_content.share_car(pkg_hash)
+	client.send(NetProtocol.Msg.PICK, { "player": client.player_ids()[0], "car": pkg_hash, "bytes": NetContent.package_bytes(pkg_path),
+		"car_name": "Only Here", "family": "car" })
+	assert_bool(await _pump(func() -> bool: return NetContent.cached_tier(pkg_hash) == "full")).is_true()
+	assert_str(server.players[client.player_ids()[0]].car_note).is_empty()
+
+
+func test_a_car_over_the_cap_is_refused() -> void:
+	var cfg := ServerConfig.defaults()
+	cfg.caps.max_package_mb = 1
+	_start(cfg, {}, { pkg_hash: pkg_path })
+	assert_bool(await _pump(func() -> bool: return client.state == NetClient.State.JOINED)).is_true()
+	client_content.share_car(pkg_hash)
+	var notes := []
+	client.message.connect(func(type: int, d: Dictionary) -> void:
+		if type == NetProtocol.Msg.NOTICE:
+			notes.append(d.text))
+	# It says it's small, but its files add up to more than the cap.
+	server_content.car_cap = 20_000
+	client.send(NetProtocol.Msg.PICK, { "player": client.player_ids()[0], "car": pkg_hash, "bytes": 100,
+		"car_name": "Only Here", "family": "car" })
+	assert_bool(await _pump(func() -> bool: return notes.has("Car too large for this server"))).is_true()
+	assert_str(server.players[client.player_ids()[0]].car_note).is_equal("Car too large for this server")
+	assert_str(NetContent.cached_tier(pkg_hash)).is_not_equal("full")
+	# Saying so up front is refused at once.
+	notes.clear()
+	client.send(NetProtocol.Msg.PICK, { "player": client.player_ids()[0], "car": pkg_hash, "bytes": 5 << 20,
+		"car_name": "Only Here", "family": "car" })
+	assert_bool(await _pump(func() -> bool: return notes.has("Car too large for this server"))).is_true()
+
+
+func test_partial_cars_load_at_their_tier() -> void:
+	# Data only: no model; then the smallest LOD as a preview.
+	var source := PackageSource.open(pkg_path, PackageLoader.DEFAULT_LIMITS)
+	for rel in ["manifest.json", "fit.json", "paint.json", "sound/profile.json"]:
+		assert_str(ContentStore.put_car_file(pkg_hash, rel, source.read(rel))).is_empty()
+	var dir_path := ContentStore.car_dir(pkg_hash)
+	assert_str(PackageLoader.load_package(dir_path).error).starts_with("Missing file")
+	var data := PackageLoader.load_package(dir_path, {}, { "models": "none", "partial": true })
+	assert_str(data.error).is_empty()
+	assert_str(data.tier).is_equal("data")
+	assert_int(data.lods.size()).is_equal(0)
+	assert_str(ContentStore.put_car_file(pkg_hash, "model/body.glb", source.read("model/body.glb"))).is_empty()
+	var preview := PackageLoader.load_package(dir_path, {}, { "models": "smallest", "partial": true })
+	assert_str(preview.error).is_empty()
+	assert_int(preview.lods.size()).is_equal(1)
+	preview.free_scenes()
+	source.close()

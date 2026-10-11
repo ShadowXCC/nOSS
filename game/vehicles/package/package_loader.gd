@@ -68,26 +68,27 @@ static var _shared := {}
 ## Like load_async(), but each path loads once while the cache lives: every caller gets its
 ## own copy of the model scenes, sharing meshes and textures (a grid of AI cars on one model).
 ## Paint and brake lights are per car (CarVisual uses its own material overrides).
-static func load_shared(path: String, on_done: Callable) -> void:
-	var entry: Variant = _shared.get(path)
+static func load_shared(path: String, on_done: Callable, opts := {}) -> void:
+	var key := path + "|" + String(opts.get("models", "all")) + ("|partial" if opts.get("partial", false) else "")
+	var entry: Variant = _shared.get(key)
 	if entry is VehiclePackage:
 		on_done.call_deferred(_copy(entry))
 		return
 	if entry is Array:
 		entry.append(on_done)
 		return
-	_shared[path] = [on_done]
+	_shared[key] = [on_done]
 	load_async(path, func(pkg: VehiclePackage) -> void:
-		var waiting: Variant = _shared.get(path)
+		var waiting: Variant = _shared.get(key)
 		if not waiting is Array:
 			pkg.free_scenes() # the cache was cleared meanwhile
 			return
 		if pkg.ok():
-			_shared[path] = pkg
+			_shared[key] = pkg
 		else:
-			_shared.erase(path)
+			_shared.erase(key)
 		for callback: Callable in waiting:
-			callback.call(_copy(pkg) if pkg.ok() else pkg))
+			callback.call(_copy(pkg) if pkg.ok() else pkg), {}, opts)
 
 
 ## Frees the cached packages' scenes (copies already handed out stay).
@@ -109,25 +110,30 @@ static func _copy(pkg: VehiclePackage) -> VehiclePackage:
 	c.triangles = pkg.triangles
 	c.load_ms = pkg.load_ms
 	c.error = pkg.error
+	c.tier = pkg.tier
 	for lod in pkg.lods:
 		c.lods.append(lod.duplicate() as Node3D)
 	return c
 
 
 ## Loads on a worker thread; `on_done` gets the VehiclePackage on the main thread.
-static func load_async(path: String, on_done: Callable, limits := {}) -> void:
+static func load_async(path: String, on_done: Callable, limits := {}, opts := {}) -> void:
 	var job := _Job.new()
 	job.on_done = on_done
 	job.task = WorkerThreadPool.add_task(func() -> void:
-		var pkg := load_package(path, limits)
+		var pkg := load_package(path, limits, opts)
 		job.finish.call_deferred(pkg), true, "Load " + path.get_file())
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree:
 		tree.create_timer(TIMEOUT_S, true, false, true).timeout.connect(job.time_out.bind(path))
 
 
-## Validates and parses a package. Check `ok()` on the result.
-static func load_package(path: String, limits := {}) -> VehiclePackage:
+## Validates and parses a package. Check `ok()` on the result. `opts`:
+## - models: "all" (LOD0 and its LODs), "smallest" (only the smallest LOD, a quick preview) or
+##   "none" (data only: physics needs fit.json, not the model; servers and bots)
+## - partial: files the load doesn't read may be missing (a car still downloading). Only the
+##   files read are checked against the manifest; they were checked on download too.
+static func load_package(path: String, limits := {}, opts := {}) -> VehiclePackage:
 	var t0 := Time.get_ticks_msec()
 	var pkg := VehiclePackage.new()
 	pkg.path = path
@@ -139,9 +145,9 @@ static func load_package(path: String, limits := {}) -> VehiclePackage:
 	if source.error:
 		pkg.error = source.error
 		return pkg
-	pkg.error = _read_data(source, pkg, lim)
+	pkg.error = _read_data(source, pkg, lim, opts)
 	if pkg.ok():
-		pkg.error = _load_models(source, pkg, lim)
+		pkg.error = _load_models(source, pkg, lim, _models_to_load(source, pkg.manifest, String(opts.get("models", "all"))))
 	source.close()
 	if not pkg.ok():
 		pkg.free_scenes()
@@ -150,7 +156,7 @@ static func load_package(path: String, limits := {}) -> VehiclePackage:
 
 
 ## Manifest, hashes, fit, paint and sound. Returns an error or "".
-static func _read_data(source: PackageSource, pkg: VehiclePackage, lim: Dictionary) -> String:
+static func _read_data(source: PackageSource, pkg: VehiclePackage, lim: Dictionary, opts := {}) -> String:
 	if not source.has("manifest.json"):
 		return "No manifest.json"
 	var manifest_bytes := source.read("manifest.json")
@@ -167,18 +173,28 @@ static func _read_data(source: PackageSource, pkg: VehiclePackage, lim: Dictiona
 	for file in source.files():
 		if file != "manifest.json" and not listed.has(file):
 			return "File not in manifest: " + file
+	var partial: bool = opts.get("partial", false)
+	var needed := {}
+	for file in ["fit.json", "paint.json", "sound/profile.json"]:
+		needed[file] = true
+	for file in _models_to_load(source, manifest, String(opts.get("models", "all"))):
+		needed[file] = true
 	var sound_bytes := 0
 	var sound_samples := 0
 	for file: String in listed:
 		if not source.has(file):
+			if partial and not needed.has(file):
+				continue
 			return "Missing file: " + file
 		if file.begins_with("sound/") and file.get_extension() in AUDIO_TYPES:
 			sound_bytes += source.size_of(file)
 			sound_samples += 1
 	if sound_bytes > lim.max_sound_bytes or sound_samples > lim.max_sound_samples:
 		return "Sound pack too large"
-	# Hash every file before using any of them.
+	# Hash every file before using any of them (a partial load: every file it reads).
 	for file: String in listed:
+		if partial and (not needed.has(file) or not source.has(file)):
+			continue
 		if "sha256:" + PlatformLoader.sha256_hex(source.read(file)) != listed[file]:
 			return "Hash mismatch: " + file
 
@@ -211,16 +227,31 @@ static func model_files(source: PackageSource) -> PackedStringArray:
 	return files
 
 
-static func _load_models(source: PackageSource, pkg: VehiclePackage, lim: Dictionary) -> String:
+## The model files a load reads: LOD0 and its LODs, only the smallest one there is, or none.
+static func _models_to_load(source: PackageSource, manifest: Dictionary, models: String) -> PackedStringArray:
+	match models:
+		"none":
+			return PackedStringArray()
+		"smallest":
+			var listed := ContentStore.model_files(manifest.get("files", {}))
+			for i in range(listed.size() - 1, -1, -1):
+				if source.has(listed[i]):
+					return PackedStringArray([listed[i]])
+			return PackedStringArray(["model/body.glb"])
+	return model_files(source)
+
+
+static func _load_models(source: PackageSource, pkg: VehiclePackage, lim: Dictionary, files: PackedStringArray) -> String:
 	var buffers: Array[PackedByteArray] = []
 	var texture_bytes := 0.0
-	for file in model_files(source):
+	pkg.tier = "full" if files.has("model/body.glb") and files.size() == model_files(source).size() else "preview" if not files.is_empty() else "data"
+	for file in files:
 		var bytes := source.read(file)
 		var check := check_glb(bytes, lim)
 		if check.error:
 			return "%s: %s" % [file, check.error]
 		texture_bytes += check.texture_bytes
-		if file == "model/body.glb":
+		if file == files[0]:
 			pkg.triangles = check.triangles
 			if check.triangles > lim.max_lod0_triangles:
 				return "Too many triangles: %d" % check.triangles

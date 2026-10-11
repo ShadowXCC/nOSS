@@ -12,6 +12,8 @@ var sound := {}
 ## Generated glTF scenes, LOD0 first. Not in the tree; CarVisual takes ownership.
 var lods: Array[Node3D] = []
 var triangles := 0
+## What's loaded: "full" (every LOD), "preview" (the smallest LOD only) or "data" (no model).
+var tier := "full"
 var load_ms := 0
 var error := ""
 

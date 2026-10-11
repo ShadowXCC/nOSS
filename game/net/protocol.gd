@@ -14,7 +14,7 @@ const CH_CONTROL := 0
 ## Car states: unreliable, alone on their channel (ENet holds unreliable packets behind reliable
 ## ones on the same channel).
 const CH_STATE := 1
-## Content chunks: unreliable, with their own acks (Transfer).
+## Content chunks: unreliable and sequenced, with their own acks (NetTransfer).
 const CH_CONTENT := 2
 const MAX_AUTH_BYTES := 4096
 const MAX_CONTROL_BYTES := 65536
@@ -22,6 +22,11 @@ const MAX_CONTROL_BYTES := 65536
 const MAX_LOCAL := 4
 const MAX_PLAYERS := 16
 const MAX_NAME := 24
+## ENet's packet throttle drops unreliable packets (car states, content) after the round trip
+## grows, and comes back only when it shrinks below the lowest of the last interval (5 s by
+## default). Every peer gets throttle_configure(THROTTLE_INTERVAL_MS, 32, 0): never slow down,
+## and back to full within an interval. The game's own rate control does the rest.
+const THROTTLE_INTERVAL_MS := 100
 ## Message types from here up are packed binary (car states, content), not control messages.
 const RAW_FIRST := 100
 
@@ -43,6 +48,11 @@ enum Msg {
 	REMOVE_LOCAL = 18, ## client: {player}
 	YOUR_PLAYERS = 19, ## server: {players}: this connection's player ids, after a change
 	NOTICE = 20, ## server: {text}: a short message for this client only
+	# Content (NetTransfer), either way.
+	WANT = 30, ## {hash, from}: send this file (from this chunk)
+	OFFER = 31, ## {xfer, hash, size, csize, from}: it's coming
+	NOT_FOUND = 32, ## {hash}
+	CANCEL = 33, ## {hash}: stop sending / no longer wanted
 }
 
 
