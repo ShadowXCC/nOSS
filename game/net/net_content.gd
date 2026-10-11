@@ -17,6 +17,8 @@ signal file_ready(h: String)
 
 const PRIORITY := { "data": 0, "preview": 10, "full": 20, "audio": 30 }
 const TIER_ORDER := ["data", "preview", "full"]
+## A track or platform file from a server is at most this big.
+const FILE_CAP := 1 << 20
 
 var is_server := false
 var index := ContentIndex.new()
@@ -200,7 +202,7 @@ func _want(peer: int, h: String, car_hash: String, rel: String, priority: int) -
 	if not list.has(entry):
 		list.append(entry)
 	_wanted[h] = list
-	var cap := car_cap if car_cap >= 0 and car_hash else -1
+	var cap := (car_cap if car_cap >= 0 else -1) if car_hash else FILE_CAP
 	link(peer).want(h, priority, cap)
 
 

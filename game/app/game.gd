@@ -202,22 +202,38 @@ var net_status := ""
 func start_online_session(data: Dictionary) -> void:
 	if dedicated or hold_events:
 		return
+	if not _session_platform(data).ok() and Net.content and Net.content.pending() > 0:
+		# The server's own class is still on its way (PLT-09): start when it's here.
+		Net.content.file_ready.connect(func(_h: String) -> void: start_online_session(data), CONNECT_ONE_SHOT)
+		return
 	var session := online_session(data)
 	if session == null:
 		Net.leave()
-		net_status = "Track not found"
+		net_status = "Track or class not found"
 		go_title()
 		return
 	get_tree().paused = false
 	get_tree().change_scene_to_node(session)
 
 
-## A TrackSession for an online session, or null if its track isn't here.
+## The session's platform: the server's own when hosting, else official or from the cache.
+func _session_platform(data: Dictionary) -> PlatformLoader.Result:
+	if Net.host_logic:
+		return Net.host_logic.platform_result()
+	return Net.platform_result(String(data["class"]), String(data.get("class_hash", "")))
+
+
+## A TrackSession for an online session, or null if its track or class isn't here.
 func online_session(data: Dictionary) -> TrackSession:
 	var track := String(data.track)
 	if not track.begins_with(ServerConfig.TRACKS_DIR) or not FileAccess.file_exists(track):
 		return null # tracks from servers arrive with the editor (M6)
+	var platform := _session_platform(data)
+	if not platform.ok():
+		return null
 	var session := TrackSession.new()
+	if not platform.path.begins_with(PlatformLoader.OFFICIAL_DIR):
+		session.platform_file = platform.path
 	session.online = data
 	session.dedicated = dedicated
 	session.track_path = track

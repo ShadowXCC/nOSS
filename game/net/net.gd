@@ -130,6 +130,7 @@ func join(host_name: String, port: int, local: Array, password := "") -> Error:
 			client.send_raw(bytes, NetProtocol.CH_CONTENT))
 	add_child(content)
 	client.raw.connect(func(bytes: PackedByteArray) -> void: content.handle_raw(1, bytes))
+	content.file_ready.connect(func(_h: String) -> void: lobby_changed.emit()) # a class arrived
 	lobby_changed.connect(_fetch_cars)
 	var err := client.join(host_name, port, local, password, identity())
 	if err != OK:
@@ -273,10 +274,32 @@ func _on_cut_off(reason: String) -> void:
 	disconnected.emit(reason)
 
 
-## Clients fetch every car in the lobby they don't have (each tier for all of them first).
+## The platform `id` with this `class_hash`: the official one here if it's the same file, else the
+## server's copy in the cache (PLT-09). Not ok() until it's here.
+static func platform_result(id: String, class_hash: String) -> PlatformLoader.Result:
+	if id.begins_with("official."):
+		var official := PlatformLoader.load_official(id)
+		if official.ok() and (class_hash.is_empty() or official.hash == class_hash):
+			return official
+	var r := PlatformLoader.Result.new()
+	if ContentStore.has_file("platforms", class_hash):
+		r = PlatformLoader.load_file(ContentStore.file_path("platforms", class_hash))
+		if r.ok() and r.platform.id.begins_with("official."):
+			r.errors.append("A server's platform can't be official")
+	else:
+		r.errors.append("Not here yet")
+	return r
+
+
+## Clients fetch the lobby's platform if it isn't here, and every car in the lobby they don't
+## have (each tier for all of them first).
 func _fetch_cars() -> void:
 	if content == null or is_server():
 		return
+	var class_hash := String(lobby.get("class_hash", ""))
+	if class_hash and not platform_result(String(lobby.get("class", "")), class_hash).ok():
+		content.fetch_file("platforms", class_hash, 1)
+	content.own_sounds = bool(lobby.get("rules", {}).get("own_sounds", true))
 	for p in roster:
 		if p.car and p.car_note.is_empty() and not p.id in my_ids:
 			content.fetch_car(p.car, 1, content.max_tier)
@@ -321,7 +344,8 @@ func _handle(type: int, data: Dictionary) -> void:
 			if not NetProtocol.has_fields(data, { "track": [TYPE_STRING, 256], "class": [TYPE_STRING, 64], "event": TYPE_DICTIONARY }) \
 					or roster.is_empty() and not is_server():
 				return
-			session = { "track": data.track, "class": data["class"], "event": data.event, "roster": roster }
+			session = { "track": data.track, "class": data["class"], "class_hash": String(data.get("class_hash", "")),
+				"event": data.event, "roster": roster, "rules": data.get("rules", {}) if data.get("rules") is Dictionary else {} }
 			race_begin = {}
 			session_started.emit(session)
 		NetProtocol.Msg.ROSTER:

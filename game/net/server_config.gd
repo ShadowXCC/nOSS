@@ -119,6 +119,19 @@ func track_path(i: int) -> String:
 	return path.get_base_dir().path_join(t)
 
 
+## Rotation item `i`'s class: an official platform, or (with caps.custom_platforms) one from
+## user://platforms/<id>.platform.json, sent to players by hash (PLT-09).
+func platform(i: int) -> PlatformLoader.Result:
+	var id := String(rotation[i].get("class", "official.track.gt"))
+	if id.begins_with("official."):
+		return PlatformLoader.load_official(id)
+	var result := PlatformLoader.Result.new()
+	if not caps.custom_platforms:
+		result.errors.append("Custom platforms are off: " + id)
+		return result
+	return PlatformLoader.load_file(PlatformLoader.USER_DIR + id + PlatformLoader.SUFFIX)
+
+
 ## Rotation item `i`'s event (online: free drive or a race weekend).
 func event(i: int) -> RaceEvent:
 	var e := RaceEvent.from_dict(rotation[i].get("event", {}))

@@ -376,7 +376,9 @@ func open_picker(pause: bool) -> void:
 		close_overlay()
 		if vehicle == null or path != vehicle.package.path:
 			hud.show_message("Loading", 10.0)
-			load_car(path))
+			load_car(path)
+			if session.is_online(): # everyone else gets the new car (D80)
+				Net.pick_car(slot.index, path))
 	picker.closed.connect(close_overlay)
 	show_overlay(picker, pause)
 

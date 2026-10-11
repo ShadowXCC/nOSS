@@ -78,6 +78,15 @@ func platform_id() -> String:
 	return String(config.rotation[rotation_index].get("class", "official.track.gt"))
 
 
+## The current class's platform (official, or the server's own, PLT-09); a custom one is sent to
+## players by hash.
+func platform_result() -> PlatformLoader.Result:
+	var r := config.platform(rotation_index)
+	if r.ok() and not r.path.begins_with(PlatformLoader.OFFICIAL_DIR) and content:
+		content.share_file(r.path)
+	return r
+
+
 func track_path() -> String:
 	return config.track_path(rotation_index)
 
@@ -96,7 +105,7 @@ func lobby_dict() -> Dictionary:
 	return {
 		"name": config.name, "motd": config.motd, "state": state, "max": config.max_players,
 		"track": track_path(), "track_name": _track_name(track_path()),
-		"class": platform_id(), "class_name": _class_name(platform_id()),
+		"class": platform_id(), "class_name": _class_name(platform_id()), "class_hash": platform_result().hash,
 		"event": event().to_dict(), "players": players,
 		"rules": { "own_sounds": config.caps.own_sounds, "custom_platforms": config.caps.custom_platforms,
 			"max_package_mb": config.caps.max_package_mb, "tuning": config.rules.tuning },
@@ -237,7 +246,17 @@ func end_session() -> void:
 func session_dict() -> Dictionary:
 	if state != "session" or _ai.is_empty():
 		_ai = _ai_entries()
-	return { "track": track_path(), "class": platform_id(), "event": event().to_dict(), "roster": roster() }
+	return { "track": track_path(), "class": platform_id(), "class_hash": platform_result().hash, "event": event().to_dict(),
+		"roster": roster(), "rules": rules_dict() }
+
+
+## The server's rules a session follows (MP-06).
+func rules_dict() -> Dictionary:
+	return {
+		"assists": config.rules.assists if config.rules.get("assists") is Array else null,
+		"tuning": config.rules.tuning, "fitting": config.rules.fitting, "hotswap": config.rules.hotswap,
+		"own_sounds": config.caps.own_sounds,
+	}
 
 
 ## The session's players, then the AI cars the server runs (races).
@@ -266,7 +285,7 @@ func _ai_entries() -> Array:
 	var count := mini(e.ai_count, NetProtocol.MAX_PLAYERS - server.player_count())
 	if count <= 0:
 		return out
-	var platform := PlatformLoader.load_official(platform_id())
+	var platform := platform_result()
 	var pool := []
 	for path in PackageLoader.list_available():
 		if e.ai_cars == "builtin" and not path.begins_with("res://"):
@@ -325,7 +344,7 @@ func _pick(peer: int, data: Dictionary) -> void:
 	if not _owns(peer, data.player):
 		return
 	var family := String(data.family)
-	var platform := PlatformLoader.load_official(platform_id())
+	var platform := platform_result()
 	if platform.ok() and not Fitting.compatible(platform.platform, family):
 		_notice(peer, "Car doesn't fit this class")
 		return
@@ -438,6 +457,6 @@ func _track_name(path: String) -> String:
 
 func _class_name(id: String) -> String:
 	if not _names.has(id):
-		var r := PlatformLoader.load_official(id)
+		var r := platform_result() if id == platform_id() else PlatformLoader.load_official(id)
 		_names[id] = String(r.platform.get("name", id)) if r.ok() else id
 	return _names[id]

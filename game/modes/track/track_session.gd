@@ -27,10 +27,16 @@ var track_path := DEFAULT_TRACK
 ## P1's car; empty: their profile's last car.
 var car_path := ""
 var platform_id := DEFAULT_PLATFORM
+## Online: a server's own platform, from the cache (PLT-09); "" for an official one.
+var platform_file := ""
+## "normal", or "strict" (a server's rule): physics on the platform's reference geometry.
+var fitting_mode := "normal"
 ## Test-driving a Fitting Bay draft: the pause menu leads back, and the car isn't remembered.
 var bay_return := false
 ## Cars can be swapped mid-drive (free drive, practice, cruise; docs/VEHICLE_PACKAGE.md §8).
 var hotswap_allowed := true
+## Online: the server's rule for swaps: "practice" (not in races), "never" or "always".
+var hotswap_rule := "practice"
 ## Only P1 drives, and nobody drops in (garage and Fitting Bay drives).
 var solo := false
 ## Dev: the line follower drives every player.
@@ -99,13 +105,15 @@ func _ready() -> void:
 	add_child(env_node)
 	add_child(style.create_sun())
 	add_child(TrackBuilder.build(track))
-	platform = PlatformLoader.load_official(platform_id)
+	platform = PlatformLoader.load_file(platform_file) if platform_file else PlatformLoader.load_official(platform_id)
 	if not platform.ok():
 		push_warning("Platform %s: %s" % [platform_id, platform.errors])
 		platform_id = DEFAULT_PLATFORM
 		platform = PlatformLoader.load_official(platform_id)
 	_default_car = GameModes.default_car(platform.platform)
 	mode = GameModes.mode_for(platform_id)
+	if is_online():
+		_apply_server_rules(online.get("rules", {}))
 	if event.kind == "race":
 		ai_racers = event.ai_count
 		ai_skill = event.ai_skill
@@ -234,6 +242,25 @@ func _add_player(slot: PlayerSlot, at: Variant = null) -> SessionPlayer:
 
 func is_online() -> bool:
 	return not online.is_empty()
+
+
+## A server's rules (MP-06), narrowing the platform's and mode's: allowed assists, setups locked,
+## strict fitting. (Car swaps follow its hotswap rule, RaceControl.)
+func _apply_server_rules(rules: Dictionary) -> void:
+	mode = mode.duplicate(true)
+	if rules.get("assists") is Array:
+		var server_ok: Array = rules.assists
+		var allowed := AssistRules.allowed(platform.platform, mode).filter(func(a: String) -> bool: return a in server_ok)
+		if not mode.has("assists"):
+			mode.assists = {}
+		mode.assists.allowed = allowed
+	if rules.get("tuning") == "lock":
+		if not mode.has("tuning"):
+			mode.tuning = {}
+		mode.tuning.allow = []
+	if rules.get("fitting") == "strict":
+		fitting_mode = "strict"
+	hotswap_rule = String(rules.get("hotswap", "practice"))
 
 
 ## An online session's cars (D84): this game's players drive their own (their ids are Net.my_ids,

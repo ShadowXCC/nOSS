@@ -176,7 +176,7 @@ func _car_changed() -> void:
 
 
 func _spawn(pkg: VehiclePackage) -> void:
-	vehicle = Vehicle.create(platform, pkg)
+	vehicle = Vehicle.create(platform, pkg, session.fitting_mode)
 	vehicle.name = "Vehicle%d" % number
 	session.add_child(vehicle)
 	vehicle.reset_to(spawn_at)

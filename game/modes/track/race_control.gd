@@ -159,7 +159,7 @@ func begin(session_kind: String) -> void:
 		r.dnf = false
 		_laps[r] = 0
 		r.held = false
-	session.hotswap_allowed = kind != "race"
+	session.hotswap_allowed = kind != "race" and session.hotswap_rule != "never" or session.hotswap_rule == "always"
 	Players.joining = not session.solo and kind != "race" and not session.is_online()
 	match kind:
 		"race":

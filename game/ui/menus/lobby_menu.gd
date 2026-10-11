@@ -150,7 +150,7 @@ func _rechain(focus_first: bool) -> void:
 ## Each of this game's players starts with their last car (if this class takes it), else the
 ## class's default.
 func _auto_pick() -> void:
-	var platform := PlatformLoader.load_official(String(Net.lobby.get("class", "")))
+	var platform := Net.platform_result(String(Net.lobby.get("class", "")), String(Net.lobby.get("class_hash", "")))
 	for i in Net.my_ids.size():
 		if _picked.has(i):
 			continue
@@ -175,7 +175,7 @@ func _on_player(id: int) -> void:
 func _pick_car(local: int) -> void:
 	var picker := CarPicker.new()
 	picker.current = String(_picked.get(local, ""))
-	var platform := PlatformLoader.load_official(String(Net.lobby.get("class", "")))
+	var platform := Net.platform_result(String(Net.lobby.get("class", "")), String(Net.lobby.get("class_hash", "")))
 	picker.platform = platform.platform if platform.ok() else {}
 	picker.picked.connect(func(path: String) -> void:
 		_picked[local] = path
