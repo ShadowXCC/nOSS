@@ -16,15 +16,24 @@ var _sessions := 0
 var _last_hit := {} # own car id -> [other id, time]
 var _errors := PackedFloat32Array()
 var _remote_cars := 0
+## --bot-full: when every car in the session was here as a preview and whole (s after it began).
+var _session_start := -1.0
+var _cars := 0
+var _preview_s := -1.0
+var _full_s := -1.0
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	NetRacer.measure = true
-	Net.session_started.connect(func(_d: Dictionary) -> void: _sessions += 1)
+	Net.session_started.connect(func(_d: Dictionary) -> void:
+		_sessions += 1
+		if _session_start < 0.0:
+			_session_start = Time.get_ticks_msec() / 1000.0)
 
 
 func _physics_process(delta: float) -> void:
+	_time_cars()
 	var session := _session()
 	if session == null or session.net == null:
 		return
@@ -59,6 +68,30 @@ func _physics_process(delta: float) -> void:
 		print("NETCHECK_CONTACT %.3f %d %d %.1f %.1f %.1f" % [now, id, other, p.x, p.y, p.z])
 
 
+## --bot-full: has every car of the session arrived (as a preview, whole)?
+func _time_cars() -> void:
+	if _session_start < 0.0 or _full_s >= 0.0 or Net.content == null or Net.session.is_empty():
+		return
+	var hashes := {}
+	for d: Dictionary in Net.session.get("roster", []):
+		if String(d.get("car", "")) and String(d.get("car_note", "")).is_empty():
+			hashes[d.car] = true
+	_cars = hashes.size()
+	var preview := true
+	var full := true
+	for h: String in hashes:
+		var tier := String(Net.content.car(h).get("tier", ""))
+		preview = preview and tier in ["preview", "full"]
+		full = full and tier == "full"
+	var t := Time.get_ticks_msec() / 1000.0 - _session_start
+	if preview and _preview_s < 0.0:
+		_preview_s = t
+		print("NETCHECK_CARS preview %.1f s (%d cars)" % [t, _cars])
+	if full:
+		_full_s = t
+		print("NETCHECK_CARS full %.1f s (%d cars)" % [t, _cars])
+
+
 func _session() -> TrackSession:
 	return get_tree().current_scene as TrackSession
 
@@ -85,6 +118,7 @@ func _exit_tree() -> void:
 		"err_p95": e[int(e.size() * 0.95)] if not e.is_empty() else 0.0, "err_max": e.back() if not e.is_empty() else 0.0,
 		"contacts": _contacts, "remote_cars": _remote_cars,
 		"rtt_ms": Net.client.rtt_ms() if Net.client else 0.0,
+		"cars": _cars, "preview_s": _preview_s, "full_s": _full_s,
 	}))
 
 

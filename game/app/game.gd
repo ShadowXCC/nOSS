@@ -43,6 +43,8 @@ extends Node
 ##   --bot                a load-test client (tools/net_check.py): throwaway keys, nothing saved,
 ##                        cars without models, AI drives, --players=<n> on one connection
 ##   --cheat=<kind>       bot: send false states (speed, teleport, time) to test the server's checks
+##   --bot-full           bot: fetch every car whole, timing it (net_check --fresh)
+##   --cache=<folder>     keep downloaded content there (an empty one: a fresh client)
 ##   --auto-ready         lobby: ready once the cars are picked
 ##   --auto-start=<n>     hosting: start once n players are in and everyone's ready
 
@@ -80,6 +82,8 @@ func _ready() -> void:
 	Net.session_started.connect(start_online_session)
 	Net.session_ended.connect(_on_online_session_ended)
 	Net.disconnected.connect(_on_net_cut_off)
+	if dev.has("cache"):
+		ContentStore.root = String(dev.cache)
 	if dev.has("bot"):
 		dev["no-save"] = "true"
 		dev["auto-ready"] = "true"

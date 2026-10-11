@@ -301,8 +301,9 @@ func _ai_entries() -> Array:
 	for i in count:
 		skills.append(clampf(e.ai_skill + 10.0 * (0.5 - float(i) / maxf(count - 1, 1)), 0.0, 100.0))
 	skills.shuffle()
+	pool.shuffle() # every car once before any twice
 	for i in count:
-		var pick: Array = pool[rng.randi() % pool.size()]
+		var pick: Array = pool[i % pool.size()]
 		var h := ContentIndex.package_hash(pick[0])
 		if content:
 			content.share_car(h)

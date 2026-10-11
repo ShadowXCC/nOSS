@@ -12,6 +12,11 @@ and exits 0 (PASS) or 1 (FAIL).
 
   tools/net_check.py --clients 12 --quad 1 --duration 60           # 16 players, free drive
   tools/net_check.py --clients 3 --rtt 150 --jitter 10 --loss 1     # through a bad link
+  tools/net_check.py --fresh --ai 15 --rate 50mbit --rtt 20         # a fresh client fetches every car
+
+With --fresh, the server's AI cars are this machine's garage cars (every one before any twice), and
+one bot with an empty cache fetches them all whole; it reports when every car was there as a
+preview and whole (target: whole within 60 s).
 """
 
 import argparse
@@ -94,17 +99,22 @@ def main(argv=None):
     p.add_argument("--bot-fps", type=int, default=60)
     p.add_argument("--cheat", default="", help="the first bot cheats (speed, teleport, time): it must be caught")
     p.add_argument("--plausibility", default="flag", choices=["off", "warn", "flag", "kick"])
+    p.add_argument("--fresh", action="store_true", help="one bot with an empty cache fetches every car")
+    p.add_argument("--within", type=float, default=60.0, help="--fresh: seconds allowed for every car")
     p.add_argument("--logs", default="", help="keep the logs in this folder")
     p.add_argument("--verbose", action="store_true")
     args = p.parse_args(argv)
 
     logs = Path(args.logs) if args.logs else Path(tempfile.mkdtemp(prefix="net_check_"))
     logs.mkdir(parents=True, exist_ok=True)
+    if args.fresh:
+        args.clients, args.quad, args.event = 1, 0, "race"
     players = args.clients + 4 * args.quad
     event = {"kind": args.event}
     if args.event == "race":
-        event.update({"practice_min": 0, "qualifying_min": 0, "race_laps": args.laps, "ai_count": args.ai,
-                      "grid": "random", "start": "standing", "ai_cars": "builtin"})
+        event.update({"practice_min": 5 if args.fresh else 0, "qualifying_min": 0, "race_laps": args.laps,
+                      "ai_count": args.ai, "grid": "random", "start": "standing",
+                      "ai_cars": "garage" if args.fresh else "builtin"})
     config = {
         "schema": "noss.server/1", "name": "net_check", "port": args.port, "max_players": 16, "lan": False,
         "rotation": [{"track": "proving_ground", "class": args.klass, "event": event}],
@@ -132,7 +142,8 @@ def main(argv=None):
                 os.killpg(proc.pid, signal.SIGKILL)
             out.close()
 
-    server = start("server", ["--server", f"--config={config_path}", f"--min-players={players}"])
+    debug = ["--net-debug"] if args.verbose else []
+    server = start("server", ["--server", f"--config={config_path}", f"--min-players={players}"] + debug)
     time.sleep(2.0)
     port = args.port
     sim = None
@@ -143,6 +154,11 @@ def main(argv=None):
         port = sim.port
 
     quit_flag = ["--quit-after-results"] if args.event == "race" else [f"--quit-at={args.duration + 15}"]
+    if args.fresh:
+        cache = logs / "fresh_cache"
+        import shutil
+        shutil.rmtree(cache, ignore_errors=True)
+        quit_flag = [f"--quit-at={args.within + 40}", "--bot-full", f"--cache={cache}"] + debug
     bots = []
     for i in range(args.clients + args.quad):
         n = 4 if i >= args.clients else 1
@@ -152,7 +168,7 @@ def main(argv=None):
         time.sleep(0.2)
 
     peak = {}
-    deadline = time.monotonic() + (args.duration + 60 if args.event == "free" else 60 + args.laps * 150)
+    deadline = time.monotonic() + (args.within + 80 if args.fresh else args.duration + 60 if args.event == "free" else 60 + args.laps * 150)
     try:
         while time.monotonic() < deadline and any(b.poll() is None for b in bots):
             for name, proc, _ in procs:
@@ -207,7 +223,13 @@ def main(argv=None):
         if name not in reports:
             fails.append(f"{name} reported nothing")
     print("server RSS %.0f MB, bots max %.0f MB" % (peak.get("server", 0.0), max([v for k, v in peak.items() if k.startswith("bot")] or [0])))
-    if args.event == "race":
+    if args.fresh:
+        r = reports.get("bot00", {})
+        print("fresh client: %d cars, all as previews in %.1f s, whole in %.1f s (target %g s)" % (
+            r.get("cars", 0), r.get("preview_s", -1), r.get("full_s", -1), args.within))
+        if r.get("full_s", -1) < 0 or r["full_s"] > args.within:
+            fails.append("not every car whole within %g s" % args.within)
+    elif args.event == "race":
         if results is None:
             fails.append("no race results")
         else:
@@ -230,7 +252,7 @@ def main(argv=None):
             fails.append("honest cars failed checks too")
     elif checks:
         fails.append("honest cars failed checks (%d)" % len(checks))
-    if worst_down > MAX_DOWN_KB:
+    if worst_down > MAX_DOWN_KB and not args.fresh:  # a fresh client's download isn't steady traffic
         fails.append("%.1f KB/s down, over %g" % (worst_down, MAX_DOWN_KB))
     piles = pileups(contacts)
     for pile in piles:

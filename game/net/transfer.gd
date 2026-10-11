@@ -245,6 +245,19 @@ func index_changed() -> void:
 
 
 ## The link is gone: downloads keep what they have in tmp/ to resume from.
+## One line on what this link is doing (--net-debug).
+func debug_line() -> String:
+	var ins := PackedStringArray()
+	for t: In in _in.values():
+		ins.append("%s %d/%d ahead %d" % [t.hash.substr(7, 6), t.cum, t.chunks, t.ahead.size()])
+	var outs := PackedStringArray()
+	for o: Out in _out.values():
+		outs.append("%s %d/%d fl %d retx %d" % [o.hash.substr(7, 6), o.chunks - o.unacked, o.chunks, o.in_flight(), o.retx.size()])
+	return "asked %d queued %d early %d in [%s] out [%s] rate %.2f MB/s srtt %.0f min %.0f prep %d held %d" % [
+		_asked.size(), _queue.size(), _early_count, ", ".join(ins), ", ".join(outs), rate / 1048576.0, srtt * 1000, min_rtt * 1000,
+		_preparing.size(), _held.size()]
+
+
 func close() -> void:
 	for x: int in _in.keys():
 		_close_in(_in[x], true)
@@ -623,8 +636,11 @@ func _pump(delta: float) -> void:
 	while _tokens >= chunk and idle < outs.size():
 		_rr = (_rr + 1) % outs.size()
 		var o: Out = outs[_rr]
+		if o.tokens < o.chunk: # its own share is used up (check before taking a chunk off its queue)
+			idle += 1
+			continue
 		var i := _next_chunk(o)
-		if i < 0 or o.tokens < o.chunk:
+		if i < 0:
 			idle += 1
 			continue
 		idle = 0

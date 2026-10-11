@@ -123,8 +123,8 @@ func join(host_name: String, port: int, local: Array, password := "") -> Error:
 	client.message.connect(_handle)
 	content = NetContent.new()
 	content.name = "NetContent"
-	if Game.dev.has("bot"):
-		content.max_tier = "data" # bots never draw a car
+	if Game.dev.has("bot") and not Game.dev.has("bot-full"):
+		content.max_tier = "data" # bots never draw a car (--bot-full: they fetch it all, net_check --fresh)
 	content.setup(false, func(_peer: int, type: int, d: Dictionary) -> void: client.send(type, d),
 		func(_peer: int, bytes: PackedByteArray) -> void:
 			client.send_raw(bytes, NetProtocol.CH_CONTENT))
@@ -132,6 +132,8 @@ func join(host_name: String, port: int, local: Array, password := "") -> Error:
 	client.raw.connect(func(bytes: PackedByteArray) -> void: content.handle_raw(1, bytes))
 	content.file_ready.connect(func(_h: String) -> void: lobby_changed.emit()) # a class arrived
 	lobby_changed.connect(_fetch_cars)
+	session_started.connect(func(data: Dictionary) -> void: _fetch_session_cars(data.roster))
+	roster_changed.connect(_fetch_session_cars)
 	var err := client.join(host_name, port, local, password, identity())
 	if err != OK:
 		client.queue_free()
@@ -143,6 +145,11 @@ func join(host_name: String, port: int, local: Array, password := "") -> Error:
 func leave() -> void:
 	if lobby_changed.is_connected(_fetch_cars):
 		lobby_changed.disconnect(_fetch_cars)
+	if roster_changed.is_connected(_fetch_session_cars):
+		roster_changed.disconnect(_fetch_session_cars)
+	for c: Dictionary in session_started.get_connections():
+		if c.callable.get_object() == self:
+			session_started.disconnect(c.callable)
 	if content:
 		content.queue_free()
 		content = null
@@ -303,6 +310,16 @@ func _fetch_cars() -> void:
 	for p in roster:
 		if p.car and p.car_note.is_empty() and not p.id in my_ids:
 			content.fetch_car(p.car, 1, content.max_tier)
+
+
+## Every car in the session (AI cars included) this game doesn't have.
+func _fetch_session_cars(session_roster: Array) -> void:
+	if content == null or is_server():
+		return
+	for d: Dictionary in session_roster:
+		var id := int(d.id)
+		if String(d.car) and String(d.get("car_note", "")).is_empty() and not id in my_ids:
+			content.fetch_car(String(d.car), 1, content.max_tier)
 
 
 ## A message from the server (or from this game's NetHost).

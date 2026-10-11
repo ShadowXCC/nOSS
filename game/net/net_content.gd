@@ -54,9 +54,18 @@ func _ready() -> void:
 	process_physics_priority = -93
 
 
+var _debug_time := 0.0
+
+
 func _physics_process(delta: float) -> void:
 	for t: NetTransfer in links.values():
 		t.tick(delta)
+	if Game.dev.has("net-debug"):
+		_debug_time += delta
+		if _debug_time >= 2.0:
+			_debug_time = 0.0
+			for peer: int in links:
+				print("NETDEBUG %d %s" % [peer, links[peer].debug_line()])
 
 
 func _exit_tree() -> void:
@@ -107,6 +116,10 @@ func local_cars() -> Dictionary:
 	if not _local_scanned:
 		_local_scanned = true
 		_local = ContentIndex.local_cars()
+		if Game.dev.has("bot"): # a bot has only the built-ins (never this machine's garage)
+			for h: String in _local.keys():
+				if not String(_local[h]).begins_with("res://"):
+					_local.erase(h)
 	return _local
 
 

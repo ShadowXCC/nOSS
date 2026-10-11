@@ -136,8 +136,9 @@ func load_car(path: String) -> void:
 	if _loading:
 		return
 	_loading = true
-	# Bots never draw: physics needs the car's data, not its model.
-	PackageLoader.load_shared(path, _on_car_loaded, { "models": "none", "audio": false } if Game.dev.has("bot") else {})
+	# Bots and the dedicated server never draw: physics needs the car's data, not its model.
+	var draws := not (Game.dedicated or Game.dev.has("bot"))
+	PackageLoader.load_shared(path, _on_car_loaded, {} if draws else { "models": "none", "audio": false })
 
 
 func _on_car_loaded(pkg: VehiclePackage) -> void:
