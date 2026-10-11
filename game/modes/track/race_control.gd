@@ -23,6 +23,8 @@ const PACE_SPEED := 22.0
 const GREEN_BEFORE_LINE_M := 60.0
 ## After the leader finishes, the others have this long to finish their lap.
 const FINISH_GRACE_S := 60.0
+## Online: the grid waits this long at most for every remote car's first state.
+const LOADING_MAX_S := 20.0
 ## Practice and qualifying: after time's up, the longest a lap in progress may take.
 const LAP_IN_S := 180.0
 ## Flags: a stopped or slow car within YELLOW_M ahead; a car a lap up within BLUE_M behind.
@@ -49,6 +51,16 @@ var results: Array[Dictionary] = []
 ## The grid from the last qualifying, fastest first.
 var qualifying_order: Array[Racer] = []
 var leader_finished_at := -1.0
+## Online client (D85): the server runs the event; this follows its state (NetRace) and decides
+## nothing itself, except releasing its own cars at the scheduled lights-out.
+var mirror := false
+## Online: server time now (NetSession.now), and when the lights go out (server time, -1: not set).
+var clock_source := Callable()
+var go_at := -1.0
+## Mirror: positions from the server (car id -> 1-based).
+var net_positions := {}
+## Online: the last grid, front first (car ids).
+var grid_ids: Array = []
 
 var _countdown := 0.0
 var _out_delay := 0.0
@@ -59,6 +71,8 @@ var _laps := {} # racer -> timer.lap seen last tick
 var _rng := RandomNumberGenerator.new()
 var _standings: Array[Racer] = []
 var _standings_frame := -1
+var _mirror_grid: Array = []
+var _loading_time := 0.0
 
 
 func _ready() -> void:
@@ -66,9 +80,15 @@ func _ready() -> void:
 	_rng.randomize()
 
 
-## Starts the event's first session.
+## Starts the event's first session (online clients wait for the server's word).
 func start() -> void:
 	index = 0
+	if mirror:
+		kind = event.sessions()[0]
+		phase = Phase.LOADING
+		for r in session.racers:
+			r.held = true # until the server's grid
+		return
 	begin(event.sessions()[0])
 
 
@@ -111,8 +131,19 @@ func session_text(r: Racer) -> String:
 	return ""
 
 
+## Online client: the server began session `session_kind` with this grid (car ids, front first).
+func begin_mirror(session_kind: String, session_index: int, grid_ids: Array) -> void:
+	index = session_index
+	net_positions.clear()
+	_mirror_grid = grid_ids
+	begin(session_kind)
+	_mirror_grid = []
+
+
 func begin(session_kind: String) -> void:
 	kind = session_kind
+	go_at = -1.0
+	_loading_time = 0.0
 	clock = 0.0
 	lights = 0
 	results.clear()
@@ -121,6 +152,7 @@ func begin(session_kind: String) -> void:
 	_green_until = 0.0
 	var racers := session.racers
 	var order := _grid_order()
+	grid_ids = order.map(func(r: Racer) -> int: return r.net_id)
 	for r in racers:
 		r.new_session()
 		r.flag = ""
@@ -151,6 +183,18 @@ func begin(session_kind: String) -> void:
 ## reverse, or shuffled.
 func _grid_order() -> Array[Racer]:
 	var racers: Array[Racer] = session.racers.duplicate()
+	if not _mirror_grid.is_empty():
+		var by_id := {}
+		for r in racers:
+			by_id[r.net_id] = r
+		var ordered: Array[Racer] = []
+		for id: Variant in _mirror_grid:
+			if by_id.has(int(id)):
+				ordered.append(by_id[int(id)])
+		for r in racers:
+			if r not in ordered:
+				ordered.append(r)
+		return ordered
 	if kind != "race":
 		return racers
 	match event.grid:
@@ -175,11 +219,18 @@ func _place(r: Racer, i: int, rolling: bool) -> void:
 	r.spawn_at = at
 	if r.vehicle == null:
 		return
+	if r is NetRacer: # its own game puts it there (it gets the same grid)
+		var p := session.track.project(at.origin)
+		r.distance = p.distance
+		r.last_valid = p.distance
+		r.timer.teleported(session.track.from_start(p.distance))
+		return
 	if r.waiting:
 		r.waiting = false
 		r.vehicle.freeze = false
 		r.vehicle.visible = true
-	r.set_ghost(session.ghosted)
+	# Online, cars reach their spots one game at a time: no contact until the lights go out.
+	r.set_ghost(session.ghosted or _online_grid())
 	r.vehicle.reset_to(at)
 	var proj := session.track.project(at.origin)
 	r.distance = proj.distance
@@ -189,10 +240,18 @@ func _place(r: Racer, i: int, rolling: bool) -> void:
 	r.timer.teleported(session.track.from_start(proj.distance))
 
 
+func now() -> float:
+	return clock_source.call() if clock_source.is_valid() else 0.0
+
+
 func _physics_process(delta: float) -> void:
+	if mirror:
+		_mirror_tick(delta)
+		return
 	match phase:
 		Phase.LOADING:
-			if session.racers.all(func(r: Racer) -> bool: return r.vehicle != null):
+			_loading_time += delta
+			if session.racers.all(_ready_to_start) or _loading_time >= LOADING_MAX_S:
 				phase = Phase.GRID
 				_countdown = 0.0
 		Phase.GRID:
@@ -207,6 +266,8 @@ func _physics_process(delta: float) -> void:
 					phase = Phase.COUNTDOWN
 					_countdown = 0.0
 					_out_delay = _rng.randf_range(0.4, 1.4)
+					if clock_source.is_valid():
+						go_at = now() + LIGHTS * LIGHT_S + _out_delay
 		Phase.COUNTDOWN:
 			_countdown += delta
 			lights = mini(int(_countdown / LIGHT_S) + 1, LIGHTS)
@@ -229,6 +290,21 @@ func _physics_process(delta: float) -> void:
 		_update_flags()
 
 
+## A car is in place and (online) its owner is sending its states.
+func _ready_to_start(r: Racer) -> bool:
+	return r.vehicle != null and (not r is NetRacer or not (r as NetRacer).buffer.is_empty() or r.dnf)
+
+
+## Online client: the clock runs on between the server's updates, and its own cars go at the
+## scheduled lights-out (D85), not when the server's word arrives (the lights shown are the
+## server's).
+func _mirror_tick(delta: float) -> void:
+	if phase in [Phase.RUNNING, Phase.CHECKERED]:
+		clock += delta
+	elif phase == Phase.COUNTDOWN and go_at >= 0.0 and now() >= go_at:
+		_go()
+
+
 func _go() -> void:
 	phase = Phase.RUNNING
 	lights = 0
@@ -237,6 +313,13 @@ func _go() -> void:
 	for r in session.racers:
 		r.held = false
 		r.pace_limit = 0.0
+		if _online_grid() and not r.waiting:
+			r.set_ghost(session.ghosted)
+
+
+## An online race's grid (ghosted while cars are placed).
+func _online_grid() -> bool:
+	return session.is_online() and kind == "race"
 
 
 func _release_cars() -> void:
@@ -298,6 +381,19 @@ func _finish(r: Racer) -> void:
 	r.notify("Finished P%d" % pos, 4.0)
 
 
+## Online client: the server's results for `session_kind` (rows with each car's Racer here).
+func mirror_results(session_kind: String, rows: Array) -> void:
+	if session_kind != kind or phase == Phase.DONE:
+		return
+	phase = Phase.DONE
+	results.assign(rows)
+	if kind == "qualifying":
+		qualifying_order.assign(rows.map(func(row: Dictionary) -> Racer: return row.racer))
+	for r in session.racers:
+		r.finished = true # cool-down lap
+	session_ended.emit(kind, results)
+
+
 ## Ends the current session and publishes its results (cars keep driving: AI and finished
 ## players on a cool-down lap).
 func end_session() -> void:
@@ -321,7 +417,7 @@ func end_session() -> void:
 			"racer": r, "position": i + 1, "name": r.display_name, "number": r.number,
 			"car": r.vehicle.package.display_name() if r.vehicle and r.vehicle.package else "-",
 			"time": total, "best": r.timer.best_lap, "laps": laps, "penalty": r.penalty_s,
-			"dnf": r.dnf, "gap": "",
+			"dnf": r.dnf, "gap": "", "flagged": String(r.get_meta(&"flagged", "")) != "",
 		}
 		if kind == "race":
 			if r.dnf:
@@ -342,6 +438,10 @@ func end_session() -> void:
 ## Practice and qualifying: best valid lap, then cars without a time.
 func standings() -> Array[Racer]:
 	var racers: Array[Racer] = session.racers.duplicate()
+	if mirror and not net_positions.is_empty():
+		racers.sort_custom(func(a: Racer, b: Racer) -> bool:
+			return int(net_positions.get(a.net_id, 99)) < int(net_positions.get(b.net_id, 99)))
+		return racers
 	if kind == "race":
 		racers.sort_custom(_race_before)
 	else:
@@ -379,6 +479,8 @@ func _finished_laps(r: Racer) -> int:
 
 ## 1-based position, from the standings worked out this tick.
 func position_of(r: Racer) -> int:
+	if mirror and net_positions.has(r.net_id):
+		return int(net_positions[r.net_id])
 	if Engine.get_physics_frames() != _standings_frame:
 		_standings = standings()
 		_standings_frame = Engine.get_physics_frames()
@@ -440,6 +542,10 @@ func _update_flags() -> void:
 
 func _on_cut(gained: bool, r: Racer) -> void:
 	if event.track_limits == "off":
+		return
+	if mirror: # the server rules; a practice lap off the track is gone here too
+		if kind != "race":
+			r.timer.invalidate("Track limits")
 		return
 	if kind != "race":
 		r.timer.invalidate("Track limits")

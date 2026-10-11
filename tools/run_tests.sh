@@ -39,8 +39,8 @@ tools/run_conformance.sh || failed+=("conformance")
 step "Race check (12 cars, 1 lap)"
 tools/race_check.sh --cars=12 --laps=1 --seed=1 --builtin --bad=stall | grep -E "^(Race|Time|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("race check")
 
-step "Online check (3 bots, 150 ms)"
-.venv/bin/python tools/net_check.py --clients 3 --duration 15 --rtt 150 --jitter 10 --loss 1 | grep -E "^(net_check|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("net check")
+step "Online check (3 bots and an AI car race a lap, 150 ms)"
+.venv/bin/python tools/net_check.py --clients 3 --event race --laps 1 --ai 1 --rtt 150 --jitter 10 --loss 1 | grep -E "^(net_check|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("net check")
 
 step "Godot: boot"
 boot_log="$($GODOT --headless --quit-after 30 2>&1)"

@@ -102,8 +102,7 @@ func stop() -> void:
 		_stop_after_poll = true
 		return
 	for id: int in peers.keys():
-		if id != 1 and not _drops.has(id):
-			send(id, NetProtocol.Msg.BYE, { "reason": "Server closed" })
+		send(id, NetProtocol.Msg.BYE, { "reason": "Server closed" })
 	if enet:
 		api.poll()
 		enet.close()
@@ -153,8 +152,16 @@ func is_admin(peer: int) -> bool:
 	return peers.has(peer) and peers[peer].admin
 
 
+## Whether ENet still has `peer` connected (a client that quit may not be forgotten yet).
+func _open(peer: int) -> bool:
+	if peer == 1 or not peers.has(peer) or not peers[peer].connected or _drops.has(peer):
+		return false
+	var p := enet.get_peer(peer) if enet else null
+	return p != null and p.get_state() == ENetPacketPeer.STATE_CONNECTED
+
+
 func send(peer: int, type: int, data: Dictionary) -> void:
-	if peer == 1 or not peers.has(peer) or not peers[peer].connected:
+	if not _open(peer):
 		return # the server's own players are handled in process
 	api.send_bytes(NetProtocol.encode(type, data), peer, MultiplayerPeer.TRANSFER_MODE_RELIABLE, NetProtocol.CH_CONTROL)
 
@@ -163,7 +170,7 @@ func send(peer: int, type: int, data: Dictionary) -> void:
 func broadcast(type: int, data: Dictionary, except := 0) -> void:
 	var bytes := NetProtocol.encode(type, data)
 	for id: int in peers:
-		if id != 1 and id != except and peers[id].connected:
+		if id != except and _open(id):
 			api.send_bytes(bytes, id, MultiplayerPeer.TRANSFER_MODE_RELIABLE, NetProtocol.CH_CONTROL)
 
 
@@ -171,7 +178,7 @@ func broadcast(type: int, data: Dictionary, except := 0) -> void:
 ## dropped). Unsequenced packets (TRANSFER_MODE_UNRELIABLE) aren't used: from client to server
 ## ENet lost a share of them even on a perfect link (Godot 4.7).
 func send_raw(peer: int, bytes: PackedByteArray, channel: int, mode := MultiplayerPeer.TRANSFER_MODE_UNRELIABLE_ORDERED) -> void:
-	if peer != 1 and peers.has(peer) and peers[peer].connected:
+	if _open(peer):
 		api.send_bytes(bytes, peer, mode, channel)
 
 
@@ -364,10 +371,11 @@ func _add_player(peer: int, local_index: int, entry: Dictionary, info: PeerInfo)
 
 
 func _free_id() -> int:
-	for i in 255:
-		var id := (_next_id + i - 1) % 255 + 1
+	var top := NetProtocol.FIRST_AI_ID - 1 # the rest are AI cars'
+	for i in top:
+		var id := (_next_id + i - 1) % top + 1
 		if not players.has(id):
-			_next_id = id % 255 + 1
+			_next_id = id % top + 1
 			return id
 	return 0
 

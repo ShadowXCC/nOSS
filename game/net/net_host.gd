@@ -9,6 +9,8 @@ extends Node
 signal log_line(text: String)
 ## An admin asked for the session to start.
 signal start_requested
+## A client's car's assists (for results).
+signal assists_reported(id: int, used: Dictionary)
 ## The router mapping's result (UPnP), as a short line for the host.
 signal port_checked(ok: bool, message: String)
 
@@ -29,6 +31,9 @@ var discovery: NetDiscovery.Responder
 var upnp: UpnpMapper
 
 var _chat := NetChat.Limiter.new()
+var _ai: Array = [] # the session's AI cars (roster entries)
+var _ai_paths := {} # AI car id -> its package here
+var _in_session := {} # player ids in the session (a race takes no one mid-way)
 var _dirty := false
 var _names := {} # track path / platform id -> display name
 
@@ -135,6 +140,13 @@ func handle(peer: int, type: int, data: Dictionary) -> void:
 					_say("%s joined" % p.name)
 					_send_ids(peer)
 					_dirty = true
+		NetProtocol.Msg.ASSISTS:
+			if NetProtocol.has_fields(data, { "id": TYPE_INT, "used": TYPE_DICTIONARY }) and _owns(peer, data.id):
+				var used := {}
+				for key: Variant in data.used:
+					if key is String and (key in ResultsMenu.ASSIST_NAMES) and data.used[key] is bool:
+						used[key] = data.used[key]
+				assists_reported.emit(data.id, used)
 		NetProtocol.Msg.REMOVE_LOCAL:
 			if NetProtocol.has_fields(data, { "player": TYPE_INT }) and _owns(peer, data.player) and server.players_of(peer).size() > 1:
 				var name: String = server.players[data.player].name
@@ -200,6 +212,10 @@ func admin(peer: int, cmd: String, target := "") -> void:
 
 ## Starts the rotation's current event for everyone in the lobby.
 func start_session() -> void:
+	_in_session.clear()
+	for id: int in server.players:
+		_in_session[id] = true
+	_ai = []
 	state = "session"
 	_to_all(NetProtocol.Msg.SESSION, session_dict())
 	log_line.emit("Session: %s, %s, %s" % [_track_name(track_path()), _class_name(platform_id()), event().kind])
@@ -211,6 +227,7 @@ func end_session() -> void:
 	if state != "session":
 		return
 	state = "lobby"
+	_ai = []
 	ready_peers.clear()
 	_to_all(NetProtocol.Msg.SESSION_END, {})
 	_dirty = true
@@ -218,13 +235,65 @@ func end_session() -> void:
 
 ## What a session needs: track, class, event and everyone's car, in grid order.
 func session_dict() -> Dictionary:
+	if state != "session" or _ai.is_empty():
+		_ai = _ai_entries()
 	return { "track": track_path(), "class": platform_id(), "event": event().to_dict(), "roster": roster() }
 
 
+## The session's players, then the AI cars the server runs (races).
 func roster() -> Array:
 	var out := []
 	for p: NetPlayer in server.players.values():
-		out.append(p.to_dict())
+		if state != "session" or _in_session.has(p.id):
+			out.append(p.to_dict())
+	out.append_array(_ai)
+	return out
+
+
+## Where AI car `id`'s package is here.
+func ai_path(id: int) -> String:
+	return String(_ai_paths.get(id, ""))
+
+
+## AI cars for a race (D88): the event's count, fewer if the grid would pass 16 cars; built-in
+## cars or the server's garage cars the class takes (those travel like players' cars).
+func _ai_entries() -> Array:
+	var e := event()
+	var out := []
+	_ai_paths.clear()
+	if e.kind != "race":
+		return out
+	var count := mini(e.ai_count, NetProtocol.MAX_PLAYERS - server.player_count())
+	if count <= 0:
+		return out
+	var platform := PlatformLoader.load_official(platform_id())
+	var pool := []
+	for path in PackageLoader.list_available():
+		if e.ai_cars == "builtin" and not path.begins_with("res://"):
+			continue
+		var m := PackageLoader.read_manifest(path)
+		if platform.ok() and Fitting.compatible(platform.platform, m.get("family", "")):
+			pool.append([path, m])
+	if pool.is_empty():
+		return out
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var skills := []
+	for i in count:
+		skills.append(clampf(e.ai_skill + 10.0 * (0.5 - float(i) / maxf(count - 1, 1)), 0.0, 100.0))
+	skills.shuffle()
+	for i in count:
+		var pick: Array = pool[rng.randi() % pool.size()]
+		var h := ContentIndex.package_hash(pick[0])
+		if content:
+			content.share_car(h)
+		out.append({
+			"id": NetProtocol.FIRST_AI_ID + i, "peer": 1, "local": i, "name": AiRacer.NAMES[i % AiRacer.NAMES.size()],
+			"color": AiRacer.COLOR.to_html(false), "fp": "", "admin": false, "car": h,
+			"car_name": String(pick[1].get("name", "")).left(64), "family": String(pick[1].get("family", "car")).left(16),
+			"car_note": "", "ready": true, "ai": true, "skill": skills[i],
+		})
+		_ai_paths[NetProtocol.FIRST_AI_ID + i] = pick[0]
 	return out
 
 
@@ -299,9 +368,13 @@ func _on_joined(peer: int) -> void:
 	_say("%s joined" % ", ".join(names))
 	if config.motd:
 		_notice(peer, config.motd)
-	if state == "session": # joins the session in progress
+	if state == "session" and event().kind != "race": # joins the drive in progress
+		for p in server.players_of(peer):
+			_in_session[p.id] = true
 		server.send(peer, NetProtocol.Msg.SESSION, session_dict())
 		_roster_changed(peer)
+	elif state == "session":
+		_notice(peer, "Race on: you're in the next one")
 	_dirty = true
 
 

@@ -20,6 +20,8 @@ const SOUND_FULL_COUNT := 3
 const SOUND_FULL_M := 60.0
 const SOUND_DISTANT_M := 350.0
 const SOUND_UPDATE_S := 0.25
+## The dedicated server shows results this long, then goes on.
+const DEDICATED_RESULTS_S := 15.0
 
 var track_path := DEFAULT_TRACK
 ## P1's car; empty: their profile's last car.
@@ -157,6 +159,13 @@ func _ready() -> void:
 	for r in racers:
 		race.watch(r)
 	race.session_ended.connect(_on_session_ended)
+	if is_online():
+		race.mirror = Net.is_client() # the server runs the event (D85)
+		race.clock_source = net.now
+		var net_race := NetRace.new()
+		net_race.name = "NetRace"
+		net_race.session = self
+		add_child(net_race)
 	race.start()
 	apply_game_speed()
 	if event.kind == "time_trial":
@@ -168,6 +177,8 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	if Net.roster_changed.is_connected(_on_roster):
 		Net.roster_changed.disconnect(_on_roster)
+	if Net.chat_line.is_connected(_on_chat):
+		Net.chat_line.disconnect(_on_chat)
 	if Net.content and Net.content.car_changed.is_connected(_on_net_car):
 		Net.content.car_changed.disconnect(_on_net_car)
 	Engine.time_scale = 1.0
@@ -238,14 +249,37 @@ func _ready_online() -> void:
 	for i in roster.size():
 		_add_online_racer(roster[i], i)
 	Net.roster_changed.connect(_on_roster)
+	Net.chat_line.connect(_on_chat)
 	if Net.content:
 		Net.content.car_changed.connect(_on_net_car)
 	ai_racers = 0
 
 
+## Chat shows as captions for each player here, and is read out with their race narration.
+func _on_chat(line: Dictionary) -> void:
+	var text := "%s: %s" % [line.name, line.text] if line.kind == "chat" else String(line.text)
+	for p in players:
+		if p.slot.ai:
+			continue
+		p.hud.caption(text, 5.0)
+		if Narrator.race_on(p.slot.profile):
+			Narrator.say(text)
+
+
 func _add_online_racer(d: Dictionary, index: int) -> Racer:
 	var id := int(d.id)
 	var spot := track.transform_at(_grid_distance(index), _grid_lateral(index))
+	if d.get("ai", false) and Net.is_server(): # the server's AI cars (D88)
+		var a := AiRacer.new()
+		a.configure(int(d.get("local", 0)), float(d.get("skill", ai_skill)))
+		a.net_id = id
+		a.spawn_at = spot
+		_add_racer(a)
+		var path := Net.host_logic.ai_path(id) if Net.host_logic else ""
+		a.load_car(path if path else _default_car)
+		net.add(a, true)
+		safe_rejoin = true
+		return a
 	var local := Array(Net.my_ids).find(id)
 	if local >= 0 and local < Players.slots.size() and not dedicated:
 		var slot := Players.slots[local]
@@ -261,7 +295,7 @@ func _add_online_racer(d: Dictionary, index: int) -> Racer:
 	r.display_name = NetProtocol.clean_name(String(d.name))
 	r.color = Color.from_string(String(d.color), Color.WHITE)
 	r.number = index + 1
-	r.is_human = true
+	r.is_human = not d.get("ai", false)
 	r.name = "Net%d" % id
 	r.spawn_at = spot
 	_add_racer(r)
@@ -289,6 +323,14 @@ func _on_roster(roster: Array) -> void:
 	for id: int in net.racers.keys():
 		var r: Racer = net.racers[id]
 		if not ids.has(id) and r is NetRacer:
+			if race.kind in ["practice", "qualifying", "race"] and race.phase != RaceControl.Phase.DONE:
+				# Gone mid-session: out of it, in the results as such, until the session ends.
+				r.dnf = true
+				r.set_meta(&"left", true)
+				if r.vehicle:
+					r.vehicle.visible = false
+					r.vehicle.set_ghost(true, false)
+				continue
 			net.remove(id)
 			racers.erase(r)
 			r.remove()
@@ -428,9 +470,24 @@ func apply_game_speed() -> void:
 
 
 ## A session ended: its results go up on the main window while the cars take a cool-down lap.
+## Online the host decides what's next (the dedicated server goes on by itself); clients wait.
 func _on_session_ended(kind: String, results: Array) -> void:
 	if paused_by:
 		_resume()
+	if dedicated:
+		print("%s results: %s" % [kind.capitalize(), ", ".join(PackedStringArray(results.map(func(row: Dictionary) -> String: return "%d %s" % [row.position, row.name])))])
+		print("NETCHECK_RESULTS " + JSON.stringify({ "kind": kind, "rows": results.map(func(row: Dictionary) -> Dictionary:
+			return { "position": row.position, "name": row.name, "laps": row.laps, "dnf": row.dnf, "time": row.time, "best": row.best, "ai": not (row.racer as Racer).is_human }) }))
+		get_tree().create_timer(DEDICATED_RESULTS_S).timeout.connect(func() -> void:
+			if not is_inside_tree() or race.phase != RaceControl.Phase.DONE:
+				return
+			if race.has_next():
+				_drop_leavers()
+				race.next_session()
+			elif Net.host_logic:
+				Net.host_logic.end_session()
+				Net.host_logic.next_event())
+		return
 	print("%s results: %s" % [kind.capitalize(), ", ".join(PackedStringArray(results.map(func(row: Dictionary) -> String: return "%d %s" % [row.position, row.name])))])
 	if Game.dev.has("quit-after-results") or (Game.dev.has("auto-continue") and not race.has_next()):
 		get_tree().quit()
@@ -441,15 +498,24 @@ func _on_session_ended(kind: String, results: Array) -> void:
 	results_menu = ResultsMenu.new()
 	results_menu.kind = kind
 	results_menu.results = results
+	results_menu.mode = "client" if race.mirror else "host" if is_online() else "local"
 	results_menu.has_next = race.has_next()
 	results_menu.next_name = race.event.sessions()[race.index + 1].capitalize() if race.has_next() else ""
 	results_menu.continued.connect(func() -> void:
 		_close_results()
+		_drop_leavers()
 		race.next_session())
 	results_menu.restarted.connect(func() -> void:
 		_close_results()
+		_drop_leavers()
 		race.restart_session())
-	results_menu.quit_to_title.connect(func() -> void: Game.go_title())
+	results_menu.to_lobby.connect(func() -> void:
+		if Net.host_logic:
+			Net.host_logic.end_session())
+	results_menu.quit_to_title.connect(func() -> void:
+		if is_online():
+			Net.leave()
+		Game.go_title())
 	# The main window shows views at their real pixel size; menus are laid out for 1080p.
 	var layer: CanvasLayer = $ResultsLayer
 	var window := get_viewport().get_visible_rect().size
@@ -457,6 +523,23 @@ func _on_session_ended(kind: String, results: Array) -> void:
 	layer.scale = Vector2(s, s)
 	results_menu.size = window / s
 	layer.add_child(results_menu)
+
+
+## The results go (the server began the next session).
+func close_results() -> void:
+	_close_results()
+
+
+## Players who left during the last session go before the next one.
+func _drop_leavers() -> void:
+	if net == null:
+		return
+	for id: int in net.racers.keys():
+		var r: Racer = net.racers[id]
+		if r.has_meta(&"left"):
+			net.remove(id)
+			racers.erase(r)
+			r.remove()
 
 
 func _close_results() -> void:
@@ -567,7 +650,14 @@ func _open_pause(p: SessionPlayer) -> void:
 	menu.can_change_car = hotswap_allowed
 	menu.can_end_session = race.kind in ["practice", "qualifying"]
 	menu.allowed_assists = AssistRules.allowed(platform.platform, mode)
-	menu.can_restart = race.kind in ["race", "practice", "qualifying"]
+	menu.can_restart = race.kind in ["race", "practice", "qualifying"] and not race.mirror
+	menu.can_end_session = menu.can_end_session and not race.mirror
+	menu.online = is_online()
+	menu.is_host = is_online() and Net.is_server()
+	menu.to_lobby.connect(func() -> void:
+		_resume()
+		if Net.host_logic:
+			Net.host_logic.end_session())
 	menu.can_setup = race.kind != "race" and p.car_setup != null and not p.car_setup.allowed.is_empty()
 	menu.setup = p.car_setup
 	menu.setup_closed.connect(func() -> void: p.setup_changed())

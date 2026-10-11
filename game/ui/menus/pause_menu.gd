@@ -15,6 +15,8 @@ signal restart
 signal setup_closed
 ## Time trial: another ghost was picked.
 signal ghost_picked(id: String)
+## Online host: everyone back to the lobby.
+signal to_lobby
 
 ## Who paused.
 var slot: PlayerSlot
@@ -35,6 +37,9 @@ var ghost_items: Array = []
 var ghost_current := ""
 var leaderboard: Array = []
 var leaderboard_title := ""
+## Online (D85): chat is offered, quitting leaves the game; `is_host` can send everyone to the lobby.
+var online := false
+var is_host := false
 var _buttons: Array = []
 
 
@@ -58,10 +63,15 @@ func _ready() -> void:
 		_buttons.append(UiKit.button("End session", func() -> void: end_session.emit(), "Results now"))
 	if can_restart:
 		_buttons.append(UiKit.button("Restart", func() -> void: restart.emit(), "Start this session again"))
+	if online:
+		_buttons.append(UiKit.button("Chat", _open_chat, "Read and send messages"))
+	if is_host:
+		_buttons.append(UiKit.button("Lobby", func() -> void: to_lobby.emit(), "Everyone back to the lobby"))
 	_buttons.append_array([
 		UiKit.button("Settings", _open_settings, "Your controls, assists and HUD"),
 		UiKit.button("Game settings", _open_game_settings, "Graphics, sound, splitscreen"),
-		UiKit.button("Quit to title", func() -> void: quit_to_title.emit()),
+		UiKit.button("Leave game" if online else "Quit to title", func() -> void: quit_to_title.emit(),
+			("Close the server" if is_host else "Leave the server") if online else ""),
 	])
 	if bay_return:
 		_buttons.insert(1, UiKit.button("Back to Fitting Bay", func() -> void: back_to_bay.emit()))
@@ -104,6 +114,12 @@ func _open_game_settings() -> void:
 	UiKit.open_sub(self, menu, _ready_focus)
 
 
+func _open_chat() -> void:
+	var menu := ChatMenu.new()
+	menu.local_index = slot.index if slot else 0
+	UiKit.open_sub(self, menu, _ready_focus)
+
+
 func _ready_focus() -> void:
 	_buttons[0].grab_focus.call_deferred()
 
@@ -112,3 +128,30 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _buttons[0].is_visible_in_tree() and (event.is_action_pressed("ui_cancel") or event.is_action_pressed("pause")):
 		get_viewport().set_input_as_handled()
 		resumed.emit()
+
+
+## Chat in a session: the recent lines and the message field (the game keeps running).
+class ChatMenu:
+	extends Control
+
+	signal closed
+
+	var local_index := 0
+
+	func _ready() -> void:
+		theme = UiKit.theme_for(self)
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		process_mode = Node.PROCESS_MODE_ALWAYS
+		var list := UiKit.panel(self, "Chat", 900)
+		var chat := ChatPanel.new()
+		chat.local_index = local_index
+		chat.custom_minimum_size = Vector2(0, 420)
+		list.add_child(chat)
+		var back := UiKit.button("Back", func() -> void: closed.emit())
+		list.add_child(back)
+		UiKit.chain_focus(chat.focusables + [back])
+
+	func _unhandled_input(e: InputEvent) -> void:
+		if e.is_action_pressed("ui_cancel"):
+			get_viewport().set_input_as_handled()
+			closed.emit()

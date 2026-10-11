@@ -18,6 +18,8 @@ signal disconnected(reason: String)
 signal session_started(data: Dictionary)
 signal roster_changed(roster: Array)
 signal session_ended
+## RACE_BEGIN, RESULTS or NOTE from the server (NetRace).
+signal race_message(type: int, data: Dictionary)
 
 const CHAT_KEEP := 100
 
@@ -35,6 +37,8 @@ var my_ids := PackedInt32Array()
 var chat_log: Array[Dictionary] = []
 ## The session on now (its SESSION message, roster kept up to date), or {} in the lobby.
 var session := {}
+## The latest RACE_BEGIN of the session, for a session still being built when it came.
+var race_begin := {}
 ## Player ids whose chat this game hides.
 var muted := {}
 
@@ -257,6 +261,7 @@ static func package_hash(path: String) -> String:
 func _reset() -> void:
 	lobby = {}
 	session = {}
+	race_begin = {}
 	roster.clear()
 	my_ids = PackedInt32Array()
 	chat_log.clear()
@@ -317,6 +322,7 @@ func _handle(type: int, data: Dictionary) -> void:
 					or roster.is_empty() and not is_server():
 				return
 			session = { "track": data.track, "class": data["class"], "event": data.event, "roster": roster }
+			race_begin = {}
 			session_started.emit(session)
 		NetProtocol.Msg.ROSTER:
 			if session.is_empty():
@@ -326,4 +332,9 @@ func _handle(type: int, data: Dictionary) -> void:
 			roster_changed.emit(roster)
 		NetProtocol.Msg.SESSION_END:
 			session = {}
+			race_begin = {}
 			session_ended.emit()
+		NetProtocol.Msg.RACE_BEGIN, NetProtocol.Msg.RESULTS, NetProtocol.Msg.NOTE:
+			if type == NetProtocol.Msg.RACE_BEGIN:
+				race_begin = data
+			race_message.emit(type, data)

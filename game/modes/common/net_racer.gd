@@ -86,6 +86,17 @@ func _spawn(pkg: VehiclePackage) -> void:
 		_apply(0.0, true)
 
 
+## Server: each lap timed here is checked (D87).
+func _on_lap(time: float, valid: bool, _best: bool) -> void:
+	if Net.server and valid and session.net:
+		session.net.check_lap(self, time)
+
+
+## The server's word for its driver goes to their game (NetRace.note).
+func notify(text: String, seconds := 2.0) -> void:
+	NetRace.note(self, text, seconds)
+
+
 ## Nobody drives it here.
 func _make_driver() -> Node:
 	var n := Node.new()
@@ -130,6 +141,11 @@ func _apply(delta: float, snap: bool) -> void:
 	if placed:
 		_no_contact = TELEPORT_GHOST_TICKS
 	vehicle.move_remote(p.xform, p.velocity, p.angular, snap or placed)
+	if placed: # its timer shouldn't see the jump as a shortcut
+		var proj := track.project(vehicle.global_transform * vehicle.center_of_mass)
+		distance = proj.distance
+		track_index = proj.index
+		timer.teleported(track.from_start(distance))
 	if measure:
 		_shown_t.append(now)
 		_shown_p.append(p.xform.origin)
@@ -147,7 +163,8 @@ func _apply(delta: float, snap: bool) -> void:
 		_no_contact -= 1
 
 
-## Where the car is on the track. Its own game runs its lap timer, track limits and resets.
+## Where the car is on the track, and its lap timer. Its own game resets it; the server rules on
+## its track limits (penalties reach the driver as notes).
 func update_track(delta: float) -> void:
 	var com_world := vehicle.global_transform * vehicle.center_of_mass
 	var proj := track.project(com_world, track_index)
@@ -157,3 +174,6 @@ func update_track(delta: float) -> void:
 	speed = vehicle.speed()
 	on_track = absf(lateral) < track.width / 2.0 + 1.0
 	timer.update(track.from_start(distance), delta, vehicle.remote_velocity.length())
+	_clock += delta
+	if Net.server and not dnf:
+		_check_track_limits()

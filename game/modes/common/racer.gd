@@ -320,8 +320,13 @@ func reset_car() -> void:
 	track_index = -1
 
 
+## Online: the server ghosts this car while its link is bad (D86).
+var forced_ghost := false
+
+
 ## No collisions with other cars, and drawn see-through.
 func set_ghost(on: bool) -> void:
+	on = on or forced_ghost
 	ghosted = on
 	if vehicle:
 		vehicle.set_ghost(on, on and not session.ghosted)

@@ -8,6 +8,8 @@ extends Control
 signal continued
 signal restarted
 signal quit_to_title
+## Online host: back to the lobby.
+signal to_lobby
 
 ## "race", "qualifying" or "practice".
 var kind := "race"
@@ -16,6 +18,8 @@ var results: Array = []
 var has_next := false
 ## "Qualifying", "Race"... for the Continue button.
 var next_name := ""
+## "local", "host" (online: also Lobby) or "client" (online: the host decides; only Leave).
+var mode := "local"
 
 var _rows: Array = []
 
@@ -49,10 +53,21 @@ func _ready() -> void:
 	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
 	list.add_child(buttons)
 	var controls: Array = []
-	if has_next:
-		controls.append(UiKit.button("Continue: %s" % next_name, func() -> void: continued.emit()))
-	controls.append(UiKit.button("Restart", func() -> void: restarted.emit(), "Run this session again"))
-	controls.append(UiKit.button("Title", func() -> void: quit_to_title.emit(), "Back to the title screen"))
+	if mode == "client":
+		var wait := UiKit.label("Waiting for the host", 26)
+		wait.accessibility_live = AccessibilityServer.AccessibilityLiveMode.LIVE_POLITE
+		list.add_child(wait)
+		list.move_child(wait, list.get_child_count() - 2)
+	else:
+		if has_next:
+			controls.append(UiKit.button("Continue: %s" % next_name, func() -> void: continued.emit()))
+		controls.append(UiKit.button("Restart", func() -> void: restarted.emit(), "Run this session again"))
+	if mode == "host":
+		controls.append(UiKit.button("Lobby", func() -> void: to_lobby.emit(), "Everyone back to the lobby"))
+	if mode == "local":
+		controls.append(UiKit.button("Title", func() -> void: quit_to_title.emit(), "Back to the title screen"))
+	else:
+		controls.append(UiKit.button("Leave", func() -> void: quit_to_title.emit(), "Leave the game" if mode == "client" else "Close the server"))
 	for c: Button in controls:
 		c.custom_minimum_size.x = 280
 		buttons.add_child(c)
@@ -72,16 +87,17 @@ func _row_button(row: Dictionary) -> Button:
 	var time := Hud.format_time(row.time) if kind == "race" else Hud.format_time(row.best)
 	if kind == "race" and row.dnf:
 		time = "DNF"
-	var assists := assists_text(r)
-	var cells := ["P%d" % row.position, "%s%s" % ["#%d " % row.number if not r.is_human else "", row.name], row.car,
+	var assists := String(row.assists) if row.has("assists") else assists_text(r)
+	var flagged := " (flagged)" if row.get("flagged", false) else ""
+	var cells := ["P%d" % row.position, "%s%s%s" % ["#%d " % row.number if not r.is_human else "", row.name, flagged], row.car,
 		time, row.gap, str(row.laps), "+%ds" % roundi(row.penalty) if row.penalty > 0.0 else "", assists]
 	var b := Button.new()
 	b.flat = true
 	b.focus_mode = Control.FOCUS_ALL
 	b.custom_minimum_size = Vector2(0, 52)
 	b.add_child(_line(cells))
-	var spoken := "P%d, %s, %s, %s%s, best %s, %d laps%s%s" % [
-		row.position, row.name, row.car, time, (", " + String(row.gap)) if row.gap != "" else "",
+	var spoken := "P%d, %s%s, %s, %s%s, best %s, %d laps%s%s" % [
+		row.position, row.name, ", flagged" if flagged else "", row.car, time, (", " + String(row.gap)) if row.gap != "" else "",
 		Hud.format_time(row.best), row.laps,
 		", penalty %d seconds" % roundi(row.penalty) if row.penalty > 0.0 else "",
 		", assists: " + assists if assists != "" else ""]

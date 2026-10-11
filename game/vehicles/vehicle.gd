@@ -36,6 +36,8 @@ var wall_impulse := 0.0
 var last_hit: Vehicle
 ## Each reset_to() counts up (network states flag the car as placed, not moved).
 var reset_count := 0
+## Contacts with remote cars this tick: [other Vehicle, impulse on this car, world point] (D86).
+var remote_contacts: Array = []
 ## A package without a model shows as a box in this colour (an online car still arriving).
 var placeholder_color := Color(0.6, 0.6, 0.62)
 
@@ -165,6 +167,11 @@ func set_remote(on: bool) -> void:
 	sim.reset()
 
 
+## A knock relayed from the other car's game (D86): `impulse` (N·s, world) at world `point`.
+func apply_remote_impulse(impulse: Vector3, point: Vector3) -> void:
+	apply_impulse(impulse, point - global_position)
+
+
 ## Moves a remote car to `ground` (its ground reference) going at `velocity`.
 func move_remote(ground: Transform3D, velocity: Vector3, angular: Vector3, snap := false) -> void:
 	var b := ground.basis.orthonormalized()
@@ -190,12 +197,21 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	sim.integrate(state)
 	car_impulse = 0.0
 	wall_impulse = 0.0
+	remote_contacts.clear()
 	for i in state.get_contact_count():
-		var impulse := state.get_contact_impulse(i).length()
+		var j := state.get_contact_impulse(i)
+		var impulse := j.length()
 		var other := state.get_contact_collider_object(i)
 		if other is Vehicle:
 			car_impulse += impulse
 			last_hit = other
+			if (other as Vehicle).remote and impulse > 0.0:
+				# A remote car is kinematic, as heavy as a wall: this car took the whole knock. Two
+				# cars share it by mass; its owner's game takes the other side (D86).
+				var point := state.get_contact_local_position(i)
+				var keep: float = other.mass / (mass + other.mass)
+				state.apply_impulse(-j * (1.0 - keep), point - state.transform.origin)
+				remote_contacts.append([other, j * keep, point])
 		else:
 			wall_impulse += impulse
 

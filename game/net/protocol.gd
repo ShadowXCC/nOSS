@@ -22,6 +22,8 @@ const MAX_CONTROL_BYTES := 65536
 const MAX_LOCAL := 4
 const MAX_PLAYERS := 16
 const MAX_NAME := 24
+## Car ids from here up are the server's AI cars; players get the ids below.
+const FIRST_AI_ID := 200
 ## ENet's packet throttle drops unreliable packets (car states, content) after the round trip
 ## grows, and comes back only when it shrinks below the lowest of the last interval (5 s by
 ## default). Every peer gets throttle_configure(THROTTLE_INTERVAL_MS, 32, 0): never slow down,
@@ -57,6 +59,10 @@ enum Msg {
 	SESSION = 40, ## server: {track, class, event, roster: [players]}: a session starts (or is on, to a late joiner)
 	ROSTER = 41, ## server: {roster}: who's in the session changed (join, leave, car)
 	SESSION_END = 42, ## server: {}: back to the lobby
+	RACE_BEGIN = 43, ## server: {kind, index, grid: [car ids], rolling}: a session of the event starts
+	RESULTS = 44, ## server: {kind, has_next, next_name, rows}: it ended
+	NOTE = 45, ## server: {id, text, seconds}: a message for one car's driver ("Track limits: warning")
+	ASSISTS = 46, ## client: {id, used}: the assists a car has used this session (results)
 }
 
 

@@ -92,6 +92,8 @@ def main(argv=None):
     p.add_argument("--loss", type=float, default=0.0, help="percent, each way")
     p.add_argument("--rate", default="0", help="bandwidth per client each way, e.g. 50mbit")
     p.add_argument("--bot-fps", type=int, default=60)
+    p.add_argument("--cheat", default="", help="the first bot cheats (speed, teleport, time): it must be caught")
+    p.add_argument("--plausibility", default="flag", choices=["off", "warn", "flag", "kick"])
     p.add_argument("--logs", default="", help="keep the logs in this folder")
     p.add_argument("--verbose", action="store_true")
     args = p.parse_args(argv)
@@ -106,6 +108,7 @@ def main(argv=None):
     config = {
         "schema": "noss.server/1", "name": "net_check", "port": args.port, "max_players": 16, "lan": False,
         "rotation": [{"track": "proving_ground", "class": args.klass, "event": event}],
+        "plausibility": args.plausibility,
     }
     config_path = logs / "server.json"
     config_path.write_text(json.dumps(config))
@@ -143,8 +146,9 @@ def main(argv=None):
     bots = []
     for i in range(args.clients + args.quad):
         n = 4 if i >= args.clients else 1
+        cheat = [f"--cheat={args.cheat}"] if args.cheat and i == 0 else []
         bots.append(start(f"bot{i:02d}", ["--bot", f"--connect=127.0.0.1:{port}", f"--players={n}",
-                                          f"--bot-fps={args.bot_fps}"] + quit_flag))
+                                          f"--bot-fps={args.bot_fps}"] + quit_flag + cheat))
         time.sleep(0.2)
 
     peak = {}
@@ -161,7 +165,7 @@ def main(argv=None):
             sim.running = False
 
     # Gather the bots' reports.
-    reports, contacts, fails = {}, [], []
+    reports, contacts, fails, results, checks = {}, [], [], None, []
     for name, proc, _ in procs:
         text = (logs / f"{name}.log").read_text(errors="replace")
         if args.verbose:
@@ -169,6 +173,10 @@ def main(argv=None):
         for line in text.splitlines():
             if line.startswith("NETCHECK "):
                 reports[name] = json.loads(line[len("NETCHECK "):])
+            elif "Checks failed:" in line:
+                checks.append(line.split("Checks failed:", 1)[1].strip())
+            elif line.startswith("NETCHECK_RESULTS "):
+                results = json.loads(line[len("NETCHECK_RESULTS "):])
             elif line.startswith("NETCHECK_CONTACT "):
                 t, a, b, x, y, z = line.split()[1:]
                 contacts.append({"t": float(t), "a": int(a), "b": int(b), "pos": (float(x), float(y), float(z))})
@@ -188,14 +196,40 @@ def main(argv=None):
         print("%-7s %4d %7.1fK %7.1fK %7.1fK %8.2fm %8.2fm %8.2fm %8d %6.0fM" % (
             name, r["players"], r["down_avg"], r["down_max"], r["up_avg"], r["err_median"], r["err_p95"],
             r["err_max"], r["contacts"], peak.get(name, 0.0)))
+        kicked = args.cheat and args.plausibility == "kick"
+        if kicked and name == "bot00":
+            continue  # kicked (and back, as bots rejoin)
         if r["sessions"] < 1:
             fails.append(f"{name} never got into the session")
-        elif r["remote_cars"] < players - r["players"]:
+        elif r["remote_cars"] < players - r["players"] - (1 if kicked else 0):
             fails.append(f"{name} saw {r['remote_cars']} remote cars, not {players - r['players']}")
     for name in (f"bot{i:02d}" for i in range(len(bots))):
         if name not in reports:
             fails.append(f"{name} reported nothing")
     print("server RSS %.0f MB, bots max %.0f MB" % (peak.get("server", 0.0), max([v for k, v in peak.items() if k.startswith("bot")] or [0])))
+    if args.event == "race":
+        if results is None:
+            fails.append("no race results")
+        else:
+            rows = results["rows"]
+            print("race results:")
+            for r in rows:
+                print("  P%-2d %-16s %d laps  %s%s" % (r["position"], r["name"], r["laps"],
+                      "DNF" if r["dnf"] else "%.3f s" % r["time"], "  (AI)" if r["ai"] else ""))
+            if len(rows) != players + args.ai:
+                fails.append("%d cars classified, not %d" % (len(rows), players + args.ai))
+            for r in rows:
+                if r["dnf"] or r["laps"] < args.laps:
+                    fails.append("%s not classified (%d laps%s)" % (r["name"], r["laps"], ", DNF" if r["dnf"] else ""))
+    for c in checks:
+        print("check: " + c)
+    if args.cheat:
+        if not checks:
+            fails.append(f"the {args.cheat} cheat wasn't caught")
+        elif len({c.split(" (")[0] for c in checks}) > 1:
+            fails.append("honest cars failed checks too")
+    elif checks:
+        fails.append("honest cars failed checks (%d)" % len(checks))
     if worst_down > MAX_DOWN_KB:
         fails.append("%.1f KB/s down, over %g" % (worst_down, MAX_DOWN_KB))
     piles = pileups(contacts)

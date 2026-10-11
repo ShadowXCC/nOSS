@@ -42,6 +42,7 @@ extends Node
 ##   --connect=<address>  join at once (--password)
 ##   --bot                a load-test client (tools/net_check.py): throwaway keys, nothing saved,
 ##                        cars without models, AI drives, --players=<n> on one connection
+##   --cheat=<kind>       bot: send false states (speed, teleport, time) to test the server's checks
 ##   --auto-ready         lobby: ready once the cars are picked
 ##   --auto-start=<n>     hosting: start once n players are in and everyone's ready
 

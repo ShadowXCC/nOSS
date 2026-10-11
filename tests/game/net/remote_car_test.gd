@@ -189,3 +189,45 @@ func test_kinematic_remote_car() -> void:
 	assert_float(remote.sim.get_speed()).is_equal(0.0)
 	world.queue_free()
 	await get_tree().process_frame
+
+
+func test_knocks_with_remote_cars_are_shared() -> void:
+	var platform := PlatformLoader.load_official("official.track.gt")
+	var world := Node3D.new()
+	add_child(world)
+	var ground := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(400, 1, 400)
+	shape.shape = box
+	ground.add_child(shape)
+	ground.position = Vector3(0, -0.5, 0)
+	world.add_child(ground)
+	var remote := Vehicle.create(platform, PackageLoader.load_package("res://content/cars/noss_box"))
+	world.add_child(remote)
+	remote.reset_to(Transform3D(Basis.IDENTITY, Vector3(0, 0, 12)))
+	remote.set_remote(true)
+	var car := Vehicle.create(platform, PackageLoader.load_package("res://content/cars/noss_box"))
+	world.add_child(car)
+	car.reset_to(Transform3D(Basis.IDENTITY, Vector3(0, 0, 0)))
+	await get_tree().physics_frame
+	# The car rolls into the parked remote car at 6 m/s.
+	car.linear_velocity = Vector3(0, 0, 6)
+	var seen: Array = []
+	for i in 180:
+		remote.move_remote(Transform3D(Basis.IDENTITY, Vector3(0, 0, 12)), Vector3.ZERO, Vector3.ZERO)
+		await get_tree().physics_frame
+		if not car.remote_contacts.is_empty():
+			seen = car.remote_contacts.duplicate()
+			break
+	assert_array(seen).is_not_empty()
+	assert_object(seen[0][0]).is_same(remote)
+	# Equal masses: the other car's share is half the knock, pointing forward for it.
+	assert_float((seen[0][1] as Vector3).z).is_less(0.0)
+	# A relayed knock moves a car.
+	var before := car.linear_velocity
+	car.apply_remote_impulse(Vector3(0, 0, -car.mass * 2.0), car.global_position)
+	await get_tree().physics_frame
+	assert_float(car.linear_velocity.z - before.z).is_less(-1.0)
+	world.queue_free()
+	await get_tree().process_frame

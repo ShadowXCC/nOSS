@@ -25,6 +25,11 @@ var track_limits := "lenient"
 ## AI cars: "garage" (garage and built-in cars the class takes) or "builtin".
 var ai_cars := "garage"
 
+## The values each text field may take; the first is the default.
+const CHOICES := {
+	"kind": ["free", "race", "time_trial"], "start": ["standing", "rolling"], "grid": ["qualifying", "reverse", "random"],
+	"track_limits": ["lenient", "off", "strict"], "ai_cars": ["garage", "builtin"],
+}
 const KEYS := ["kind", "practice_min", "qualifying_min", "race_laps", "race_min", "ai_count", "ai_skill",
 	"start", "grid", "collisions", "track_limits", "ai_cars"]
 
@@ -72,6 +77,13 @@ static func from_dict(d: Dictionary) -> RaceEvent:
 	e.ai_count = clampi(e.ai_count, 0, 15)
 	e.ai_skill = clampf(e.ai_skill, 0.0, 100.0)
 	e.race_laps = clampi(e.race_laps, 1, 99)
+	e.practice_min = clampi(e.practice_min, 0, 120)
+	e.qualifying_min = clampi(e.qualifying_min, 0, 120)
+	e.race_min = clampi(e.race_min, 0, 240)
+	# Text fields only take their known values (events also come from servers).
+	for key: String in CHOICES:
+		if e.get(key) not in CHOICES[key]:
+			e.set(key, CHOICES[key][0])
 	return e
 
 
