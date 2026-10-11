@@ -20,7 +20,7 @@ Not system changes:
 - git `user.name` and `user.email` are set in this repo's `.git/config`, not globally.
 - Godot runs in self-contained mode, so it does not create `~/.config/godot`, `~/.local/share/godot` or `~/.cache/godot`.
 - pip ran with `--no-cache-dir`, so there is no `~/.cache/pip` entry from this project.
-- The Windows build was tested under Wine with a throwaway prefix in a temporary folder (not `~/.wine`), with menu-entry creation turned off (M1, M2 and M3).
+- The Windows build was tested under Wine with a throwaway prefix in a temporary folder (not `~/.wine`), with menu-entry creation turned off (M1, M2, M3 and M5).
 - M3's multi-monitor runs opened fullscreen windows on both monitors only while the game ran; no display settings were changed.
 - M4's screen-reader checks (`tools/a11y_check.py`) run the game in a private D-Bus session with the accessibility bus switched on in memory; the desktop's accessibility settings were not changed. They pass `--no-save`, so no settings or profiles are written.
 - M5's online checks (`tools/net_check.py`, `tools/net_sim.py`) run on 127.0.0.1 with ports 47800–47900 only while they run; their logs go to `reports/net_check/` in the project (ignored by git). Fresh-client runs use a cache folder there, not `~/.local/share/nOSS/cache`.
