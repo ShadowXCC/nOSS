@@ -9,6 +9,7 @@ extends Node
 ##   --ai=<n>             add n AI racers (no views); --ai-skill=<0-100>, --ai-builtin: built-in cars only
 ##   --race               start a race right away (the last race set up); --race-laps=<n>, --race-ai=<n>
 ##   --quit-after-results quit when a session's results come up (timed runs, checks)
+##   --auto-continue      go straight on to the next session when results come up; quit after the last
 ##   --screens=0,0,1,1    monitor per player (multi-monitor)
 ##   --split=<s>          two players: stacked or side; --three=<s>: wide or map
 ##   --ai-car=<path>      car for the AI-driven players

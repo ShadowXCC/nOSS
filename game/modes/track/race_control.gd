@@ -23,6 +23,8 @@ const PACE_SPEED := 22.0
 const GREEN_BEFORE_LINE_M := 60.0
 ## After the leader finishes, the others have this long to finish their lap.
 const FINISH_GRACE_S := 60.0
+## Practice and qualifying: after time's up, the longest a lap in progress may take.
+const LAP_IN_S := 180.0
 ## Flags: a stopped or slow car within YELLOW_M ahead; a car a lap up within BLUE_M behind.
 const YELLOW_M := 250.0
 const BLUE_M := 100.0
@@ -220,9 +222,7 @@ func _physics_process(delta: float) -> void:
 			if kind == "race":
 				_check_finish()
 			elif kind in ["practice", "qualifying"]:
-				var limit := (event.practice_min if kind == "practice" else event.qualifying_min) * 60.0
-				if clock >= limit:
-					end_session()
+				_check_time_up()
 	_flag_time -= delta
 	if _flag_time <= 0.0:
 		_flag_time = FLAG_UPDATE_S
@@ -263,6 +263,27 @@ func _check_finish() -> void:
 		var all_in := session.racers.all(func(r: Racer) -> bool: return r.finished or r.dnf)
 		if all_in or clock - leader_finished_at >= FINISH_GRACE_S:
 			end_session()
+
+
+## Practice and qualifying: when time's up, each car finishes the lap it's on (it may still set
+## a time); the session ends once all are in, or after LAP_IN_S.
+func _check_time_up() -> void:
+	var limit := (event.practice_min if kind == "practice" else event.qualifying_min) * 60.0
+	if clock < limit:
+		return
+	if phase == Phase.RUNNING:
+		phase = Phase.CHECKERED
+		leader_finished_at = clock
+		for r in session.racers:
+			_laps[r] = r.timer.lap
+			if r.timer.lap == 0:
+				r.finished = true # never started a lap
+	for r in session.racers:
+		if not r.finished and r.timer.lap > int(_laps.get(r, 0)):
+			r.finished = true
+			r.flag = "checkered"
+	if session.racers.all(func(r: Racer) -> bool: return r.finished) or clock - leader_finished_at >= LAP_IN_S:
+		end_session()
 
 
 func _finish(r: Racer) -> void:
@@ -392,8 +413,8 @@ func _update_flags() -> void:
 		return
 	var racers := session.racers
 	for r in racers:
-		if r.finished and kind == "race":
-			r.flag = "checkered" if leader_finished_at >= 0.0 else r.flag
+		if r.finished and leader_finished_at >= 0.0:
+			r.flag = "checkered"
 			continue
 		var flag := ""
 		if phase == Phase.RUNNING and clock < _green_until:
