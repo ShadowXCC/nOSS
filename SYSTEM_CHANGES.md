@@ -10,7 +10,8 @@ Changes made outside this project directory, to be reversed later if wanted.
 | `~/.local/share/nOSS/fitting/` (Fitting Bay drafts), `cache/` (garage index, rendered thumbnails), `import/` (folder the bay lists) | Running the game (M2). Part of the game's `user://` folder. | Covered by `rm -rf ~/.local/share/nOSS`; or delete each folder |
 | `~/.local/share/nOSS/garage/race.noss`, `sedan_sports.noss`, `toy_car.noss` | Fitting Bay tests during M2 (CC0 Kenney and Khronos models) | `rm ~/.local/share/nOSS/garage/{race,sedan_sports,toy_car}.noss` |
 | `~/.local/share/nOSS/players.json` (which profile each controller belongs to), `profiles/player2.json` (made when a second controller joined in an M3 test run); `profiles/player1.json` rewritten in the v2 profile format | Running the game (M3). Part of the game's `user://` folder. | Covered by `rm -rf ~/.local/share/nOSS`; or `rm ~/.local/share/nOSS/players.json ~/.local/share/nOSS/profiles/player2.json` |
-| `~/.local/share/nOSS/tests/` (test settings, profiles and packages) | gdUnit4 tests (M2, M3) | `rm -rf ~/.local/share/nOSS/tests` |
+| `~/.local/share/nOSS/tests/` (test settings, profiles and packages) | gdUnit4 tests (M2, M3, M4) | `rm -rf ~/.local/share/nOSS/tests` |
+| `~/.local/share/nOSS/ghosts/`, `leaderboards/` (time-trial ghosts and laps), `setups/` (car setups); `settings.cfg` gained the last race set up, sound volumes and the first-boot flag; `profiles/player1.json` rewritten as profile version 3 on its next load (assists Auto/On/Off) | Running the game and its checks (M4). Part of the game's `user://` folder. | Covered by `rm -rf ~/.local/share/nOSS`; or delete each folder |
 
 Not system changes:
 - git `user.name` and `user.email` are set in this repo's `.git/config`, not globally.
@@ -18,3 +19,4 @@ Not system changes:
 - pip ran with `--no-cache-dir`, so there is no `~/.cache/pip` entry from this project.
 - The Windows build was tested under Wine with a throwaway prefix in a temporary folder (not `~/.wine`), with menu-entry creation turned off (M1, M2 and M3).
 - M3's multi-monitor runs opened fullscreen windows on both monitors only while the game ran; no display settings were changed.
+- M4's screen-reader checks (`tools/a11y_check.py`) run the game in a private D-Bus session with the accessibility bus switched on in memory; the desktop's accessibility settings were not changed. They pass `--no-save`, so no settings or profiles are written.

@@ -140,9 +140,11 @@ Vehicle (RigidBody3D, Jolt)       mass, inertia, CoG from platform (never from t
 - **Multi-monitor:** a player can pick a monitor. Each monitor in use, other than the main window's, gets a native borderless fullscreen `Window` split the same way, so 1+3 or 2+2 across two monitors works (D56).
 - **Scaling:** views render at the window's real pixel size. Their 2D is laid out for 1080p and scaled to the view (more in half views than in quarters), then by the player's HUD size or menu text size.
 - **Performance:** each view has its own render scale. With auto resolution on, it steps down to 0.5 while frames are slower than 60 fps. Car LODs switch closer with more views (D60).
-- **Audio:** each view listens; car sound is scaled by 1/√views, or only P1's view listens (a setting, D58).
+- **Audio:** each view listens; car sound is scaled by 1/√views, or only P1's view listens (a setting, D58). The volume groups are buses (`OwnEngines`, `OtherEngines`, `Tires` under `Cars`, which takes the 1/√views; `Effects`, `Ambience`, `Music`, `UI` under Master); mono is a stereo enhancer with no side signal on Master. Speech (narration, spotter) goes through the OS text-to-speech (`Narrator` autoload), with its own volumes.
 - **Menus:** shared menus (title, class, game settings) use the main window and any device; their text size is the largest of the joined players'. Each player's own menus (Players screen card, pause, car picker, their settings) open in their view and take only their input. Pause stops everyone and belongs to whoever paused.
-- **SessionPlayer** (`game/modes/common/`): one player's car, controller, camera rig, HUD, lap timer, engine sound, reset spot and hotswap in a session. The session keeps the shared parts and the grid, and handles drop-in and drop-out.
+- **Racer** (`game/modes/common/`, M4): one car in a session: car loading and hotswap, lap timer, reset spot and safe rejoin, race state (held, finished, penalties, flag). **SessionPlayer** adds a player's controller, camera rig, HUD and menus; **AiRacer** is a computer driver (RacingAI) with no view. The **TrackSession** keeps the shared parts (track, platform, views, grid, pause) and handles drop-in and drop-out.
+- **RaceField** projects every car onto the track once per tick before anyone drives; drivers, the spotter, flags and standings read it. **RaceControl** runs the event's sessions (practice, qualifying, race, time trial, free drive): grid, countdown, standings, flags, track limits, finish and results (D63, D67).
+- **Physics order per tick:** player input (−90) → RaceField (−60) → RaceControl (−55) → drivers (−50) → vehicles (0).
 
 ## 7. Render style profiles
 
@@ -174,7 +176,7 @@ Endless mode and large real-world maps go far beyond single-precision range.
 | Main | Game logic, UI, scene tree, render submission |
 | Physics | Godot physics plus `VehicleSim`, on the main thread for now (D34) |
 | Worker pool | Package validation, import and LOD generation; procedural chunk and terrain mesh builds; content transfer decode |
-| Native FFB | ~500 Hz loop that interpolates the latest FFB target and updates SDL3 haptic effects |
+| Native FFB | ~500 Hz loop that mixes the latest FFB inputs (`native/src/ffb/`) and updates SDL3 haptic effects |
 
 ## 10. Data and save locations
 
@@ -194,6 +196,8 @@ user://
 ├─ tracks/<id>.nosstrack       player tracks (+ .autosave/)
 ├─ platforms/                  custom and downloaded platforms
 ├─ setups/<platform>/<track>.json
+├─ ghosts/<track>/<platform>/   best.json and ghosts from friends
+├─ leaderboards/<track>.json    local time-trial leaderboards
 ├─ replays/
 ├─ cache/<sha256>/             unpacked and imported content (own and downloaded)
 └─ logs/

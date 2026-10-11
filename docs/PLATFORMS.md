@@ -147,7 +147,7 @@ Example: an official Track/GT platform. All values are illustrative and get tune
 | Highway | Final drive, brake bias |
 | Endless | Nothing (assists only) |
 
-**Setups:** `user://setups/<platform>/<track>.json` stores only changes from the defaults, and can be shared. They are validated against the platform's ranges when loaded.
+**Setups:** `user://setups/<platform>/<track>.json` stores only changes from the defaults, and can be shared. They are validated against the platform's ranges when loaded: unknown paths and wrong types are dropped, numbers are clamped and snapped to the step, and gear ratios stay in order. The Setup menu (pause menu, not during races) has a slider per value; changes apply when it closes and the car keeps moving. A changed setup shows as "Setup" in results and leaderboards; the platform's hash stays the official one (D70). AI drive the default setup.
 
 ## 4. Fitting and handling normalization
 

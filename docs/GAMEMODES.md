@@ -24,19 +24,22 @@ Rules and flow for each mode. Every mode uses the same vehicle core ([PHYSICS.md
 | Free-drive / Practice | Unlimited driving. Hotswap, setup changes and car reset allowed. |
 | Qualifying | Timed. The best valid lap sets the grid. |
 | Race | Laps or time. Standing or rolling start. Grid from qualifying, reverse, or random. |
-| Time trial | Solo. Ghost of your best lap, plus ghosts loaded from files or friends. Local and per-server leaderboards. |
+| Time trial | Solo. Ghost of your best lap, plus ghosts loaded from files or friends. Local and per-server leaderboards. *M4: the best lap per class is saved in `user://ghosts/<track>/<platform>/best.json`; other ghost files in that folder can be picked in the pause menu; the local leaderboard is `user://leaderboards/<track>.json` (D69).* |
 
-- **Timing:** the start/finish line plus 3 sectors. Invisible checkpoints every ~100 m along the track spline. A lap only counts if every checkpoint is passed in order. A live delta bar is shown.
+- **Timing:** the start/finish line plus 3 sectors. Invisible checkpoints every ~100 m along the track spline. A lap only counts if every checkpoint is passed in order. A live delta bar shows the gap to the best lap (or to the ghost, if faster) at every 10 m.
 - **Track limits:** a check is made when all four wheels are past the track edge (spline width plus the curb allowance).
   - Practice and qualifying: the lap is invalidated.
-  - Race: a warning, then a time penalty if the cut gained time.
-  - Strictness: off / lenient / strict, set per server.
-- **Flags:** green, yellow (stopped or slow car ahead), blue (being lapped, shown only), checkered.
-- **Wrong way:** a warning, then a respawn.
+  - Race: a warning, then a time penalty if the cut gained time: +2 s (lenient) or +5 s (strict). A cut gained time if that stretch was driven faster than 98% of the AI line's best time for it; strict also counts cuts that gained nothing (D67).
+  - Strictness: off / lenient / strict, set per event (per server in M5).
+- **Flags** (an icon and a word each): green (start, and when a yellow clears), yellow (a stopped or slow car within 250 m ahead), blue (a car most of a lap up within 100 m behind; shown only), checkered (Finish).
+- **Wrong way:** a warning, then after 5 s a respawn facing the right way.
+- **Start:** the grid forms two staggered columns behind the line (12 m to pole, 13 m between cars in a column), held on the handbrake. Standing start: five lights, one a second, out after a short random wait. Rolling start: the field forms 220 m further back and runs at 80 km/h without passing; green comes 60 m before the line.
+- **Race weekend (M4):** the Race menu picks practice and qualifying (off or a few minutes), race length (laps or minutes), AI cars (0–15) and skill, start, grid (qualifying, reverse, random), collisions, track limits, and whether AI cars come from the garage or the built-ins. When practice or qualifying time is up, cars finish the lap they're on. After the leader finishes, the others finish their lap (60 s at most); finished cars, players' included, take a cool-down lap driven by the AI. The pause menu offers Restart, End session (practice, qualifying) and Setup (not during races).
+- **Resets in traffic:** with AI or in a race, a reset car waits off the track until nothing is coming within 4 s, then rejoins at the road's edge, see-through and without contact for 3 s (D66).
 - **Free-drive (M1):** a car reset puts the car back on the track at the last valid spot and stops the current lap counting. Jumping ahead along the track (cutting across) does the same.
 - **Local players (M3):** up to 4, one class for everyone, each with their own car, view, timer and reset spot. Cars start from a two-column grid behind the line; a reset steps back along the track if another car is on the spot. Players drop in with a free device and drop out from their pause menu; pause stops everyone.
 - **Collisions:** on, or **ghosted** (no car-to-car contact), set per server.
-- **Results:** position, total time, best lap, gaps. Championship points in career events.
+- **Results:** position, total time, best lap, gaps, laps, penalties and the assists each player drove with (ACC-07). Championship points in career events.
 - **Pit lane, repairs, tire wear:** later (M10).
 
 ## 2. Kart

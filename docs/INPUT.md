@@ -11,7 +11,7 @@ Each local player has their own set of actions:
 | Group | Actions |
 |---|---|
 | Driving | `steer` (−1…1), `throttle`, `brake`, `clutch`, `handbrake` (0…1) |
-| Gears | `shift_up`, `shift_down`, `gear_R`, `gear_N`, `gear_1`…`gear_7` (H-shifter) |
+| Gears | `shift_up`, `shift_down`, `gear_r`, `gear_n`, `gear_1`…`gear_7` (H-shifter) |
 | View | `camera_next`, `look_left`, `look_right`, `look_back`, `free_look` (mouse or right stick) |
 | Car | `horn`, `lights`, `reset_car`, `hotswap_menu` |
 | Kart | `use_item`, `throw_back` (hold), `drift` |
@@ -70,7 +70,8 @@ One-handed controller layouts (`pad_left_hand`, `pad_right_hand`) put driving on
 ### Controller (INP-02)
 - **Sticks:** inner and outer deadzone, linearity curve, speed-sensitive steering reduction, steering smoothing.
 - **Triggers:** throttle and brake, with their own deadzones and curves.
-- **Rumble** (Godot `start_joy_vibration`): tire slip, ABS, curbs, collisions.
+- **Rumble** (Godot `start_joy_vibration`): tire slip, ABS, curbs, collisions. Strength per player (Settings → Controller rumble), M4.
+- **Shared menus** (title, results) take the D-pad or stick, A to confirm and B to go back (D77).
 
 ## 5. Wheels, pedals, shifters
 
@@ -81,8 +82,11 @@ One-handed controller layouts (`pad_left_hand`, `pad_right_hand`) put driving on
   - Set the wheel's hardware range in settings.
   - The game applies a **soft lock** that matches the platform's `steering.wheel_rotation_deg` ([PHYSICS.md §11](PHYSICS.md#11-force-feedback)).
 - **Pedals:** response curves, deadzones, brake pressure scale (for load cells).
-- **Shifters:** H-pattern gate mapping (one button per gear) and sequential paddles or stick.
-- **Button boxes:** any action can be bound.
+- **Shifters:** H-pattern gate mapping (one button per gear: bind Gear 1…7, Reverse, Neutral in Buttons and keys; the gate held selects that gear, no gate is neutral) and sequential paddles or stick. A clutch pedal or button can be bound too.
+- **Handbrakes:** a lever on any of the player's devices: detect it in Wheel setup, or bind it in Buttons and keys.
+- **Button boxes:** any action can be bound. Hats (and D-pads on button boxes) read as four extra buttons each, after the device's own.
+- **Binding axes:** rebinding picks up a pedal or lever moved on any sim device and remembers where it rests, so it reads 0–1 over its travel.
+- *M4: built and unit-tested with faked devices; a test on real hardware is deferred like the wheel (no hardware).*
 
 ## 6. Force feedback
 
@@ -92,12 +96,14 @@ One-handed controller layouts (`pad_left_hand`, `pad_right_hand`) put driving on
 |---|---|
 | Overall gain | Master strength |
 | Wheel max torque (Nm) | Normalizes forces for belt, gear and direct-drive wheels |
-| Effect gains | Road, curbs, slip, collisions, engine |
+| Effect gains | Road, curbs, slip, collisions, engine, low-speed centering |
 | Min force | Overcomes the deadband on gear and belt wheels |
 | Damping, friction | Added weight and smoothness |
 | Smoothing | Filters noise on direct-drive wheels |
 | Invert | Fixes reversed devices |
-| Clipping meter + test button | Tuning aids |
+| Clipping meter + test button | Tuning aids; the test plays each effect in turn |
+
+All of these are in the player's Wheel setup (M4). Effects are mixed natively at ~500 Hz into one constant force (D76).
 
 **Platform support:**
 
@@ -138,6 +144,6 @@ One-handed controller layouts (`pad_left_hand`, `pad_right_hand`) put driving on
 ## 8. Assists (summary)
 
 ABS, TCS, stability control, steer aid, auto-clutch, automatic gearbox and racing line ([PHYSICS.md §8](PHYSICS.md#8-steering-and-assists)).
-- **Defaults by device:** keyboard and controller default to steer aid, auto-clutch and the automatic gearbox. Wheels default to none of those.
+- **Defaults by device:** keyboard and controller default to steer aid, auto-clutch and the automatic gearbox. Wheels default to none of those. *M4: these three are Auto / On / Off; Auto follows the device (auto-clutch: off with a clutch pedal or binding).*
 - What can be enabled is limited by the platform, mode and server rules.
 - **Access assists** (auto-throttle, brake and steering assist), hold/toggle and one-handed presets: [ACCESSIBILITY.md §5](ACCESSIBILITY.md#5-motor-and-input).

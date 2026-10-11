@@ -85,9 +85,10 @@ The surface type comes from the collider (track material tag).
 - **Engine:** torque from the RPM table × throttle. Engine braking and friction off-throttle. An idle controller and a rev limiter (fuel cut). EV platforms: flat torque, then power-limited, single-speed, optional regen.
 - **Clutch:** coupling limited by torque capacity. **Auto-clutch** (default on for keyboard and controller) handles launch and stall prevention.
 - **Gearbox:**
-  - `manual_h`: needs the clutch unless auto-clutch is on. Supports an H-shifter.
+  - `manual_h`: needs the clutch (pedal past half) unless auto-clutch is on; neutral always works. A refused change grinds (a sound and "Clutch" on the HUD). Supports an H-shifter: the gate held selects that gear, no gate is neutral.
   - `sequential`: up/down paddles.
-  - `auto`: shifts by RPM and throttle.
+  - `auto`: always shifts by RPM and throttle; paddles do nothing.
+  - The auto-gearbox assist shifts `manual_h` and `sequential` boxes too.
   - All types use the platform's `shift_time_s`.
 - **Differentials:** per axle `open`, `lsd_clutch` (preload plus power/coast lock ramps on the torque that axle receives) or `locked`/`spool`. `differential.front` and `.rear` override the shared settings.
 - **Center diff (AWD):** `differential.center` with `front_share`. `open` splits the torque by that share; `viscous` adds a coupling torque `preload + c · |Δω|` between the axles' mean speeds; `locked` holds them together. Solved as torque-limited impulses like the axle diffs.
@@ -112,11 +113,17 @@ The surface type comes from the collider (track material tag).
 - **Steer aid** (controller and keyboard): speed-sensitive lock reduction, plus counter-steer help that nudges toward the slip angle.
 - **TCS:** limits driven-wheel slip by reducing torque. It also reacts to the combined slip, since a tire that's busy cornering breaks away before its slip ratio alone looks high.
 - **Auto-gearbox reverse:** holding the brake at a standstill selects reverse, and the brake pedal then drives backwards; throttle returns to first. Off throttle, it only upshifts near the redline.
-- **Stability control:** compares the target yaw rate (from steering and speed) with the measured rate, then brakes individual wheels.
+- **Stability control:** compares the measured yaw rate with a neutral-steer target (steering and speed, capped at 90% of grip). Turning more than asked, or sliding past 4°, brakes the outside front wheel and trims the throttle; turning much less than an understeering car would (characteristic speed 25 m/s) brakes the inside rear (D68). Off by default and in the conformance driver.
 - **Auto-gearbox, auto-clutch, ABS:** see above.
-- **Racing line:** visual only (from the track's AI line), colored by target speed.
-- **Access assists:** auto-throttle, brake assist and steering assist follow the AI line ([ACCESSIBILITY.md §5.2](ACCESSIBILITY.md#52-driving-assists-for-access)).
-- Each assist is allowed and defaulted per platform, then mode, then server ([PLATFORMS.md §3](PLATFORMS.md#3-mode-overrides-and-tuning)).
+- **Racing line:** visual only: the AI line on the road, coloured by its target speed (fast, lift, brake, in the player's palette) with chevrons in braking zones. Each player sees only their own.
+- **Access assists:** auto-throttle, brake assist and steering assist follow the AI line ([ACCESSIBILITY.md §5.2](ACCESSIBILITY.md#52-driving-assists-for-access)); a `RacingAI` running as a guide works out its controls and the player's are blended with them.
+- Each assist is allowed per platform, then mode, then server ([PLATFORMS.md §3](PLATFORMS.md#3-mode-overrides-and-tuning)). Steer aid, auto gearbox and auto clutch can be **Auto**: on with keyboard or controller, off with a wheel (or a clutch pedal, for the clutch) (D74).
+
+### AI line (AI-01)
+
+- **Line:** a minimum-curvature path inside the road (1.3 m from the edge, 0.5 m onto curbs), found by relaxing the lateral offsets coarse to fine (D64).
+- **Speeds:** per platform: the corner speed the tires allow (with downforce), a forward pass limited by power and traction, and a braking pass limited by grip and by the **brake balance** (the axle that runs out of grip first under load transfer).
+- **Driving:** the AI and the access assists follow it with pure pursuit and the profile's speed, using only the assists a player could (AI-05). Traffic rules: D65.
 
 ## 9. Mode layers
 
@@ -159,9 +166,10 @@ The surface type comes from the collider (track material tag).
   - Slip vibration (optional).
   - Engine vibration (optional, off by default).
   - Low-speed centering spring and damper.
-- **Update path:** the sim publishes the target force each tick (with substep detail). The native FFB thread runs at ~500 Hz, interpolates, and updates an SDL3 `SDL_HAPTIC_CONSTANT` effect. Periodic and condition effects (`SPRING`, `DAMPER`) are used for rumble and centering.
-- **Soft lock:** the wheel's rotation range matches the platform's steering lock (`steering.wheel_rotation_deg`).
-- **Settings and diagnostics:** a clipping meter and a test button in settings.
+- **Update path:** each tick the game sends what the car is doing (rack force, speed, curbs and road under the front tires, front slip, rpm, collision impulse, wheel position). The native FFB thread runs a **mixer** at ~500 Hz (`native/src/ffb/`) and sends one `SDL_HAPTIC_CONSTANT` level; the device's own `DAMPER` effect is used when it has one, otherwise damping is mixed in too (D76).
+- **Soft lock:** the wheel's rotation range matches the platform's steering lock (`steering.wheel_rotation_deg`), at full strength whatever the gain.
+- **Settings and diagnostics:** overall gain, the wheel's torque (Nm), a gain per effect, damping, friction, smoothing, min force, invert, a clipping meter and a test that plays every effect.
+- **Controllers** rumble from the same signals (slides and curbs on the small motor, knocks on the big one), with a strength setting.
 
 ## 12. Motorcycles (M10+)
 

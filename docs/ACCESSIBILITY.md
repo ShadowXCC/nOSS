@@ -5,7 +5,8 @@ Everyone should be able to drive. This doc covers options for vision, hearing, m
 **Built so far:**
 - M1: comfort options, accessible names and focus order.
 - M3: every setting per player in their profile (ACC-01). From ACC-02: HUD size 50–200% and menu text 100–200%, high-contrast HUD, the Clear font (Atkinson Hyperlegible), brightness per view. From ACC-06: hold or toggle, one-handed layouts (`pad_left_hand`, `pad_right_hand`; `kb_left` and `kb_right` for one hand on the keyboard), two devices driving one car, menus with directions + confirm + cancel only (choices step with left and right), adjustable menu repeat.
-- The rest is M4.
+- M4: colourblind palettes (Default, Deuteranopia, Protanopia, Tritanopia, Custom) checked by simulation; narration through the OS text-to-speech for menus and race events; spotter with markers or voice; captions for every spoken line; volume groups and mono; shift light under 3 flashes a second, slip indicator, close-car arrows; HUD presets and per-element hiding; Reduce flashing; access assists (auto-throttle, brake assist, steering assist, autodrive); game speed; the first-boot screen; screen readers follow menus inside players' views; boot → race → results checked over AT-SPI (`tools/a11y_check.py`) and keyboard-only and controller-only by tests.
+- Not yet: rewind, haptic cue patterns, audio-only racing (§10); flashing police lights and kart items (M7, M8).
 
 ---
 
@@ -36,7 +37,9 @@ Everyone should be able to drive. This doc covers options for vision, hearing, m
 
 **Build rule (from M1):** every UI control gets an accessible name and description, and focus order is set by hand. Retrofitting this later is far more work.
 
-**Linux note (documentation only; the game makes no system changes):** narration needs `speech-dispatcher`, and screen reading needs Orca with AT-SPI. Most desktops ship both.
+**Linux note (documentation only; the game makes no system changes):** narration needs `speech-dispatcher`, and screen reading needs Orca with AT-SPI. Most desktops ship both. The game prints which voice it uses ("Speech: …") at startup; without one, captions still show.
+
+**Menus inside players' views** (pause, player cards): Godot tells the screen reader about one focused control per window, so two proxy controls in the main window stand in for the view's focused control while a screen reader runs (D72).
 
 ## 3. Hearing
 
@@ -132,7 +135,8 @@ Each new local player who joins (press-to-join, [INPUT.md §3](INPUT.md#3-joinin
 
 - **Every milestone:** the main flow works with controller only and with keyboard only.
 - **From M4:** the main flow (boot → race → results) works with a screen reader.
-- **Colorblind check:** headless tests render HUD screenshots through deuteranopia, protanopia and tritanopia filters for review.
+- **Colorblind check:** a test simulates each palette's colour vision (Machado 2009) and requires the colours that must differ to stay apart (CIE76 ΔE ≥ 20). For review, `tools/cvd_shots.gd` turns screenshots (taken with a display; headless can't render) into deuteranopia, protanopia and tritanopia versions.
+- **Screen reader:** `tools/a11y_check.py` walks boot → race → results over AT-SPI in a private session (accessible names, focus on every screen).
 - **Flash check:** with Reduce flashing on, police lights (M7) and kart items (M8) stay at or under 3 flashes per second.
 - **Feedback:** once the GitHub repo exists, issues get an `accessibility` label.
 
