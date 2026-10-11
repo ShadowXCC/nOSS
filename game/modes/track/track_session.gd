@@ -1,4 +1,4 @@
-class_name FreeDrive
+class_name TrackSession
 extends Node3D
 ## Track free-drive (MODE-01) for 1-4 local players (LOC-01…LOC-03): lap timer with sectors and
 ## best lap, car reset, pause and car hotswap (docs/GAMEMODES.md §1). Each player has their own

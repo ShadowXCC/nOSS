@@ -9,7 +9,7 @@ signal pause_requested(player: SessionPlayer)
 const PENDING_SWAP_S := 2.0
 
 var slot: PlayerSlot
-var session: FreeDrive
+var session: TrackSession
 var view: PlayerView
 var track: TrackData
 var platform: PlatformLoader.Result

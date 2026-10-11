@@ -337,7 +337,7 @@ static func _platform_for(family: String) -> Dictionary:
 		for r in GameModes.classes(mode):
 			if Fitting.compatible(r.platform, family):
 				return r.platform
-	return PlatformLoader.load_official(FreeDrive.DEFAULT_PLATFORM).platform
+	return PlatformLoader.load_official(TrackSession.DEFAULT_PLATFORM).platform
 
 
 static func _family_name(family: String) -> String:

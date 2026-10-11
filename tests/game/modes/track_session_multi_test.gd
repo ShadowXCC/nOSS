@@ -14,7 +14,7 @@ func after() -> void:
 
 func test_four_players_drive_apart_and_one_drops_out() -> void:
 	Players.clear()
-	var s := FreeDrive.new()
+	var s := TrackSession.new()
 	s.autodrive = true
 	s.ai_players = 3
 	add_child(s)
@@ -42,7 +42,7 @@ func test_four_players_drive_apart_and_one_drops_out() -> void:
 
 func test_pause_menu_belongs_to_who_paused() -> void:
 	Players.clear()
-	var s := FreeDrive.new()
+	var s := TrackSession.new()
 	s.autodrive = true
 	s.ai_players = 1
 	add_child(s)
@@ -67,7 +67,7 @@ func test_a_free_pad_drops_in_mid_drive() -> void:
 	Players.clear()
 	var pad := { "kind": "gamepad", "key": "pad:test#9", "name": "Test pad", "id": 9, "guid": "test9", "preset": "pad_standard" }
 	Devices.test_devices = [pad]
-	var s := FreeDrive.new()
+	var s := TrackSession.new()
 	s.autodrive = true
 	add_child(s)
 	await _wait_for_cars(s)
@@ -85,7 +85,7 @@ func test_a_free_pad_drops_in_mid_drive() -> void:
 
 func test_auto_resolution_steps_down_on_slow_frames() -> void:
 	Players.clear()
-	var s := FreeDrive.new()
+	var s := TrackSession.new()
 	s.autodrive = true
 	s.ai_players = 1
 	add_child(s)
@@ -104,7 +104,7 @@ func test_auto_resolution_steps_down_on_slow_frames() -> void:
 	await get_tree().process_frame
 
 
-func _wait_for_cars(s: FreeDrive) -> void:
+func _wait_for_cars(s: TrackSession) -> void:
 	for i in 600:
 		await get_tree().process_frame
 		if not s.players.is_empty() and s.players.all(func(p: SessionPlayer) -> bool: return p.vehicle != null):

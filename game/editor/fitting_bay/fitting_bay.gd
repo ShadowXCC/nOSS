@@ -568,7 +568,7 @@ func _choose_platform() -> void:
 	var ids := classes.map(func(r: PlatformLoader.Result) -> String: return r.platform.id)
 	var last := String(Settings.profile.get("last_platform", ""))
 	if platform_id not in ids:
-		platform_id = last if last in ids else (ids[0] if not ids.is_empty() else FreeDrive.DEFAULT_PLATFORM)
+		platform_id = last if last in ids else (ids[0] if not ids.is_empty() else TrackSession.DEFAULT_PLATFORM)
 
 
 static func _mode_name(platform: Dictionary) -> String:

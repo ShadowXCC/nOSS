@@ -54,7 +54,7 @@ func first_scene() -> String:
 ## `solo`: only P1 drives (garage and Fitting Bay); otherwise every joined player.
 func start_free_drive(car_path := "", platform_id := "", bay_return := false, solo := true) -> void:
 	get_tree().paused = false
-	var session := FreeDrive.new()
+	var session := TrackSession.new()
 	session.bay_return = bay_return
 	session.solo = solo and not dev.has("players")
 	session.car_path = car_path if car_path else String(dev.get("car", ""))
