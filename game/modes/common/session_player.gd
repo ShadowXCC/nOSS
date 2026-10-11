@@ -19,6 +19,8 @@ var overlay: Control
 var _paused_tree := false
 ## Drives the car home after the flag (players' cars take a cool-down lap too).
 var _cool_down: RacingAI
+## This player's setup for the class and track (PLT-04).
+var car_setup: Setup
 
 
 func _init() -> void:
@@ -81,6 +83,11 @@ func _make_driver() -> Node:
 
 func _spawned() -> void:
 	vehicle.name = "Vehicle%s" % slot.tag()
+	if not slot.ai:
+		car_setup = Setup.load_for(vehicle.base_platform, session.mode, track.id)
+		if not car_setup.is_default():
+			vehicle.apply_setup(car_setup)
+			custom_setup = true
 	if controller:
 		controller.apply_assists()
 	cameras.set_vehicle(vehicle)
@@ -113,6 +120,18 @@ func new_session() -> void:
 		_cool_down = null
 		if controller and overlay == null:
 			controller.set_physics_process(true)
+
+
+## The setup menu closed: drive with the changes from now on, and keep them for next time.
+func setup_changed() -> void:
+	if vehicle == null or car_setup == null:
+		return
+	vehicle.apply_setup(car_setup)
+	custom_setup = not car_setup.is_default()
+	if custom_setup:
+		assists_used["setup"] = true
+	car_setup.save(track.id)
+	notify("Setup saved" if custom_setup else "Default setup", 1.5)
 
 
 ## After the flag the RacingAI brings the car round at an easy pace.

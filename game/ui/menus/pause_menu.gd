@@ -11,6 +11,8 @@ signal quit_to_title
 signal back_to_bay
 signal end_session
 signal restart
+## The setup menu closed (apply and save its changes).
+signal setup_closed
 
 ## Who paused.
 var slot: PlayerSlot
@@ -23,6 +25,9 @@ var can_change_car := true
 ## Practice and qualifying can be ended early; sessions can be restarted.
 var can_end_session := false
 var can_restart := false
+## The car's setup can be changed (not during a race).
+var can_setup := false
+var setup: Setup
 var _buttons: Array = []
 
 
@@ -37,6 +42,8 @@ func _ready() -> void:
 	]
 	if can_change_car:
 		_buttons.append(UiKit.button("Change car", func() -> void: change_car.emit()))
+	if can_setup:
+		_buttons.append(UiKit.button("Setup", _open_setup, "Gearing, brakes, suspension, aero"))
 	if can_end_session:
 		_buttons.append(UiKit.button("End session", func() -> void: end_session.emit(), "Results now"))
 	if can_restart:
@@ -59,6 +66,14 @@ func _open_settings() -> void:
 	var menu := PlayerSettingsMenu.new()
 	menu.slot = slot
 	UiKit.open_sub(self, menu, _ready_focus)
+
+
+func _open_setup() -> void:
+	var menu := SetupMenu.new()
+	menu.setup = setup
+	UiKit.open_sub(self, menu, func() -> void:
+		setup_closed.emit()
+		_ready_focus())
 
 
 func _open_game_settings() -> void:

@@ -23,6 +23,14 @@ static func list() -> Array[Dictionary]:
 	return modes
 
 
+## The mode offering `platform_id` (its rules: tuning, assists), or {}.
+static func mode_for(platform_id: String) -> Dictionary:
+	for mode in list():
+		if platform_id in mode.get("classes", []):
+			return mode
+	return {}
+
+
 ## The platforms a mode offers that load and validate.
 static func classes(mode: Dictionary) -> Array[PlatformLoader.Result]:
 	var out: Array[PlatformLoader.Result] = []

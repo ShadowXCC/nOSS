@@ -13,6 +13,8 @@ const BODY_CLEARANCE := 0.12
 const CHAMFER := 0.18
 
 var platform := {}
+## The platform before any setup (its official values).
+var base_platform := {}
 var platform_hash := ""
 ## "normal", or "strict" for physics on the platform's reference geometry (docs/PLATFORMS.md §4.2).
 var fitting_mode := "normal"
@@ -41,6 +43,7 @@ static func create(platform_result: PlatformLoader.Result, pkg: VehiclePackage, 
 	var v := Vehicle.new()
 	v.name = "Vehicle"
 	v.platform = platform_result.platform
+	v.base_platform = platform_result.platform
 	v.platform_hash = platform_result.hash
 	v.fitting_mode = fitting
 	v.can_sleep = false
@@ -96,6 +99,14 @@ func mount(pkg: VehiclePackage) -> void:
 	if not is_nan(old_ground) and is_inside_tree():
 		global_position += global_basis.y * (old_ground - fitted.ground_y + 0.02)
 	package_changed.emit(pkg)
+
+
+## Drives with `setup`'s changes (null: the platform's own values). The car keeps moving; the
+## platform's identity (`platform_hash`) stays the official one.
+func apply_setup(setup: Setup) -> void:
+	platform = setup.apply(base_platform) if setup else base_platform
+	if fitted and not sim.configure(platform, { "ground_y": fitted.ground_y, "wheels": fitted.physics_wheels }):
+		push_error("Vehicle sim: " + sim.get_error())
 
 
 ## False if `pkg`'s collision envelope would overlap the world where the car is now (a swap

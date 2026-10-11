@@ -89,6 +89,7 @@ func use_folder(folder: String) -> void:
 	DirAccess.make_dir_recursive_absolute(folder)
 	settings_path = folder.path_join("settings.cfg")
 	PlayerProfile.dir = folder.path_join("profiles/")
+	Setup.dir = folder.path_join("setups/")
 	Players.memory_path = folder.path_join("players.json")
 	primary_profile = "player1"
 	load_all()

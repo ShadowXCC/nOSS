@@ -54,6 +54,8 @@ var grid_row_m := GRID_ROW_M
 
 var track: TrackData
 var platform: PlatformLoader.Result
+## The mode offering this class (its tuning and assist rules).
+var mode := {}
 var views := ViewManager.new()
 var players: Array[SessionPlayer] = []
 ## Every car: players and AI.
@@ -92,6 +94,7 @@ func _ready() -> void:
 		platform_id = DEFAULT_PLATFORM
 		platform = PlatformLoader.load_official(platform_id)
 	_default_car = GameModes.default_car(platform.platform)
+	mode = GameModes.mode_for(platform_id)
 	if event.kind == "race":
 		ai_racers = event.ai_count
 		ai_skill = event.ai_skill
@@ -277,6 +280,8 @@ func _process(delta: float) -> void:
 		if _dev_time >= float(Game.dev["pause-at"]):
 			Game.dev.erase("pause-at")
 			_open_pause(players[-1])
+			if Game.dev.get("pause-menu", "") == "setup" and players[-1].overlay is PauseMenu: # dev: screenshots
+				(players[-1].overlay as PauseMenu)._open_setup()
 	if Game.dev.has("fps"):
 		_fps_time += delta
 		_fps_frames += 1
@@ -423,6 +428,9 @@ func _open_pause(p: SessionPlayer) -> void:
 	menu.can_change_car = hotswap_allowed
 	menu.can_end_session = race.kind in ["practice", "qualifying"]
 	menu.can_restart = race.kind in ["race", "practice", "qualifying"]
+	menu.can_setup = race.kind != "race" and p.car_setup != null and not p.car_setup.allowed.is_empty()
+	menu.setup = p.car_setup
+	menu.setup_closed.connect(func() -> void: p.setup_changed())
 	menu.end_session.connect(func() -> void:
 		_resume()
 		race.end_session())

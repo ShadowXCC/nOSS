@@ -63,6 +63,8 @@ var flag := ""
 ## Assists on now, and every assist that was on at some point this session (results, ACC-07).
 var assists_now := {}
 var assists_used := {}
+## Driving with a changed setup (shown in results and leaderboards).
+var custom_setup := false
 
 ## This session's race results (RaceControl): penalties in seconds, warnings, the race time at
 ## the finish, and whether the racer is out (dropped out).
@@ -95,6 +97,8 @@ func new_session() -> void:
 	_new_timer()
 	finished = false
 	assists_used = assists_now.duplicate()
+	if custom_setup:
+		assists_used["setup"] = true
 	penalty_s = 0.0
 	warnings = 0
 	finish_time = -1.0
