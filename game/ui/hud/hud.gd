@@ -56,6 +56,7 @@ var _hidden := {}
 var _show_slip := false
 var _show_arrows := false
 var _reduce_flashing := false
+var _grinds := 0
 ## F3 toggles a frame-rate readout.
 var show_fps := false
 var high_contrast := false
@@ -249,6 +250,11 @@ func _process(delta: float) -> void:
 			active.append("ABS")
 		if t.get("esc", false):
 			active.append("SC")
+		# A refused gear change grinds; the message says why (never sound alone).
+		var grinds := int(t.get("grinds", 0))
+		if grinds > _grinds:
+			show_message("Clutch", 1.0)
+		_grinds = grinds
 		_assists.text = "  ".join(active)
 		_assists.visible = not _assists.text.is_empty() and shows("assists") # no empty plate in high contrast
 		_slip.visible = _show_slip and shows("speed")

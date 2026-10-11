@@ -92,6 +92,11 @@ func clutch() -> float:
 	return pedal("clutch")
 
 
+## A handbrake lever set up in Wheel setup (any of the player's devices).
+func handbrake() -> float:
+	return pedal("handbrake")
+
+
 ## 0..1 between the calibrated rest and full positions (handles inverted pedals).
 func pedal(which: String) -> float:
 	var p: Variant = config.get(which)

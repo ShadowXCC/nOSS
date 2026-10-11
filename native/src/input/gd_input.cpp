@@ -78,7 +78,8 @@ Array NossInput::devices() {
 		info["gamepad"] = d->gamepad;
 		info["wheel"] = d->wheel;
 		info["axes"] = d->axis_count;
-		info["buttons"] = d->button_count;
+		info["buttons"] = int64_t(d->buttons.size()); // its own, then 4 per hat
+		info["hats"] = d->hat_count;
 		info["ffb"] = d->ffb;
 		out.push_back(info);
 	}

@@ -56,7 +56,7 @@ func _ready() -> void:
 
 	_add(list, UiKit.option("Rotation", ROTATIONS.map(func(r: int) -> Array: return [float(r), "%d°" % r]), float(_cfg.rotation_deg),
 		func(v: float) -> void: _set_value("rotation_deg", v)))
-	for item: Array in [["steer", "Detect steering"], ["throttle", "Detect throttle"], ["brake", "Detect brake"], ["clutch", "Detect clutch"]]:
+	for item: Array in [["steer", "Detect steering"], ["throttle", "Detect throttle"], ["brake", "Detect brake"], ["clutch", "Detect clutch"], ["handbrake", "Detect handbrake"]]:
 		var which: String = item[0]
 		_add(list, UiKit.button(item[1], func() -> void: _start_detect(which), "Move it fully, then let go"))
 	_add(list, UiKit.check("Invert steering", _cfg.get("steer", {}).get("invert", false), func(on: bool) -> void:
@@ -136,7 +136,7 @@ func _start_detect(which: String) -> void:
 func _process(delta: float) -> void:
 	var w := slot.input.wheel
 	if w.is_active():
-		_live.text = "Steer %+.2f   Throttle %.2f   Brake %.2f   Clutch %.2f   FFB %d%%" % [w.steer(), w.throttle(), w.brake(), w.clutch(), roundi(NossInput.ffb_peak(w.device_id) * 100.0)]
+		_live.text = "Steer %+.2f   Throttle %.2f   Brake %.2f   Clutch %.2f   Handbrake %.2f   FFB %d%%" % [w.steer(), w.throttle(), w.brake(), w.clutch(), w.handbrake(), roundi(NossInput.ffb_peak(w.device_id) * 100.0)]
 	if _detecting.is_empty():
 		return
 	_detect_time += delta

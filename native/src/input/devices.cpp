@@ -103,6 +103,14 @@ void DeviceManager::poll() {
 		for (int i = 0; i < d->button_count; i++) {
 			d->buttons[size_t(i)] = _sdl.GetJoystickButton(d->joystick, i) ? 1 : 0;
 		}
+		// Hats (button boxes, some shifters) read as four buttons each.
+		for (int h = 0; h < d->hat_count; h++) {
+			Uint8 hat = _sdl.GetJoystickHat(d->joystick, h);
+			const Uint8 dirs[4] = { SDL_HAT_UP, SDL_HAT_RIGHT, SDL_HAT_DOWN, SDL_HAT_LEFT };
+			for (int k = 0; k < 4; k++) {
+				d->buttons[size_t(d->button_count + h * 4 + k)] = (hat & dirs[k]) ? 1 : 0;
+			}
+		}
 	}
 }
 
@@ -145,8 +153,9 @@ void DeviceManager::_open(uint32_t p_id) {
 		if (d->joystick) {
 			d->axis_count = std::max(_sdl.GetNumJoystickAxes(d->joystick), 0);
 			d->button_count = std::max(_sdl.GetNumJoystickButtons(d->joystick), 0);
+			d->hat_count = _sdl.GetNumJoystickHats ? std::max(_sdl.GetNumJoystickHats(d->joystick), 0) : 0;
 			d->axes.assign(size_t(d->axis_count), 0.0f);
-			d->buttons.assign(size_t(d->button_count), 0);
+			d->buttons.assign(size_t(d->button_count + d->hat_count * 4), 0);
 			_setup_haptics(*d);
 		}
 	}

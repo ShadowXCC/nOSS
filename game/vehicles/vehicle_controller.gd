@@ -30,6 +30,8 @@ var active_device := "keyboard"
 
 var _key_steer := 0.0
 var _had_wheel := false
+var _gear_held := INF # the H-shifter gate held last (INF: none seen yet)
+var _clutch_in := false
 
 
 func _ready() -> void:
@@ -80,7 +82,8 @@ func _physics_process(delta: float) -> void:
 	vehicle.throttle = input.analog("throttle")
 	vehicle.brake = input.analog("brake")
 	vehicle.handbrake = input.analog("handbrake")
-	vehicle.clutch = input.wheel.clutch()
+	vehicle.clutch = input.analog("clutch")
+	_h_shifter()
 	if racer and racer.held:
 		# On the grid: the car waits on the handbrake (the brake would select reverse).
 		vehicle.throttle = 0.0
@@ -99,6 +102,25 @@ func _physics_process(delta: float) -> void:
 		reset_requested.emit()
 	if input.just_pressed("camera_next"):
 		camera_next_requested.emit()
+
+
+## H-shifter (INP-04, docs/INPUT.md §5): the gate held selects that gear, no gate is neutral.
+## A refused change (H-pattern without the clutch) is tried again when the clutch goes in.
+func _h_shifter() -> void:
+	var has_shifter := false
+	var want := 0
+	for action: String in Bindings.GEARS:
+		if input.has_binding(action):
+			has_shifter = true
+			if input.held(action):
+				want = Bindings.GEARS[action]
+	if not has_shifter:
+		return
+	var clutch_in := vehicle.clutch > 0.5
+	if want != _gear_held or (clutch_in and not _clutch_in and vehicle.sim.get_gear() != want):
+		vehicle.sim.select_gear(want)
+	_gear_held = want
+	_clutch_in = clutch_in
 
 
 ## Lets go of every control (the car coasts), e.g. while this player's menu is open.

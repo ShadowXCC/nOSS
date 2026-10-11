@@ -15,8 +15,18 @@ const ACTIONS := {
 	"throttle": { "name": "Throttle" },
 	"brake": { "name": "Brake" },
 	"handbrake": { "name": "Handbrake" },
+	"clutch": { "name": "Clutch" },
 	"shift_up": { "name": "Shift up" },
 	"shift_down": { "name": "Shift down" },
+	"gear_r": { "name": "Reverse" },
+	"gear_n": { "name": "Neutral" },
+	"gear_1": { "name": "Gear 1" },
+	"gear_2": { "name": "Gear 2" },
+	"gear_3": { "name": "Gear 3" },
+	"gear_4": { "name": "Gear 4" },
+	"gear_5": { "name": "Gear 5" },
+	"gear_6": { "name": "Gear 6" },
+	"gear_7": { "name": "Gear 7" },
 	"camera_next": { "name": "Camera" },
 	"look_back": { "name": "Look back" },
 	"reset_car": { "name": "Reset car" },
@@ -29,7 +39,11 @@ const ACTIONS := {
 	"menu_confirm": { "name": "Menu confirm" },
 	"menu_cancel": { "name": "Menu back" },
 }
-const DRIVING := ["steer_left", "steer_right", "throttle", "brake", "handbrake", "shift_up", "shift_down", "camera_next", "look_back", "reset_car", "hotswap_menu", "pause"]
+const DRIVING := ["steer_left", "steer_right", "throttle", "brake", "handbrake", "clutch", "shift_up", "shift_down",
+	"gear_r", "gear_n", "gear_1", "gear_2", "gear_3", "gear_4", "gear_5", "gear_6", "gear_7",
+	"camera_next", "look_back", "reset_car", "hotswap_menu", "pause"]
+## H-shifter gates (docs/INPUT.md §5): action -> gear (-1 reverse, 0 neutral).
+const GEARS := { "gear_r": -1, "gear_n": 0, "gear_1": 1, "gear_2": 2, "gear_3": 3, "gear_4": 4, "gear_5": 5, "gear_6": 6, "gear_7": 7 }
 const MENU := ["menu_up", "menu_down", "menu_left", "menu_right", "menu_confirm", "menu_cancel"]
 ## Hold actions that can be toggles instead (docs/ACCESSIBILITY.md §5.1).
 const HOLD := ["throttle", "brake", "handbrake", "look_back"]
@@ -152,7 +166,11 @@ static func normalize_ref(r: Variant) -> Dictionary:
 		return { "button": int(PAD_BUTTONS.get(r.button, -1)) if r.button is String else int(r.button) }
 	if r.has("axis"):
 		var a: int = int(PAD_AXES.get(r.axis, -1)) if r.axis is String else int(r.axis)
-		return { "axis": a, "dir": 1 if float(r.get("dir", 1)) >= 0.0 else -1 }
+		var out := { "axis": a, "dir": 1 if float(r.get("dir", 1)) >= 0.0 else -1 }
+		# Captured pedals and levers keep where they rest (PlayerInput reads them 0..1 from there).
+		if typeof(r.get("rest")) in [TYPE_INT, TYPE_FLOAT]:
+			out.rest = clampf(float(r.rest), -1.0, 1.0)
+		return out
 	return {}
 
 

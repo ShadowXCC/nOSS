@@ -41,6 +41,8 @@ struct SdlApi {
 	decltype(&SDL_GetNumJoystickButtons) GetNumJoystickButtons = nullptr;
 	decltype(&SDL_GetJoystickAxis) GetJoystickAxis = nullptr;
 	decltype(&SDL_GetJoystickButton) GetJoystickButton = nullptr;
+	decltype(&SDL_GetNumJoystickHats) GetNumJoystickHats = nullptr;
+	decltype(&SDL_GetJoystickHat) GetJoystickHat = nullptr;
 	decltype(&SDL_UpdateJoysticks) UpdateJoysticks = nullptr;
 	decltype(&SDL_GUIDToString) GUIDToString = nullptr;
 	decltype(&SDL_IsJoystickHaptic) IsJoystickHaptic = nullptr;

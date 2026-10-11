@@ -38,7 +38,8 @@ struct Device {
 	SDL_Joystick *joystick = nullptr;
 	SDL_Haptic *haptic = nullptr;
 	int axis_count = 0;
-	int button_count = 0;
+	int button_count = 0; // its own buttons; each hat adds 4 more after them (up, right, down, left)
+	int hat_count = 0;
 	std::vector<float> axes; // -1..1
 	std::vector<uint8_t> buttons;
 	// Force feedback.

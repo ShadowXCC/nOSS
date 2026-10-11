@@ -34,12 +34,16 @@ var profile: PlayerProfile
 var devices: Array[Dictionary] = []
 var wheel := WheelInput.new()
 
+## Tests: fake sim-device state, {"b<device>:<button>": bool, "a<device>:<axis>": float}.
+static var test_sim := {}
+
 var _refs := {} # action -> [{kind, device, ref}]
 var _toggled := {} # action -> latched on
 var _down := {} # action -> pressed at the last poll
 var _edges := {} # action -> became pressed at the last poll
 var _menu_time := {} # action -> seconds held (INF: held before the menu opened)
 var _capture := {}
+var _axis_rest := {} # "device:axis" -> value when the capture started
 
 
 ## Re-reads bindings and calibration; call after devices or the profile's input change.
@@ -165,6 +169,11 @@ func poll_menu(delta: float) -> Array[String]:
 
 ## Starts watching this player's devices for a new press (rebinding).
 func capture_start() -> void:
+	_axis_rest.clear()
+	for d: Dictionary in devices:
+		if d.kind == "sim":
+			for a in int(d.get("axes", 0)):
+				_axis_rest["%d:%d" % [d.id, a]] = sim_axis(d.id, a)
 	_capture = _snapshot()
 
 
@@ -201,8 +210,16 @@ func _snapshot() -> Dictionary:
 						out["p%d:a%d%s" % [d.id, a, "-" if v < 0.0 else "+"]] = { "kind": "gamepad", "ref": { "axis": a, "dir": -1 if v < 0.0 else 1 } }
 			"sim":
 				for b in int(d.get("buttons", 0)):
-					if NossInput.button(d.id, b):
+					if sim_button(d.id, b):
 						out["s%d:b%d" % [d.id, b]] = { "kind": "sim", "guid": d.guid, "ref": { "button": b } }
+				# An axis moved well away from where it was when the capture started: pedals and
+				# levers, with their rest position so they read 0..1 over their travel.
+				for a in int(d.get("axes", 0)):
+					var v := sim_axis(d.id, a)
+					var rest := float(_axis_rest.get("%d:%d" % [d.id, a], v))
+					if absf(v - rest) > 0.5:
+						var dir := 1 if v > rest else -1
+						out["s%d:a%d%s" % [d.id, a, "+" if dir > 0 else "-"]] = { "kind": "sim", "guid": d.guid, "ref": { "axis": a, "dir": dir, "rest": snappedf(rest, 0.01) } }
 	return out
 
 
@@ -213,7 +230,23 @@ func _source(action: String) -> float:
 			v = maxf(v, wheel.throttle())
 		"brake":
 			v = maxf(v, wheel.brake())
+		"clutch":
+			v = maxf(v, wheel.clutch())
+		"handbrake":
+			v = maxf(v, wheel.handbrake())
 	return v
+
+
+static func sim_button(device: int, button: int) -> bool:
+	if not test_sim.is_empty():
+		return bool(test_sim.get("b%d:%d" % [device, button], false))
+	return NossInput.button(device, button)
+
+
+static func sim_axis(device: int, axis: int) -> float:
+	if not test_sim.is_empty():
+		return float(test_sim.get("a%d:%d" % [device, axis], 0.0))
+	return NossInput.axis(device, axis)
 
 
 func _read(b: Dictionary, action: String) -> float:
@@ -231,7 +264,13 @@ func _read(b: Dictionary, action: String) -> float:
 				return VehicleController.shape_axis(v, TRIGGER_DEADZONE, 1.0)
 		"sim":
 			if r.has("button"):
-				return 1.0 if NossInput.button(b.device, r.button) else 0.0
+				return 1.0 if sim_button(b.device, r.button) else 0.0
 			if r.has("axis"):
-				return clampf(NossInput.axis(b.device, r.axis) * r.dir, 0.0, 1.0)
+				var v := sim_axis(b.device, r.axis)
+				# Captured axes know where they rest: a pedal resting at -1 runs 0..1 over its travel.
+				if r.has("rest"):
+					var target := float(r.dir)
+					var rest := float(r.rest)
+					return clampf((v - rest) / (target - rest), 0.0, 1.0) if not is_equal_approx(target, rest) else 0.0
+				return clampf(v * r.dir, 0.0, 1.0)
 	return 0.0

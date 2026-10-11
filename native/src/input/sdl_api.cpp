@@ -102,6 +102,12 @@ bool SdlApi::load(const std::string &p_dir, std::string &r_error) {
 	bind(GetNumJoystickButtons, "SDL_GetNumJoystickButtons");
 	bind(GetJoystickAxis, "SDL_GetJoystickAxis");
 	bind(GetJoystickButton, "SDL_GetJoystickButton");
+	// Optional: without hats, hat buttons just never press.
+	GetNumJoystickHats = reinterpret_cast<decltype(GetNumJoystickHats)>(symbol(handle, "SDL_GetNumJoystickHats"));
+	GetJoystickHat = reinterpret_cast<decltype(GetJoystickHat)>(symbol(handle, "SDL_GetJoystickHat"));
+	if (!GetJoystickHat) {
+		GetNumJoystickHats = nullptr;
+	}
 	bind(UpdateJoysticks, "SDL_UpdateJoysticks");
 	bind(GUIDToString, "SDL_GUIDToString");
 	bind(IsJoystickHaptic, "SDL_IsJoystickHaptic");

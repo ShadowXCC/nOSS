@@ -48,6 +48,7 @@ var _tires: AudioStreamPlayer3D
 var _wind: AudioStreamPlayer3D
 var _load := 0.0
 var _throttle_was := 0.0
+var _grinds := 0
 var _time := 0.0
 var _rng := RandomNumberGenerator.new()
 
@@ -253,7 +254,13 @@ func _update_extras(state: Dictionary, norm: float, delta: float) -> void:
 func _update_road(state: Dictionary, _delta: float) -> void:
 	var slip := 0.0
 	if vehicle and is_instance_valid(vehicle):
-		for w: Dictionary in vehicle.sim.get_telemetry().wheels:
+		var t := vehicle.sim.get_telemetry()
+		# A refused gear change (H-pattern without the clutch) grinds.
+		var grinds := int(t.get("grinds", 0))
+		if grinds > _grinds:
+			_one_shot("pop", 0.35)
+		_grinds = grinds
+		for w: Dictionary in t.wheels:
 			if w.contact and w.surface <= VehicleSim.SURFACE_PAINT:
 				slip = maxf(slip, w.slip_speed)
 	var squeal := clampf((slip - 1.5) / 6.0, 0.0, 1.0)

@@ -398,6 +398,6 @@ func _is_pressed(d: Dictionary) -> bool:
 					return true
 		"sim":
 			for b in int(d.get("buttons", 0)):
-				if NossInput.button(d.id, b):
+				if PlayerInput.sim_button(d.id, b):
 					return true
 	return false
