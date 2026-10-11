@@ -3,8 +3,9 @@ extends Node
 ## A headless bot client for load tests (`--bot`, tools/net_check.py, D88): joins with throwaway
 ## keys and its own players (`--players=n`), picks cars, readies and drives with the racing AI. It
 ## prints what it measured as one line, "NETCHECK {json}", when it quits: bytes per second down
-## and up, how far off the remote cars it showed were, and its cars' contacts with other cars (for
-## pile-ups), each also printed as it happens ("NETCHECK_CONTACT …").
+## and up, how far off the remote cars it showed were, its cars' contacts with other cars (for
+## pile-ups), each also printed as it happens ("NETCHECK_CONTACT …"), and the lowest ENet packet
+## throttle it saw (below 32, ENet drops car states).
 
 const CONTACT_IMPULSE := 150.0 # N·s in one tick counts as contact (as race_check)
 
@@ -16,6 +17,7 @@ var _sessions := 0
 var _last_hit := {} # own car id -> [other id, time]
 var _errors := PackedFloat32Array()
 var _remote_cars := 0
+var _throttle_min := 32 # ENet's packet throttle toward the server (32: nothing dropped)
 ## --bot-full: when every car in the session was here as a preview and whole (s after it began).
 var _session_start := -1.0
 var _cars := 0
@@ -44,6 +46,9 @@ func _physics_process(delta: float) -> void:
 		if host:
 			_down.append(host.pop_statistic(ENetConnection.HOST_TOTAL_RECEIVED_DATA))
 			_up.append(host.pop_statistic(ENetConnection.HOST_TOTAL_SENT_DATA))
+			var p := Net.client.enet.get_peer(1)
+			if p:
+				_throttle_min = mini(_throttle_min, int(p.get_statistic(ENetPacketPeer.PEER_PACKET_THROTTLE)))
 		# The session may be gone when this quits: collect as it goes.
 		var remote := 0
 		for r: Racer in session.racers:
@@ -116,7 +121,7 @@ func _exit_tree() -> void:
 		"up_avg": _avg(steady_up) / 1024.0,
 		"err_n": e.size(), "err_median": e[e.size() / 2] if not e.is_empty() else 0.0,
 		"err_p95": e[int(e.size() * 0.95)] if not e.is_empty() else 0.0, "err_max": e.back() if not e.is_empty() else 0.0,
-		"contacts": _contacts, "remote_cars": _remote_cars,
+		"contacts": _contacts, "remote_cars": _remote_cars, "throttle_min": _throttle_min,
 		"rtt_ms": Net.client.rtt_ms() if Net.client else 0.0,
 		"cars": _cars, "preview_s": _preview_s, "full_s": _full_s,
 	}))

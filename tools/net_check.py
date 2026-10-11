@@ -203,14 +203,16 @@ def main(argv=None):
     print("net_check: %d players (%d bots), %s, %s%s" % (
         players, len(bots), args.event, args.klass,
         f", link {args.rtt:g} ms RTT, jitter {args.jitter:g} ms, loss {args.loss:g}%, rate {args.rate}" if sim else ""))
-    print("%-7s %4s %8s %8s %8s %9s %9s %9s %8s %7s" % ("bot", "pl", "down", "max", "up", "err med", "err p95", "err max", "contacts", "RSS"))
+    print("%-7s %4s %8s %8s %8s %9s %9s %9s %8s %7s %5s" % ("bot", "pl", "down", "max", "up", "err med", "err p95", "err max", "contacts", "RSS", "thr"))
     worst_down = 0.0
     for name in sorted(n for n in reports if n.startswith("bot")):
         r = reports[name]
         worst_down = max(worst_down, r["down_avg"])
-        print("%-7s %4d %7.1fK %7.1fK %7.1fK %8.2fm %8.2fm %8.2fm %8d %6.0fM" % (
+        print("%-7s %4d %7.1fK %7.1fK %7.1fK %8.2fm %8.2fm %8.2fm %8d %6.0fM %5d" % (
             name, r["players"], r["down_avg"], r["down_max"], r["up_avg"], r["err_median"], r["err_p95"],
-            r["err_max"], r["contacts"], peak.get(name, 0.0)))
+            r["err_max"], r["contacts"], peak.get(name, 0.0), r.get("throttle_min", 32)))
+        if r.get("throttle_min", 32) < 32:  # ENet would drop most of its car states (D79)
+            fails.append(f"{name}: ENet's throttle fell to {r['throttle_min']}/32")
         kicked = args.cheat and args.plausibility == "kick"
         if kicked and name == "bot00":
             continue  # kicked (and back, as bots rejoin)
