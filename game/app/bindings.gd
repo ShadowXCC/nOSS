@@ -78,6 +78,14 @@ static func apply() -> void:
 			InputMap.action_erase_events(action)
 		else:
 			InputMap.add_action(action, 0.2)
+	# Shared menus (title, results) by controller too: Godot's defaults have no confirm or back
+	# button for pads (docs/ACCESSIBILITY.md §5.1: directions, confirm and cancel are enough).
+	for pair: Array in [["ui_accept", JOY_BUTTON_A], ["ui_cancel", JOY_BUTTON_B]]:
+		var e := InputEventJoypadButton.new()
+		e.device = -1
+		e.button_index = pair[1]
+		if not InputMap.action_has_event(pair[0], e):
+			InputMap.action_add_event(pair[0], e)
 
 
 ## A preset by id, refs normalized: {id, name, device, bindings: {action: [ref]}, match, wheel}.

@@ -231,10 +231,13 @@ class PlayerCard:
 		var focus_text := ""
 		var owner := UiKit.focus_owner(self) if is_inside_tree() else null
 		if owner is Button:
-			focus_text = owner.text.get_slice(" ", 0)
+			focus_text = UiKit.text_of(owner).get_slice(" ", 0)
 		theme = UiKit.theme_with(String(slot.profile.data.font))
+		# Off the card now, freed after this frame: the control that asked for the rebuild may
+		# still be sending its signal.
 		for c in get_children():
-			c.free()
+			remove_child(c)
+			c.queue_free()
 		_rows.clear()
 		var list := VBoxContainer.new()
 		list.add_theme_constant_override("separation", 10)
@@ -313,7 +316,7 @@ class PlayerCard:
 	func focus_row(prefix: String) -> void:
 		for r: Control in _rows:
 			var b := r as Button
-			if b and b.text.begins_with(prefix):
+			if b and UiKit.text_of(b).begins_with(prefix):
 				b.grab_focus.call_deferred()
 				return
 

@@ -42,8 +42,10 @@ func _ready() -> void:
 
 
 func _build() -> void:
+	# Freed after this frame: the button that asked for the rebuild may still be signalling.
 	for c in get_children():
-		c.free()
+		remove_child(c)
+		c.queue_free()
 	_rows.clear()
 	var list := UiKit.panel(self, "Buttons and keys", 980)
 	if _devices_input.devices.is_empty():

@@ -58,6 +58,8 @@ const NESTED := ["input", "assists", "presets"]
 
 ## Where profiles live. Tests point this elsewhere.
 static var dir := "user://profiles/"
+## Dev (--no-save): nothing is written, for checks that walk the menus.
+static var read_only := false
 
 var id := ""
 var data := {}
@@ -97,6 +99,9 @@ static func saved_ids() -> PackedStringArray:
 
 
 func save() -> void:
+	if read_only:
+		changed.emit()
+		return
 	DirAccess.make_dir_recursive_absolute(dir)
 	var f := FileAccess.open(path_for(id), FileAccess.WRITE)
 	if f:

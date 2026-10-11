@@ -11,6 +11,9 @@ extends Node
 ##   --quit-after-results quit when a session's results come up (timed runs, checks)
 ##   --auto-continue      go straight on to the next session when results come up; quit after the last
 ##   --voices             print the text-to-speech voices
+##   --no-save            write no settings or profiles (checks that walk the menus)
+##   --skip-first-boot    don't show the first-boot accessibility screen
+##   --screen-reader      act as if a screen reader is running (with --accessibility always; checks)
 ##   --screens=0,0,1,1    monitor per player (multi-monitor)
 ##   --split=<s>          two players: stacked or side; --three=<s>: wide or map
 ##   --ai-car=<path>      car for the AI-driven players
@@ -30,6 +33,10 @@ extends Node
 
 const TITLE := "res://game/ui/title/title_screen.tscn"
 
+## A race or time trial was asked for (tests listen with hold_events on, so no scene changes).
+signal event_requested(event: RaceEvent, platform_id: String)
+var hold_events := false
+
 var dev := {}
 ## The Fitting Bay's draft, kept while the player test-drives it.
 var bay_draft: Variant = null
@@ -44,6 +51,7 @@ func _ready() -> void:
 		if arg.begins_with("--"):
 			var kv := arg.substr(2).split("=", true, 1)
 			dev[kv[0]] = kv[1] if kv.size() > 1 else "true"
+	PlayerProfile.read_only = dev.has("no-save")
 	if dev.has("fullscreen"): # this run only; not saved
 		Settings.fullscreen = true
 		Settings.apply_display()
@@ -60,6 +68,12 @@ func first_scene() -> String:
 ## --race-quali (minutes), --race-start=rolling and --race-grid overrides; --time-trial a time trial.
 func start_dev_event() -> void:
 	var e := Settings.last_event() if dev.has("race") else RaceEvent.time_trial()
+	start_event(e, String(dev.get("platform", Settings.profile.get("last_platform", "official.track.gt"))))
+
+
+## Dev overrides for a race (--race-laps, --race-ai, --race-practice, --race-quali, --race-start,
+## --race-grid, --ai-skill), also used by the Race menu so checks can walk the real menus.
+func apply_dev_event(e: RaceEvent) -> void:
 	if dev.has("race-laps"):
 		e.race_laps = int(dev["race-laps"])
 		e.race_min = 0
@@ -72,7 +86,6 @@ func start_dev_event() -> void:
 		e.grid = dev["race-grid"]
 	if dev.has("ai-skill"):
 		e.ai_skill = float(dev["ai-skill"])
-	start_event(e, String(dev.get("platform", Settings.profile.get("last_platform", "official.track.gt"))))
 
 
 ## `solo`: only P1 drives (garage and Fitting Bay); otherwise every joined player.
@@ -95,6 +108,9 @@ func start_free_drive(car_path := "", platform_id := "", bay_return := false, so
 
 ## A race weekend or time trial with `event`; every joined player takes part (time trial: P1).
 func start_event(event: RaceEvent, platform_id: String) -> void:
+	event_requested.emit(event, platform_id)
+	if hold_events:
+		return
 	get_tree().paused = false
 	var session := TrackSession.new()
 	session.event = event

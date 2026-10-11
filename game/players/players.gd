@@ -37,6 +37,7 @@ var _memory := { "devices": {}, "screens": {} }
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	ViewFocusBridge.install(get_tree().root)
 	process_physics_priority = -90 # after Devices, before vehicles
 	load_memory()
 	Devices.devices_changed.connect(refresh_all)
@@ -81,12 +82,17 @@ static func push_action(viewport: Viewport, action: String) -> void:
 		e.action = action
 		e.pressed = pressed
 		viewport.push_input(e)
+	# This player acted last: the screen reader follows them (their control or its new state).
+	ViewFocusBridge.point_at.call_deferred(focus_of(viewport))
 
 
 ## Godot keeps one focused control per OS window, so player menus sharing a window (views,
 ## Players screen cards) each remember their own and get it back before their input arrives.
 static func track_focus(viewport: Viewport) -> void:
-	viewport.gui_focus_changed.connect(func(c: Control) -> void: viewport.set_meta(&"player_focus", c))
+	viewport.gui_focus_changed.connect(func(c: Control) -> void:
+		viewport.set_meta(&"player_focus", c)
+		# After this frame's input: taking the window's focus now would cut the view's off.
+		ViewFocusBridge.point_at.call_deferred(c))
 
 
 ## The control a player's viewport last focused, if it's still there and visible.

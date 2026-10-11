@@ -40,10 +40,10 @@ func _ready() -> void:
 		for result: PlatformLoader.Result in classes:
 			var p := result.platform
 			var info := GameModes.describe(p)
-			var b := UiKit.button("%s   %s%s" % [p.name, info, "  •" if p.id == current else ""],
-				func() -> void: picked.emit(p.id), "%s class: %s" % [mode.name, info])
-			b.accessibility_name = "%s %s" % [mode.name, p.name]
+			var b := UiKit.button("", func() -> void: picked.emit(p.id), info)
 			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			UiKit.set_shown_text(b, "%s   %s%s" % [p.name, info, "  •" if p.id == current else ""])
+			b.accessibility_name = "%s %s%s" % [mode.name, p.name, ", last used" if p.id == current else ""]
 			rows.add_child(b)
 			buttons.append(b)
 			if p.id == current:

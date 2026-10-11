@@ -52,7 +52,7 @@ func test_each_card_has_its_own_focus_and_ready_starts() -> void:
 ## The card's own focus (Godot's real focus is one per window).
 func _focus(v: Viewport) -> String:
 	var c := Players.focus_of(v)
-	return (c as Button).text if c is Button else "<none>"
+	return UiKit.text_of(c as Button) if c is Button else "<none>"
 
 
 static func _pad(id: int) -> Dictionary:

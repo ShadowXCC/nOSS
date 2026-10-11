@@ -253,7 +253,7 @@ static func spinner(text: String, items: Array, value: Variant, on_changed: Call
 			state.i = i
 	var show := func() -> void:
 		var shown := String(items[state.i][1]) if not items.is_empty() else "-"
-		b.text = "%s   ‹ %s ›" % [text, shown] if items.size() > 1 else "%s   %s" % [text, shown]
+		set_shown_text(b, "%s   ‹ %s ›" % [text, shown] if items.size() > 1 else "%s   %s" % [text, shown])
 		b.accessibility_name = "%s: %s" % [text, shown]
 	var step := func(d: int) -> void:
 		if items.size() < 2:
@@ -272,6 +272,31 @@ static func spinner(text: String, items: Array, value: Variant, on_changed: Call
 	b.accessibility_description = (description + ". " if description else "") + "Left and right to change"
 	show.call()
 	return b
+
+
+## Shows `text` on a button through a child label, leaving the button's own text empty, so a
+## screen reader hears only its accessible name (Godot reads "name: text" when both are set).
+static func set_shown_text(b: Button, text: String) -> void:
+	var l := b.get_node_or_null(^"Shown") as Label
+	if l == null:
+		l = Label.new()
+		l.name = "Shown"
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		l.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		l.offset_left = 14
+		l.offset_right = -14
+		l.clip_text = true
+		b.add_child(l)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if b.alignment == HORIZONTAL_ALIGNMENT_CENTER else HORIZONTAL_ALIGNMENT_LEFT
+	l.text = text
+	b.text = ""
+	b.set_meta(&"shown_text", text)
+
+
+## What a button shows (its own text, or set_shown_text's).
+static func text_of(b: Button) -> String:
+	return String(b.get_meta(&"shown_text", b.text))
 
 
 ## Opens `menu` in place of the rest of `host` (hidden meanwhile). When the menu emits

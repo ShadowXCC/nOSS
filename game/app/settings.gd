@@ -87,6 +87,8 @@ func load_all() -> void:
 
 
 func save() -> void:
+	if PlayerProfile.read_only:
+		return
 	var cfg := ConfigFile.new()
 	for key: String in MACHINE:
 		var at: Array = MACHINE[key]
@@ -99,6 +101,7 @@ func save() -> void:
 func last_event() -> RaceEvent:
 	var e := RaceEvent.from_dict(race_event) if race_event is Dictionary else RaceEvent.new()
 	e.kind = "race"
+	Game.apply_dev_event(e)
 	return e
 
 
