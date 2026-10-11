@@ -105,6 +105,16 @@ static func package_hash(path: String) -> String:
 	return h
 
 
+## Personal-use packages (the FM4 converter's) never leave this machine (Requirements §6):
+## they can't be picked online, aren't AI cars and aren't sent. Dev: --share-personal lets a
+## server on this PC send them to its own bots (tools/net_check.py --fresh).
+const PERSONAL := "personal-use-only"
+
+
+static func shareable(manifest: Dictionary) -> bool:
+	return String(manifest.get("license", "")) != PERSONAL or Game.dev.has("share-personal")
+
+
 ## Every package available here (garage and built-ins), by car hash. Reads only manifests.
 static func local_cars() -> Dictionary:
 	var out := {}

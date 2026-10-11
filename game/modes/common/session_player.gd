@@ -372,6 +372,7 @@ func open_picker(pause: bool) -> void:
 	var picker := CarPicker.new()
 	picker.current = vehicle.package.path if vehicle else ""
 	picker.platform = platform.platform
+	picker.online = session.is_online()
 	picker.picked.connect(func(path: String) -> void:
 		close_overlay()
 		if vehicle == null or path != vehicle.package.path:

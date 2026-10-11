@@ -148,7 +148,7 @@ Vehicle (RigidBody3D, Jolt)       mass, inertia, CoG from platform (never from t
 
 ## 6b. Online
 
-*Requirements: MP-01…MP-07, LOC-05. Built in M5 (decisions D78–D88); the protocol is in [NETWORKING.md](NETWORKING.md).*
+*Requirements: MP-01…MP-07, LOC-05. Built in M5 (decisions D78–D89); the protocol is in [NETWORKING.md](NETWORKING.md).*
 
 - **Net** (autoload, `game/net/net.gd`): this game's role. Hosting, it holds a **NetServer** (ENet, join checks, players, kicks and bans), a **NetHost** (lobby, chat and commands, rotation, AI fill, discovery, UPnP) and a **NetContent**; joined, a **NetClient** and a NetContent. Menus make the same calls either way; the lobby and chat come back as the same messages.
 - **NetContent** (per role) decides who fetches which car, track and platform; one **NetTransfer** per link moves files by hash (zstd, unreliable chunks, own acks and rate control); **ContentStore** is the hash-addressed cache and **ContentIndex** what this game may send.

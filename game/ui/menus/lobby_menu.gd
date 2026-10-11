@@ -156,8 +156,9 @@ func _auto_pick() -> void:
 			continue
 		var profile := Players.slots[i].profile if i < Players.slots.size() else Settings.primary
 		var path := String(profile.data.get("last_car", ""))
+		var m := PackageLoader.read_manifest(path) if path else {}
 		var ok := path and (FileAccess.file_exists(path) or DirAccess.dir_exists_absolute(path)) \
-			and platform.ok() and Fitting.compatible(platform.platform, PackageLoader.read_manifest(path).get("family", ""))
+			and platform.ok() and Fitting.compatible(platform.platform, m.get("family", "")) and ContentIndex.shareable(m)
 		if not ok and platform.ok():
 			path = GameModes.default_car(platform.platform)
 		_picked[i] = path
@@ -177,6 +178,7 @@ func _pick_car(local: int) -> void:
 	picker.current = String(_picked.get(local, ""))
 	var platform := Net.platform_result(String(Net.lobby.get("class", "")), String(Net.lobby.get("class_hash", "")))
 	picker.platform = platform.platform if platform.ok() else {}
+	picker.online = true
 	picker.picked.connect(func(path: String) -> void:
 		_picked[local] = path
 		Net.pick_car(local, path)

@@ -46,6 +46,7 @@ extends Node
 ##   --cheat=<kind>       bot: send false states (speed, teleport, time) to test the server's checks
 ##   --bot-full           bot: fetch every car whole, timing it (net_check --fresh)
 ##   --cache=<folder>     keep downloaded content there (an empty one: a fresh client)
+##   --share-personal     server: send personal-use cars too (only to this PC's bots: net_check --fresh)
 ##   --auto-ready         lobby: ready once the cars are picked
 ##   --auto-start=<n>     hosting: start once n players are in and everyone's ready
 

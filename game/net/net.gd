@@ -213,6 +213,8 @@ func pick_car(local_index: int, path: String) -> void:
 	if local_index >= my_ids.size():
 		return
 	var m := PackageLoader.read_manifest(path)
+	if not ContentIndex.shareable(m):
+		return
 	var h := package_hash(path)
 	if content:
 		content.share_car(h) # the server fetches it from here

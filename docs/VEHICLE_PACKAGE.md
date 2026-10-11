@@ -272,7 +272,7 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 
 ## 11. FM4 converter (`tools/fm4_to_noss.py`)
 
-*Requirement: PKG-09. Milestone M1. Local use only. Packages it makes are marked `personal-use-only`.*
+*Requirement: PKG-09. Milestone M1. Local use only. Packages it makes are marked `personal-use-only`, which keeps them off the network: online they can't be picked, aren't AI cars and are never sent ([NETWORKING §7](NETWORKING.md#7-content-transfer)).*
 
 ```
 python3 tools/fm4_to_noss.py "<…>/Forza Motorsport 4/models/ACU_NSX_97"   # into the garage

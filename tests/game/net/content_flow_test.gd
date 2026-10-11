@@ -127,6 +127,27 @@ func test_the_server_fetches_a_picked_car() -> void:
 	assert_str(server.players[client.player_ids()[0]].car_note).is_empty()
 
 
+## Personal-use cars (FM4 conversions) never leave this machine (Requirements §6).
+func test_personal_use_cars_are_never_sent() -> void:
+	assert_bool(ContentIndex.shareable({ "license": "CC0-1.0" })).is_true()
+	assert_bool(ContentIndex.shareable({ "license": ContentIndex.PERSONAL })).is_false()
+	var personal := dir.path_join("personal.noss")
+	DirAccess.remove_absolute(personal)
+	var info := { "name": "Ripped", "author": "test", "license": ContentIndex.PERSONAL, "family": "car" }
+	assert_bool(PackageWriter.write(personal, info, PackageWriter.read_folder("res://content/cars/noss_box")).ok).is_true()
+	var h := Net.package_hash(personal)
+	_start(ServerConfig.defaults(), { h: personal, pkg_hash: pkg_path })
+	server_content.share_car(h)
+	server_content.share_car(pkg_hash)
+	assert_bool(server_content.index.has(h)).is_false()
+	assert_bool(server_content.index.has(pkg_hash)).is_true()
+	# Asked for it anyway, the server has nothing to send.
+	assert_bool(await _pump(func() -> bool: return client.state == NetClient.State.JOINED)).is_true()
+	client_content.fetch_car(h, 1)
+	await _pump(func() -> bool: return false, 1.5)
+	assert_str(NetContent.cached_tier(h)).is_empty()
+
+
 func test_a_car_over_the_cap_is_refused() -> void:
 	var cfg := ServerConfig.defaults()
 	cfg.caps.max_package_mb = 1

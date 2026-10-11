@@ -9,6 +9,8 @@ signal closed
 var current := ""
 ## Only cars that can mount this platform are listed (empty: all).
 var platform := {}
+## Online: personal-use cars aren't listed (they never leave this machine).
+var online := false
 
 
 func _ready() -> void:
@@ -24,9 +26,13 @@ func _ready() -> void:
 	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(rows)
 	var buttons: Array = []
+	var hidden := 0
 	for path in PackageLoader.list_available():
 		var m := PackageLoader.read_manifest(path)
 		if not platform.is_empty() and not Fitting.compatible(platform, m.get("family", "")):
+			continue
+		if online and not ContentIndex.shareable(m):
+			hidden += 1
 			continue
 		var title: String = m.get("name", path.get_file())
 		var license: String = m.get("license", "")
@@ -41,6 +47,8 @@ func _ready() -> void:
 		buttons.append(b)
 	if buttons.is_empty():
 		rows.add_child(UiKit.label("No cars found"))
+	if hidden:
+		list.add_child(UiKit.label("Personal-use cars stay offline (%d)" % hidden, 22))
 	var back := UiKit.button("Back", func() -> void: closed.emit())
 	list.add_child(back)
 	buttons.append(back)

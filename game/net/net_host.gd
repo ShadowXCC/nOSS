@@ -291,7 +291,7 @@ func _ai_entries() -> Array:
 		if e.ai_cars == "builtin" and not path.begins_with("res://"):
 			continue
 		var m := PackageLoader.read_manifest(path)
-		if platform.ok() and Fitting.compatible(platform.platform, m.get("family", "")):
+		if platform.ok() and Fitting.compatible(platform.platform, m.get("family", "")) and ContentIndex.shareable(m):
 			pool.append([path, m])
 	if pool.is_empty():
 		return out

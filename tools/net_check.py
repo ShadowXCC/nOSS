@@ -142,7 +142,9 @@ def main(argv=None):
             out.close()
 
     debug = ["--net-debug"] if args.verbose else []
-    server = start("server", ["--server", f"--config={config_path}", f"--min-players={players}"] + debug)
+    # --fresh: the garage's personal-use cars (FM4) go to this PC's own bot only (Requirements §6).
+    personal = ["--share-personal"] if args.fresh else []
+    server = start("server", ["--server", f"--config={config_path}", f"--min-players={players}"] + debug + personal)
     time.sleep(2.0)
     port = args.port
     sim = None

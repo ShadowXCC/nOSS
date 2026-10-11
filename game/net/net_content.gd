@@ -157,6 +157,8 @@ func share_car(car_hash: String) -> void:
 	var path := String(local_cars().get(car_hash, ""))
 	if path.is_empty() and not ContentStore.car_manifest(car_hash).is_empty():
 		path = ContentStore.car_dir(car_hash)
+	if path and not ContentIndex.shareable(PackageLoader.read_manifest(path)):
+		return
 	if path and not index.has(car_hash):
 		index.add_package(path)
 		_index_changed()

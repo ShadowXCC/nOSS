@@ -1,6 +1,6 @@
 # Networking
 
-Online play is self-hosted. There are no accounts and no central servers. Requirements: MP-01…MP-08, LOC-05, PLT-09, AV-06, NFR-05, NFR-11. Built in M5 (decisions D78–D88); the code is in `game/net/`.
+Online play is self-hosted. There are no accounts and no central servers. Requirements: MP-01…MP-08, LOC-05, PLT-09, AV-06, NFR-05, NFR-11. Built in M5 (decisions D78–D89); the code is in `game/net/`.
 
 ---
 
@@ -102,8 +102,9 @@ connect ─► join checks (versions, key, password, bans, room)
   2. **Cars** stream in tiers, each tier for every car before the next: data (manifest, `fit.json`, `paint.json`, `sound/profile.json`), then each car's smallest LOD, then the rest, then own recordings if the server allows them.
   3. Until a car arrives it's the class's built-in car in the player's colour; with its data, a box its size on stock wheels (the right collision hull from the first second); then its smallest LOD; then the full model.
 - **Server caps** (MP-06): max package size (the files' total; a car over it stays a placeholder, "Car too large for this server"), own sound recordings on/off (tuned built-in sounds always play), custom platforms on/off.
+- **Personal-use cars stay offline** (Requirements §6). A package marked `personal-use-only` (the FM4 converter's) isn't listed in the online car picker ("Personal-use cars stay offline"), is never an AI car and is never sent, even if asked for. Dev only: `--share-personal` lets a server send them to its own bots on the same PC (`tools/net_check.py --fresh`).
 - **The host relays.** It fetches each player's car from its owner as soon as it's picked and sends it on, so clients never connect to each other.
-- Measured (acceptance 2): a fresh client fetched 11 real cars (8 FM4 rips of 13–18 MB and 3 small CC0 cars) through a simulated 50 Mbit link: all as previews in 2.5 s and whole in 22.7 s at 20 ms; 3.3 s and 25.0 s at 150 ms.
+- Measured (acceptance 2, one PC): a fresh bot fetched 11 real cars (8 FM4 rips of 13–18 MB, sent to the bot with `--share-personal`, and 3 small CC0 cars) through a simulated 50 Mbit link: all as previews in 2.5 s and whole in 22.7 s at 20 ms; 3.3 s and 25.0 s at 150 ms.
 
 ## 8. Rules, cheating and fairness
 

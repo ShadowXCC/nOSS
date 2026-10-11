@@ -46,7 +46,7 @@ nOSS (NOS + Open Source Software) is a free, open-source racing game. You can im
 python3 tools/fm4_to_noss.py "<...>/Forza Motorsport 4/models"   # every car folder inside, into the garage
 ```
 
-Converted packages are marked `personal-use-only` and must never be shared or committed ([Requirements §6](Requirements.md#6-content-and-legal-policy)).
+Converted packages are marked `personal-use-only` and must never be shared or committed; the game keeps them offline (online car lists leave them out) ([Requirements §6](Requirements.md#6-content-and-legal-policy)).
 
 ## Development (Linux)
 
