@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noss:schema:server:1",
+  "title": "nOSS server config",
+  "description": "A server's settings: the dedicated server's --config file, and what a listen server's host sets in the menu. See docs/NETWORKING.md §9.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema"],
+  "properties": {
+    "schema": { "const": "noss.server/1" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 48 },
+    "port": { "type": "integer", "minimum": 1024, "maximum": 65534 },
+    "password": { "type": "string", "maxLength": 128 },
+    "max_players": { "type": "integer", "minimum": 1, "maximum": 16 },
+    "motd": { "type": "string", "maxLength": 200 },
+    "admins": { "$ref": "#/$defs/fingerprints" },
+    "whitelist": {
+      "description": "If not empty, only these fingerprints may join.",
+      "$ref": "#/$defs/fingerprints"
+    },
+    "bans": { "$ref": "#/$defs/fingerprints" },
+    "lan": { "description": "Answer LAN discovery.", "type": "boolean" },
+    "upnp": { "description": "Ask the router to open the port.", "type": "boolean" },
+    "state_rate": { "description": "Car states per second sent by clients; 0 = 60 on fast links, else 30.", "enum": [0, 30, 60] },
+    "rotation": {
+      "description": "Events run in turn.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/rotation_item" }
+    },
+    "rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "classes": {
+          "description": "Classes players may pick; empty = every class of the event's mode.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/platform_id" }
+        },
+        "assists": {
+          "description": "Assists players may use, narrowing the platform's and mode's; omitted = what they allow.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid", "racing_line", "auto_throttle", "brake_assist", "steering_assist", "autodrive"] }
+        },
+        "tuning": { "description": "Setups: allowed where the platform and mode allow them, or locked.", "enum": ["allow", "lock"] },
+        "fitting": { "description": "strict: physics uses the platform's reference geometry (docs/PLATFORMS.md §4.2).", "enum": ["normal", "strict"] },
+        "hotswap": { "description": "Car swaps: outside races, never, or always.", "enum": ["practice", "never", "always"] },
+        "ghost_bad_links": { "description": "Ghost a car whose link is bad (RTT over 250 ms or loss over 5%).", "type": "boolean" }
+      }
+    },
+    "caps": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_package_mb": { "type": "integer", "minimum": 1, "maximum": 50 },
+        "own_sounds": { "description": "Own engine recordings; tuned built-in sounds always play.", "type": "boolean" },
+        "custom_platforms": { "type": "boolean" },
+        "transfer_kbps": { "description": "Content upload per transfer, KB/s.", "type": "integer", "minimum": 64, "maximum": 65536 },
+        "client_kbps": { "description": "Content upload per client, KB/s.", "type": "integer", "minimum": 64, "maximum": 131072 }
+      }
+    },
+    "plausibility": { "description": "What a failed plausibility check does.", "enum": ["off", "warn", "flag", "kick"] }
+  },
+  "$defs": {
+    "fingerprints": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 4096,
+      "items": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+    },
+    "platform_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)+$" },
+    "rotation_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["class"],
+      "properties": {
+        "track": {
+          "description": "A built-in track's id (proving_ground) or a track file's path, relative to the config.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "class": { "$ref": "#/$defs/platform_id" },
+        "event": { "$ref": "#/$defs/event" }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["free", "race"] },
+        "practice_min": { "type": "integer", "minimum": 0, "maximum": 120 },
+        "qualifying_min": { "type": "integer", "minimum": 0, "maximum": 120 },
+        "race_laps": { "type": "integer", "minimum": 1, "maximum": 99 },
+        "race_min": { "type": "integer", "minimum": 0, "maximum": 240 },
+        "ai_count": { "description": "AI cars; online, fewer if the grid would pass 16 cars.", "type": "integer", "minimum": 0, "maximum": 15 },
+        "ai_skill": { "type": "number", "minimum": 0, "maximum": 100 },
+        "start": { "enum": ["standing", "rolling"] },
+        "grid": { "enum": ["qualifying", "reverse", "random"] },
+        "collisions": { "type": "boolean" },
+        "track_limits": { "enum": ["off", "lenient", "strict"] },
+        "ai_cars": { "enum": ["garage", "builtin"] }
+      }
+    }
+  }
+}

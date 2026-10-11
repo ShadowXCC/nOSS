@@ -1,0 +1,29 @@
+{
+  "schema": "noss.server/1",
+  "name": "nOSS server",
+  "port": 47800,
+  "password": "",
+  "max_players": 16,
+  "motd": "Be nice. Keep it clean.",
+  "admins": [],
+  "whitelist": [],
+  "bans": [],
+  "lan": true,
+  "upnp": false,
+  "state_rate": 0,
+  "rotation": [
+    {
+      "track": "proving_ground",
+      "class": "official.track.gt",
+      "event": { "kind": "race", "practice_min": 5, "qualifying_min": 0, "race_laps": 5, "ai_count": 7, "ai_skill": 70, "start": "standing", "grid": "random", "collisions": true, "track_limits": "lenient", "ai_cars": "builtin" }
+    },
+    {
+      "track": "proving_ground",
+      "class": "official.track.touring",
+      "event": { "kind": "free" }
+    }
+  ],
+  "rules": { "classes": [], "tuning": "allow", "fitting": "normal", "hotswap": "practice", "ghost_bad_links": true },
+  "caps": { "max_package_mb": 50, "own_sounds": true, "custom_platforms": false, "transfer_kbps": 2048, "client_kbps": 8192 },
+  "plausibility": "flag"
+}

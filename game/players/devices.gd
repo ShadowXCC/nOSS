@@ -32,8 +32,9 @@ func _ready() -> void:
 			print("Wheel support off: %s" % NossInput.get_error())
 	devices_changed.connect(func() -> void: _dirty = true)
 	Input.joy_connection_changed.connect(func(_d: int, _c: bool) -> void: devices_changed.emit())
-	for pad in gamepads():
-		print("Gamepad: %s" % pad.name)
+	if not Game.dedicated:
+		for pad in gamepads():
+			print("Gamepad: %s" % pad.name)
 
 
 func _exit_tree() -> void:

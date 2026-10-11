@@ -9,7 +9,9 @@ func _ready() -> void:
 	if core.is_empty():
 		push_error("noss_core not loaded")
 	print("nOSS %s (core %s)" % [game_version(), core if core else "missing"])
-	if Game.dev.has("bay"):
+	if Game.dedicated:
+		Game.start_server.call_deferred()
+	elif Game.dev.has("bay"):
 		Game.open_fitting_bay.call_deferred()
 	elif Game.dev.has("garage"):
 		Game.open_garage.call_deferred()

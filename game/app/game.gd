@@ -31,6 +31,12 @@ extends Node
 ##   --import=<path>      Fitting Bay: import this model
 ##   --bay-auto           Fitting Bay: save and drive as soon as the import is in (timed runs)
 ##   --bay-step=<step>    Fitting Bay: show this step after the import (screenshots)
+## Online (also read before "--", so `noss_server --config server.json` works):
+##   --server             run as a dedicated server (the "Linux Server" export always does)
+##   --config=<file>      the dedicated server's config (data/server.example.json)
+##   --port=<n>           the server's port, over the config's
+##   --instance=<n>       keep settings, profiles and the identity in user://instances/<n>/, so two
+##                        copies on one PC are two different players
 
 const TITLE := "res://game/ui/title/title_screen.tscn"
 
@@ -38,7 +44,15 @@ const TITLE := "res://game/ui/title/title_screen.tscn"
 signal event_requested(event: RaceEvent, platform_id: String)
 var hold_events := false
 
+## Options also read before "--" (noss_server --config server.json); those that take a value.
+const ENGINE_ARGS := ["server", "config", "port", "instance"]
+const VALUE_ARGS := ["config", "port", "instance"]
+
 var dev := {}
+## No window or audio (tests, bots, the dedicated server).
+var headless := false
+## Running as the dedicated server.
+var dedicated := false
 ## The Fitting Bay's draft, kept while the player test-drives it.
 var bay_draft: Variant = null
 var _time := 0.0
@@ -48,10 +62,13 @@ var _dev_import_used := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	for arg in OS.get_cmdline_user_args():
-		if arg.begins_with("--"):
-			var kv := arg.substr(2).split("=", true, 1)
-			dev[kv[0]] = kv[1] if kv.size() > 1 else "true"
+	dev = parse_args(OS.get_cmdline_args(), OS.get_cmdline_user_args())
+	headless = DisplayServer.get_name() == "headless"
+	dedicated = OS.has_feature("dedicated_server") or dev.has("server")
+	if dedicated:
+		Engine.max_fps = Engine.physics_ticks_per_second # one physics tick per frame, no busy loop
+	if dev.has("instance"):
+		Settings.use_folder("user://instances/%d" % clampi(int(dev.instance), 1, 99))
 	PlayerProfile.read_only = dev.has("no-save")
 	# Dev: --p1-profile='{"assists": {"racing_line": true}}' sets P1's options for this run (use
 	# with --no-save to keep them out of the profile).
@@ -69,9 +86,33 @@ func _ready() -> void:
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 
 
+## Dev options: --key=value (or --key) after "--", plus the ENGINE_ARGS before it, which may
+## also be written "--key value".
+static func parse_args(engine_args: PackedStringArray, user_args: PackedStringArray) -> Dictionary:
+	var out := {}
+	var i := 0
+	while i < engine_args.size():
+		var arg := engine_args[i]
+		var kv := arg.substr(2).split("=", true, 1) if arg.begins_with("--") else PackedStringArray()
+		if not kv.is_empty() and kv[0] in ENGINE_ARGS:
+			if kv.size() > 1:
+				out[kv[0]] = kv[1]
+			elif kv[0] in VALUE_ARGS and i + 1 < engine_args.size() and not engine_args[i + 1].begins_with("-"):
+				i += 1
+				out[kv[0]] = engine_args[i]
+			else:
+				out[kv[0]] = "true"
+		i += 1
+	for arg in user_args:
+		if arg.begins_with("--"):
+			var kv := arg.substr(2).split("=", true, 1)
+			out[kv[0]] = kv[1] if kv.size() > 1 else "true"
+	return out
+
+
 ## First scene after boot.
 func first_scene() -> String:
-	return "" if dev.has("drive") or dev.has("bay") or dev.has("garage") or dev.has("race") or dev.has("time-trial") else TITLE
+	return "" if dedicated or dev.has("drive") or dev.has("bay") or dev.has("garage") or dev.has("race") or dev.has("time-trial") else TITLE
 
 
 ## Dev: --race starts the last race set up, with --race-laps, --race-ai, --race-practice,
@@ -130,6 +171,11 @@ func start_event(event: RaceEvent, platform_id: String) -> void:
 	if dev.has("camera"):
 		Settings.profile.camera = dev.camera
 	get_tree().change_scene_to_node(session)
+
+
+## The dedicated server: no title, no players of its own.
+func start_server() -> void:
+	get_tree().change_scene_to_node(ServerMain.new())
 
 
 func open_garage() -> void:

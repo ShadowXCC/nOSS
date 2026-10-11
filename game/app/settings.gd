@@ -120,6 +120,8 @@ func use_folder(folder: String) -> void:
 	TimeTrial.dir = folder.path_join("ghosts/")
 	Leaderboard.dir = folder.path_join("leaderboards/")
 	Players.memory_path = folder.path_join("players.json")
+	NetIdentity.dir = folder.path_join("identity/")
+	Net.forget_identity()
 	primary_profile = "player1"
 	load_all()
 	Players.load_memory()

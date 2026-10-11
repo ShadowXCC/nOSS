@@ -17,10 +17,12 @@ run/main_scene="res://game/app/boot.tscn"
 config/use_custom_user_dir=true
 config/custom_user_dir_name="nOSS"
 config/features=PackedStringArray("4.7", "Forward Plus")
+run/flush_stdout_on_print=true
 
 [autoload]
 
 Settings="*res://game/app/settings.gd"
+Net="*res://game/net/net.gd"
 Game="*res://game/app/game.gd"
 Devices="*res://game/players/devices.gd"
 Players="*res://game/players/players.gd"
