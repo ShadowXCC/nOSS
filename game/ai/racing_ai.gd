@@ -196,6 +196,9 @@ func _plan() -> void:
 	var corridor := _line.corridor(racer.distance)
 	var gap_time := lerpf(GAP_TIME.x, GAP_TIME.y, s) + (0.3 if _cautious() else 0.0)
 	_speed_cap = INF
+	var formation := racer.pace_limit > 0.0
+	if formation:
+		_speed_cap = racer.pace_limit
 	_emergency = false
 	intent = "line"
 
@@ -231,7 +234,7 @@ func _plan() -> void:
 		var my_pace := _line.speed_at(_profile, other.distance)
 		var faster := their_v < my_pace - 1.0 or v > their_v + 1.0
 		var side := 0.0
-		if faster and bumper < 35.0 and (not braking_soon or bumper < 2.0 or _passing == other):
+		if faster and not formation and bumper < 35.0 and (not braking_soon or bumper < 2.0 or _passing == other):
 			side = _pass_side(other, cars, inside, me_lat)
 		if side != 0.0:
 			want_lat = other.lateral + side * (CAR_WIDTH + SIDE_GAP + 0.2)

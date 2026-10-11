@@ -9,6 +9,8 @@ signal closed
 var current := ""
 ## Only classes that take this kind of car (empty: all).
 var family := ""
+## Only this mode's classes (empty: every mode).
+var mode_filter := ""
 
 
 func _ready() -> void:
@@ -26,6 +28,8 @@ func _ready() -> void:
 	var buttons: Array = []
 	var first: Button
 	for mode in GameModes.list():
+		if mode_filter and mode.id != mode_filter:
+			continue
 		var heading := UiKit.label(mode.name, 26)
 		heading.modulate = UiKit.ACCENT
 		rows.add_child(heading)

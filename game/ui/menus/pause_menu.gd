@@ -9,6 +9,8 @@ signal change_car
 signal leave
 signal quit_to_title
 signal back_to_bay
+signal end_session
+signal restart
 
 ## Who paused.
 var slot: PlayerSlot
@@ -16,6 +18,11 @@ var slot: PlayerSlot
 var bay_return := false
 ## Players other than P1 can drop out.
 var can_leave := false
+## Hotswap is allowed (not in a race).
+var can_change_car := true
+## Practice and qualifying can be ended early; sessions can be restarted.
+var can_end_session := false
+var can_restart := false
 var _buttons: Array = []
 
 
@@ -27,11 +34,18 @@ func _ready() -> void:
 	_buttons = [
 		UiKit.button("Resume", func() -> void: resumed.emit()),
 		UiKit.button("Reset car", func() -> void: reset_car.emit()),
-		UiKit.button("Change car", func() -> void: change_car.emit()),
+	]
+	if can_change_car:
+		_buttons.append(UiKit.button("Change car", func() -> void: change_car.emit()))
+	if can_end_session:
+		_buttons.append(UiKit.button("End session", func() -> void: end_session.emit(), "Results now"))
+	if can_restart:
+		_buttons.append(UiKit.button("Restart", func() -> void: restart.emit(), "Start this session again"))
+	_buttons.append_array([
 		UiKit.button("Settings", _open_settings, "Your controls, assists and HUD"),
 		UiKit.button("Game settings", _open_game_settings, "Graphics, sound, splitscreen"),
 		UiKit.button("Quit to title", func() -> void: quit_to_title.emit()),
-	]
+	])
 	if bay_return:
 		_buttons.insert(1, UiKit.button("Back to Fitting Bay", func() -> void: back_to_bay.emit()))
 	if can_leave:

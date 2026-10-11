@@ -17,6 +17,8 @@ var bay_return := false
 var overlay: Control
 
 var _paused_tree := false
+## Drives the car home after the flag (players' cars take a cool-down lap too).
+var _cool_down: RacingAI
 
 
 func _init() -> void:
@@ -38,6 +40,8 @@ func setup() -> void:
 	view.hud_root.add_child(hud)
 	hud.apply_profile(slot.profile)
 	hud.timer = timer
+	hud.racer = self
+	hud.race = session.race
 	hud.show_message("Loading", 30.0)
 	update_badge(1)
 	cameras.camera.global_transform = Transform3D(Basis.looking_at(spawn_at.basis.z), spawn_at.origin + Vector3(0, 3, 0) - spawn_at.basis.z * 8.0)
@@ -67,6 +71,7 @@ func _make_driver() -> Node:
 	controller = VehicleController.new()
 	controller.vehicle = vehicle
 	controller.input = slot.input
+	controller.racer = self
 	slot.input.wheel.platform_lock_deg = float(platform.platform.steering.wheel_rotation_deg)
 	controller.reset_requested.connect(reset_car)
 	controller.camera_next_requested.connect(_next_camera)
@@ -87,6 +92,8 @@ func _physics_process(delta: float) -> void:
 	super(delta)
 	if vehicle == null:
 		return
+	if finished and controller and _cool_down == null:
+		_start_cool_down()
 	if controller and overlay == null:
 		if slot.input.wheel.is_active():
 			slot.input.wheel.update_ffb(vehicle.sim.get_rack_force())
@@ -96,6 +103,25 @@ func _physics_process(delta: float) -> void:
 			pause_requested.emit(self)
 		elif slot.input.just_pressed("hotswap_menu") and session.hotswap_allowed:
 			open_picker(false)
+
+
+func new_session() -> void:
+	super()
+	hud.timer = timer
+	if _cool_down:
+		_cool_down.queue_free()
+		_cool_down = null
+		if controller and overlay == null:
+			controller.set_physics_process(true)
+
+
+## After the flag the RacingAI brings the car round at an easy pace.
+func _start_cool_down() -> void:
+	controller.set_physics_process(false)
+	controller.release()
+	_cool_down = RacingAI.new()
+	_cool_down.racer = self
+	add_child(_cool_down)
 
 
 func update_track(delta: float) -> void:
@@ -170,7 +196,7 @@ func close_overlay() -> void:
 		get_tree().paused = false
 	slot.menu_target = null
 	slot.input.settle() # the press that closed the menu doesn't drive
-	if controller:
+	if controller and _cool_down == null:
 		controller.set_physics_process(true)
 
 

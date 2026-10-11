@@ -29,6 +29,7 @@ var order: Array = []
 var overtakes := 0
 var started := false
 var ticks := 0
+var reported := false
 
 
 func _ready() -> void:
@@ -46,15 +47,17 @@ func _start() -> void:
 	session = TrackSession.new()
 	session.autodrive = true
 	session.platform_id = opts.platform
-	session.ai_racers = int(opts.cars) - 1
 	var skill := String(opts.skill).split("-")
-	session.ai_skill = (float(skill[0]) + float(skill[-1])) / 2.0
+	var e := RaceEvent.new()
+	e.kind = "race"
+	e.race_laps = int(opts.laps)
+	e.ai_count = int(opts.cars) - 1
+	e.ai_skill = (float(skill[0]) + float(skill[-1])) / 2.0
+	e.ai_cars = "builtin" if opts.has("builtin") else "garage"
+	e.grid = "random"
+	e.start = opts.get("start", "standing")
+	session.event = e
 	session.ai_skill_spread = absf(float(skill[-1]) - float(skill[0]))
-	session.ai_builtin_cars = opts.has("builtin")
-	session.grid_front_m = 12.0
-	session.grid_row_m = 13.0
-	session.safe_rejoin = true
-	session.standing_start = true
 	add_child(session)
 
 
@@ -63,7 +66,7 @@ func _tick() -> void:
 		return
 	var dt := 1.0 / Engine.physics_ticks_per_second
 	if not started:
-		if session.started and session.racers.size() == int(opts.cars):
+		if session.race.phase == RaceControl.Phase.RUNNING and session.racers.size() == int(opts.cars):
 			started = true
 			var p1: Racer = session.racers[0]
 			if opts.bad:
@@ -125,11 +128,10 @@ func _tick() -> void:
 				stuck_events.append("%s at %.0f m, %.1f s" % [r.display_name, r.track.from_start(r.distance), time])
 		else:
 			stuck[r] = 0.0
-		# Laps: crossings after the first one.
+		# Laps: crossings after the first one; the finish is race control's.
 		laps_done[r] = maxi(r.timer.lap - 1, 0)
-		if laps_done[r] >= laps and not finish_time.has(r):
-			finish_time[r] = time
-			r.finished = true
+		if r.finish_time >= 0.0 and not finish_time.has(r):
+			finish_time[r] = r.finish_time
 	# Overtakes: changes in running order.
 	if ticks % 30 == 0:
 		var now := session.racers.duplicate()
@@ -140,7 +142,7 @@ func _tick() -> void:
 				if before > i:
 					overtakes += before - i
 		order = now
-	if finish_time.size() == session.racers.size() or time > LAP_TIMEOUT_S * laps + 60.0:
+	if session.race.phase == RaceControl.Phase.DONE or time > LAP_TIMEOUT_S * laps + 60.0:
 		_report()
 
 
@@ -156,6 +158,9 @@ func _progress(r: Racer) -> float:
 
 
 func _report() -> void:
+	if reported:
+		return
+	reported = true
 	var pileups := _pileups()
 	var fails := PackedStringArray()
 	for p in pileups:
@@ -165,6 +170,8 @@ func _report() -> void:
 	for r in session.racers:
 		if not finish_time.has(r):
 			fails.append("didn't finish: %s (%d laps)" % [r.display_name, laps_done[r]])
+	if session.race.phase != RaceControl.Phase.DONE:
+		fails.append("the race didn't end")
 	var total_resets := 0
 	for r in session.racers:
 		total_resets += resets[r]

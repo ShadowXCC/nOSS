@@ -7,6 +7,8 @@ extends Node
 ##   --autodrive          let the racing AI drive the players (tests, screenshots)
 ##   --players=<n>        free drive with n players; the extra ones are driven by the racing AI
 ##   --ai=<n>             add n AI racers (no views); --ai-skill=<0-100>, --ai-builtin: built-in cars only
+##   --race               start a race right away (the last race set up); --race-laps=<n>, --race-ai=<n>
+##   --quit-after-results quit when a session's results come up (timed runs, checks)
 ##   --screens=0,0,1,1    monitor per player (multi-monitor)
 ##   --split=<s>          two players: stacked or side; --three=<s>: wide or map
 ##   --ai-car=<path>      car for the AI-driven players
@@ -16,7 +18,7 @@ extends Node
 ##   --pause-at=<s>       open the last player's pause menu
 ##   --menu=<m>           title: open classes, players or settings (--join=<n>: n devices join)
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
-##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5), one per window
+##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5; a list like 5,30,90 takes several), one per window
 ##   --quit-at=<s>        quit after this many seconds
 ##   --bay                open the Fitting Bay
 ##   --garage             open the garage
@@ -30,7 +32,7 @@ var dev := {}
 ## The Fitting Bay's draft, kept while the player test-drives it.
 var bay_draft: Variant = null
 var _time := 0.0
-var _shot_done := false
+var _shots_taken := 0
 var _dev_import_used := false
 
 
@@ -49,7 +51,26 @@ func _ready() -> void:
 
 ## First scene after boot.
 func first_scene() -> String:
-	return "" if dev.has("drive") or dev.has("bay") or dev.has("garage") else TITLE
+	return "" if dev.has("drive") or dev.has("bay") or dev.has("garage") or dev.has("race") or dev.has("time-trial") else TITLE
+
+
+## Dev: --race starts the last race set up, with --race-laps, --race-ai, --race-practice,
+## --race-quali (minutes), --race-start=rolling and --race-grid overrides; --time-trial a time trial.
+func start_dev_event() -> void:
+	var e := Settings.last_event() if dev.has("race") else RaceEvent.time_trial()
+	if dev.has("race-laps"):
+		e.race_laps = int(dev["race-laps"])
+		e.race_min = 0
+	for key: String in { "race-ai": "ai_count", "race-practice": "practice_min", "race-quali": "qualifying_min" }:
+		if dev.has(key):
+			e.set({ "race-ai": "ai_count", "race-practice": "practice_min", "race-quali": "qualifying_min" }[key], int(dev[key]))
+	if dev.has("race-start"):
+		e.start = dev["race-start"]
+	if dev.has("race-grid"):
+		e.grid = dev["race-grid"]
+	if dev.has("ai-skill"):
+		e.ai_skill = float(dev["ai-skill"])
+	start_event(e, String(dev.get("platform", Settings.profile.get("last_platform", "official.track.gt"))))
 
 
 ## `solo`: only P1 drives (garage and Fitting Bay); otherwise every joined player.
@@ -65,6 +86,19 @@ func start_free_drive(car_path := "", platform_id := "", bay_return := false, so
 	session.ai_racers = int(dev.get("ai", "0"))
 	session.ai_skill = float(dev.get("ai-skill", "80"))
 	session.ai_builtin_cars = dev.has("ai-builtin")
+	if dev.has("camera"):
+		Settings.profile.camera = dev.camera
+	get_tree().change_scene_to_node(session)
+
+
+## A race weekend or time trial with `event`; every joined player takes part (time trial: P1).
+func start_event(event: RaceEvent, platform_id: String) -> void:
+	get_tree().paused = false
+	var session := TrackSession.new()
+	session.event = event
+	session.solo = event.kind == "time_trial"
+	session.platform_id = platform_id
+	session.autodrive = dev.has("autodrive")
 	if dev.has("camera"):
 		Settings.profile.camera = dev.camera
 	get_tree().change_scene_to_node(session)
@@ -103,14 +137,17 @@ func quit() -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
-	if dev.has("shot") and not _shot_done and _time >= float(dev.get("shot-at", "5")):
-		_shot_done = true
+	# --shot-at can list several times ("5,30,90"): then each file gets _<n> after its name.
+	var times := String(dev.get("shot-at", "5")).split(",")
+	if dev.has("shot") and _shots_taken < times.size() and _time >= float(times[_shots_taken]):
+		var base := String(dev.shot) if times.size() == 1 else "%s_%d.png" % [String(dev.shot).get_basename(), _shots_taken + 1]
+		_shots_taken += 1
 		var img := get_viewport().get_texture().get_image()
-		img.save_png(dev.shot)
-		print("Screenshot: ", dev.shot)
+		img.save_png(base)
+		print("Screenshot: ", base)
 		# Extra monitor windows: <shot>_<window name>.png
 		for w: Window in get_tree().root.find_children("*", "Window", true, false):
-			var path := String(dev.shot).get_basename() + "_" + w.name + ".png"
+			var path := base.get_basename() + "_" + w.name + ".png"
 			w.get_texture().get_image().save_png(path)
 			print("Screenshot: ", path)
 	if dev.has("quit-at") and _time >= float(dev["quit-at"]):

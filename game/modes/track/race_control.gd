@@ -399,7 +399,7 @@ func _update_flags() -> void:
 		if phase == Phase.RUNNING and clock < _green_until:
 			flag = "green"
 		for o in racers:
-			if o == r or o.waiting or o.held or o.vehicle == null:
+			if o == r or o.waiting or o.held:
 				continue
 			var gap := session.field.gap(r, o)
 			# Yellow: stopped, very slow or off the road just ahead.

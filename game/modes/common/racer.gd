@@ -60,6 +60,9 @@ var ghosted := false
 var pace_limit := 0.0
 ## The flag shown to this racer: "", "green", "yellow", "blue" or "checkered".
 var flag := ""
+## Assists on now, and every assist that was on at some point this session (results, ACC-07).
+var assists_now := {}
+var assists_used := {}
 
 ## This session's race results (RaceControl): penalties in seconds, warnings, the race time at
 ## the finish, and whether the racer is out (dropped out).
@@ -91,6 +94,7 @@ func setup() -> void:
 func new_session() -> void:
 	_new_timer()
 	finished = false
+	assists_used = assists_now.duplicate()
 	penalty_s = 0.0
 	warnings = 0
 	finish_time = -1.0
@@ -107,6 +111,14 @@ func _new_timer() -> void:
 	timer.lap_completed.connect(_on_lap)
 	timer.sector_completed.connect(_on_sector)
 	timer.invalidated.connect(func(reason: String) -> void: notify(reason, 1.5))
+
+
+## The assists this racer drives with changed.
+func note_assists(on: Dictionary) -> void:
+	assists_now = on.duplicate()
+	for key: String in on:
+		if on[key]:
+			assists_used[key] = true
 
 
 ## A short message for this racer ("Lap invalid"): players see it on their HUD.

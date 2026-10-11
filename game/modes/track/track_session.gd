@@ -46,8 +46,8 @@ var ai_builtin_cars := false
 var ghosted := false
 ## Resets wait for a gap in traffic and rejoin at the road's edge (set when there's AI).
 var safe_rejoin := false
-## Standing start: every car waits on the grid until all have loaded, then all go together.
-var standing_start := false
+## What's run here: free drive by default; a race weekend or a time trial.
+var event := RaceEvent.free_drive()
 ## Grid: the first spot's distance behind the line, and the gap between cars in one column.
 var grid_front_m := GRID_BEHIND_LINE
 var grid_row_m := GRID_ROW_M
@@ -59,6 +59,10 @@ var players: Array[SessionPlayer] = []
 ## Every car: players and AI.
 var racers: Array[Racer] = []
 var field := RaceField.new()
+## Runs the event's sessions: grid, countdown, standings, flags, results.
+var race := RaceControl.new()
+## The results screen while it's up.
+var results_menu: ResultsMenu
 var world_env: Environment
 ## Who has the game paused, or null.
 var paused_by: SessionPlayer
@@ -70,8 +74,6 @@ var _dev_swapped := false
 var _fps_time := 0.0
 var _fps_frames := 0
 var _sound_time := 0.0
-## The cars have been released (always true without a standing start).
-var started := false
 
 
 func _ready() -> void:
@@ -90,6 +92,14 @@ func _ready() -> void:
 		platform_id = DEFAULT_PLATFORM
 		platform = PlatformLoader.load_official(platform_id)
 	_default_car = GameModes.default_car(platform.platform)
+	if event.kind == "race":
+		ai_racers = event.ai_count
+		ai_skill = event.ai_skill
+		ai_builtin_cars = event.ai_cars == "builtin"
+		safe_rejoin = true
+	ghosted = not event.collisions
+	if event.kind == "time_trial":
+		solo = true
 	field.track = track
 	field.racers = racers
 	add_child(field)
@@ -121,6 +131,18 @@ func _ready() -> void:
 	Players.joined.connect(_on_joined)
 	Players.left.connect(_on_left)
 	Players.joining = not solo # drop in mid-drive
+	var layer := CanvasLayer.new()
+	layer.name = "ResultsLayer"
+	layer.layer = 20
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(layer)
+	race.session = self
+	race.event = event
+	add_child(race)
+	for r in racers:
+		race.watch(r)
+	race.session_ended.connect(_on_session_ended)
+	race.start()
 
 
 func _exit_tree() -> void:
@@ -175,10 +197,11 @@ func _add_racer(r: Racer) -> void:
 	r.track = track
 	r.platform = platform
 	r.default_car = _default_car
-	r.held = standing_start and not started
 	racers.append(r)
 	add_child(r)
 	r.setup()
+	if race.is_inside_tree():
+		race.watch(r)
 
 
 ## An AI racer on the next grid spot, with a random car from `pool`.
@@ -236,8 +259,6 @@ func _on_views_changed() -> void:
 
 
 func _process(delta: float) -> void:
-	if not started and (not standing_start or (not racers.is_empty() and racers.all(func(r: Racer) -> bool: return r.vehicle != null))):
-		start_race()
 	_sound_time += delta
 	if _sound_time >= SOUND_UPDATE_S:
 		_sound_time = 0.0
@@ -265,11 +286,39 @@ func _process(delta: float) -> void:
 			_fps_frames = 0
 
 
-## Releases every car held on the grid.
-func start_race() -> void:
-	started = true
-	for r in racers:
-		r.held = false
+## A session ended: its results go up on the main window while the cars take a cool-down lap.
+func _on_session_ended(kind: String, results: Array) -> void:
+	if paused_by:
+		_resume()
+	print("%s results: %s" % [kind.capitalize(), ", ".join(PackedStringArray(results.map(func(row: Dictionary) -> String: return "%d %s" % [row.position, row.name])))])
+	if Game.dev.has("quit-after-results"):
+		get_tree().quit()
+		return
+	results_menu = ResultsMenu.new()
+	results_menu.kind = kind
+	results_menu.results = results
+	results_menu.has_next = race.has_next()
+	results_menu.next_name = race.event.sessions()[race.index + 1].capitalize() if race.has_next() else ""
+	results_menu.continued.connect(func() -> void:
+		_close_results()
+		race.next_session())
+	results_menu.restarted.connect(func() -> void:
+		_close_results()
+		race.restart_session())
+	results_menu.quit_to_title.connect(func() -> void: Game.go_title())
+	# The main window shows views at their real pixel size; menus are laid out for 1080p.
+	var layer: CanvasLayer = $ResultsLayer
+	var window := get_viewport().get_visible_rect().size
+	var s := window.y / 1080.0 * Players.menu_text_scale()
+	layer.scale = Vector2(s, s)
+	results_menu.size = window / s
+	layer.add_child(results_menu)
+
+
+func _close_results() -> void:
+	if results_menu:
+		results_menu.queue_free()
+		results_menu = null
 
 
 ## Players' own cars always sound in full; AI cars by distance to the nearest camera.
@@ -368,6 +417,16 @@ func _open_pause(p: SessionPlayer) -> void:
 	menu.slot = p.slot
 	menu.bay_return = bay_return
 	menu.can_leave = p.slot.index > 0
+	menu.can_change_car = hotswap_allowed
+	menu.can_end_session = race.kind in ["practice", "qualifying"]
+	menu.can_restart = race.kind in ["race", "practice", "qualifying"]
+	menu.end_session.connect(func() -> void:
+		_resume()
+		race.end_session())
+	menu.restart.connect(func() -> void:
+		_resume()
+		_close_results()
+		race.restart_session())
 	menu.resumed.connect(_resume)
 	menu.reset_car.connect(func() -> void:
 		_resume()

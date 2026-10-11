@@ -17,6 +17,8 @@ const COUNTER_STEER_GAIN := 0.8
 
 @export var vehicle: Vehicle
 var input: PlayerInput
+## The racer this controls: held on the grid, pace-limited on a rolling start.
+var racer: Racer
 ## Which device steered last: "keyboard", "gamepad" or "wheel". Picks the filters and assists.
 var active_device := "keyboard"
 
@@ -66,6 +68,13 @@ func _physics_process(delta: float) -> void:
 	vehicle.brake = input.analog("brake")
 	vehicle.handbrake = input.analog("handbrake")
 	vehicle.clutch = input.wheel.clutch()
+	if racer and racer.held:
+		# On the grid: the car waits on the handbrake (the brake would select reverse).
+		vehicle.throttle = 0.0
+		vehicle.brake = 0.0
+		vehicle.handbrake = 1.0
+	elif racer and racer.pace_limit > 0.0 and speed > racer.pace_limit:
+		vehicle.throttle = 0.0
 
 	if input.just_pressed("shift_up"):
 		vehicle.sim.shift(1)
@@ -96,13 +105,17 @@ func apply_assists() -> void:
 	var a: Dictionary = input.profile.data.assists if input else PlayerProfile.DEFAULTS.assists
 	var allowed: Array = vehicle.platform.get("assists_allowed", [])
 	var has_clutch := input != null and input.wheel.has_clutch()
-	vehicle.sim.set_assists({
+	var on := {
 		"abs": a.get("abs", true) and "abs" in allowed,
 		"tcs": a.get("tcs", true) and "tcs" in allowed,
 		"stability": a.get("stability", false) and "stability" in allowed,
 		"auto_gearbox": a.get("auto_gearbox", true) and "auto_gearbox" in allowed,
 		"auto_clutch": not has_clutch,
-	})
+	}
+	vehicle.sim.set_assists(on)
+	on.steer_aid = a.get("steer_aid", true) and "steer_aid" in allowed
+	if racer:
+		racer.note_assists(on)
 
 
 ## Deadzone, then a power curve (1 = linear), keeping the sign.

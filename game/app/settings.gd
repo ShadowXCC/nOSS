@@ -18,6 +18,7 @@ const MACHINE := {
 	"split_audio": ["splitscreen", "audio"],
 	"auto_resolution": ["splitscreen", "auto_resolution"],
 	"primary_profile": ["players", "primary"],
+	"race_event": ["race", "last_event"],
 }
 
 var graphics := "medium"
@@ -33,6 +34,8 @@ var split_audio := "all"
 ## Lower each view's render scale to hold the frame rate.
 var auto_resolution := true
 var primary_profile := "player1"
+## The last race set up (RaceEvent.to_dict()).
+var race_event := {}
 
 var primary: PlayerProfile
 var profile := {}
@@ -66,6 +69,18 @@ func save() -> void:
 		cfg.set_value(at[0], at[1], get(key))
 	cfg.save(settings_path)
 	primary.save()
+
+
+## The last race set up, or the defaults.
+func last_event() -> RaceEvent:
+	var e := RaceEvent.from_dict(race_event) if race_event is Dictionary else RaceEvent.new()
+	e.kind = "race"
+	return e
+
+
+func set_last_event(e: RaceEvent) -> void:
+	race_event = e.to_dict()
+	save()
 
 
 ## Points settings, profiles and the players' memory at another folder and reloads (tests use
