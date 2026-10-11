@@ -65,6 +65,8 @@ var field := RaceField.new()
 var race := RaceControl.new()
 ## The results screen while it's up.
 var results_menu: ResultsMenu
+## Time trial: records laps, shows the ghost (null in other events).
+var time_trial: TimeTrial
 var world_env: Environment
 ## Who has the game paused, or null.
 var paused_by: SessionPlayer
@@ -146,6 +148,10 @@ func _ready() -> void:
 		race.watch(r)
 	race.session_ended.connect(_on_session_ended)
 	race.start()
+	if event.kind == "time_trial":
+		time_trial = TimeTrial.new()
+		time_trial.session = self
+		add_child(time_trial)
 
 
 func _exit_tree() -> void:
@@ -193,6 +199,11 @@ func _add_player(slot: PlayerSlot) -> SessionPlayer:
 	p.load_car(path)
 	_on_views_changed()
 	return p
+
+
+## The class's default car (built-in).
+func default_car() -> String:
+	return _default_car
 
 
 func _add_racer(r: Racer) -> void:
@@ -431,6 +442,12 @@ func _open_pause(p: SessionPlayer) -> void:
 	menu.can_setup = race.kind != "race" and p.car_setup != null and not p.car_setup.allowed.is_empty()
 	menu.setup = p.car_setup
 	menu.setup_closed.connect(func() -> void: p.setup_changed())
+	if time_trial:
+		menu.ghost_items = time_trial.choices()
+		menu.ghost_current = time_trial.choice
+		menu.ghost_picked.connect(time_trial.pick)
+		menu.leaderboard = Leaderboard.entries(track.id, platform.platform.id)
+		menu.leaderboard_title = "%s · %s" % [track.display_name, platform.platform.name]
 	menu.end_session.connect(func() -> void:
 		_resume()
 		race.end_session())

@@ -13,6 +13,8 @@ signal end_session
 signal restart
 ## The setup menu closed (apply and save its changes).
 signal setup_closed
+## Time trial: another ghost was picked.
+signal ghost_picked(id: String)
 
 ## Who paused.
 var slot: PlayerSlot
@@ -28,6 +30,11 @@ var can_restart := false
 ## The car's setup can be changed (not during a race).
 var can_setup := false
 var setup: Setup
+## Time trial: ghosts to race ([[id, label]]), the one shown, and the leaderboard's entries.
+var ghost_items: Array = []
+var ghost_current := ""
+var leaderboard: Array = []
+var leaderboard_title := ""
 var _buttons: Array = []
 
 
@@ -44,6 +51,9 @@ func _ready() -> void:
 		_buttons.append(UiKit.button("Change car", func() -> void: change_car.emit()))
 	if can_setup:
 		_buttons.append(UiKit.button("Setup", _open_setup, "Gearing, brakes, suspension, aero"))
+	if not ghost_items.is_empty():
+		_buttons.append(UiKit.spinner("Ghost", ghost_items, ghost_current, func(id: String) -> void: ghost_picked.emit(id)))
+		_buttons.append(UiKit.button("Leaderboard", _open_leaderboard, "Your fastest laps here"))
 	if can_end_session:
 		_buttons.append(UiKit.button("End session", func() -> void: end_session.emit(), "Results now"))
 	if can_restart:
@@ -74,6 +84,13 @@ func _open_setup() -> void:
 	UiKit.open_sub(self, menu, func() -> void:
 		setup_closed.emit()
 		_ready_focus())
+
+
+func _open_leaderboard() -> void:
+	var menu := LeaderboardMenu.new()
+	menu.entries = leaderboard
+	menu.title = leaderboard_title
+	UiKit.open_sub(self, menu, _ready_focus)
 
 
 func _open_game_settings() -> void:

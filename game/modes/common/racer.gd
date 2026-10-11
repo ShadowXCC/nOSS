@@ -199,6 +199,7 @@ func _spawn(pkg: VehiclePackage) -> void:
 func _make_driver() -> Node:
 	var ai := RacingAI.new()
 	ai.racer = self
+	ai.skill = session.ai_skill
 	return ai
 
 

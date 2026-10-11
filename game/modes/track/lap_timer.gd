@@ -36,6 +36,8 @@ var _best_splits := PackedFloat32Array() # cumulative split times of the best la
 var _backwards_time := 0.0
 var _trace := PackedFloat32Array() # lap time at each TRACE_M mark of this lap
 var _best_trace := PackedFloat32Array() # the same for the best lap
+var _reference := PackedFloat32Array() # a ghost's, in the same form
+var _reference_time := -1.0
 
 
 func setup(length: float, sectors: PackedFloat32Array, spacing: float) -> void:
@@ -90,15 +92,26 @@ func teleported(pos: float) -> void:
 	_prev = pos
 
 
-## Live delta to the best lap at the current spot, or NAN: + = slower.
+## Another lap to measure the live delta against (a ghost): its time at every TRACE_M from the
+## line, and its lap time. The faster of it and this session's best is used.
+func set_reference(trace: PackedFloat32Array, time: float) -> void:
+	_reference = trace
+	_reference_time = time
+
+
+## Live delta to the best lap (or the reference, if faster) at the current spot, or NAN:
+## + = slower.
 func live_delta() -> float:
-	if _best_trace.is_empty() or lap == 0 or _prev < 0.0:
+	var trace := _best_trace
+	if not _reference.is_empty() and (_best_trace.is_empty() or _reference_time < best_lap):
+		trace = _reference
+	if trace.is_empty() or lap == 0 or _prev < 0.0:
 		return NAN
 	var i := int(_prev / TRACE_M)
-	if i + 1 >= _best_trace.size():
+	if i + 1 >= trace.size():
 		return NAN
 	var f := (_prev - i * TRACE_M) / TRACE_M
-	return lap_time - lerpf(_best_trace[i], _best_trace[i + 1], f)
+	return lap_time - lerpf(trace[i], trace[i + 1], f)
 
 
 ## Live delta to the best lap at the last split, or NAN.
