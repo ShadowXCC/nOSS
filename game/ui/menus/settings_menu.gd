@@ -33,7 +33,15 @@ func _ready() -> void:
 	_add(rows, UiKit.option("Units", [["metric", "km/h"], ["imperial", "mph"]], Settings.units,
 		func(v: String) -> void: Settings.set_value("units", v)))
 	_add(rows, UiKit.check("Fullscreen", Settings.fullscreen, func(on: bool) -> void: Settings.set_value("fullscreen", on)))
+
+	_section(rows, "Sound")
 	_add(rows, UiKit.slider("Volume", Settings.master_volume, func(v: float) -> void: Settings.set_value("master_volume", v)))
+	for item: Array in [["vol_own_engine", "Own engine"], ["vol_other_engines", "Other engines"], ["vol_tires", "Tires and wind"],
+			["vol_effects", "Effects"], ["vol_ambience", "Ambience"], ["vol_music", "Music"], ["vol_ui", "Menus"],
+			["vol_spotter", "Spotter voice"], ["vol_narration", "Narration"]]:
+		var key: String = item[0]
+		_add(rows, UiKit.slider(item[1], float(Settings.get(key)), func(v: float) -> void: Settings.set_value(key, v)))
+	_add(rows, UiKit.check("Mono", Settings.mono, func(on: bool) -> void: Settings.set_value("mono", on), "Everything in both ears"))
 
 	_section(rows, "Splitscreen")
 	_add(rows, UiKit.spinner("2 players", [["stacked", "One above the other"], ["side", "Side by side"]], Settings.split_two,

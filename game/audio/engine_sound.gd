@@ -14,9 +14,7 @@ const DEFAULT_PROFILE := "v8_crossplane"
 const EMITTERS := ["engine", "exhaust", "intake"]
 const RATE := 44100
 const BASE_DB := -6.0
-## Every car sound plays on this bus (made at run time, sends to Master), so splitscreen can
-## turn all of them down together.
-const BUS := &"Cars"
+## Car sounds play on volume-group buses under "Cars" (AudioMix), which splitscreen turns down.
 ## Sound levels of detail, picked by the session from how close the car is to a camera.
 enum Detail { FULL, DISTANT, OFF }
 ## Distant cars play only their exhaust.
@@ -26,6 +24,11 @@ static var _profiles := {} # id -> {profile, loops: {emitter: {on: [stream...], 
 static var _extras := {}
 
 var vehicle: Vehicle
+## A local player's car (the "own engine" volume) rather than another's.
+var own := false:
+	set(value):
+		own = value
+		_route()
 ## FULL: every layer; DISTANT: the exhaust only; OFF: silent and stopped.
 var detail := Detail.FULL:
 	set(value):
@@ -71,6 +74,7 @@ func _ready() -> void:
 		_extra_players[kind] = player
 	if _profile.is_empty():
 		set_profile(vehicle.package.sound if vehicle and vehicle.package else {})
+	_route()
 
 
 ## Picks the car's profile and tweaks (its sound/profile.json; empty: the default).
@@ -270,22 +274,22 @@ func _one_shot(kind: String, pitch: float) -> void:
 ## Splitscreen mix: with n views listening, each player's own engine is loud in their own
 ## view, so car sound is scaled by 1/√n to keep the total level (docs/ARCHITECTURE.md §6).
 static func set_listeners(n: int) -> void:
-	AudioServer.set_bus_volume_db(_bus(), linear_to_db(1.0 / sqrt(maxf(float(n), 1.0))))
+	AudioMix.set_listeners(n)
 
 
-static func _bus() -> int:
-	var i := AudioServer.get_bus_index(BUS)
-	if i < 0:
-		AudioServer.add_bus()
-		i = AudioServer.bus_count - 1
-		AudioServer.set_bus_name(i, BUS)
-		AudioServer.set_bus_send(i, &"Master")
-	return i
+## Engines (and their turbo, gears, pops) on the own or other engines bus; tires and wind on
+## the tires bus.
+func _route() -> void:
+	var engine := &"OwnEngines" if own else &"OtherEngines"
+	AudioMix.bus(engine)
+	AudioMix.bus(&"Tires")
+	for player: AudioStreamPlayer3D in find_children("*", "AudioStreamPlayer3D", true, false):
+		player.bus = &"Tires" if player == _tires or player == _wind else engine
 
 
 static func _setup_player(player: AudioStreamPlayer3D, stream: AudioStream) -> void:
-	_bus()
-	player.bus = BUS
+	player.bus = &"OtherEngines"
+	AudioMix.bus(player.bus)
 	player.stream = stream
 	player.unit_size = 6.0
 	player.max_db = 3.0

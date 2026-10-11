@@ -64,6 +64,11 @@ func _init() -> void:
 	resized.connect(_fit)
 
 
+## Menus in this view are read out with this player's narration setting.
+func watch_narration() -> void:
+	Narrator.watch(viewport, slot.profile if slot else null)
+
+
 func _ready() -> void:
 	apply_graphics()
 	_fit()

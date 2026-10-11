@@ -76,6 +76,7 @@ func add(slot: PlayerSlot) -> PlayerView:
 	var v := PlayerView.new()
 	v.slot = slot
 	v.name = "View%s" % slot.tag()
+	v.watch_narration()
 	v.render_scale = render_scale
 	_views[slot] = v
 	_main.add_child(v)

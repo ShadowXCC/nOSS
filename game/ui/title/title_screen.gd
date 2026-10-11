@@ -56,6 +56,14 @@ func _ready() -> void:
 	for b: Button in order:
 		b.accessibility_name = b.text
 	UiKit.chain_focus(order)
+	# First boot: the accessibility screen comes before anything else (ACC-09).
+	if (not Settings.first_boot_done and DisplayServer.get_name() != "headless") or Game.dev.get("menu", "") == "access":
+		var first := FirstBootMenu.new()
+		first.done.connect(func() -> void:
+			first.queue_free()
+			_drive_button.grab_focus())
+		add_child(first)
+		return
 	match Game.dev.get("menu", ""): # dev: open a menu directly
 		"classes": _open_classes("free")
 		"event": _open_event(String(Settings.profile.get("last_platform", "official.track.gt")))

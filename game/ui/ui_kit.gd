@@ -126,23 +126,25 @@ static func button(text: String, on_pressed: Callable, description := "") -> But
 	return b
 
 
-static func check(text: String, value: bool, on_toggled: Callable) -> CheckButton:
+static func check(text: String, value: bool, on_toggled: Callable, description := "") -> CheckButton:
 	var c := CheckButton.new()
 	c.text = text
 	c.accessibility_name = text
+	c.accessibility_description = description
 	c.button_pressed = value
 	c.toggled.connect(on_toggled)
 	return c
 
 
 ## Option list: `items` are [value, label] pairs.
-static func option(text: String, items: Array, value: Variant, on_selected: Callable) -> HBoxContainer:
+static func option(text: String, items: Array, value: Variant, on_selected: Callable, description := "") -> HBoxContainer:
 	var row := HBoxContainer.new()
 	var l := label(text)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(l)
 	var o := OptionButton.new()
 	o.accessibility_name = text
+	o.accessibility_description = description
 	o.custom_minimum_size = Vector2(260, 56)
 	for i in items.size():
 		o.add_item(items[i][1], i)
@@ -154,13 +156,14 @@ static func option(text: String, items: Array, value: Variant, on_selected: Call
 
 
 ## 0..100% slider.
-static func slider(text: String, value: float, on_changed: Callable) -> HBoxContainer:
+static func slider(text: String, value: float, on_changed: Callable, description := "") -> HBoxContainer:
 	var row := HBoxContainer.new()
 	var l := label(text)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(l)
 	var s := HSlider.new()
 	s.accessibility_name = text
+	s.accessibility_description = description
 	s.min_value = 0
 	s.max_value = 100
 	s.step = 5
@@ -177,13 +180,14 @@ static func slider(text: String, value: float, on_changed: Callable) -> HBoxCont
 
 
 ## Slider over any range, with its value shown as `format` (e.g. "%.2f m").
-static func number(text: String, value: float, min_value: float, max_value: float, step: float, format: String, on_changed: Callable) -> HBoxContainer:
+static func number(text: String, value: float, min_value: float, max_value: float, step: float, format: String, on_changed: Callable, description := "") -> HBoxContainer:
 	var row := HBoxContainer.new()
 	var l := label(text)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(l)
 	var s := HSlider.new()
 	s.accessibility_name = text
+	s.accessibility_description = description
 	s.min_value = min_value
 	s.max_value = max_value
 	s.step = step
@@ -239,7 +243,7 @@ static func color(text: String, value: Color, on_changed: Callable) -> HBoxConta
 
 ## A choice stepped with left and right (confirm steps forward), so it works with directions,
 ## confirm and cancel alone (docs/ACCESSIBILITY.md §5.1). `items` are [value, label] pairs.
-static func spinner(text: String, items: Array, value: Variant, on_changed: Callable) -> Button:
+static func spinner(text: String, items: Array, value: Variant, on_changed: Callable, description := "") -> Button:
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(0, 64)
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -265,7 +269,7 @@ static func spinner(text: String, items: Array, value: Variant, on_changed: Call
 		elif e.is_action_pressed("ui_right", true):
 			step.call(1)
 			b.accept_event())
-	b.accessibility_description = "Left and right to change"
+	b.accessibility_description = (description + ". " if description else "") + "Left and right to change"
 	show.call()
 	return b
 

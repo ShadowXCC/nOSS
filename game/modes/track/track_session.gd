@@ -13,6 +13,7 @@ const GRID_ROW_M := 8.0
 ## A spot is taken if another car is closer than this.
 const CLEAR_M := 6.0
 const GRID_SPOTS := 20
+const PHYSICS_HZ := 120
 ## Engine sound detail for AI cars: the nearest few within FULL_M of a camera get every layer,
 ## the rest within DISTANT_M only their exhaust, and cars further away are silent.
 const SOUND_FULL_COUNT := 3
@@ -148,6 +149,7 @@ func _ready() -> void:
 		race.watch(r)
 	race.session_ended.connect(_on_session_ended)
 	race.start()
+	apply_game_speed()
 	if event.kind == "time_trial":
 		time_trial = TimeTrial.new()
 		time_trial.session = self
@@ -155,6 +157,8 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	Engine.time_scale = 1.0
+	Engine.physics_ticks_per_second = PHYSICS_HZ
 	CarVisual.lod_scale = 1.0
 	PackageLoader.clear_shared()
 	Players.joining = false
@@ -242,6 +246,7 @@ func ai_car_pool() -> PackedStringArray:
 
 func _on_joined(slot: PlayerSlot) -> void:
 	var p := _add_player(slot)
+	apply_game_speed()
 	p.hud.show_message("%s joined" % slot.tag(), 2.0)
 
 
@@ -259,6 +264,8 @@ func _on_left(slot: PlayerSlot) -> void:
 	views.remove(slot)
 	if players.is_empty():
 		Game.go_title()
+		return
+	apply_game_speed()
 
 
 func _on_views_changed() -> void:
@@ -300,6 +307,21 @@ func _process(delta: float) -> void:
 			print("fps %.0f" % (_fps_frames / _fps_time))
 			_fps_time = 0.0
 			_fps_frames = 0
+
+
+## Game speed (ACC-08, docs/ACCESSIBILITY.md §6): 50-100% with one player (offline). Time and
+## the physics tick rate scale together, so the sim still steps 1/120 s of game time. Laps at
+## less than full speed are marked in results and kept off leaderboards.
+func apply_game_speed() -> void:
+	var humans := players.filter(func(p: SessionPlayer) -> bool: return not p.slot.ai)
+	var speed := 1.0
+	if humans.size() == 1:
+		speed = clampf(float(humans[0].slot.profile.data.get("game_speed", 1.0)), 0.5, 1.0)
+	Engine.time_scale = speed
+	Engine.physics_ticks_per_second = roundi(PHYSICS_HZ * speed)
+	if speed < 1.0:
+		for p: SessionPlayer in humans:
+			p.assists_used["game_speed"] = true
 
 
 ## A session ended: its results go up on the main window while the cars take a cool-down lap.

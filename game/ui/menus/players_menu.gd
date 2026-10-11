@@ -166,8 +166,9 @@ func default_car() -> String:
 	return GameModes.default_car(_platform)
 
 
-## A player's settings, full screen; their card comes back when they close it.
-func open_settings(slot: PlayerSlot) -> void:
+## A player's settings (or their accessibility screen), full screen; their card comes back when
+## they close it.
+func open_settings(slot: PlayerSlot, access := false) -> void:
 	var v: PlayerView = _cards[slot]
 	var card: PlayerCard = v.overlay_root.get_child(0)
 	_expanded = v
@@ -175,15 +176,26 @@ func open_settings(slot: PlayerSlot) -> void:
 	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	v.reference = PlayerView.REF
 	card.visible = false
-	var menu := PlayerSettingsMenu.new()
-	menu.slot = slot
-	menu.closed.connect(func() -> void:
+	var menu: Control
+	if access:
+		var first := FirstBootMenu.new()
+		first.slot = slot
+		menu = first
+	else:
+		var settings := PlayerSettingsMenu.new()
+		settings.slot = slot
+		menu = settings
+	var back := func() -> void:
 		menu.queue_free()
 		_expanded = null
 		v.reference = CARD_REF
 		card.visible = true
 		_refresh()
-		card.focus_row("Settings"))
+		card.focus_row("Access" if access else "Settings")
+	if access:
+		menu.done.connect(back)
+	else:
+		menu.closed.connect(back)
 	v.overlay_root.add_child(menu)
 
 
@@ -282,6 +294,7 @@ class PlayerCard:
 		_add(list, UiKit.button("Add device", func() -> void:
 			Players.adding = slot
 			_status.text = "Press a button on it", "Wheel, pedals or a second controller"))
+		_add(list, UiKit.button("Access", func() -> void: menu.open_settings(slot, true), "Accessibility presets for this player"))
 		_add(list, UiKit.button("Settings", func() -> void: menu.open_settings(slot), "Controls, assists, HUD"))
 		var ready_button := UiKit.button("Ready ✓" if slot.ready else "Ready", func() -> void:
 			slot.ready = not slot.ready

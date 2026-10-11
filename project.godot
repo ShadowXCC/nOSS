@@ -24,6 +24,11 @@ Settings="*res://game/app/settings.gd"
 Game="*res://game/app/game.gd"
 Devices="*res://game/players/devices.gd"
 Players="*res://game/players/players.gd"
+Narrator="*res://game/app/narrator.gd"
+
+[audio]
+
+general/text_to_speech=true
 
 [display]
 

@@ -189,6 +189,7 @@ func _spawn(pkg: VehiclePackage) -> void:
 	add_child(driver)
 	sound = EngineSound.new()
 	sound.vehicle = vehicle
+	sound.own = is_human
 	vehicle.add_child(sound)
 	sound.position = Vector3(0, 0.5, 0)
 	vehicle.package_changed.connect(func(p: VehiclePackage) -> void: sound.set_profile(p.sound))

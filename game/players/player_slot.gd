@@ -30,8 +30,9 @@ func tag() -> String:
 	return "P%d" % number()
 
 
+## This player's colour from their own palette (colourblind presets change it).
 func color() -> Color:
-	return COLORS[index % COLORS.size()]
+	return Palette.color(profile, "p%d" % (index % 4 + 1)) if profile else COLORS[index % COLORS.size()]
 
 
 func display_name() -> String:

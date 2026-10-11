@@ -41,9 +41,11 @@ func _build() -> void:
 	var d: Dictionary = profile.data
 
 	_section(rows, "Assists")
-	for item: Array in [["abs", "ABS"], ["tcs", "Traction control"], ["auto_gearbox", "Auto gearbox"], ["steer_aid", "Steer aid"]]:
+	for item: Array in [["abs", "ABS", "Brakes without locking"], ["tcs", "Traction control", "No wheelspin"],
+			["stability", "Stability control", "Brakes single wheels to stop slides"], ["auto_gearbox", "Auto gearbox", ""],
+			["steer_aid", "Steer aid", "Keyboard and controller: less lock at speed, help to catch slides"]]:
 		var key: String = item[0]
-		_add(rows, UiKit.check(item[1], d.assists.get(key, true), func(on: bool) -> void: profile.set_assist(key, on)))
+		_add(rows, UiKit.check(item[1], d.assists.get(key, key != "stability"), func(on: bool) -> void: profile.set_assist(key, on), item[2]))
 
 	_section(rows, "Comfort")
 	_add(rows, UiKit.slider("Camera shake", d.camera_shake, func(v: float) -> void: profile.set_value("camera_shake", v)))
@@ -55,8 +57,50 @@ func _build() -> void:
 	_add(rows, UiKit.number("HUD size", d.hud_scale * 100.0, 50, 200, 10, "%d%%", func(v: float) -> void: profile.set_value("hud_scale", v / 100.0)))
 	_add(rows, UiKit.number("Menu text", d.text_scale * 100.0, 100, 200, 10, "%d%%", func(v: float) -> void: profile.set_value("text_scale", v / 100.0)))
 	_add(rows, UiKit.check("High-contrast HUD", d.high_contrast, func(on: bool) -> void: profile.set_value("high_contrast", on)))
-	_add(rows, UiKit.spinner("Font", FONTS, d.font, func(v: String) -> void: profile.set_value("font", v)))
+	_add(rows, UiKit.spinner("Font", FONTS, d.font, func(v: String) -> void: profile.set_value("font", v), "Clear: an easy-to-read font"))
 	_add(rows, UiKit.number("Brightness", d.brightness * 100.0, 50, 150, 5, "%d%%", func(v: float) -> void: profile.set_value("brightness", v / 100.0)))
+
+	_section(rows, "Vision")
+	_add(rows, UiKit.spinner("Colours", Palette.PRESET_NAMES, d.palette, func(v: String) -> void:
+		var was := String(profile.data.palette)
+		profile.set_value("palette", v)
+		if v == "custom" or was == "custom":
+			_rebuild_at.call_deferred("Colours"), "Colourblind palettes"))
+	if d.palette == "custom":
+		for role: Array in [["good", "Good"], ["bad", "Bad"], ["line_fast", "Line: fast"], ["line_brake", "Line: brake"]]:
+			var key: String = role[0]
+			_add(rows, UiKit.color("  " + role[1], Palette.color(profile, key), func(c: Color) -> void:
+				var custom: Dictionary = profile.data.palette_custom
+				custom[key] = "#" + c.to_html(false)
+				profile.save()))
+	_add(rows, UiKit.check("Reduce flashing", d.reduce_flashing, func(on: bool) -> void: profile.set_value("reduce_flashing", on), "At most 3 flashes a second, lower contrast"))
+	_add(rows, UiKit.spinner("Narration", [["off", "Off"], ["menus", "Menus"], ["race", "Menus and race"]], d.narration,
+		func(v: String) -> void: profile.set_value("narration", v), "Reads menus and race events aloud"))
+	_add(rows, UiKit.number("Speech rate", d.narration_rate * 100.0, 50, 200, 10, "%d%%", func(v: float) -> void: profile.set_value("narration_rate", v / 100.0)))
+	_add(rows, UiKit.spinner("Spotter", [["off", "Off"], ["markers", "Markers"], ["voice", "Voice"]], d.spotter,
+		func(v: String) -> void: profile.set_value("spotter", v), "Car left, car right, clear"))
+
+	_section(rows, "Hearing")
+	_add(rows, UiKit.check("Captions", d.captions, func(on: bool) -> void: profile.set_value("captions", on), "Spoken lines as text"))
+	_add(rows, UiKit.check("Shift light", d.shift_light, func(on: bool) -> void: profile.set_value("shift_light", on)))
+	_add(rows, UiKit.check("Slip indicator", d.slip_indicator, func(on: bool) -> void: profile.set_value("slip_indicator", on), "Tire icons light up when sliding"))
+	_add(rows, UiKit.check("Close-car arrows", d.sound_arrows, func(on: bool) -> void: profile.set_value("sound_arrows", on), "Arrows at the screen edge"))
+
+	_section(rows, "HUD")
+	_add(rows, UiKit.spinner("HUD", [["full", "Full"], ["minimal", "Minimal"], ["off", "Off"]], d.hud_preset,
+		func(v: String) -> void: profile.set_value("hud_preset", v)))
+	for element: Array in Hud.ELEMENTS:
+		var id: String = element[0]
+		_add(rows, UiKit.check("Show " + String(element[1]).to_lower(), id not in d.hud_hidden, func(on: bool) -> void:
+			var hidden: Array = profile.data.hud_hidden
+			hidden.erase(id)
+			if not on:
+				hidden.append(id)
+			profile.save()))
+
+	_section(rows, "Pacing")
+	_add(rows, UiKit.number("Game speed", d.game_speed * 100.0, 50, 100, 5, "%d%%", func(v: float) -> void: profile.set_value("game_speed", v / 100.0),
+		"One player only. Slower laps don't go on leaderboards"))
 
 	_section(rows, "Controls")
 	if slot == null or slot.keyboard_zone() in ["", "full"]:
@@ -82,6 +126,17 @@ func _build() -> void:
 	list.add_child(back)
 	_rows.append(back)
 	UiKit.chain_focus(_rows)
+
+
+## Builds the menu again (rows came or went) with focus back on the row named `prefix`.
+func _rebuild_at(prefix: String) -> void:
+	_build()
+	await get_tree().process_frame
+	for c: Control in _rows:
+		var target := UiKit._focus_target(c)
+		if target and String(target.accessibility_name).begins_with(prefix):
+			target.grab_focus()
+			return
 
 
 func _set_input(group: String, key: String, value: Variant) -> void:

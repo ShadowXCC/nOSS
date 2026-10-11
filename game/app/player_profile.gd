@@ -21,7 +21,7 @@ const DEFAULTS := {
 		"menu_delay": 0.45,
 		"menu_rate": 10.0,
 	},
-	"assists": { "abs": true, "tcs": true, "auto_gearbox": true, "steer_aid": true },
+	"assists": { "abs": true, "tcs": true, "stability": false, "auto_gearbox": true, "steer_aid": true },
 	"camera": "chase_near",
 	"camera_shake": 0.5,
 	"head_movement": 0.5,
@@ -34,6 +34,20 @@ const DEFAULTS := {
 	"high_contrast": false,
 	"font": "retro",
 	"brightness": 1.0,
+	# Vision, hearing and pacing (docs/ACCESSIBILITY.md §2-§6).
+	"palette": "default",
+	"palette_custom": {},
+	"hud_preset": "full",
+	"hud_hidden": [],
+	"reduce_flashing": false,
+	"narration": "off",
+	"narration_rate": 1.0,
+	"spotter": "off",
+	"captions": true,
+	"shift_light": true,
+	"slip_indicator": false,
+	"sound_arrows": false,
+	"game_speed": 1.0,
 	# Wheel and pedals (WheelInput config). Each axis may name the device it's on ("guid").
 	"wheel": {},
 	"last_car": "",
@@ -53,6 +67,9 @@ static func create(profile_id: String, saved: Variant = null) -> PlayerProfile:
 	var p := PlayerProfile.new()
 	p.id = profile_id
 	p.data = merged(saved)
+	# A new profile starts with Reduce flashing if the OS asks for less animation.
+	if not saved is Dictionary or not saved.has("reduce_flashing"):
+		p.data.reduce_flashing = DisplayServer.get_name() != "headless" and DisplayServer.accessibility_should_reduce_animation()
 	return p
 
 

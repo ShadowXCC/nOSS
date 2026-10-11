@@ -19,6 +19,17 @@ const MACHINE := {
 	"auto_resolution": ["splitscreen", "auto_resolution"],
 	"primary_profile": ["players", "primary"],
 	"race_event": ["race", "last_event"],
+	"vol_own_engine": ["audio", "own_engine"],
+	"vol_other_engines": ["audio", "other_engines"],
+	"vol_tires": ["audio", "tires"],
+	"vol_effects": ["audio", "effects"],
+	"vol_ambience": ["audio", "ambience"],
+	"vol_music": ["audio", "music"],
+	"vol_ui": ["audio", "ui"],
+	"vol_spotter": ["audio", "spotter"],
+	"vol_narration": ["audio", "narration"],
+	"mono": ["audio", "mono"],
+	"first_boot_done": ["game", "first_boot_done"],
 }
 
 var graphics := "medium"
@@ -36,6 +47,19 @@ var auto_resolution := true
 var primary_profile := "player1"
 ## The last race set up (RaceEvent.to_dict()).
 var race_event := {}
+## Volume groups, 0-1 (docs/ACCESSIBILITY.md §3), and mono audio. One output: shared by all.
+var vol_own_engine := 1.0
+var vol_other_engines := 0.8
+var vol_tires := 0.8
+var vol_effects := 1.0
+var vol_ambience := 0.8
+var vol_music := 0.6
+var vol_ui := 0.8
+var vol_spotter := 1.0
+var vol_narration := 1.0
+var mono := false
+## The first-boot accessibility screen has been through (ACC-09).
+var first_boot_done := false
 
 var primary: PlayerProfile
 var profile := {}
@@ -160,6 +184,8 @@ func set_value(key: String, value: Variant) -> void:
 		set(key, value)
 		if key in ["graphics", "fullscreen", "master_volume"]:
 			apply_display()
+		elif key.begins_with("vol_") or key == "mono":
+			AudioMix.apply()
 	else:
 		profile[key] = value
 	save()
@@ -204,3 +230,4 @@ func apply_display() -> void:
 		if DisplayServer.window_get_mode() != mode:
 			DisplayServer.window_set_mode(mode)
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(master_volume, 0.0001)))
+	AudioMix.apply()
