@@ -219,3 +219,24 @@ func test_cache_takes_only_listed_files() -> void:
 	assert_bool(ContentStore.has_file("tracks", th)).is_true()
 	assert_str(ContentStore.put_file("tracks", "sha256:" + "1".repeat(64), track)).is_equal("Hash mismatch")
 	assert_int(ContentStore.size_bytes()).is_greater(track.size())
+
+
+func test_many_files_with_loss_and_small_shares() -> void:
+	# Several files at once, each with a small share of the link, on a lossy link: a resend must
+	# wait for its file's share, never be dropped.
+	var ends := _ends()
+	ends[0].file_rate = 128 * 1024
+	ends[0].max_rate = 4 << 20
+	var files := []
+	for i in 4:
+		var f := _file("many%d.bin" % i, 120_000 + i * 1000)
+		ends[0].index.add_file(f.path)
+		files.append(f)
+	var link := Link.new(ends[0], ends[1])
+	link.loss = 0.05
+	var res := _collect(ends[1])
+	for f: Dictionary in files:
+		ends[1].want(f.hash)
+	assert_bool(await _run(link, func() -> bool: return res.got.size() == 4, 30.0)).is_true()
+	for f: Dictionary in files:
+		assert_bool(res.got[f.hash] == f.bytes).is_true()
