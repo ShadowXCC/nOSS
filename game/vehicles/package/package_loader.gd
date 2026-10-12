@@ -72,7 +72,12 @@ static func load_shared(path: String, on_done: Callable, opts := {}) -> void:
 	var key := path + "|" + String(opts.get("models", "all")) + ("|partial" if opts.get("partial", false) else "")
 	var entry: Variant = _shared.get(key)
 	if entry is VehiclePackage:
-		on_done.call_deferred(_copy(entry))
+		var copy := _copy(entry)
+		(func() -> void:
+			if WorkerJob.alive(on_done):
+				on_done.call(copy)
+			else:
+				copy.free_scenes()).call_deferred()
 		return
 	if entry is Array:
 		entry.append(on_done)
@@ -88,7 +93,8 @@ static func load_shared(path: String, on_done: Callable, opts := {}) -> void:
 		else:
 			_shared.erase(key)
 		for callback: Callable in waiting:
-			callback.call(_copy(pkg) if pkg.ok() else pkg), {}, opts)
+			if WorkerJob.alive(callback):
+				callback.call(_copy(pkg) if pkg.ok() else pkg), {}, opts)
 
 
 ## Frees the cached packages' scenes (copies already handed out stay).
@@ -440,7 +446,7 @@ class _Job:
 			pkg.free_scenes() # timed out earlier
 			return
 		done = true
-		if not on_done.is_valid(): # whoever asked is gone (left the screen meanwhile)
+		if not WorkerJob.alive(on_done): # whoever asked is gone (left the screen meanwhile)
 			pkg.free_scenes()
 			return
 		on_done.call(pkg)
@@ -452,5 +458,5 @@ class _Job:
 		var pkg := VehiclePackage.new()
 		pkg.path = path
 		pkg.error = "Load timed out"
-		if on_done.is_valid():
+		if WorkerJob.alive(on_done):
 			on_done.call(pkg)

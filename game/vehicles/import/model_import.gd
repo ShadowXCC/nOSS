@@ -199,7 +199,7 @@ class _Job:
 				result.scene.free() # timed out earlier
 			return
 		done = true
-		if not on_done.is_valid(): # whoever asked is gone (left the screen meanwhile)
+		if not WorkerJob.alive(on_done): # whoever asked is gone (left the screen meanwhile)
 			if result.scene:
 				result.scene.free()
 			return
@@ -212,5 +212,5 @@ class _Job:
 		var result := Result.new()
 		result.path = path
 		result.error = "Import timed out"
-		if on_done.is_valid():
+		if WorkerJob.alive(on_done):
 			on_done.call(result)

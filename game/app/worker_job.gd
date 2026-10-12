@@ -23,11 +23,20 @@ static func start(owner: Node, work: Callable, on_done: Callable, timeout_s: flo
 	return job
 
 
+## True if `c` can still be called: a lambda's owner may have been freed meanwhile, which
+## is_valid() alone doesn't see.
+static func alive(c: Callable) -> bool:
+	if not c.is_valid():
+		return false
+	var id := c.get_object_id()
+	return id == 0 or is_instance_id_valid(id)
+
+
 func _finish(result: Variant) -> void:
 	WorkerThreadPool.wait_for_task_completion(task)
-	if done or not on_done.is_valid():
+	if done or not alive(on_done):
 		done = true
-		if discard.is_valid():
+		if alive(discard):
 			discard.call(result)
 		return
 	done = true
@@ -38,5 +47,5 @@ func _time_out(on_timeout: Callable) -> void:
 	if done:
 		return
 	done = true
-	if on_done.is_valid():
+	if alive(on_done):
 		on_done.call(on_timeout.call())
