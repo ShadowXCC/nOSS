@@ -1,0 +1,318 @@
+extends EditorTool
+## The Road tool (EDT-01): place and drag the road's control points, set each point's widths,
+## banking and height, and each segment's surface, lines, curbs, barriers and run-off.
+## Mouse: click the ground to add a point (on the road: in it), drag a point, Alt+drag for its
+## height. Keys and controller: the crosshair grabs and drops; [ and ] (LB/RB) step through the
+## points; Delete (X) removes one. Every view action is also a button.
+
+## A point is under the cursor within this many pixels.
+const PICK_PX := 22.0
+## Clicking this close to the road inserts a point into it.
+const INSERT_M := 6.0
+
+var selected := -1
+var hover := -1
+var _dragging := -1
+var _height_drag := false
+var _drag_from := Vector2.ZERO
+var _drag_height := 0.0
+
+
+func title() -> String:
+	return "Road"
+
+
+func hint() -> String:
+	return "Click to add a point · drag to move · Alt+drag: height · [ ] step · Del removes · F5 drives"
+
+
+func activate() -> void:
+	selected = clampi(int(draft.view.get("selected", selected)), -1, draft.points().size() - 1)
+
+
+func selection_state() -> Dictionary:
+	return { "selected": selected }
+
+
+# --- the view -----------------------------------------------------------------------------
+
+
+func pointer(e: Dictionary) -> void:
+	match String(e.kind):
+		"hover":
+			var h := _point_at(e.screen)
+			if h != hover:
+				hover = h
+				refresh_gizmos()
+		"press":
+			var i := _point_at(e.screen) if not e.crosshair else _point_near(e.hit.position)
+			if i >= 0:
+				_select(i)
+				_dragging = i
+				_height_drag = bool(e.alt)
+				_drag_from = e.screen
+				_drag_height = _height_of(i)
+				if e.crosshair:
+					editor.say("Point %d picked up" % (i + 1))
+			elif e.hit.hit:
+				_add_at(e.hit.position)
+				if e.crosshair:
+					view.grabbing = false # a new point is placed, not carried
+		"drag":
+			if _dragging < 0:
+				return
+			if _height_drag:
+				var up := (_drag_from.y - float(e.screen.y)) * view.camera.distance / maxf(view.size.y, 1.0)
+				var p := _point_pos(_dragging)
+				p.y = snappedf(_drag_height + up, 0.1)
+				if TrackFormat.attr(draft.layout.road, _dragging, "height") != "set":
+					draft.set_attr(PackedInt32Array([_dragging]), "height", "set")
+				draft.drag_point(_dragging, p)
+			elif e.hit.hit:
+				var p := _point_pos(_dragging)
+				draft.drag_point(_dragging, Vector3(e.hit.position.x, p.y, e.hit.position.z))
+		"release":
+			if _dragging >= 0:
+				draft.end_move("Point height" if _height_drag else "Move point")
+				if e.crosshair:
+					editor.say("Point %d put down" % (_dragging + 1))
+				_dragging = -1
+				_height_drag = false
+				editor.refresh_panel()
+
+
+func action(name: String) -> bool:
+	match name:
+		"delete":
+			_delete()
+			return true
+		"prev", "next":
+			if draft.points().is_empty():
+				return true
+			_select(posmod(selected + (1 if name == "next" else -1), draft.points().size()))
+			view.camera.focus(_point_pos(selected))
+			return true
+	return false
+
+
+func draft_changed(_what: StringName) -> void:
+	if selected >= draft.points().size():
+		selected = draft.points().size() - 1
+	if _dragging < 0 and editor.tool == self:
+		editor.refresh_panel()
+
+
+func refresh_gizmos() -> void:
+	view.gizmos.show_track(draft.track(), draft.points(), selected, hover)
+
+
+func _point_at(screen: Vector2) -> int:
+	var best := -1
+	var best_d := PICK_PX
+	for i in draft.points().size():
+		var s := view.screen_of(_point_pos(i))
+		if s.x < 0.0:
+			continue
+		var d := s.distance_to(screen)
+		if d < best_d:
+			best_d = d
+			best = i
+	return best
+
+
+## The point nearest a world spot, within reach of the crosshair at this zoom.
+func _point_near(at: Vector3) -> int:
+	var best := -1
+	var reach := maxf(view.camera.distance * 0.04, 3.0)
+	for i in draft.points().size():
+		var d := Vector2(at.x, at.z).distance_to(Vector2(_point_pos(i).x, _point_pos(i).z))
+		if d < reach:
+			reach = d
+			best = i
+	return best
+
+
+func _point_pos(i: int) -> Vector3:
+	var p: Array = draft.points()[i].p
+	return Vector3(p[0], p[1], p[2])
+
+
+## The height shown for point `i`: its own if set, else where the road lies.
+func _height_of(i: int) -> float:
+	if TrackFormat.attr(draft.layout.road, i, "height") == "set":
+		return _point_pos(i).y
+	var t := draft.track()
+	return t.samples[t.seg_first[i]].y if i < t.seg_first.size() else _point_pos(i).y
+
+
+func _select(i: int) -> void:
+	selected = i
+	editor.refresh_panel()
+	refresh_gizmos()
+	if i >= 0:
+		var t := draft.track()
+		var at := " · %d m" % roundi(t.distances[t.seg_first[i]]) if i < t.seg_first.size() else ""
+		editor.say("Point %d of %d%s" % [i + 1, draft.points().size(), at])
+
+
+## A new point at `at`: into the road if it's on it, else after the selected point (or last).
+func _add_at(at: Vector3) -> void:
+	var t := draft.track()
+	var index := draft.points().size() if selected < 0 else selected + 1
+	if t.samples.size() > 2:
+		var proj := t.project(at)
+		var i: int = proj.index
+		if absf(proj.lateral) < maxf(t.half_l[i], t.half_r[i]) + INSERT_M:
+			index = t.sample_seg[i] + 1
+			at = proj.point
+	var attrs := {}
+	if draft.points().size() > 0:
+		# A new point follows its neighbour's height mode.
+		var near := clampi(index - 1, 0, draft.points().size() - 1)
+		if TrackFormat.attr(draft.layout.road, near, "height") == "set":
+			attrs.height = "set"
+			at.y = _height_of(near)
+	draft.add_point(index, at, attrs)
+	_select(index)
+
+
+func _delete() -> void:
+	if selected < 0 or selected >= draft.points().size():
+		editor.say("No point selected")
+		return
+	var was := selected
+	draft.delete_point(selected)
+	selected = mini(was, draft.points().size() - 1)
+	editor.say("Point %d deleted" % (was + 1))
+	refresh_gizmos()
+
+
+# --- the panel ----------------------------------------------------------------------------
+
+
+func panel() -> Array:
+	var out := []
+	var n := draft.points().size()
+	if n == 0:
+		out.append(_text("Click the ground (or use the crosshair and Enter) to add the road's first point."))
+	out.append(UiKit.button("Add point at cursor", func() -> void:
+		var hit := view.pick(view.cursor())
+		if hit.hit:
+			_add_at(hit.position), "A point where the cursor is"))
+	if n == 0:
+		return out
+	var i := clampi(selected, -1, n - 1)
+	var row := HBoxContainer.new()
+	var prev := UiKit.button("Previous", func() -> void: action("prev"), "[ or LB")
+	var next := UiKit.button("Next", func() -> void: action("next"), "] or RB")
+	for b: Button in [prev, next]:
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(b)
+	out.append(row)
+	if i < 0:
+		out.append(_text("%d points. Select one to change it, or set the whole road below." % n))
+		out.append_array(_defaults())
+		out.append(UiKit.button("Flip direction", func() -> void:
+			draft.flip_direction()
+			editor.say("Direction flipped"), "Drive it the other way round"))
+		return out
+	var t := draft.track()
+	var at := t.distances[t.seg_first[i]] if i < t.seg_first.size() else 0.0
+	out.append(UiKit.label("Point %d of %d · %d m" % [i + 1, n, roundi(at)], 26))
+	var road: Dictionary = draft.layout.road
+	var p := _point_pos(i)
+	var idx := PackedInt32Array([i])
+	out.append(UiKit.number("X", p.x, -20000.0, 20000.0, 1.0, "%.0f m", func(v: float) -> void: draft.move_point(i, Vector3(v, p.y, p.z))))
+	out.append(UiKit.number("Z", p.z, -20000.0, 20000.0, 1.0, "%.0f m", func(v: float) -> void: draft.move_point(i, Vector3(p.x, p.y, v))))
+	var height_mode := String(TrackFormat.attr(road, i, "height"))
+	out.append(UiKit.spinner("Height", [["ground", "On the ground"], ["set", "Set"]], height_mode, func(v: String) -> void:
+		if v == "set":
+			var y := _height_of(i)
+			draft.set_attr(idx, "height", "set")
+			draft.move_point(i, Vector3(p.x, y, p.z))
+		else:
+			draft.set_attr(idx, "height", null if road.defaults.get("height", "ground") == "ground" else "ground")))
+	if height_mode == "set":
+		out.append(UiKit.number("Height above 0", p.y, -500.0, 500.0, 0.5, "%.1f m", func(v: float) -> void: draft.move_point(i, Vector3(p.x, v, p.z)),
+			"Over 3 m above the ground it stands on supports"))
+	out.append_array(_attr_rows(idx, i, true))
+	out.append(UiKit.label("Segment to the next point", 24))
+	out.append_array(_attr_rows(idx, i, false))
+	out.append(UiKit.button("Use these everywhere", func() -> void: _use_everywhere(i), "Every point takes this point's settings"))
+	out.append(UiKit.button("Insert point after", func() -> void:
+		var q := _point_pos((i + 1) % n)
+		_add_at((p + q) / 2.0), "Halfway to the next point"))
+	out.append(UiKit.button("Delete point", _delete, "Delete or X"))
+	out.append(UiKit.button("Deselect", func() -> void: _select(-1), "Set the whole road"))
+	out.append(UiKit.button("Flip direction", func() -> void:
+		draft.flip_direction()
+		editor.say("Direction flipped"), "Drive it the other way round"))
+	return out
+
+
+## The rows for one point (`point`: its widths and banking) or its segment (surface, lines,
+## curbs, barriers, run-off).
+func _attr_rows(idx: PackedInt32Array, i: int, point: bool) -> Array:
+	var road: Dictionary = draft.layout.road
+	var set_attr := func(key: String, v: Variant) -> void: draft.set_attr(idx, key, v)
+	var out := []
+	if point:
+		out.append(UiKit.number("Width left", float(TrackFormat.attr(road, i, "width_l")), 2.0, 30.0, 0.5, "%.1f m", set_attr.bind("width_l"), "Centreline to the left edge"))
+		out.append(UiKit.number("Width right", float(TrackFormat.attr(road, i, "width_r")), 2.0, 30.0, 0.5, "%.1f m", set_attr.bind("width_r"), "Centreline to the right edge"))
+		out.append(UiKit.number("Banking", float(TrackFormat.attr(road, i, "bank_deg")), -25.0, 25.0, 0.5, "%.1f°", set_attr.bind("bank_deg"), "Positive raises the left edge"))
+		return out
+	out.append(UiKit.spinner("Surface", _surfaces(["asphalt", "concrete", "dirt", "gravel", "sand", "snow", "ice", "grass"]), String(TrackFormat.attr(road, i, "surface")), set_attr.bind("surface")))
+	var lanes := []
+	for k in range(1, 5):
+		lanes.append([k, str(k)])
+	out.append(UiKit.spinner("Lanes", lanes, int(TrackFormat.attr(road, i, "lanes")), set_attr.bind("lanes")))
+	out.append(UiKit.spinner("Lines", [["edges", "Edges"], ["lanes", "Lanes"], ["all", "Edges and lanes"], ["none", "None"]], String(TrackFormat.attr(road, i, "lines")), set_attr.bind("lines")))
+	for side: Array in [["l", "left"], ["r", "right"]]:
+		var s: String = side[0]
+		var word: String = side[1]
+		out.append(UiKit.spinner("Curb %s" % word, [["auto", "Auto"], ["on", "On"], ["off", "Off"]], String(TrackFormat.attr(road, i, "curb_" + s)), set_attr.bind("curb_" + s)))
+		out.append(UiKit.spinner("Barrier %s" % word, [["auto", "Auto"], ["none", "None"], ["tyres", "Tyres"], ["armco", "Armco"], ["concrete", "Concrete"], ["fence", "Fence"]],
+			String(TrackFormat.attr(road, i, "barrier_" + s)), set_attr.bind("barrier_" + s)))
+		out.append(UiKit.spinner("Run-off %s" % word, _surfaces(["grass", "gravel", "asphalt", "concrete", "sand", "dirt"]), String(TrackFormat.attr(road, i, "runoff_" + s)), set_attr.bind("runoff_" + s)))
+		out.append(UiKit.number("Run-off %s width" % word, float(TrackFormat.attr(road, i, "runoff_%s_m" % s)), 0.0, 60.0, 1.0, "%.0f m", set_attr.bind("runoff_%s_m" % s)))
+	return out
+
+
+## The whole road's settings (no point selected).
+func _defaults() -> Array:
+	var out := []
+	var d: Dictionary = draft.layout.road.defaults
+	var set_default := func(key: String, v: Variant) -> void: draft.set_default(key, v)
+	out.append(UiKit.number("Width left", float(d.get("width_l", 6.0)), 2.0, 30.0, 0.5, "%.1f m", set_default.bind("width_l")))
+	out.append(UiKit.number("Width right", float(d.get("width_r", 6.0)), 2.0, 30.0, 0.5, "%.1f m", set_default.bind("width_r")))
+	out.append(UiKit.spinner("Surface", _surfaces(["asphalt", "concrete", "dirt", "gravel", "sand", "snow", "ice", "grass"]), String(d.get("surface", "asphalt")), set_default.bind("surface")))
+	out.append(UiKit.spinner("Run-off", _surfaces(["grass", "gravel", "asphalt", "concrete", "sand", "dirt"]), String(d.get("runoff_l", "grass")), func(v: String) -> void:
+		draft.set_default("runoff_l", v)
+		draft.set_default("runoff_r", v)))
+	out.append(UiKit.spinner("Barriers", [["auto", "Auto"], ["none", "None"], ["tyres", "Tyres"], ["armco", "Armco"], ["concrete", "Concrete"], ["fence", "Fence"]], String(d.get("barrier_l", "auto")), func(v: String) -> void:
+		draft.set_default("barrier_l", v)
+		draft.set_default("barrier_r", v)))
+	return out
+
+
+func _use_everywhere(i: int) -> void:
+	var p: Dictionary = draft.points()[i]
+	var keys := p.keys().filter(func(k: String) -> bool: return k != "p" and k != "height")
+	if keys.is_empty():
+		editor.say("This point uses the road's settings already")
+		return
+	var values := {}
+	for k: String in keys:
+		values[k] = p[k]
+	draft.use_everywhere(values)
+	editor.say("Every point uses these now")
+
+
+static func _surfaces(ids: Array) -> Array:
+	return ids.map(func(id: String) -> Array: return [id, id.capitalize()])
+
+
+static func _text(t: String) -> Label:
+	var l := UiKit.label(t, 22)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return l

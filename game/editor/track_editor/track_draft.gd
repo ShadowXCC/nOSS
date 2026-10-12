@@ -154,6 +154,15 @@ func copy_to_all(key: String, value: Variant) -> void:
 			p.erase(key), &"road")
 
 
+## Every point takes `values` ({key: value}): they become the road's defaults, points' own go.
+func use_everywhere(values: Dictionary) -> void:
+	_edit("Use these everywhere", "road", func() -> void:
+		for key: String in values:
+			layout.road.defaults[key] = values[key]
+			for p: Dictionary in points():
+				p.erase(key), &"road")
+
+
 ## Drives the other way round: points reversed, start, sectors and pins mirrored.
 func flip_direction() -> void:
 	var t := track()
