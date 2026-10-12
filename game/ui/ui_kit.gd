@@ -253,17 +253,39 @@ static func color(text: String, value: Color, on_changed: Callable) -> HBoxConta
 
 ## A choice stepped with left and right (confirm steps forward), so it works with directions,
 ## confirm and cancel alone (docs/ACCESSIBILITY.md §5.1). `items` are [value, label] pairs.
+## The value sits at the right as "‹ value ›": a click on its left half steps back, anywhere
+## else forward.
 static func spinner(text: String, items: Array, value: Variant, on_changed: Callable, description := "") -> Button:
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(0, 64)
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	var row := HBoxContainer.new()
+	row.name = "Row"
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 14
+	row.offset_right = -14
+	row.add_theme_constant_override("separation", 18)
+	b.add_child(row)
+	var name_label := Label.new()
+	name_label.text = text
+	name_label.clip_text = true
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var value_label := Label.new()
+	value_label.name = "Value"
+	for l: Label in [name_label, value_label]:
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		row.add_child(l)
+	b.text = ""
 	var state := { "i": 0 }
 	for i in items.size():
 		if items[i][0] == value:
 			state.i = i
 	var show := func() -> void:
 		var shown := String(items[state.i][1]) if not items.is_empty() else "-"
-		set_shown_text(b, "%s   ‹ %s ›" % [text, shown] if items.size() > 1 else "%s   %s" % [text, shown])
+		value_label.text = "‹ %s ›" % shown if items.size() > 1 else shown
+		b.set_meta(&"shown_text", "%s   %s" % [text, value_label.text])
 		b.accessibility_name = "%s: %s" % [text, shown]
 	var step := func(d: int) -> void:
 		if items.size() < 2:
@@ -273,7 +295,16 @@ static func spinner(text: String, items: Array, value: Variant, on_changed: Call
 		on_changed.call(items[state.i][0])
 	b.pressed.connect(func() -> void: step.call(1))
 	b.gui_input.connect(func(e: InputEvent) -> void:
-		if e.is_action_pressed("ui_left", true):
+		var mb := e as InputEventMouseButton
+		if mb and mb.button_index == MOUSE_BUTTON_LEFT:
+			# Clicks step here, by side, rather than through `pressed` (always forward).
+			if mb.pressed:
+				if not b.has_focus():
+					b.grab_focus()
+				var left := row.position.x + value_label.position.x
+				step.call(-1 if mb.position.x >= left and mb.position.x < left + value_label.size.x / 2.0 else 1)
+			b.accept_event()
+		elif e.is_action_pressed("ui_left", true):
 			step.call(-1)
 			b.accept_event()
 		elif e.is_action_pressed("ui_right", true):
