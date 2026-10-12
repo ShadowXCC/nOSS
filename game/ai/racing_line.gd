@@ -37,6 +37,12 @@ var points := PackedVector3Array()
 var curvature := PackedFloat32Array()
 ## Length of the line from sample i to i + 1.
 var steps := PackedFloat32Array()
+## Per sample: banking into the turn (rad, + helps), grade (rise over run), crest curvature
+## (1/m, + over a crest). A flat track has none, and keeps the flat profile (D93).
+var bank_in := PackedFloat32Array()
+var grade := PackedFloat32Array()
+var crest := PackedFloat32Array()
+var flat := true
 var _profiles := {} # key -> PackedFloat32Array of speeds per sample
 
 
@@ -82,12 +88,20 @@ func speed_at(profile: PackedFloat32Array, distance: float) -> float:
 ## How far the road reaches from the line's centre each side at `distance`, for a car centre:
 ## [left limit, right limit] as offsets from the centreline.
 func corridor(distance: float) -> Vector2:
-	var i := track.index_at(distance)
-	return Vector2(_limit(i, track.half_l, track.curb_l), -_limit(i, track.half_r, track.curb_r))
+	return corridor_at(track, distance)
+
+
+static func corridor_at(t: TrackData, distance: float) -> Vector2:
+	return limits(t, t.index_at(distance))
+
+
+## The corridor at sample `i`.
+static func limits(t: TrackData, i: int) -> Vector2:
+	return Vector2(_limit(i, t.half_l, t.curb_l), -_limit(i, t.half_r, t.curb_r))
 
 
 ## How far a car's centre may go toward one edge at sample `i`.
-func _limit(i: int, half: PackedFloat32Array, curb: PackedByteArray) -> float:
+static func _limit(i: int, half: PackedFloat32Array, curb: PackedByteArray) -> float:
 	return half[i] - EDGE_MARGIN + (CURB_USE if curb[i] else 0.0)
 
 
@@ -108,6 +122,9 @@ func speed_profile(platform: Dictionary, grip := 1.0) -> PackedFloat32Array:
 	var drive := String(platform.layout.drive)
 	var driven := front if drive == "fwd" else (1.0 - front if drive == "rwd" else 1.0)
 	var brake_cap := max_braking(platform, mu) / mu # share of the grip the brake balance allows
+	if not flat:
+		_profiles[key] = _profile_3d(mu, downforce, drag, power, driven, brake_cap)
+		return _profiles[key]
 
 	# Corner limits: v² |κ| <= mu (g + downforce v²).
 	var v := PackedFloat32Array()
@@ -144,6 +161,49 @@ func speed_profile(platform: Dictionary, grip := 1.0) -> PackedFloat32Array:
 			var b := grip_total * minf(BRAKE_SHARE, brake_cap) * spare + drag * u * u + ROLLING * GRAVITY
 			v[i] = minf(v[i], sqrt(u * u + 2.0 * b * steps[i]))
 	_profiles[key] = v
+	return v
+
+
+## The profile on a track with banking, slopes or crests: banking into a turn lets it be taken
+## faster, a crest unloads the tires, a climb slows the car and helps it brake.
+func _profile_3d(mu: float, downforce: float, drag: float, power: float, driven: float, brake_cap: float) -> PackedFloat32Array:
+	var n := points.size()
+	var v := PackedFloat32Array()
+	v.resize(n)
+	for i in n:
+		var k := absf(curvature[i])
+		var c := cos(bank_in[i])
+		var s := sin(bank_in[i])
+		var denom := k * (c - mu * s) - mu * downforce
+		var num := GRAVITY * (mu * c + s)
+		v[i] = MAX_SPEED if denom <= 1e-6 or num <= 0.0 else minf(sqrt(num / denom), MAX_SPEED)
+	var slowest := 0
+	for i in n:
+		if v[i] < v[slowest]:
+			slowest = i
+	var grip := func(i: int, u: float) -> Vector2: # (total grip, share of it the corner uses)
+		var normal := maxf(GRAVITY * cos(atan(grade[i])) - u * u * crest[i], GRAVITY * 0.2)
+		var total := mu * (normal + downforce * u * u)
+		var lateral := maxf(u * u * absf(curvature[i]) * cos(bank_in[i]) - GRAVITY * sin(bank_in[i]), 0.0)
+		return Vector2(total, clampf(lateral / maxf(total, 1e-3), 0.0, 1.0))
+	for pass_i in 2:
+		for step in n:
+			var i := (slowest + step) % n
+			var j := (i + 1) % n
+			var u := v[i]
+			var g: Vector2 = grip.call(i, u)
+			var spare := sqrt(1.0 - g.y * g.y)
+			var a := minf(power / maxf(u, 1.0), g.x * driven) * spare - drag * u * u - ROLLING * GRAVITY - GRAVITY * sin(atan(grade[i]))
+			v[j] = minf(v[j], sqrt(maxf(u * u + 2.0 * a * steps[i], 0.0)))
+	for pass_i in 2:
+		for step in n:
+			var j := (slowest - step + n) % n
+			var i := (j - 1 + n) % n
+			var u := v[j]
+			var g: Vector2 = grip.call(j, u)
+			var spare := sqrt(1.0 - g.y * g.y)
+			var b := g.x * minf(BRAKE_SHARE, brake_cap) * spare + drag * u * u + ROLLING * GRAVITY + GRAVITY * sin(atan(grade[i]))
+			v[i] = minf(v[i], sqrt(maxf(u * u + 2.0 * b * steps[i], 0.0)))
 	return v
 
 
@@ -201,12 +261,23 @@ func _solve() -> void:
 		limit_r[i] = _limit(i, track.half_r, track.curb_r)
 	offsets.resize(n)
 	offsets.fill(0.0)
+	# The editor's pins: fixed offsets the line bends through, inside the road.
+	var pins := {}
+	for pin: Dictionary in track.ai_pins:
+		var k := track.index_at(float(pin.at_m))
+		pins[k] = clampf(float(pin.offset_m), -limit_r[k], limit_l[k])
+		offsets[k] = pins[k]
 	for level: Array in LEVELS:
 		var step: int = level[0]
 		var ring := PackedInt32Array()
 		for i in range(0, n, step):
 			ring.append(i)
-		_relax(ring, level[1], base, lefts, limit_l, limit_r)
+		if not pins.is_empty():
+			for k: int in pins:
+				if k not in ring:
+					ring.append(k)
+			ring.sort()
+		_relax(ring, level[1], base, lefts, limit_l, limit_r, pins)
 		_fill_between(ring)
 
 	points.resize(n)
@@ -239,10 +310,33 @@ func _solve() -> void:
 	if dot < 0.0:
 		for i in n:
 			curvature[i] = -curvature[i]
+	_slopes(track)
+
+
+## Banking into each turn, grade and crests along the centreline (all zero on a flat track).
+func _slopes(track: TrackData) -> void:
+	var n := points.size()
+	bank_in.resize(n)
+	grade.resize(n)
+	crest.resize(n)
+	flat = true
+	for i in n:
+		var a := track.samples[(i - 2 + n) % n]
+		var b := track.samples[i]
+		var c := track.samples[(i + 2) % n]
+		var run_ab := maxf(_flat(b - a).length(), 0.1)
+		var run_bc := maxf(_flat(c - b).length(), 0.1)
+		var g_ab := (b.y - a.y) / run_ab
+		var g_bc := (c.y - b.y) / run_bc
+		grade[i] = (g_ab + g_bc) * 0.5
+		crest[i] = -(g_bc - g_ab) / ((run_ab + run_bc) * 0.5)
+		bank_in[i] = -track.bank[i] * signf(curvature[i]) if i < track.bank.size() else 0.0
+		if absf(grade[i]) > 1e-4 or absf(crest[i]) > 1e-6 or absf(bank_in[i]) > 1e-4:
+			flat = false
 
 
 ## Gauss-Seidel on the line's squared second differences, each point kept inside its limits.
-func _relax(ring: PackedInt32Array, passes: int, base: PackedVector2Array, lefts: PackedVector2Array, limit_l: PackedFloat32Array, limit_r: PackedFloat32Array) -> void:
+func _relax(ring: PackedInt32Array, passes: int, base: PackedVector2Array, lefts: PackedVector2Array, limit_l: PackedFloat32Array, limit_r: PackedFloat32Array, pins := {}) -> void:
 	var m := ring.size()
 	var p := PackedVector2Array()
 	p.resize(m)
@@ -252,6 +346,8 @@ func _relax(ring: PackedInt32Array, passes: int, base: PackedVector2Array, lefts
 	for pass_i in passes:
 		for a in m:
 			var k := ring[a]
+			if pins.has(k):
+				continue
 			var target := (4.0 * (p[(a - 1 + m) % m] + p[(a + 1) % m]) - p[(a - 2 + m) % m] - p[(a + 2) % m]) / 6.0
 			var o := clampf((target - base[k]).dot(lefts[k]), -limit_r[k], limit_l[k])
 			p[a] = base[k] + lefts[k] * o

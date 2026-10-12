@@ -215,15 +215,35 @@ func flip_direction() -> void:
 
 
 ## Race setup: `key` in layout.race (a "/"-separated path for nested ones, like "grid/slots").
-func set_race(key: String, value: Variant) -> void:
-	_edit("Set " + key.get_file().replace("_", " "), "race", func() -> void:
-		var at: Dictionary = layout.race
-		var parts := key.split("/")
-		for k in parts.slice(0, -1):
-			if not at.has(k):
-				at[k] = {}
-			at = at[k]
-		at[parts[-1]] = value, &"race")
+func set_race(key: String, value: Variant, name := "") -> void:
+	_edit(name if name else "Set " + key.get_file().replace("_", " "), "race", func() -> void: _race_at(key)[key.get_file()] = value, &"race")
+
+
+## Race setup without recording (while dragging an AI pin); end_race_live() records it.
+func set_race_live(key: String, value: Variant) -> void:
+	if not _dragging.has("race"):
+		_dragging.race = layout.race.duplicate(true)
+	_race_at(key)[key.get_file()] = value
+	_changed(&"race", { "live": true })
+
+
+func end_race_live(name: String) -> void:
+	if not _dragging.has("race"):
+		return
+	var before := { "race": _dragging.race }
+	_dragging.erase("race")
+	history.act(name, _set_section.bind("race", { "race": layout.race.duplicate(true) }, &"race"), _set_section.bind("race", before, &"race"), false)
+	_changed(&"race", {})
+
+
+## The dictionary holding `key` (a "/" path in layout.race), made as needed.
+func _race_at(key: String) -> Dictionary:
+	var at: Dictionary = layout.race
+	for k in key.split("/").slice(0, -1):
+		if not at.has(k):
+			at[k] = {}
+		at = at[k]
+	return at
 
 
 func set_info(key: String, value: Variant) -> void:
@@ -378,7 +398,7 @@ func autosave_async(owner: Node, on_done := Callable()) -> void:
 	var dir := autosave_dir().path_join(id)
 	var snapshot := _snapshot()
 	WorkerJob.start(owner, func() -> String: return _write_snapshot(dir, snapshot), func(err: String) -> void:
-		if on_done.is_valid():
+		if WorkerJob.alive(on_done):
 			on_done.call(err), 60.0, func() -> String: return "Autosave timed out")
 
 
@@ -521,7 +541,9 @@ func _set_scatter(prop: String, xf: Array, notify := true) -> void:
 
 
 func _changed(what: StringName, change_info: Dictionary) -> void:
-	if what in [&"road", &"race", &"terrain", &"all"]:
+	if what == &"race" and _track:
+		_track = _track.with_race(layout) # the road is the same: no resampling
+	elif what in [&"road", &"race", &"terrain", &"all"]:
 		_track = null
 	changed.emit(what, change_info)
 

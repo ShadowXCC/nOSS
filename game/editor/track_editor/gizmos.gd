@@ -7,6 +7,7 @@ extends Node3D
 
 const LIFT := 0.35
 const ARROW_EVERY_M := 100.0
+const AI_WIDTH := 0.7
 
 var colors := {}
 ## Point markers grow with the camera's distance, so they stay about the same size on screen.
@@ -18,6 +19,8 @@ var _brush_mi := MeshInstance3D.new()
 var _points := MultiMeshInstance3D.new()
 var _selected := MeshInstance3D.new()
 var _labels := Node3D.new()
+var _ai := ImmediateMesh.new()
+var _ai_mi := MeshInstance3D.new()
 
 
 func _init() -> void:
@@ -53,6 +56,12 @@ func _init() -> void:
 	_selected.visible = false
 	add_child(_selected)
 	add_child(_labels)
+	_ai_mi.mesh = _ai
+	var ai_mat := _material(Color.WHITE, true)
+	ai_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_ai_mi.material_override = ai_mat
+	_ai_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_ai_mi)
 
 
 func _ready() -> void:
@@ -66,6 +75,7 @@ func _ready() -> void:
 ## `selected`: the selected point (-1 none); `hover`: the one under the cursor.
 func show_track(t: TrackData, points: Array, selected := -1, hover := -1, show_grid := true) -> void:
 	_lines.clear_surfaces()
+	_ai.clear_surfaces()
 	for child in _labels.get_children():
 		child.queue_free()
 	var mm := _points.multimesh
@@ -126,16 +136,11 @@ func show_track(t: TrackData, points: Array, selected := -1, hover := -1, show_g
 	_lines.surface_end()
 	_label("Start", s.origin + Vector3.UP * 4.0)
 	if show_grid:
-		var g := t.grid
-		for slot in int(g.slots):
-			var dist := t.start_m - float(g.front_m) - (slot / 2) * float(g.row_m) - (slot % 2) * float(g.row_m) * float(g.stagger)
-			var column := 1.0 if slot % 2 == 0 else -1.0
-			if g.pole == "right":
-				column = -column
-			var lat := 0.5 * minf(t.half_width(dist, 1.0), t.half_width(dist, -1.0)) * column
-			var x := t.transform_at(dist, lat)
+		var slots := int(t.grid.slots)
+		for slot in slots:
+			var x := t.grid_slot(slot)
 			_box(x, Vector3(1.0, 0.0, 2.2), Color(1, 1, 1, 0.7))
-			if slot < 3 or slot == int(g.slots) - 1:
+			if slot < 3 or slot == slots - 1:
 				_label(str(slot + 1), x.origin + Vector3.UP * 1.5)
 	for k in t.sectors_m.size():
 		var at := t.transform_at(t.start_m + t.sectors_m[k])
@@ -145,6 +150,37 @@ func show_track(t: TrackData, points: Array, selected := -1, hover := -1, show_g
 		_lines.surface_add_vertex(at.origin - at.basis.x * t.half_r[ik] + Vector3.UP * LIFT)
 		_lines.surface_end()
 		_label("S%d" % (k + 1), at.origin + Vector3.UP * 3.0)
+
+
+## The AI's line as a ribbon (`points` and the road's `lefts`, one per sample) and its pins
+## (`pins`: positions; `selected` drawn bigger). An empty line hides the ribbon.
+func show_ai_line(points: PackedVector3Array, lefts: PackedVector3Array, pins: Array, selected := -1) -> void:
+	_ai.clear_surfaces()
+	var c: Color = colors.get("p2", Color.CYAN)
+	if points.size() > 2 and lefts.size() == points.size():
+		_ai.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+		_ai.surface_set_color(Color(c, 0.85))
+		var up := Vector3.UP * (LIFT + 0.05)
+		for k in points.size() + 1:
+			var i := k % points.size()
+			_ai.surface_add_vertex(points[i] + lefts[i] * AI_WIDTH / 2.0 + up)
+			_ai.surface_add_vertex(points[i] - lefts[i] * AI_WIDTH / 2.0 + up)
+		_ai.surface_end()
+	# Pins: a post with a diamond on top, the selected one bigger.
+	for k in pins.size():
+		var at: Vector3 = pins[k]
+		var s := (2.0 if k == selected else 1.2) * point_scale
+		var top := at + Vector3.UP * (LIFT + 3.0 * s)
+		_ai.surface_begin(Mesh.PRIMITIVE_LINES)
+		_ai.surface_set_color(colors.p1 if k == selected else c)
+		_ai.surface_add_vertex(at + Vector3.UP * LIFT)
+		_ai.surface_add_vertex(top)
+		for side: Vector3 in [Vector3.RIGHT, Vector3.BACK, Vector3.LEFT, Vector3.FORWARD]:
+			var a := top + side * s
+			var b := top + side.rotated(Vector3.UP, PI / 2.0) * s
+			_ai.surface_add_vertex(a)
+			_ai.surface_add_vertex(b)
+		_ai.surface_end()
 
 
 ## A ring on the ground (`height` gives the ground) where a brush would touch; radius 0 hides it.

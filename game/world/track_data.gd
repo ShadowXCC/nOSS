@@ -118,25 +118,44 @@ static func from_dict(data: Dictionary, ground_height := Callable()) -> TrackDat
 	t.kind = "centreline" if road.get("mode") == "centreline" else "road"
 	var defaults: Dictionary = road.get("defaults", {})
 	t.width = float(defaults.get("width_l", TrackFormat.DEFAULTS.width_l)) + float(defaults.get("width_r", TrackFormat.DEFAULTS.width_r))
-	var race: Dictionary = data.get("race", {})
-	t.checkpoint_spacing = float(race.get("checkpoint_spacing_m", 100.0))
-	var g: Dictionary = race.get("grid", {})
-	for key: String in TrackFormat.GRID:
-		t.grid[key] = g.get(key, TrackFormat.GRID[key])
-	t.rolling_back_m = float(race.get("rolling_back_m", TrackFormat.ROLLING_BACK_M))
-	t.gantry = bool(race.get("gantry", true))
-	var ai: Dictionary = race.get("ai", {})
-	t.ai_pins = ai.get("pins", []).duplicate(true)
 	t.layout_hash = TrackFormat.layout_hash(data)
-	if (road.get("points", []) as Array).size() < 2:
-		return t
-	t._sample(road, ground_height)
-	t.start_m = fposmod(float(race.get("start_m", 0.0)), t.length)
-	for s: float in race.get("sectors_m", []):
-		t.sectors_m.append(fposmod(s - t.start_m, t.length))
-	var caution := float(ai.get("caution_until_m", TrackFormat.CAUTION_AUTO))
-	t.caution_until_m = caution if caution >= 0.0 else minf(1100.0, 0.45 * t.length)
+	if (road.get("points", []) as Array).size() >= 3: # fewer make no loop
+		t._sample(road, ground_height)
+	t._read_race(data.get("race", {}))
 	return t
+
+
+## The same road with `data`'s race setup (start, sectors, grid, AI): no resampling. The road's
+## arrays are shared, so neither copy may change them.
+func with_race(data: Dictionary) -> TrackData:
+	var t := TrackData.new()
+	for prop in get_property_list():
+		if prop.usage & PROPERTY_USAGE_SCRIPT_VARIABLE:
+			t.set(prop.name, get(prop.name))
+	t.raw = data
+	t.layout_hash = TrackFormat.layout_hash(data)
+	t._read_race(data.get("race", {}))
+	return t
+
+
+func _read_race(race: Dictionary) -> void:
+	checkpoint_spacing = float(race.get("checkpoint_spacing_m", 100.0))
+	var g: Dictionary = race.get("grid", {})
+	grid = TrackFormat.GRID.duplicate()
+	for key: String in TrackFormat.GRID:
+		grid[key] = g.get(key, TrackFormat.GRID[key])
+	rolling_back_m = float(race.get("rolling_back_m", TrackFormat.ROLLING_BACK_M))
+	gantry = bool(race.get("gantry", true))
+	var ai: Dictionary = race.get("ai", {})
+	ai_pins = ai.get("pins", []).duplicate(true)
+	sectors_m = PackedFloat32Array()
+	if samples.size() < 2:
+		return
+	start_m = fposmod(float(race.get("start_m", 0.0)), length)
+	for s: float in race.get("sectors_m", []):
+		sectors_m.append(fposmod(s - start_m, length))
+	var caution := float(ai.get("caution_until_m", TrackFormat.CAUTION_AUTO))
+	caution_until_m = caution if caution >= 0.0 else minf(1100.0, 0.45 * length)
 
 
 ## The key lap records (ghosts, leaderboards) are kept under: built-in tracks by id; others by id
@@ -172,6 +191,16 @@ func transform_at(distance: float, lateral := 0.0) -> Transform3D:
 	var fwd := tangents[i]
 	var left := lefts[i]
 	return Transform3D(Basis(left, ups[i], fwd), point_at(distance) + left * lateral)
+
+
+## Grid slot `i` (0: pole): two staggered columns behind the start line, each half way to the
+## narrower edge, the pole on the grid's pole side.
+func grid_slot(i: int) -> Transform3D:
+	var d := start_m - float(grid.front_m) - (i / 2) * float(grid.row_m) - (i % 2) * float(grid.row_m) * float(grid.stagger)
+	var column := 1.0 if i % 2 == 0 else -1.0
+	if grid.pole == "right":
+		column = -column
+	return transform_at(d, 0.5 * minf(half_width(d, 1.0), half_width(d, -1.0)) * column)
 
 
 ## Centreline to the road's edge on `side` (+1 left, -1 right) at `distance`, m.
@@ -248,12 +277,7 @@ func project(pos: Vector3, hint := -1) -> Dictionary:
 
 ## True if any centreline sample is within `radius` (XZ) of `pos`. Uses a coarse grid.
 func is_near_centreline(pos: Vector3, radius: float) -> bool:
-	if _grid.is_empty():
-		for i in samples.size():
-			var key := _cell(samples[i])
-			if not _grid.has(key):
-				_grid[key] = []
-			_grid[key].append(i)
+	index_cells()
 	var reach := int(ceil(radius / GRID_M))
 	var center := _cell(pos)
 	var r2 := radius * radius
@@ -263,6 +287,32 @@ func is_near_centreline(pos: Vector3, radius: float) -> bool:
 				if Vector2(samples[i].x - pos.x, samples[i].z - pos.z).length_squared() < r2:
 					return true
 	return false
+
+
+## Builds the coarse grid is_near_centreline() uses (before handing the track to a worker).
+func index_cells() -> void:
+	if not _grid.is_empty():
+		return
+	for i in samples.size():
+		var key := _cell(samples[i])
+		if not _grid.has(key):
+			_grid[key] = []
+		_grid[key].append(i)
+
+
+## Samples within `radius` (XZ) of `pos`.
+func samples_near(pos: Vector3, radius: float) -> PackedInt32Array:
+	index_cells()
+	var out := PackedInt32Array()
+	var reach := int(ceil(radius / GRID_M))
+	var center := _cell(pos)
+	var r2 := radius * radius
+	for dx in range(-reach, reach + 1):
+		for dz in range(-reach, reach + 1):
+			for i: int in _grid.get(center + Vector2i(dx, dz), []):
+				if Vector2(samples[i].x - pos.x, samples[i].z - pos.z).length_squared() < r2:
+					out.append(i)
+	return out
 
 
 func _d2(i: int, pos: Vector3) -> float:

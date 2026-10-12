@@ -12,6 +12,9 @@ const AUTOSAVE_S := 120.0
 const PANEL_WIDTH := 640
 const FONT_SIZE := 24
 const TOOL_ORDER := ["Road", "Terrain", "Paint", "Props", "Race", "Check", "File"]
+## The AI line and the checks run this long after the last change (sooner while dragging a pin).
+const ANALYSE_S := 0.6
+const ANALYSE_LIVE_S := 0.05
 
 var draft: TrackDraft
 var view := EditorView.new()
@@ -28,6 +31,12 @@ var _actions: Array = []
 var _overlay: Control
 var _autosave_time := 0.0
 var _autosaved_version := -1
+## The latest AI line and checks (on a worker): {stamp, line (RacingLine), lap_s, problems}.
+var analysis := {}
+var _changes := 0
+var _analyse_in := -1.0
+var _analyse_job: WorkerJob
+var _analyse_again := false
 
 
 func _ready() -> void:
@@ -99,6 +108,8 @@ func _ready() -> void:
 			_offer_restore(autosaved[0])
 		Game.track_draft = draft
 	_open_draft(draft)
+	if Game.dev.has("editor-tool"):
+		show_tool(String(Game.dev["editor-tool"]).capitalize())
 
 
 ## Shows `d` (a new or restored draft) in the editor.
@@ -118,6 +129,8 @@ func _open_draft(d: TrackDraft) -> void:
 		_frame_track()
 	show_tool(String(state.get("tool", "Road" if tools.has("Road") else "File")))
 	_update_title()
+	analysis = {}
+	_analyse_in = 0.0
 
 
 ## Every tool, the ones built so far.
@@ -230,7 +243,10 @@ func _on_view_action(name: String) -> void:
 				say("Nothing to delete")
 
 
-func _on_draft_changed(what: StringName, _info: Dictionary) -> void:
+func _on_draft_changed(what: StringName, info: Dictionary) -> void:
+	_changes += 1
+	var wait := ANALYSE_LIVE_S if info.get("live", false) and what == &"race" else ANALYSE_S
+	_analyse_in = minf(_analyse_in, wait) if _analyse_in >= 0.0 else wait
 	_update_title()
 	for t: EditorTool in tools.values():
 		t.draft_changed(what)
@@ -265,12 +281,44 @@ func save() -> void:
 	_update_title()
 
 
-## The validator's errors ("" list without a validator yet).
+## The validator's errors now (the last checks', when nothing changed since).
 func _errors() -> Array:
-	if ResourceLoader.exists("res://game/world/track_validator.gd"):
-		var v: GDScript = load("res://game/world/track_validator.gd")
-		return (v.call("check", draft) as Array).filter(func(p: Dictionary) -> bool: return p.level == "error").map(func(p: Dictionary) -> String: return p.text)
-	return []
+	if analysis.get("stamp", -1) == _changes and analysis.has("problems"):
+		return TrackValidator.errors(analysis.problems)
+	return TrackValidator.errors(TrackValidator.check(draft, analysis.get("line") if analysis.get("stamp", -1) == _changes else null))
+
+
+## Solves the AI line and checks the track on a worker; the tools show the result.
+func _analyse() -> void:
+	if _analyse_job and not _analyse_job.done:
+		_analyse_again = true
+		return
+	var inputs := TrackValidator.inputs(draft)
+	var stamp := _changes
+	_analyse_job = WorkerJob.start(self, func() -> Dictionary:
+		var t: TrackData = inputs.track
+		if t.samples.size() < 3 or t.length < TrackValidator.MIN_LENGTH_M:
+			return { "problems": TrackValidator.run(inputs) }
+		var line := RacingLine.solve(t)
+		return { "line": line, "lap_s": line.lap_time(line.speed_profile(inputs.platform)), "problems": TrackValidator.run(inputs, line) },
+		_analysed.bind(stamp), 30.0, func() -> Dictionary: return {})
+
+
+func _analysed(result: Dictionary, stamp: int) -> void:
+	if result.is_empty():
+		return
+	analysis = result
+	analysis.stamp = stamp
+	var errors := TrackValidator.errors(result.problems).size()
+	if _tool_buttons.has("Check"):
+		var b: Button = _tool_buttons.Check
+		b.text = "Check (%d)" % errors if errors else "Check"
+		b.accessibility_name = "Check, %d problems" % errors if errors else "Check"
+	for t: EditorTool in tools.values():
+		t.analysed()
+	if _analyse_again:
+		_analyse_again = false
+		_analyse()
 
 
 ## minimap.png drawn from the road; thumb.png from the view, without the gizmos.
@@ -412,6 +460,10 @@ func _frame_track() -> void:
 func _process(delta: float) -> void:
 	if tool and not _overlay:
 		tool.tick(delta)
+	if _analyse_in >= 0.0:
+		_analyse_in -= delta
+		if _analyse_in < 0.0:
+			_analyse()
 	_autosave_time += delta
 	if _autosave_time >= AUTOSAVE_S:
 		_autosave_time = 0.0

@@ -46,6 +46,11 @@ func draft_changed(_what: StringName) -> void:
 	pass
 
 
+## The AI line and the checks are new (editor.analysis).
+func analysed() -> void:
+	pass
+
+
 ## Redraws the editor's gizmos for this tool.
 func refresh_gizmos() -> void:
 	view.gizmos.show_track(draft.track(), draft.points())
