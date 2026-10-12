@@ -34,6 +34,8 @@ var _busy := false
 var _t_open := 0
 var _engine: EngineSound
 var _rev_time := 0.0
+## Skid button: the tires squeal, then a wheel locks.
+var _skid_time := 0.0
 var _sound_json := ""
 var _audio_dialog: FileDialog
 ## Own recordings: what the next file is for (an emitter or an extra), its rpm and load.
@@ -265,8 +267,13 @@ func _step_sound() -> Array:
 	out.append(UiKit.check("Supercharger", bool(tweaks.get("supercharger", false)), func(on: bool) -> void: tweaks.supercharger = on))
 	out.append(UiKit.option("Gear whine", [["normal", "Normal"], ["straight_cut", "Straight-cut"]], tweaks.get("gear_whine", "normal"), func(v: String) -> void: tweaks.gear_whine = v))
 	out.append(UiKit.option("Limiter", [["soft", "Soft"], ["bounce", "Bounce"], ["cut", "Cut"]], tweaks.get("limiter", "soft"), func(v: String) -> void: tweaks.limiter = v))
+	var tires: Dictionary = draft.sound.get("tires", {})
+	out.append(UiKit.option("Tires", EngineSound.tire_profiles(), String(tires.get("base", EngineSound.DEFAULT_TIRES)), func(v: String) -> void:
+		tires.base = v
+		draft.sound.tires = tires))
 	_start_engine()
 	out.append(UiKit.button("Rev", func() -> void: _rev_time = 0.9, "Rev the engine"))
+	out.append(UiKit.button("Skid", func() -> void: _skid_time = 1.6, "Hear the tires"))
 	out.append_array(_own_recordings())
 	return out
 
@@ -274,9 +281,9 @@ func _step_sound() -> Array:
 ## Own recordings (AV-06, docs/VEHICLE_PACKAGE.md §6): mono OGG or WAV loops, each at an rpm and
 ## load for an emitter, or an extra. The built-in engine fills whatever isn't recorded.
 func _own_recordings() -> Array:
-	var out := [_text("Own recordings: mono OGG or WAV loops, 44.1 or 48 kHz. The engine above fills the rest.")]
+	var out := [_text("Own recordings: mono OGG or WAV loops, 44.1 or 48 kHz. The built-in sounds above fill the rest.")]
 	var targets := [["exhaust", "Exhaust"], ["engine", "Engine"], ["intake", "Intake"], ["start", "Start"],
-		["limiter", "Limiter"], ["backfire", "Backfire"], ["turbo", "Turbo"], ["blowoff", "Blow-off"]]
+		["limiter", "Limiter"], ["backfire", "Backfire"], ["turbo", "Turbo"], ["blowoff", "Blow-off"], ["tires", "Tires"]]
 	out.append(UiKit.spinner("For", targets, _rec_target, func(v: String) -> void:
 		_rec_target = v
 		_show_step("Sound"), "An emitter's loop, or an extra sound"))
@@ -309,7 +316,7 @@ func _browse_audio() -> void:
 		_audio_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 		_audio_dialog.access = FileDialog.ACCESS_FILESYSTEM
 		_audio_dialog.use_native_dialog = true
-		_audio_dialog.filters = PackedStringArray(["*.ogg, *.wav ; Engine recordings"])
+		_audio_dialog.filters = PackedStringArray(["*.ogg, *.wav ; Recordings"])
 		_audio_dialog.title = "Add a recording"
 		_audio_dialog.file_selected.connect(add_recording)
 		add_child(_audio_dialog)
@@ -359,6 +366,9 @@ func _process(delta: float) -> void:
 	m.rpm = move_toward(m.rpm, target, delta * (9000.0 if throttle > 0.0 else 4500.0))
 	m.throttle = throttle
 	m.load = throttle
+	_skid_time -= delta
+	m.slip = 7.0 * clampf(_skid_time / 0.4, 0.0, 1.0) if _skid_time > 0.0 else 0.0
+	m.lock = 1.0 if _skid_time > 0.0 and _skid_time < 0.6 else 0.0
 	var now := JSON.stringify(draft.sound)
 	if now != _sound_json:
 		_sound_json = now

@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noss:schema:tire_profile:1",
+  "title": "nOSS tire sound",
+  "description": "A built-in tire sound (data/tire_sounds/<id>.json): how it is synthesized and how it follows the tires' slip. See docs/ART_AUDIO.md §7.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "name", "synth", "slip_start", "slip_full", "gain", "pitch"],
+  "properties": {
+    "schema": { "const": "noss.tire_profile/1" },
+    "id": { "type": "string", "pattern": "^[a-z0-9_]+$", "maxLength": 32 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "synth": { "$ref": "#/$defs/synth" },
+    "scrub": {
+      "description": "Optional second layer for locked or spinning wheels.",
+      "$ref": "#/$defs/synth"
+    },
+    "slip_start": { "description": "Slip speed (m/s) where the squeal starts.", "type": "number", "minimum": 0, "maximum": 20 },
+    "slip_full": { "description": "Slip speed (m/s) where it is loudest.", "type": "number", "exclusiveMinimum": 0, "maximum": 40 },
+    "gain": { "type": "number", "minimum": 0, "maximum": 1.5 },
+    "scrub_gain": { "type": "number", "minimum": 0, "maximum": 1.5 },
+    "pitch": {
+      "description": "Playback pitch at the start and at full squeal.",
+      "type": "array",
+      "prefixItems": [{ "$ref": "#/$defs/pitch" }, { "$ref": "#/$defs/pitch" }],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "attack_ms": { "description": "How fast the level rises; 0: at once.", "type": "number", "minimum": 0, "maximum": 1000 },
+    "release_ms": { "description": "How fast it falls; 0: at once.", "type": "number", "minimum": 0, "maximum": 3000 }
+  },
+  "$defs": {
+    "pitch": { "type": "number", "minimum": 0.25, "maximum": 4 },
+    "synth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "description": "classic: the first nOSS tire tone. bands: noise through band-passes, a wandering tone and flutter (NossAudio.render_tire_loop).",
+          "enum": ["classic", "bands"]
+        },
+        "seconds": { "type": "number", "minimum": 0.1, "maximum": 10 },
+        "bands": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "description": "[centre Hz, Q, gain]",
+            "type": "array",
+            "prefixItems": [
+              { "type": "number", "minimum": 20, "maximum": 16000 },
+              { "type": "number", "minimum": 0.1, "maximum": 80 },
+              { "type": "number", "minimum": 0, "maximum": 4 }
+            ],
+            "minItems": 3,
+            "maxItems": 3
+          }
+        },
+        "tone": { "type": "number", "minimum": 0, "maximum": 2 },
+        "tone_hz": { "type": "number", "minimum": 0, "maximum": 16000 },
+        "drift": { "type": "number", "minimum": 0, "maximum": 0.5 },
+        "drift_hz": { "type": "number", "minimum": 0.05, "maximum": 40 },
+        "flutter": { "type": "number", "minimum": 0, "maximum": 1 },
+        "flutter_hz": { "type": "number", "minimum": 0.05, "maximum": 60 },
+        "seed": { "type": "integer", "minimum": 0, "maximum": 1000000 }
+      }
+    }
+  }
+}

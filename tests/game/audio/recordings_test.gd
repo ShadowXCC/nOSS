@@ -159,3 +159,37 @@ func test_the_bay_keeps_and_edits_recordings() -> void:
 	assert_bool(draft.files().keys().any(func(k: String) -> bool: return k.ends_with(".wav"))).is_false()
 	draft.free_scene()
 	pkg.free_scenes()
+
+
+## An own tire loop: added in the bay, travels in the package and plays over the car's tire
+## profile; without recordings (a server that doesn't send them) the profile plays alone.
+func test_an_own_tire_loop() -> void:
+	var pkg := PackageLoader.load_package(_package_with_recordings("tires.noss"))
+	var draft := FittingDraft.from_package(pkg)
+	pkg.free_scenes()
+	draft.sound.tires = { "base": "classic" }
+	assert_str(draft.add_recording(_write("skid.wav", wav()), "tires")).is_empty()
+	assert_str(draft.sound.tires.recording).is_equal("tires.wav")
+	assert_array(draft.recordings_list().map(func(x: Array) -> String: return x[0])).contains(["Tires"])
+	assert_array(JsonSchema.validate(draft.sound, JsonSchema.load_schema("sound"))).is_empty()
+	var path := DIR.path_join("tires_edited.noss")
+	DirAccess.remove_absolute(path)
+	draft.edit_path = ""
+	draft.id = PackageWriter.new_uuid()
+	assert_bool(PackageWriter.write(path, draft.info(), draft.files()).ok).is_true()
+	var back := PackageLoader.load_package(path)
+	assert_object(back.sound_streams.get("tires.wav")).is_not_null()
+	var sound: EngineSound = auto_free(EngineSound.new())
+	sound.set_profile(back.sound, back.sound_streams)
+	assert_object(sound._tires.stream).is_same(back.sound_streams["tires.wav"])
+	assert_str(sound._tire.id).is_equal("classic")
+	var plain := PackageLoader.without_recordings(back.sound)
+	assert_dict(plain.tires).is_equal({ "base": "classic" })
+	back.free_scenes()
+	# Removing the other recordings keeps the tire loop.
+	for rel: String in ["exhaust_on_2000.wav", "exhaust_on_6000.wav", "start.wav"]:
+		draft.remove_recording(rel)
+	assert_str(draft.sound.tires.recording).is_equal("tires.wav")
+	draft.remove_recording("tires.wav")
+	assert_bool(draft.sound.tires.has("recording")).is_false()
+	draft.free_scene()

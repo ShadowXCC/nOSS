@@ -138,7 +138,7 @@ These match the FM4 rips, so those convert with no manual work. Models that don'
 
 Finishes are `solid`, `metallic`, `pearl`, `matte` and `chrome`. Each maps to metallic, roughness and clearcoat values.
 
-## 6. Engine sound (`sound/`)
+## 6. Engine and tire sound (`sound/`)
 
 *Requirements: AV-05, AV-06. Sound system and how players customize it: [ART_AUDIO.md §6](ART_AUDIO.md#6-engine-sound).*
 
@@ -172,7 +172,8 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
   "extras": {
     "start": "start.ogg", "limiter": "limiter.ogg",
     "backfire": ["bf1.ogg", "bf2.ogg"], "turbo": null, "blowoff": null
-  }
+  },
+  "tires": { "base": "squeal", "recording": "tires.ogg" }
 }
 ```
 
@@ -182,6 +183,7 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 | `tweaks` | No | `pitch` 0.8–1.2. `mix` per emitter 0–1.5. `idle_lope` and `crackle` 0–1. `turbo`: `none`, `single`, `twin`. `blowoff` and `supercharger` on/off. `gear_whine`: `normal`, `straight_cut`. `limiter`: `soft`, `bounce`, `cut`. |
 | `rpm_idle`, `rpm_max` | With `layers` | The RPM range the recordings cover. It is remapped onto the platform's idle–redline. |
 | `layers`, `extras` | No | Own recordings per emitter (`engine`, `exhaust`, `intake`). Omit them for a tuned built-in. |
+| `tires` | No | The tire sound (D90): `base` is a built-in from `data/tire_sounds/` (`squeal`, the default, or `classic`); `recording` an own loop played over it, which follows the slip the same way. A server that turns off own recordings plays the `base`. |
 
 - **Audio files:** OGG Vorbis (preferred) or 16-bit PCM WAV. Mono, 44.1 or 48 kHz, seamless loops (20 s at most). Paths are relative to `sound/`. Each file's header is checked before it's decoded (`SoundImport`); a profile naming a file the package doesn't have doesn't load.
 - **Playing them:** each recorded emitter cross-fades its loops by rpm over `rpm_idle`–`rpm_max` (mapped onto the platform's idle–redline); an emitter without recordings plays the built-in `base`. An off-load loop falls back to the on-load one. Recorded extras replace the synthesized start, limiter, backfire, turbo and blow-off.

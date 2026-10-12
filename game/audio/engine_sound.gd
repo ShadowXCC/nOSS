@@ -8,9 +8,15 @@ extends Node3D
 ## pitches them to it. The profile's rpm range is mapped onto the platform's idle-redline.
 ## The car's sound/profile.json picks the profile and tunes it (pitch, mix, idle lope, turbo,
 ## blow-off, supercharger, gear whine, crackle, limiter). Sound never affects the sim.
+##
+## Tires play a built-in tire sound (data/tire_sounds/<id>.json, picked per car, D90): a loop
+## that follows the slip, plus a scrub layer for locked or spinning wheels. A car can bring its
+## own tire loop over it.
 
 const PROFILE_DIR := "res://data/sound_profiles/"
 const DEFAULT_PROFILE := "v8_crossplane"
+const TIRE_DIR := "res://data/tire_sounds/"
+const DEFAULT_TIRES := "squeal"
 const EMITTERS := ["engine", "exhaust", "intake"]
 const RATE := 44100
 const BASE_DB := -6.0
@@ -22,6 +28,7 @@ const DISTANT_EMITTERS := ["exhaust"]
 
 static var _profiles := {} # id -> {profile, loops: {emitter: {on: [stream...], off: [...], rpm: [...]}}}
 static var _extras := {}
+static var _tire_profiles := {} # id -> {profile, squeal: stream, scrub: stream or null}
 
 var vehicle: Vehicle
 ## A local player's car (the "own engine" volume) rather than another's.
@@ -50,8 +57,13 @@ var _started := false
 var _tweaks := {}
 var _layers := {}
 var _extra_players := {}
-var _tires: AudioStreamPlayer3D
-var _wind: AudioStreamPlayer3D
+var _tires := AudioStreamPlayer3D.new()
+var _scrub := AudioStreamPlayer3D.new()
+var _wind := AudioStreamPlayer3D.new()
+## The car's tire profile, and how loud its layers are now (0..1).
+var _tire := {}
+var _squeal := 0.0
+var _scrubbing := 0.0
 var _load := 0.0
 var _throttle_was := 0.0
 var _grinds := 0
@@ -61,12 +73,11 @@ var _rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
 	_rng.seed = 11
-	_tires = AudioStreamPlayer3D.new()
-	_wind = AudioStreamPlayer3D.new()
-	for p: Array in [[_tires, "tires"], [_wind, "wind"]]:
-		_setup_player(p[0], _extra(p[1]))
+	for p: Array in [[_tires, _tires.stream], [_scrub, _scrub.stream], [_wind, _extra("wind")]]:
+		_setup_player(p[0], p[1])
 		add_child(p[0])
-		p[0].play()
+		if p[0].stream:
+			p[0].play()
 	for kind in ["turbo", "supercharger", "gear"]:
 		var player := AudioStreamPlayer3D.new()
 		_setup_player(player, _extra(kind))
@@ -104,6 +115,7 @@ func set_profile(sound: Dictionary, streams := {}) -> void:
 	if not streams.is_empty():
 		_use_recordings(sound, streams)
 	_tweaks = sound.get("tweaks", {})
+	_set_tires(sound.get("tires", {}), streams)
 	for emitter in EMITTERS:
 		if not _layers.has(emitter):
 			var node := Node3D.new()
@@ -122,6 +134,29 @@ func set_profile(sound: Dictionary, streams := {}) -> void:
 			for slot: Dictionary in _layers[emitter].slots[kind]:
 				slot.index = -1
 	_place_emitters()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE: # freed before it was ever added (tests): its players too
+		for player: Node in [_tires, _scrub, _wind]:
+			if is_instance_valid(player) and player.get_parent() == null:
+				player.free()
+
+
+## The car's tire sound ("tires" in its sound/profile.json): a built-in profile (squeal if none
+## or unknown), and the car's own loop over it if it has one (`streams`).
+func _set_tires(tires: Dictionary, streams: Dictionary) -> void:
+	var entry := _load_tire_profile(String(tires.get("base", DEFAULT_TIRES)))
+	if entry.is_empty():
+		entry = _load_tire_profile(DEFAULT_TIRES)
+	_tire = entry.profile
+	var own: AudioStream = streams.get(String(tires.get("recording", "")))
+	_tires.stream = own if own else entry.squeal
+	_scrub.stream = entry.scrub
+	if is_inside_tree() and detail == Detail.FULL:
+		for player: AudioStreamPlayer3D in [_tires, _scrub]:
+			if player.stream:
+				player.play()
 
 
 func _place_emitters() -> void:
@@ -194,8 +229,8 @@ func _apply_detail() -> void:
 					(slot.player as AudioStreamPlayer3D).stop()
 					slot.index = -1
 	var full := detail == Detail.FULL
-	for player: AudioStreamPlayer3D in [_tires, _wind, _extra_players.get("turbo"), _extra_players.get("supercharger"), _extra_players.get("gear")]:
-		if player == null:
+	for player: AudioStreamPlayer3D in [_tires, _scrub, _wind, _extra_players.get("turbo"), _extra_players.get("supercharger"), _extra_players.get("gear")]:
+		if player == null or player.stream == null:
 			continue
 		if full and not player.playing:
 			player.play()
@@ -284,8 +319,9 @@ func _update_extras(state: Dictionary, norm: float, delta: float) -> void:
 	_throttle_was = throttle
 
 
-func _update_road(state: Dictionary, _delta: float) -> void:
+func _update_road(state: Dictionary, delta: float) -> void:
 	var slip := 0.0
+	var lock := 0.0
 	if vehicle and is_instance_valid(vehicle) and not vehicle.remote:
 		var t := vehicle.sim.get_telemetry()
 		# A refused gear change (H-pattern without the clutch) grinds.
@@ -296,12 +332,29 @@ func _update_road(state: Dictionary, _delta: float) -> void:
 		for w: Dictionary in t.wheels:
 			if w.contact and w.surface <= VehicleSim.SURFACE_PAINT:
 				slip = maxf(slip, w.slip_speed)
-	var squeal := clampf((slip - 1.5) / 6.0, 0.0, 1.0)
-	_tires.volume_db = linear_to_db(maxf(squeal * 0.7, 0.0001))
-	_tires.pitch_scale = 0.9 + squeal * 0.25
+				# A locked or spinning wheel scrubs as well as squeals.
+				lock = maxf(lock, clampf((absf(w.slip_ratio) - 0.25) / 0.5, 0.0, 1.0) * clampf(w.slip_speed / 3.0, 0.0, 1.0))
+	elif vehicle == null:
+		slip = float(state.get("slip", 0.0)) # the Fitting Bay's skid
+		lock = float(state.get("lock", 0.0))
+	var start := float(_tire.get("slip_start", 1.5))
+	var full := maxf(float(_tire.get("slip_full", 7.5)), start + 0.1)
+	_squeal = _follow(_squeal, clampf((slip - start) / (full - start), 0.0, 1.0), delta)
+	_tires.volume_db = linear_to_db(maxf(_squeal * float(_tire.get("gain", 0.7)), 0.0001))
+	var pitch: Array = _tire.get("pitch", [0.9, 1.15])
+	_tires.pitch_scale = lerpf(float(pitch[0]), float(pitch[1]), _squeal)
+	if _scrub.stream:
+		_scrubbing = _follow(_scrubbing, lock, delta)
+		_scrub.volume_db = linear_to_db(maxf(_scrubbing * float(_tire.get("scrub_gain", 0.5)), 0.0001))
 	var speed := vehicle.linear_velocity.length() if vehicle and is_instance_valid(vehicle) else float(state.get("speed", 0.0))
 	_wind.volume_db = linear_to_db(maxf(clampf(speed / 80.0, 0.0, 1.0) * 0.5, 0.0001))
 	_wind.pitch_scale = 0.7 + clampf(speed / 80.0, 0.0, 1.0) * 0.6
+
+
+## A tire layer's level moving toward `target` at the profile's attack (up) or release (down).
+func _follow(level: float, target: float, delta: float) -> float:
+	var ms := float(_tire.get("attack_ms" if target > level else "release_ms", 0.0))
+	return target if ms <= 0.0 else lerpf(level, target, 1.0 - exp(-delta * 1000.0 / ms))
 
 
 func _one_shot(kind: String, pitch: float) -> void:
@@ -394,7 +447,7 @@ func _route() -> void:
 	AudioMix.bus(engine)
 	AudioMix.bus(&"Tires")
 	for player: AudioStreamPlayer3D in find_children("*", "AudioStreamPlayer3D", true, false):
-		player.bus = &"Tires" if player == _tires or player == _wind else engine
+		player.bus = &"Tires" if player in [_tires, _scrub, _wind] else engine
 
 
 static func _setup_player(player: AudioStreamPlayer3D, stream: AudioStream) -> void:
@@ -430,6 +483,40 @@ static func _load_profile(id: String) -> Dictionary:
 
 
 ## Ids and names of the built-in profiles.
+## A built-in tire sound and its loops (made once per run); {} if there's no such profile.
+static func _load_tire_profile(id: String) -> Dictionary:
+	if _tire_profiles.has(id):
+		return _tire_profiles[id]
+	if id.is_empty() or not id.is_valid_ascii_identifier() or id != id.to_lower():
+		return {}
+	var path := TIRE_DIR + id + ".json"
+	var profile: Variant = JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
+	if not profile is Dictionary or profile.get("schema") != "noss.tire_profile/1":
+		return {}
+	_tire_profiles[id] = { "profile": profile, "squeal": tire_loop(profile.synth),
+		"scrub": tire_loop(profile.scrub) if profile.get("scrub") is Dictionary else null }
+	return _tire_profiles[id]
+
+
+## A tire profile's synth block as a looping stream: "classic" is the first nOSS tire tone.
+static func tire_loop(synth: Dictionary) -> AudioStreamWAV:
+	if synth.get("kind") == "classic":
+		return _extra("tires")
+	return _wav(NossAudio.render_tire_loop(synth, float(synth.get("seconds", 2.5))))
+
+
+## The built-in tire sounds as [[id, name]] (menus).
+static func tire_profiles() -> Array:
+	var out := []
+	for file in DirAccess.get_files_at(TIRE_DIR):
+		if file.ends_with(".json"):
+			var p: Variant = JSON.parse_string(FileAccess.get_file_as_string(TIRE_DIR + file))
+			if p is Dictionary and p.get("schema") == "noss.tire_profile/1":
+				out.append([p.id, p.name])
+	out.sort_custom(func(a: Array, b: Array) -> bool: return a[0] == DEFAULT_TIRES or (b[0] != DEFAULT_TIRES and a[1] < b[1]))
+	return out
+
+
 static func profiles() -> Array:
 	var out := []
 	for file in DirAccess.get_files_at(PROFILE_DIR):
@@ -471,7 +558,7 @@ static func _extra(kind: String) -> AudioStreamWAV:
 		var t := float(i) / RATE
 		var s := 0.0
 		match kind:
-			"tires":
+			"tires": # the "classic" tire sound, kept as it was (data/tire_sounds/classic.json)
 				var wobble := sin(TAU * 12.0 * t) * 0.02
 				s = 0.4 * sin(TAU * 950.0 * t * (1.0 + wobble)) + 0.25 * sin(TAU * 1426.0 * t) + rng.randf_range(-0.15, 0.15)
 			"wind":

@@ -4,7 +4,10 @@
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/packed_byte_array.hpp>
 
+#include <algorithm>
+
 #include "audio/engine_synth.h"
+#include "audio/tire_synth.h"
 
 using namespace godot;
 using namespace noss::audio;
@@ -53,6 +56,31 @@ EngineProfile read_profile(const Dictionary &p) {
 
 void NossAudio::_bind_methods() {
 	ClassDB::bind_static_method("NossAudio", D_METHOD("render_loop", "profile", "rpm", "load", "emitter", "length_s"), &NossAudio::render_loop, DEFVAL(0.5));
+	ClassDB::bind_static_method("NossAudio", D_METHOD("render_tire_loop", "params", "length_s"), &NossAudio::render_tire_loop, DEFVAL(2.5));
+}
+
+PackedByteArray NossAudio::render_tire_loop(const Dictionary &p_params, double p_length_s) {
+	TireProfile t;
+	Array bands = p_params.get("bands", Array());
+	for (int64_t i = 0; i < bands.size() && i < 8; i++) {
+		Array b = bands[i];
+		if (b.size() >= 3) {
+			t.bands.push_back({ double(b[0]), double(b[1]), double(b[2]) });
+		}
+	}
+	t.tone = num(p_params, "tone", t.tone);
+	t.tone_hz = num(p_params, "tone_hz", t.tone_hz);
+	t.drift = num(p_params, "drift", t.drift);
+	t.drift_hz = num(p_params, "drift_hz", t.drift_hz);
+	t.flutter = num(p_params, "flutter", t.flutter);
+	t.flutter_hz = num(p_params, "flutter_hz", t.flutter_hz);
+	std::vector<int16_t> samples = audio::render_tire_loop(t, 44100, std::clamp(p_length_s, 0.1, 10.0), uint32_t(num(p_params, "seed", 1)));
+	PackedByteArray data;
+	data.resize(int64_t(samples.size() * 2));
+	for (size_t i = 0; i < samples.size(); i++) {
+		data.encode_s16(int64_t(i * 2), samples[i]);
+	}
+	return data;
 }
 
 Dictionary NossAudio::render_loop(const Dictionary &p_profile, double p_rpm, double p_load, const String &p_emitter, double p_length_s) {

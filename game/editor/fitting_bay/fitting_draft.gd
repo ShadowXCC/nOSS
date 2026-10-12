@@ -171,6 +171,10 @@ func add_recording(disk_path: String, target: String, rpm := 0.0, kind := "on") 
 	_streams.erase(rel)
 	if emitter:
 		_set_sample(target, rpm, kind, rel)
+	elif target == "tires":
+		var tires: Dictionary = sound.get("tires", {})
+		tires.recording = rel
+		sound.tires = tires
 	else:
 		var extras: Dictionary = sound.get("extras", {})
 		if target == "backfire":
@@ -234,7 +238,10 @@ func remove_recording(rel: String) -> void:
 			extras[key] = (extras[key] as Array).filter(func(x: String) -> bool: return x != rel)
 			if (extras[key] as Array).is_empty():
 				extras.erase(key)
-	if layers.is_empty() and extras.is_empty():
+	var tires: Dictionary = sound.get("tires", {})
+	if tires.get("recording") == rel:
+		tires.erase("recording")
+	if layers.is_empty() and extras.is_empty() and not tires.has("recording"):
 		sound = PackageLoader.without_recordings(sound)
 	else:
 		sound.layers = layers
@@ -262,6 +269,9 @@ func recordings_list() -> Array:
 		for rel: Variant in (extras[key] if extras[key] is Array else [extras[key]]):
 			if rel is String:
 				out.append([key.capitalize(), rel])
+	var tires: Variant = sound.get("tires")
+	if tires is Dictionary and tires.get("recording") is String:
+		out.append(["Tires", tires.recording])
 	return out
 
 

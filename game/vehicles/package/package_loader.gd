@@ -261,6 +261,9 @@ static func recordings(sound: Dictionary) -> Dictionary:
 	for rel: Variant in extras.get("backfire", []):
 		if rel is String:
 			out[rel] = false
+	var tires: Variant = sound.get("tires")
+	if tires is Dictionary and tires.get("recording") is String:
+		out[tires.recording] = true
 	return out
 
 
@@ -269,6 +272,8 @@ static func without_recordings(sound: Dictionary) -> Dictionary:
 	var out := sound.duplicate(true)
 	for key in ["layers", "extras", "rpm_idle", "rpm_max"]:
 		out.erase(key)
+	if out.get("tires") is Dictionary:
+		(out.tires as Dictionary).erase("recording")
 	return out
 
 

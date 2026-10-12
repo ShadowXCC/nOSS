@@ -152,9 +152,9 @@ func _select(i: int) -> void:
 		UiKit.button("Drive", _drive, "Pick a class and drive this car"),
 		UiKit.button("Edit", _edit.bind(""), "Open in the Fitting Bay" + (" as a copy" if car.official else "")),
 		UiKit.button("Paint", _paint, "Change its colours"),
-		UiKit.button("Sound", _edit.bind("Sound"), "Tune its engine sound"),
+		UiKit.button("Sound", _edit.bind("Sound"), "Tune its engine and tire sounds"),
 		UiKit.button("Duplicate", _duplicate, "Make a copy in the garage"),
-		UiKit.button("Copy sound to…", _copy_sound, "Give another car this engine sound"),
+		UiKit.button("Copy sound to…", _copy_sound, "Give another car these sounds"),
 		UiKit.button("Delete", _delete, "Delete this car"),
 	]
 	_actions.clear()

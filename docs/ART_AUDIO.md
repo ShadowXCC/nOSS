@@ -103,6 +103,8 @@ Every car carries its own engine sound inside its `.noss` (`sound/`, format in [
 | UI | Short, retro-styled clicks and confirms |
 | Music | Original or CC-licensed menu and endless playlists, plus an optional user music folder (local OGG/MP3) |
 
+**Tire sounds (D90):** each car picks a built-in tire sound in the Fitting Bay's Sound step (`data/tire_sounds/<id>.json`, schema `tire_profile`), or brings its own loop over it. **Squeal** (the default) is synthesized by `NossAudio.render_tire_loop`: noise through narrow band-passes at non-harmonic centres (about 1.05, 1.73 and 2.6 kHz), a faint tone that wanders at random, and a random flutter of the level, in a seamless 2.5 s loop. Its level follows the fastest-slipping wheel on a paved surface (1.5 m/s starts it, 7.5 m/s is loudest), comes in fast (30 ms) and fades slowly (160 ms), and a broad scrub layer joins in for locked or spinning wheels. **Classic** is the first nOSS tire tone, kept as it was. A new built-in is a new JSON file. The Sound step's **Skid** button plays the tires in the bay.
+
 **Splitscreen mix:** see [ARCHITECTURE.md §6](ARCHITECTURE.md#6-local-players-splitscreen-and-multi-monitor).
 
 ## 8. Later extras

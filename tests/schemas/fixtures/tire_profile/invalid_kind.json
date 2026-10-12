@@ -1,0 +1,1 @@
+{ "schema": "noss.tire_profile/1", "id": "x", "name": "X", "synth": { "kind": "shader" }, "slip_start": 1, "slip_full": 5, "gain": 0.7, "pitch": [1, 1] }

@@ -1,0 +1,31 @@
+{
+  "schema": "noss.tire_profile/1",
+  "id": "squeal",
+  "name": "Squeal",
+  "synth": {
+    "kind": "bands",
+    "seconds": 2.5,
+    "bands": [[1050, 20, 1.0], [1730, 15, 0.6], [2600, 10, 0.35]],
+    "tone": 0.12,
+    "drift": 0.03,
+    "drift_hz": 1.2,
+    "flutter": 0.3,
+    "flutter_hz": 11,
+    "seed": 5
+  },
+  "scrub": {
+    "kind": "bands",
+    "seconds": 2.0,
+    "bands": [[420, 1.2, 1.0], [880, 1.5, 0.6]],
+    "flutter": 0.45,
+    "flutter_hz": 18,
+    "seed": 9
+  },
+  "slip_start": 1.5,
+  "slip_full": 7.5,
+  "gain": 0.7,
+  "scrub_gain": 0.55,
+  "pitch": [0.95, 1.05],
+  "attack_ms": 30,
+  "release_ms": 160
+}

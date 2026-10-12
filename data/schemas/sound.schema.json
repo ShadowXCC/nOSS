@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:noss:schema:sound:1",
-  "title": "nOSS engine sound",
-  "description": "sound/profile.json inside a .noss package: a tuned built-in profile, or own recordings on top of one. See docs/VEHICLE_PACKAGE.md §6.",
+  "title": "nOSS car sound",
+  "description": "sound/profile.json inside a .noss package: a tuned built-in engine profile, or own recordings on top of one, and the tire sound. See docs/VEHICLE_PACKAGE.md §6.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema", "base"],
@@ -14,6 +14,15 @@
       "type": "string",
       "pattern": "^[a-z0-9_]+$",
       "maxLength": 32
+    },
+    "tires": {
+      "description": "Tire sound: a built-in (data/tire_sounds/<id>.json; squeal if left out), with an optional own loop over it.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "base": { "type": "string", "pattern": "^[a-z0-9_]+$", "maxLength": 32 },
+        "recording": { "$ref": "#/$defs/audio" }
+      }
     },
     "tweaks": {
       "type": "object",

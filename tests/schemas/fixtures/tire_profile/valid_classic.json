@@ -1,0 +1,12 @@
+{
+  "schema": "noss.tire_profile/1",
+  "id": "classic",
+  "name": "Classic",
+  "synth": { "kind": "classic" },
+  "slip_start": 1.5,
+  "slip_full": 7.5,
+  "gain": 0.7,
+  "pitch": [0.9, 1.15],
+  "attack_ms": 0,
+  "release_ms": 0
+}
