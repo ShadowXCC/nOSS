@@ -1,9 +1,9 @@
 extends Node
-## Race soak check (AI-01, ROADMAP M4: "no AI pile-ups"): a full grid races on the Proving Ground,
-## headless at a fixed 120 Hz and faster than real time, and the run fails on a pile-up, a car
-## stuck for more than 5 s, or a car that doesn't finish.
+## Race soak check (AI-01, ROADMAP M4: "no AI pile-ups"): a full grid races on a track (the
+## Proving Ground unless --track), headless at a fixed 120 Hz and faster than real time, and the
+## run fails on a pile-up, a car stuck for more than 5 s, or a car that doesn't finish.
 ## Runs as a scene so the autoloads are there:
-##   tools/race_check.sh [--cars=12] [--laps=5] [--seed=1] [--skill=60-100]
+##   tools/race_check.sh [--cars=12] [--laps=5] [--seed=1] [--skill=60-100] [--track=<id|path|hash>]
 ##                       [--bad=stall|early_brake|spin] [--platform=<id>] [--builtin] [--verbose]
 ## A pile-up is 3 or more cars linked by contacts (A hits B, B hits C) within 3 s and 30 m.
 
@@ -47,6 +47,12 @@ func _start() -> void:
 	session = TrackSession.new()
 	session.autodrive = true
 	session.platform_id = opts.platform
+	if opts.has("track"):
+		session.track_path = TrackLibrary.resolve(String(opts.track))
+		if session.track_path.is_empty():
+			print("FAIL: no track " + String(opts.track))
+			get_tree().quit(1)
+			return
 	var skill := String(opts.skill).split("-")
 	var e := RaceEvent.new()
 	e.kind = "race"
@@ -89,7 +95,7 @@ func _tick() -> void:
 						if o != r:
 							near = minf(near, o.vehicle.global_position.distance_to(r.vehicle.global_position))
 					print("  grid %-8s d %.1f lat %.1f nearest %.1f m  %s  hull %s" % [r.display_name, r.track.from_start(r.distance), r.lateral, near, r.vehicle.package.display_name(), r.vehicle.fitted.envelope.size])
-			print("Race: %d cars, %d laps, %s, skill %s, seed %s%s" % [session.racers.size(), int(opts.laps), opts.platform, opts.skill, opts.seed, ", bad driver: " + opts.bad if opts.bad else ""])
+			print("Race: %d cars, %d laps, %s, %s, skill %s, seed %s%s" % [session.racers.size(), int(opts.laps), session.track.display_name, opts.platform, opts.skill, opts.seed, ", bad driver: " + opts.bad if opts.bad else ""])
 		return
 	time += dt
 	ticks += 1

@@ -22,9 +22,10 @@ extends Node
 ##   --perf               print frame, CPU, physics and per-view GPU times every second
 ##   --fullscreen         fullscreen for this run; --no-vsync: no vsync (measurements)
 ##   --pause-at=<s>       open the last player's pause menu
-##   --menu=<m>           title: open classes, event, players, settings, online or online-players
+##   --menu=<m>           title: open classes, event, players, settings, online, online-players or tracks
 ##                        (--join=<n>: n devices join)
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
+##   --track=<ref>        the track for --drive, --race and --time-trial: an id, a path or a hash
 ##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5; a list like 5,30,90 takes several), one per window
 ##   --quit-at=<s>        quit after this many seconds
 ##   --bay                open the Fitting Bay
@@ -166,10 +167,37 @@ func apply_dev_event(e: RaceEvent) -> void:
 		e.ai_skill = float(dev["ai-skill"])
 
 
-## `solo`: only P1 drives (garage and Fitting Bay); otherwise every joined player.
-func start_free_drive(car_path := "", platform_id := "", bay_return := false, solo := true) -> void:
+## The track to drive: --track, else the last one picked, else the Proving Ground.
+func selected_track() -> String:
+	if dev.has("track"):
+		var t := TrackLibrary.resolve(String(dev.track))
+		if t:
+			return t
+		push_warning("No track " + String(dev.track))
+	var last := String(Settings.profile.get("last_track", ""))
+	var found := TrackLibrary.resolve(last) if last else ""
+	return found if found else TrackLibrary.DEFAULT
+
+
+## Starts `session`, its track loaded off the main thread first behind a loading screen (a
+## preloaded track_package goes straight in).
+func open_session(session: TrackSession) -> void:
+	if session.track_package and session.track_package.ok():
+		get_tree().change_scene_to_node(session)
+		return
+	get_tree().change_scene_to_node(LoadingScreen.new())
+	TrackLoader.load_async(self, session.track_path, func(pkg: TrackPackage) -> void:
+		if pkg.ok():
+			session.track_package = pkg
+		get_tree().change_scene_to_node(session))
+
+
+## `solo`: only P1 drives (garage and Fitting Bay); otherwise every joined player. `track`: a
+## path; empty: selected_track().
+func start_free_drive(car_path := "", platform_id := "", bay_return := false, solo := true, track := "") -> void:
 	get_tree().paused = false
 	var session := TrackSession.new()
+	session.track_path = track if track else selected_track()
 	session.bay_return = bay_return
 	session.solo = solo and not dev.has("players")
 	session.car_path = car_path if car_path else String(dev.get("car", ""))
@@ -181,23 +209,25 @@ func start_free_drive(car_path := "", platform_id := "", bay_return := false, so
 	session.ai_builtin_cars = dev.has("ai-builtin")
 	if dev.has("camera"):
 		Settings.profile.camera = dev.camera
-	get_tree().change_scene_to_node(session)
+	open_session(session)
 
 
 ## A race weekend or time trial with `event`; every joined player takes part (time trial: P1).
-func start_event(event: RaceEvent, platform_id: String) -> void:
+## `track`: a path; empty: selected_track().
+func start_event(event: RaceEvent, platform_id: String, track := "") -> void:
 	event_requested.emit(event, platform_id)
 	if hold_events:
 		return
 	get_tree().paused = false
 	var session := TrackSession.new()
+	session.track_path = track if track else selected_track()
 	session.event = event
 	session.solo = event.kind == "time_trial"
 	session.platform_id = platform_id
 	session.autodrive = dev.has("autodrive")
 	if dev.has("camera"):
 		Settings.profile.camera = dev.camera
-	get_tree().change_scene_to_node(session)
+	open_session(session)
 
 
 ## Why the last online game ended ("Server closed"), for the title's Online menu; then "".

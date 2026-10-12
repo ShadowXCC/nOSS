@@ -19,7 +19,7 @@ static func list(include_user := true, include_personal := true) -> Array[Dictio
 		var e := entry(BUILTIN_DIR + dir)
 		if not e.is_empty():
 			out.append(e)
-	if include_user:
+	if include_user and DirAccess.dir_exists_absolute(user_dir):
 		var mine: Array[Dictionary] = []
 		for file in DirAccess.get_files_at(user_dir):
 			if file.ends_with(".nosstrack"):

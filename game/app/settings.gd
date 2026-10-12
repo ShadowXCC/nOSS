@@ -123,6 +123,7 @@ func use_folder(folder: String) -> void:
 	PlayerProfile.dir = folder.path_join("profiles/")
 	Setup.dir = folder.path_join("setups/")
 	TimeTrial.dir = folder.path_join("ghosts/")
+	TrackLibrary.user_dir = folder.path_join("tracks/")
 	Leaderboard.dir = folder.path_join("leaderboards/")
 	Players.memory_path = folder.path_join("players.json")
 	NetIdentity.dir = folder.path_join("identity/")

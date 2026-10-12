@@ -1,3 +1,4 @@
+class_name TrackPackageTest
 extends GdUnitTestSuite
 ## Track packages (EDT-07, docs/TRACK_EDITOR.md §5): the built-in folder, .nosstrack round
 ## trips with terrain, the checks before anything is used, and the track library.

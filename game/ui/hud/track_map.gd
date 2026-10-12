@@ -4,7 +4,11 @@ extends Control
 ## centreline, the start line, and each player's car as a dot with their number on it, in
 ## their colour (never colour alone).
 
-var track: TrackData
+var track: TrackData:
+	set(t):
+		track = t
+		_points = PackedVector2Array()
+		queue_redraw()
 ## Returns the cars to show: [[number, colour, world position], ...].
 var cars: Callable
 

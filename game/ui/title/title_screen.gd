@@ -8,6 +8,7 @@ extends Control
 @onready var _buttons: ScrollContainer = %Buttons
 
 var _classes: ClassPicker
+var _tracks: TrackPicker
 var _players: PlayersMenu
 var _settings: SettingsMenu
 var _event: EventMenu
@@ -24,7 +25,7 @@ func _ready() -> void:
 	Settings.changed.connect(_apply_text_scale)
 	Players.slots_changed.connect(_apply_text_scale)
 	_version_label.text = "v%s" % ProjectSettings.get_setting("application/config/version")
-	_drive_button.accessibility_description = "Drive the Proving Ground"
+	_drive_button.accessibility_description = "Drive any track"
 	_drive_button.pressed.connect(_open_classes.bind("free"))
 	_settings_button.pressed.connect(_open_settings)
 	_quit_button.pressed.connect(get_tree().quit)
@@ -84,6 +85,7 @@ func _ready() -> void:
 		"players": _open_players(String(Settings.profile.get("last_platform", "official.track.gt")))
 		"settings": _open_settings()
 		"online": _open_online()
+		"tracks": _open_tracks(func(_t: String) -> void: pass, true)
 		"online-players":
 			_open_online()
 			_online._open_players()
@@ -108,8 +110,9 @@ func _ready() -> void:
 		_online._join(String(Game.dev.connect), String(Game.dev.get("password", "")))
 
 
-## Free Drive: class first (how it drives), then the players, who each pick a car (how it looks).
-## Race: class, then the event, then the players. Time Trial: class, then P1 drives.
+## Free Drive: class first (how it drives), then the track, then the players, who each pick a car
+## (how it looks). Race: class, then the event (track included), then the players. Time Trial:
+## class, then the track, then P1 drives.
 func _open_classes(mode: String) -> void:
 	_mode = mode
 	_classes = ClassPicker.new()
@@ -129,9 +132,28 @@ func _on_class_picked(id: String) -> void:
 		_open_event(id)
 	elif _mode == "time_trial":
 		Settings.profile.last_platform = id
-		Game.start_event(RaceEvent.time_trial(), id)
+		_open_tracks(func(track: String) -> void: Game.start_event(RaceEvent.time_trial(), id, track))
 	else:
-		_open_players(id)
+		_open_tracks(func(track: String) -> void: _open_players(id, null, track))
+
+
+## The track picker, then `then` (track path). With only one track, straight on (unless `always`).
+func _open_tracks(then: Callable, always := false) -> void:
+	if TrackLibrary.list().size() <= 1 and not always:
+		then.call(Game.selected_track())
+		return
+	_tracks = TrackPicker.new()
+	_tracks.picked.connect(func(path: String) -> void:
+		_tracks.visible = false
+		then.call(path))
+	_tracks.closed.connect(func() -> void:
+		_tracks.queue_free()
+		if is_instance_valid(_classes):
+			_classes.visible = true
+			_classes.grab_focus_first()
+		else:
+			_drive_button.grab_focus())
+	add_child(_tracks)
 
 
 func _open_event(platform_id: String) -> void:
@@ -149,19 +171,22 @@ func _open_event(platform_id: String) -> void:
 	add_child(_event)
 
 
-func _open_players(platform_id: String, event: RaceEvent = null) -> void:
+func _open_players(platform_id: String, event: RaceEvent = null, track := "") -> void:
 	_players = PlayersMenu.new()
 	_players.platform_id = platform_id
 	_players.started.connect(func() -> void:
 		if event:
-			Game.start_event(event, platform_id)
+			Game.start_event(event, platform_id, track)
 		else:
-			Game.start_free_drive("", platform_id, false, false))
+			Game.start_free_drive("", platform_id, false, false, track))
 	_players.closed.connect(func() -> void:
 		_players.queue_free()
 		if is_instance_valid(_event):
 			_event.visible = true
 			_event.grab_focus_first()
+		elif is_instance_valid(_tracks):
+			_tracks.visible = true
+			_tracks.grab_focus_first()
 		elif is_instance_valid(_classes):
 			_classes.visible = true
 			_classes.grab_focus_first()

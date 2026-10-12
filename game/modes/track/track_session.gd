@@ -126,7 +126,8 @@ func _ready() -> void:
 	if is_online():
 		_apply_server_rules(online.get("rules", {}))
 	if event.kind == "race":
-		ai_racers = event.ai_count
+		# As many as the track's grid takes, after the players.
+		ai_racers = clampi(event.ai_count, 0, maxi(int(track.grid.slots) - maxi(Players.count(), 1), 0))
 		ai_skill = event.ai_skill
 		ai_builtin_cars = event.ai_cars == "builtin"
 		safe_rejoin = true

@@ -29,7 +29,8 @@ func _ready() -> void:
 	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(rows)
 
-	_add(rows, UiKit.spinner("Track", [["proving_ground", "Proving Ground"]], "proving_ground", func(_v: Variant) -> void: pass))
+	var tracks := TrackLibrary.list().map(func(e: Dictionary) -> Array: return [e.path, TrackLibrary.label(e)])
+	_add(rows, UiKit.spinner("Track", tracks, Game.selected_track(), func(path: String) -> void: Settings.profile.last_track = path))
 	_add(rows, UiKit.spinner("Practice", _minutes([0, 5, 10, 15, 30]), event.practice_min, func(v: int) -> void: event.practice_min = v))
 	_add(rows, UiKit.spinner("Qualifying", _minutes([0, 5, 10, 15]), event.qualifying_min, func(v: int) -> void: event.qualifying_min = v))
 	_add(rows, UiKit.spinner("Race length", [["laps", "Laps"], ["time", "Time"]], "time" if event.race_min > 0 else "laps", func(v: String) -> void:

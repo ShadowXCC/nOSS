@@ -60,6 +60,8 @@ const DEFAULTS := {
 	"wheel": {},
 	"last_car": "",
 	"last_platform": "official.track.gt",
+	## The last track picked (a path; TrackLibrary).
+	"last_track": "",
 }
 ## Dicts whose known keys are merged one by one; other dicts are taken whole.
 const NESTED := ["input", "assists", "presets"]
