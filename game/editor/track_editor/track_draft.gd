@@ -269,6 +269,25 @@ func set_prop(i: int, item: Dictionary, name := "Move prop") -> void:
 	_edit(name, "props", func() -> void: layout.props.items[i] = item.duplicate(true), &"props")
 
 
+## Moves a prop without recording (while dragging); end_prop_move() records it.
+func set_prop_live(i: int, item: Dictionary) -> void:
+	if i < 0 or i >= layout.props.items.size():
+		return
+	if not _dragging.has("props"):
+		_dragging.props = layout.props.duplicate(true)
+	layout.props.items[i] = item.duplicate(true)
+	_changed(&"props", { "live": true })
+
+
+func end_prop_move() -> void:
+	if not _dragging.has("props"):
+		return
+	var before := { "props": _dragging.props }
+	_dragging.erase("props")
+	history.act("Move prop", _set_section.bind("props", { "props": layout.props.duplicate(true) }, &"props"), _set_section.bind("props", before, &"props"), false)
+	_changed(&"props", {})
+
+
 func delete_prop(i: int) -> void:
 	if i < 0 or i >= layout.props.items.size():
 		return
