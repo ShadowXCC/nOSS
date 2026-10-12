@@ -262,10 +262,13 @@ func update_track(delta: float) -> void:
 	timer.update(track.from_start(distance), delta, vehicle.linear_velocity.length())
 	_clock += delta
 	# Last valid spot for resets: on the road, upright.
-	on_track = absf(lateral) < track.width / 2.0 + 1.0 and vehicle.global_basis.y.y > 0.8
+	on_track = absf(lateral) < track.half_width(distance, lateral) + 1.0 and vehicle.global_basis.y.y > 0.8
 	if on_track:
 		last_valid = distance
 	_check_track_limits()
+	# Fallen off the world (off a bridge, into water): back on the road.
+	if com.y < track.kill_y and not waiting:
+		reset_car()
 	# Wrong way: a warning (the HUD shows it), then a respawn facing the right way.
 	if timer.wrong_way and not waiting:
 		_wrong_way_time += delta
@@ -277,19 +280,18 @@ func update_track(delta: float) -> void:
 
 
 ## Track limits (docs/GAMEMODES.md §1): out when all four wheels are past the road's edge and
-## any curb there. Coming back, the cut gained time if the car covered that stretch faster
+## any curb there (each side has its own). Coming back, the cut gained time if the car covered that stretch faster
 ## than the racing line's best for this platform (a car running wide never does).
 func _check_track_limits() -> void:
 	if waiting or vehicle.fitted == null:
 		return
 	var left := track.lefts[maxi(track_index, 0)]
 	var com_world := com()
-	var edge := track.width / 2.0 + track.curb_at(distance) + 0.1
 	var out := true
 	var side := 0.0
 	for w: Dictionary in vehicle.fitted.physics_wheels:
 		var lat := lateral + (vehicle.global_transform * (w.center as Vector3) - com_world).dot(left)
-		if absf(lat) <= edge or (side != 0.0 and signf(lat) != side):
+		if absf(lat) <= track.edge_at(distance, lat) + 0.1 or (side != 0.0 and signf(lat) != side):
 			out = false
 			break
 		side = signf(lat)
@@ -362,13 +364,14 @@ func _place_rejoin() -> void:
 	# At the road's edge, on the side away from the racing line.
 	var line := RacingLine.for_track(track).offset_at(_rejoin_at)
 	var side := -1.0 if line > 0.0 else 1.0
-	var at := track.transform_at(_rejoin_at, side * (track.width / 2.0 - 1.8))
+	var edge := side * (track.half_width(_rejoin_at, side) - 1.8)
+	var at := track.transform_at(_rejoin_at, edge)
 	vehicle.freeze = false
 	vehicle.visible = true
 	vehicle.reset_to(at)
 	timer.teleported(track.from_start(_rejoin_at))
 	distance = _rejoin_at
-	lateral = side * (track.width / 2.0 - 1.8)
+	lateral = edge
 	track_index = -1
 	_ghost_time = REJOIN_GHOST_S
 	set_ghost(true)

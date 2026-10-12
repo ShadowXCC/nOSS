@@ -30,7 +30,8 @@ static func build(data: TrackData) -> Node3D:
 	b._start_gantry()
 	b._grandstand()
 	b._pit_building()
-	b._trees()
+	if data.legacy.get("trees", false):
+		b._trees()
 	return b.root
 
 
@@ -40,16 +41,15 @@ static func build(data: TrackData) -> Node3D:
 func _road() -> void:
 	var st := _begin()
 	var n := track.samples.size()
-	var half := track.width / 2.0
 	var tiles := maxf(roundf(track.length / ROAD_TILE_M), 1.0)
 	for i in n:
 		var j := (i + 1) % n
 		var v0 := track.distances[i] / track.length * tiles
 		var v1 := (track.distances[j] if j > 0 else track.length) / track.length * tiles
-		var li := track.samples[i] + track.lefts[i] * half
-		var ri := track.samples[i] - track.lefts[i] * half
-		var lj := track.samples[j] + track.lefts[j] * half
-		var rj := track.samples[j] - track.lefts[j] * half
+		var li := track.samples[i] + track.lefts[i] * track.half_l[i]
+		var ri := track.samples[i] - track.lefts[i] * track.half_r[i]
+		var lj := track.samples[j] + track.lefts[j] * track.half_l[j]
+		var rj := track.samples[j] - track.lefts[j] * track.half_r[j]
 		var edge := Color(0.82, 0.82, 0.82)
 		_quad(st, [li, ri, rj, lj], [Vector2(0, v0), Vector2(1, v0), Vector2(1, v1), Vector2(0, v1)], [edge, edge, edge, edge])
 	_add_body("Road", st, _material("asphalt", RetroTextures.asphalt(), 0.85, 0.3), VehicleSim.SURFACE_ASPHALT)
@@ -59,13 +59,16 @@ func _curbs() -> void:
 	var n := track.samples.size()
 	var st := _begin()
 	var any := false
-	var half := track.width / 2.0
 	for side: float in [1.0, -1.0]:
+		var curb := track.curb_l if side > 0.0 else track.curb_r
+		var halves := track.half_l if side > 0.0 else track.half_r
 		for i in n:
 			var j := (i + 1) % n
-			# Curbs on both edges through corners, extended a little either side.
-			if not track.curbs[i]:
+			# Curbs through corners (or where the road asks), extended a little either side.
+			if not curb[i]:
 				continue
+			var half := halves[i]
+			var half_j := halves[j]
 			any = true
 			var v0 := track.distances[i] / 3.0
 			var v1 := (track.distances[j] if j > 0 else track.length) / 3.0
@@ -76,13 +79,13 @@ func _curbs() -> void:
 				var b: Array = profile[p + 1]
 				var ai: Vector3 = track.samples[i] + track.lefts[i] * side * (half + a[0]) + Vector3.UP * a[1]
 				var bi: Vector3 = track.samples[i] + track.lefts[i] * side * (half + b[0]) + Vector3.UP * b[1]
-				var aj: Vector3 = track.samples[j] + track.lefts[j] * side * (half + a[0]) + Vector3.UP * a[1]
-				var bj: Vector3 = track.samples[j] + track.lefts[j] * side * (half + b[0]) + Vector3.UP * b[1]
+				var aj: Vector3 = track.samples[j] + track.lefts[j] * side * (half_j + a[0]) + Vector3.UP * a[1]
+				var bj: Vector3 = track.samples[j] + track.lefts[j] * side * (half_j + b[0]) + Vector3.UP * b[1]
 				var quad := [ai, bi, bj, aj] if side < 0.0 else [bi, ai, aj, bj]
 				_quad(st, quad, [Vector2(0, v0), Vector2(1, v0), Vector2(1, v1), Vector2(0, v1)], [])
 			# Outer face down to the grass.
 			var o := track.lefts[i] * side * (half + CURB_WIDTH)
-			var oj := track.lefts[j] * side * (half + CURB_WIDTH)
+			var oj := track.lefts[j] * side * (half_j + CURB_WIDTH)
 			var top_i := track.samples[i] + o + Vector3.UP * CURB_HEIGHT * 0.6
 			var top_j := track.samples[j] + oj + Vector3.UP * CURB_HEIGHT * 0.6
 			var low_i := track.samples[i] + o + Vector3.UP * GRASS_Y
@@ -123,7 +126,7 @@ func _terrain() -> void:
 
 
 func _skidpad() -> void:
-	var pad: Dictionary = track.raw.get("skidpad", {})
+	var pad: Dictionary = track.legacy.get("skidpad", {})
 	if pad.is_empty():
 		return
 	var c := Vector3(pad.center[0], 0.0, pad.center[1])
@@ -206,7 +209,7 @@ func _start_gantry() -> void:
 
 
 func _grandstand() -> void:
-	var g: Dictionary = track.raw.get("grandstand", {})
+	var g: Dictionary = track.legacy.get("grandstand", {})
 	if g.is_empty():
 		return
 	var side := 1.0 if g.get("side", "left") == "left" else -1.0
@@ -226,7 +229,7 @@ func _grandstand() -> void:
 
 
 func _pit_building() -> void:
-	var p: Dictionary = track.raw.get("pit_building", {})
+	var p: Dictionary = track.legacy.get("pit_building", {})
 	if p.is_empty():
 		return
 	var side := 1.0 if p.get("side", "right") == "left" else -1.0
@@ -242,7 +245,7 @@ func _trees() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(track.id)
 	var bounds := _bounds().grow(400.0)
-	var pad: Dictionary = track.raw.get("skidpad", {})
+	var pad: Dictionary = track.legacy.get("skidpad", {})
 	var pad_c := Vector3(pad.center[0], 0, pad.center[1]) if not pad.is_empty() else Vector3(INF, 0, INF)
 	var pad_r: float = pad.get("pad_radius_m", 0.0) + 15.0
 	var transforms: Array[Transform3D] = []

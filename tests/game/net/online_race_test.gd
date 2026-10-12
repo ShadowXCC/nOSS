@@ -107,7 +107,7 @@ func test_a_client_follows_the_servers_grid_and_results() -> void:
 	await _frames(2)
 	# The last car is on pole now, and everyone waits for the lights.
 	var pole: Racer = s.racers[-1]
-	var pole_spot := s.grid_transform(0, RaceControl.GRID_FRONT_M, RaceControl.GRID_ROW_M).origin
+	var pole_spot := s.grid_transform(0, float(s.track.grid.front_m), float(s.track.grid.row_m)).origin
 	assert_float(pole.vehicle.ground_reference().origin.distance_to(pole_spot)).is_less(1.0)
 	assert_bool(s.racers.all(func(r: Racer) -> bool: return r.held)).is_true()
 	assert_array(s.race.grid_ids).is_equal(ids)

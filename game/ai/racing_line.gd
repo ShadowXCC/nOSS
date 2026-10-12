@@ -25,7 +25,9 @@ const POWER_SHARE := 0.82
 const BRAKE_SHARE := 0.9
 const ROLLING := 0.012
 
-static var _cache := {} # track key -> RacingLine
+## Lines solved lately (track layout -> RacingLine), oldest first.
+static var _cache := {}
+const CACHE_SIZE := 4
 
 var track: TrackData
 ## Metres left (+) of the centreline, per sample.
@@ -38,15 +40,26 @@ var steps := PackedFloat32Array()
 var _profiles := {} # key -> PackedFloat32Array of speeds per sample
 
 
-## The line for `track`, solved once per track and kept.
+## The line for `track`, solved once per layout and kept (the last few).
 static func for_track(t: TrackData) -> RacingLine:
-	var key := "%s|%d|%.1f" % [t.id, t.samples.size(), t.length]
+	var key := "%s|%s|%d|%.3f" % [t.id, t.layout_hash, t.samples.size(), t.length]
 	if not _cache.has(key):
-		var line := RacingLine.new()
-		line.track = t
-		line._solve()
-		_cache[key] = line
+		if _cache.size() >= CACHE_SIZE:
+			_cache.erase(_cache.keys()[0])
+		_cache[key] = solve(t)
 	return _cache[key]
+
+
+## A line for `t`, solved now and not kept (the editor, while the track changes).
+static func solve(t: TrackData) -> RacingLine:
+	var line := RacingLine.new()
+	line.track = t
+	line._solve()
+	return line
+
+
+static func clear_cache() -> void:
+	_cache.clear()
 
 
 ## Lateral offset of the line at an along-track distance.
@@ -69,8 +82,13 @@ func speed_at(profile: PackedFloat32Array, distance: float) -> float:
 ## How far the road reaches from the line's centre each side at `distance`, for a car centre:
 ## [left limit, right limit] as offsets from the centreline.
 func corridor(distance: float) -> Vector2:
-	var half := track.width / 2.0 - EDGE_MARGIN + (CURB_USE if track.curbs[track.index_at(distance)] else 0.0)
-	return Vector2(half, -half)
+	var i := track.index_at(distance)
+	return Vector2(_limit(i, track.half_l, track.curb_l), -_limit(i, track.half_r, track.curb_r))
+
+
+## How far a car's centre may go toward one edge at sample `i`.
+func _limit(i: int, half: PackedFloat32Array, curb: PackedByteArray) -> float:
+	return half[i] - EDGE_MARGIN + (CURB_USE if curb[i] else 0.0)
 
 
 ## Speeds along the line for `platform` using `grip` (0-1] of what the profile counts on.
@@ -170,14 +188,17 @@ func _solve() -> void:
 	var n := track.samples.size()
 	var base := PackedVector2Array()
 	var lefts := PackedVector2Array()
-	var limit := PackedFloat32Array()
+	var limit_l := PackedFloat32Array()
+	var limit_r := PackedFloat32Array()
 	base.resize(n)
 	lefts.resize(n)
-	limit.resize(n)
+	limit_l.resize(n)
+	limit_r.resize(n)
 	for i in n:
 		base[i] = Vector2(track.samples[i].x, track.samples[i].z)
 		lefts[i] = Vector2(track.lefts[i].x, track.lefts[i].z).normalized()
-		limit[i] = track.width / 2.0 - EDGE_MARGIN + (CURB_USE if track.curbs[i] else 0.0)
+		limit_l[i] = _limit(i, track.half_l, track.curb_l)
+		limit_r[i] = _limit(i, track.half_r, track.curb_r)
 	offsets.resize(n)
 	offsets.fill(0.0)
 	for level: Array in LEVELS:
@@ -185,7 +206,7 @@ func _solve() -> void:
 		var ring := PackedInt32Array()
 		for i in range(0, n, step):
 			ring.append(i)
-		_relax(ring, level[1], base, lefts, limit)
+		_relax(ring, level[1], base, lefts, limit_l, limit_r)
 		_fill_between(ring)
 
 	points.resize(n)
@@ -221,7 +242,7 @@ func _solve() -> void:
 
 
 ## Gauss-Seidel on the line's squared second differences, each point kept inside its limits.
-func _relax(ring: PackedInt32Array, passes: int, base: PackedVector2Array, lefts: PackedVector2Array, limit: PackedFloat32Array) -> void:
+func _relax(ring: PackedInt32Array, passes: int, base: PackedVector2Array, lefts: PackedVector2Array, limit_l: PackedFloat32Array, limit_r: PackedFloat32Array) -> void:
 	var m := ring.size()
 	var p := PackedVector2Array()
 	p.resize(m)
@@ -232,7 +253,7 @@ func _relax(ring: PackedInt32Array, passes: int, base: PackedVector2Array, lefts
 		for a in m:
 			var k := ring[a]
 			var target := (4.0 * (p[(a - 1 + m) % m] + p[(a + 1) % m]) - p[(a - 2 + m) % m] - p[(a + 2) % m]) / 6.0
-			var o := clampf((target - base[k]).dot(lefts[k]), -limit[k], limit[k])
+			var o := clampf((target - base[k]).dot(lefts[k]), -limit_r[k], limit_l[k])
 			p[a] = base[k] + lefts[k] * o
 			offsets[k] = o
 

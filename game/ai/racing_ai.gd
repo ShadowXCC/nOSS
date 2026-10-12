@@ -18,8 +18,6 @@ const PLAN_HZ := 30.0
 const LOOK_BEHIND_M := 30.0
 ## After a standing start the car keeps its grid column this far.
 const START_HOLD_M := 200.0
-## Lap 1 is driven with care until this far past the start line (past the first corners).
-const CAUTION_UNTIL_M := 1100.0
 const CAUTION_GRIP := 0.93
 ## Lateral speed of the planned offset, m/s.
 const OFFSET_RATE := 2.5
@@ -203,8 +201,11 @@ func _pedals(vehicle: Vehicle, v: float, out: Dictionary) -> void:
 	out.brake = brake
 
 
+## Lap 1 is driven with care until the track's caution distance past the start line (past the
+## first corners).
 func _cautious() -> bool:
-	return racer.timer.lap <= 1 and racer.track.from_start(racer.distance) < CAUTION_UNTIL_M and _covered < CAUTION_UNTIL_M + 300.0
+	var until := racer.track.caution_until_m
+	return racer.timer.lap <= 1 and racer.track.from_start(racer.distance) < until and _covered < until + 300.0
 
 
 # --- planning (PLAN_HZ) -------------------------------------------------------------------
@@ -412,7 +413,7 @@ func _recover(out: Dictionary, delta: float) -> bool:
 	var v := absf(racer.speed)
 	var upright := vehicle.global_basis.y.y > 0.3
 	var heading := vehicle.global_basis.z.dot(racer.track.tangents[maxi(racer.track_index, 0)])
-	var off := absf(racer.lateral) > racer.track.width / 2.0 + 4.0
+	var off := absf(racer.lateral) > racer.track.half_width(racer.distance, racer.lateral) + 4.0
 	var backwards := heading < -0.2 and v > 3.0
 	if not upright or off or backwards:
 		_trouble_time += delta

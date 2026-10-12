@@ -13,12 +13,9 @@ enum Phase { LOADING, GRID, COUNTDOWN, FORMATION, RUNNING, CHECKERED, DONE }
 
 const LIGHTS := 5
 const LIGHT_S := 1.0
-## Race grid: pole this far behind the line, cars in one column this far apart.
-const GRID_FRONT_M := 12.0
-const GRID_ROW_M := 13.0
-## Rolling start: the grid forms this much further back, runs at PACE_SPEED, and the green
-## comes when the leader is this close to the line.
-const ROLLING_BACK_M := 220.0
+## The race grid (pole distance, rows, stagger) and how much further back a rolling start forms
+## come from the track (TrackData.grid, rolling_back_m). The rolling grid runs at PACE_SPEED,
+## and the green comes when the leader is this close to the line.
 const PACE_SPEED := 22.0
 const GREEN_BEFORE_LINE_M := 60.0
 ## After the leader finishes, the others have this long to finish their lap.
@@ -214,8 +211,9 @@ func _grid_order() -> Array[Racer]:
 
 
 func _place(r: Racer, i: int, rolling: bool) -> void:
-	var back := ROLLING_BACK_M if rolling else 0.0
-	var at := session.grid_transform(i, GRID_FRONT_M + back, GRID_ROW_M)
+	var t := session.track
+	var back := t.rolling_back_m if rolling else 0.0
+	var at := session.grid_transform(i, float(t.grid.front_m) + back, float(t.grid.row_m))
 	r.spawn_at = at
 	if r.vehicle == null:
 		return

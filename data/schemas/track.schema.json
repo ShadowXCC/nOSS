@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noss:schema:track:1",
+  "title": "nOSS track",
+  "description": "track.json inside a .nosstrack (or a built-in track folder): road, race setup, ground, props and environment. See docs/TRACK_EDITOR.md §5.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "name", "type", "road", "race"],
+  "properties": {
+    "schema": { "const": "noss.track/1" },
+    "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "author": { "type": "string", "maxLength": 64 },
+    "license": { "type": "string", "maxLength": 64 },
+    "type": { "enum": ["circuit"] },
+    "style": { "type": "string", "pattern": "^[a-z0-9_]+$", "maxLength": 32 },
+    "road": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["points"],
+      "properties": {
+        "mode": {
+          "description": "road: the road is built from the spline. centreline: a scene track's road is the scene; the spline only times and guides.",
+          "enum": ["road", "centreline"]
+        },
+        "defaults": { "$ref": "#/$defs/attributes" },
+        "points": {
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "allOf": [
+              { "$ref": "#/$defs/attributes" },
+              { "type": "object", "required": ["p"] }
+            ]
+          }
+        }
+      }
+    },
+    "race": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "start_m": { "$ref": "#/$defs/distance" },
+        "sectors_m": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/distance" } },
+        "checkpoint_spacing_m": { "type": "number", "minimum": 20, "maximum": 1000 },
+        "grid": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "slots": { "type": "integer", "minimum": 1, "maximum": 32 },
+            "front_m": { "type": "number", "minimum": 2, "maximum": 100 },
+            "row_m": { "type": "number", "minimum": 5, "maximum": 40 },
+            "stagger": { "type": "number", "minimum": 0, "maximum": 1 },
+            "pole": { "enum": ["left", "right"] }
+          }
+        },
+        "rolling_back_m": { "type": "number", "minimum": 0, "maximum": 2000 },
+        "gantry": { "type": "boolean" },
+        "ai": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "caution_until_m": { "type": "number", "minimum": -1, "maximum": 200000 },
+            "pins": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["at_m", "offset_m"],
+                "properties": {
+                  "at_m": { "$ref": "#/$defs/distance" },
+                  "offset_m": { "type": "number", "minimum": -50, "maximum": 50 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "ground": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "terrain": { "type": "string", "const": "terrain/meta.json" },
+        "flat_y": { "type": "number", "minimum": -1000, "maximum": 1000 },
+        "surface": { "$ref": "#/$defs/surface" }
+      }
+    },
+    "props": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 5000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["prop", "p"],
+            "properties": {
+              "prop": { "$ref": "#/$defs/id" },
+              "p": { "$ref": "#/$defs/vec3" },
+              "yaw_deg": { "type": "number", "minimum": -360, "maximum": 360 },
+              "scale": { "type": "number", "minimum": 0.1, "maximum": 10 },
+              "size": { "$ref": "#/$defs/vec3" },
+              "ground": { "type": "boolean" }
+            }
+          }
+        },
+        "scatter": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["prop", "xf"],
+            "properties": {
+              "prop": { "$ref": "#/$defs/id" },
+              "xf": {
+                "description": "x, z, yaw (radians), scale per instance; y comes from the ground.",
+                "type": "array",
+                "maxItems": 800000
+              }
+            }
+          }
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sun_elevation_deg": { "type": "number", "minimum": -10, "maximum": 90 },
+        "sun_azimuth_deg": { "type": "number", "minimum": -360, "maximum": 360 },
+        "fog": { "enum": ["light", "normal", "heavy"] }
+      }
+    },
+    "scene": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["glb", "tags"],
+          "properties": {
+            "glb": { "const": "scene/scene.glb" },
+            "tags": { "const": "scene/tags.json" }
+          }
+        }
+      ]
+    },
+    "legacy": {
+      "description": "Set pieces of a noss.track/0 file, built as they were (upgraded tracks only).",
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9_]+$", "maxLength": 32 },
+    "distance": { "type": "number", "minimum": 0, "maximum": 200000 },
+    "coord": { "type": "number", "minimum": -100000, "maximum": 100000 },
+    "vec3": {
+      "type": "array",
+      "prefixItems": [{ "$ref": "#/$defs/coord" }, { "$ref": "#/$defs/coord" }, { "$ref": "#/$defs/coord" }],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "surface": { "enum": ["asphalt", "concrete", "curb", "paint", "grass", "gravel", "dirt", "sand", "snow", "ice"] },
+    "attributes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "p": { "$ref": "#/$defs/vec3" },
+        "width_l": { "type": "number", "minimum": 1, "maximum": 40 },
+        "width_r": { "type": "number", "minimum": 1, "maximum": 40 },
+        "bank_deg": { "type": "number", "minimum": -30, "maximum": 30 },
+        "height": { "enum": ["ground", "set"] },
+        "lanes": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "lines": { "enum": ["none", "edges", "lanes", "all"] },
+        "surface": { "$ref": "#/$defs/surface" },
+        "curb_l": { "enum": ["auto", "on", "off"] },
+        "curb_r": { "enum": ["auto", "on", "off"] },
+        "runoff_l": { "$ref": "#/$defs/surface" },
+        "runoff_r": { "$ref": "#/$defs/surface" },
+        "runoff_l_m": { "type": "number", "minimum": 0, "maximum": 200 },
+        "runoff_r_m": { "type": "number", "minimum": 0, "maximum": 200 },
+        "barrier_l": { "enum": ["none", "auto", "tyres", "armco", "concrete", "fence"] },
+        "barrier_r": { "enum": ["none", "auto", "tyres", "armco", "concrete", "fence"] }
+      }
+    }
+  }
+}

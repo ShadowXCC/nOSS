@@ -1,0 +1,26 @@
+{
+  "schema": "noss.track/1", "id": "5b0c8e9e-3f4a-4c1e-9d55-0d8f2a7c1b6e", "name": "Lakeside Loop", "type": "circuit",
+  "style": "retro_ps2",
+  "road": {
+    "mode": "road",
+    "defaults": { "width_l": 6, "width_r": 6, "bank_deg": 0, "height": "ground", "lanes": 1, "lines": "edges",
+      "surface": "asphalt", "curb_l": "auto", "curb_r": "auto", "runoff_l": "grass", "runoff_r": "grass",
+      "runoff_l_m": 16, "runoff_r_m": 16, "barrier_l": "auto", "barrier_r": "auto" },
+    "points": [
+      { "p": [-300, 0, 0] },
+      { "p": [100, 0, 0], "width_l": 7.5, "width_r": 7.5, "lanes": 2, "lines": "lanes" },
+      { "p": [480, 4, 25], "bank_deg": 5, "curb_r": "off", "barrier_l": "armco" },
+      { "p": [500, 9.5, 80], "height": "set", "runoff_l": "gravel", "runoff_l_m": 20 }
+    ]
+  },
+  "race": { "start_m": 150, "sectors_m": [880, 1690], "checkpoint_spacing_m": 100,
+    "grid": { "slots": 20, "front_m": 12, "row_m": 13, "stagger": 0.5, "pole": "left" },
+    "rolling_back_m": 220, "gantry": true, "ai": { "caution_until_m": -1, "pins": [ { "at_m": 812, "offset_m": -2.5 } ] } },
+  "ground": { "terrain": "terrain/meta.json" },
+  "props": {
+    "items": [ { "prop": "grandstand", "p": [120, 0, 14], "yaw_deg": 90, "scale": 1, "size": [110, 10, 12], "ground": true } ],
+    "scatter": [ { "prop": "tree_pine", "xf": [12.5, 40.0, 1.2, 1.0, 13.0, 44.1, 0.3, 0.9] } ]
+  },
+  "environment": { "sun_elevation_deg": 38, "sun_azimuth_deg": 140, "fog": "normal" },
+  "scene": null
+}

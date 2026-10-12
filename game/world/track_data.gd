@@ -1,61 +1,153 @@
 class_name TrackData
 extends RefCounted
-## A track's centreline and race setup (pre-.nosstrack format, noss.track/0). Points are
-## [x, z] or [x, z, y] control points of a closed centripetal Catmull-Rom spline.
+## A track's road and race setup, sampled for driving (docs/TRACK_EDITOR.md §5): noss.track/1,
+## or noss.track/0 upgraded on load (TrackFormat). The road is a closed centripetal Catmull-Rom
+## through its control points, sampled every ~2 m. Each sample carries its frame (banked),
+## widths to the left and right edge, curbs per side, surface, run-off and barriers.
+## Heights follow the ground (smoothed) or the points (set), D93.
 
 const SAMPLE_M := 2.0
 const GRID_M := 40.0
 ## Curbs line both edges through corners tighter than this radius (and a little either side).
 const CURB_CURVATURE := 1.0 / 140.0
 const CURB_WIDTH := 1.1
+## Projection (D94): up to this far above or below the road counts as on it; further, the height
+## difference counts PROJECT_Y_WEIGHT times, so a car on a bridge keeps to the bridge.
+const PROJECT_FREE_Y := 2.0
+const PROJECT_Y_WEIGHT := 3.0
+## A road this far above the ground stands on supports (and the ground isn't shaped to it).
+const LIFTED_M := 3.0
+## Ground-following heights: smoothed along the road (sigma, m) and kept under this grade.
+const GROUND_SMOOTH_M := 12.0
+const MAX_GRADE := 0.15
 
 var id := ""
 var display_name := ""
 var style := StyleProfile.DEFAULT
+## Nominal width (both default sides); per-sample widths are half_l and half_r.
 var width := 12.0
+## The track file as noss.track/1.
 var raw := {}
+## A noss.track/0 file's set pieces (skidpad, grandstand, pit building, trees), built as before.
+var legacy := {}
+## "road": built from the spline; "centreline": a fitted scene (the spline only guides).
+var kind := "road"
+## Built in (res://): records are keyed by id alone.
+var builtin := false
 ## Centreline samples every ~2 m, with their along-track distance from the first point.
 var samples := PackedVector3Array()
 var distances := PackedFloat32Array()
 var tangents := PackedVector3Array()
-## Car-left unit vectors (up x forward).
+## Car-left unit vectors (up × forward), banked; and the road's up.
 var lefts := PackedVector3Array()
+var ups := PackedVector3Array()
 ## Signed curvature, 1/m, + = turning left.
 var curvature := PackedFloat32Array()
-## 1 where the sample has curbs on both edges (TrackBuilder draws them, track limits allow them).
+## Curbs per side (1 = on), and on either side (track limits, the AI's corridor).
 var curbs := PackedByteArray()
+var curb_l := PackedByteArray()
+var curb_r := PackedByteArray()
+## Centreline to each edge, m; banking, rad (+ raises the left edge).
+var half_l := PackedFloat32Array()
+var half_r := PackedFloat32Array()
+var bank := PackedFloat32Array()
+## Per sample: VehicleSim surface ids of the road and run-offs, run-off widths, barrier types
+## (TrackFormat.BARRIERS), lanes, line style (TrackFormat.LINES), and lifted (on supports).
+var surface := PackedByteArray()
+var runoff_l := PackedByteArray()
+var runoff_r := PackedByteArray()
+var runoff_l_m := PackedFloat32Array()
+var runoff_r_m := PackedFloat32Array()
+var barrier_l := PackedByteArray()
+var barrier_r := PackedByteArray()
+var lanes := PackedByteArray()
+var lines := PackedByteArray()
+var lifted := PackedByteArray()
+## The control segment each sample is on, and each segment's first sample.
+var sample_seg := PackedInt32Array()
+var seg_first := PackedInt32Array()
 var length := 0.0
 var start_m := 0.0
 ## Sector end distances, measured from the start line.
 var sectors_m := PackedFloat32Array()
 var checkpoint_spacing := 100.0
+## Race grid: slots, front_m, row_m, stagger, pole ("left" or "right").
+var grid := TrackFormat.GRID.duplicate()
+var rolling_back_m := TrackFormat.ROLLING_BACK_M
+var gantry := true
+## The AI drives carefully on its first lap until this far past the start, m.
+var caution_until_m := 1100.0
+## The AI line's pins: [{at_m, offset_m}].
+var ai_pins: Array = []
+var layout_hash := ""
+## Below this the car has fallen off the world.
+var kill_y := -100.0
 var _grid := {}
 
 
-static func load_file(path: String) -> TrackData:
+## A track file: noss.track/1, or /0 (upgraded). Null, with the reason pushed, if it isn't one.
+static func load_file(path: String, ground_height := Callable()) -> TrackData:
 	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
-	if not data is Dictionary or data.get("schema") != "noss.track/0":
+	if not data is Dictionary:
 		push_error("Not a track file: " + path)
 		return null
-	return from_dict(data)
+	if data.get("schema") == TrackFormat.LEGACY:
+		data = TrackFormat.upgrade_v0(data)
+	elif data.get("schema") == TrackFormat.SCHEMA:
+		var err := TrackFormat.validate(data)
+		if err:
+			push_error("%s: %s" % [path, err])
+			return null
+	else:
+		push_error("Not a track file: " + path)
+		return null
+	var t := from_dict(data, ground_height)
+	t.builtin = path.begins_with("res://")
+	return t
 
 
-static func from_dict(data: Dictionary) -> TrackData:
+## `data` is noss.track/1 (or /0, upgraded). `ground_height(x, z) -> float` gives the ground
+## for points that follow it; without it the ground is flat at 0.
+static func from_dict(data: Dictionary, ground_height := Callable()) -> TrackData:
+	if data.get("schema") == TrackFormat.LEGACY:
+		data = TrackFormat.upgrade_v0(data)
 	var t := TrackData.new()
 	t.raw = data
-	t.id = data.get("id", "")
-	t.display_name = data.get("name", t.id)
-	t.style = data.get("style", StyleProfile.DEFAULT)
-	t.width = float(data.get("width_m", 12.0))
-	t.checkpoint_spacing = float(data.get("checkpoint_spacing_m", 100.0))
-	var points := PackedVector3Array()
-	for p: Array in data.points:
-		points.append(Vector3(p[0], p[2] if p.size() > 2 else 0.0, p[1]))
-	t._sample(points)
-	t.start_m = fposmod(float(data.get("start_m", 0.0)), t.length)
-	for s: float in data.get("sectors_m", []):
+	t.legacy = data.get("legacy", {})
+	t.id = String(data.get("id", ""))
+	t.display_name = String(data.get("name", t.id))
+	t.style = String(data.get("style", StyleProfile.DEFAULT))
+	var road: Dictionary = data.get("road", {})
+	t.kind = "centreline" if road.get("mode") == "centreline" else "road"
+	var defaults: Dictionary = road.get("defaults", {})
+	t.width = float(defaults.get("width_l", TrackFormat.DEFAULTS.width_l)) + float(defaults.get("width_r", TrackFormat.DEFAULTS.width_r))
+	var race: Dictionary = data.get("race", {})
+	t.checkpoint_spacing = float(race.get("checkpoint_spacing_m", 100.0))
+	var g: Dictionary = race.get("grid", {})
+	for key: String in TrackFormat.GRID:
+		t.grid[key] = g.get(key, TrackFormat.GRID[key])
+	t.rolling_back_m = float(race.get("rolling_back_m", TrackFormat.ROLLING_BACK_M))
+	t.gantry = bool(race.get("gantry", true))
+	var ai: Dictionary = race.get("ai", {})
+	t.ai_pins = ai.get("pins", []).duplicate(true)
+	t.layout_hash = TrackFormat.layout_hash(data)
+	if (road.get("points", []) as Array).size() < 2:
+		return t
+	t._sample(road, ground_height)
+	t.start_m = fposmod(float(race.get("start_m", 0.0)), t.length)
+	for s: float in race.get("sectors_m", []):
 		t.sectors_m.append(fposmod(s - t.start_m, t.length))
+	var caution := float(ai.get("caution_until_m", TrackFormat.CAUTION_AUTO))
+	t.caution_until_m = caution if caution >= 0.0 else minf(1100.0, 0.45 * t.length)
 	return t
+
+
+## The key lap records (ghosts, leaderboards) are kept under: built-in tracks by id; others by id
+## and layout, so an edited layout starts fresh (D97).
+func record_key() -> String:
+	if builtin:
+		return id
+	return "%s-%s" % [id, layout_hash.trim_prefix("sha256:").left(12)]
 
 
 ## Along-track distance from the start line, wrapped to [0, length).
@@ -76,16 +168,49 @@ func point_at(distance: float) -> Vector3:
 	return samples[i].lerp(samples[j], clampf((fposmod(distance, length) - distances[i]) / maxf(span, 0.001), 0.0, 1.0))
 
 
-## Car placement at `distance`: origin on the ground, +Z along the track, +X to its left.
+## Car placement at `distance`: origin on the road, +Z along the track, +X to its left, +Y the
+## road's up (banked).
 func transform_at(distance: float, lateral := 0.0) -> Transform3D:
 	var i := index_at(distance)
 	var fwd := tangents[i]
 	var left := lefts[i]
-	return Transform3D(Basis(left, Vector3.UP, fwd), point_at(distance) + left * lateral)
+	return Transform3D(Basis(left, ups[i], fwd), point_at(distance) + left * lateral)
+
+
+## Centreline to the road's edge on `side` (+1 left, -1 right) at `distance`, m.
+func half_width(distance: float, side: float) -> float:
+	var i := index_at(distance)
+	return half_l[i] if side >= 0.0 else half_r[i]
+
+
+## How far from the centreline still counts as track on `side`: the road and its curb.
+func edge_at(distance: float, side: float) -> float:
+	var i := index_at(distance)
+	if side >= 0.0:
+		return half_l[i] + (CURB_WIDTH if curb_l[i] else 0.0)
+	return half_r[i] + (CURB_WIDTH if curb_r[i] else 0.0)
+
+
+## The sector (0-based) `distance` is in.
+func sector_of(distance: float) -> int:
+	var d := from_start(distance)
+	for k in sectors_m.size():
+		if d < sectors_m[k]:
+			return k
+	return sectors_m.size()
+
+
+## Samples of control segment `seg`: [first, end) (end may wrap past the last sample).
+func segment_samples(seg: int) -> Vector2i:
+	var n := seg_first.size()
+	var a := seg_first[posmod(seg, n)]
+	var b := seg_first[posmod(seg + 1, n)]
+	return Vector2i(a, b if b > a else b + samples.size())
 
 
 ## Nearest point on the centreline. With `hint` (a sample index, e.g. last tick's) it walks
-## from there to the nearest sample, which takes a step or two for a moving car.
+## from there to the nearest sample, which takes a step or two for a moving car. Height counts
+## past PROJECT_FREE_Y, so bridges and the roads under them stay apart.
 ## Returns {index, distance, lateral (+ = left), point}.
 func project(pos: Vector3, hint := -1) -> Dictionary:
 	var n := samples.size()
@@ -144,24 +269,82 @@ func is_near_centreline(pos: Vector3, radius: float) -> bool:
 
 
 func _d2(i: int, pos: Vector3) -> float:
-	return Vector2(samples[i].x - pos.x, samples[i].z - pos.z).length_squared()
+	var s := samples[i]
+	var dy := maxf(absf(s.y - pos.y) - PROJECT_FREE_Y, 0.0) * PROJECT_Y_WEIGHT
+	return Vector2(s.x - pos.x, s.z - pos.z).length_squared() + dy * dy
 
 
 func _cell(p: Vector3) -> Vector2i:
 	return Vector2i(floori(p.x / GRID_M), floori(p.z / GRID_M))
 
 
-func _sample(points: PackedVector3Array) -> void:
-	var n := points.size()
+func _sample(road: Dictionary, ground_height: Callable) -> void:
+	var points_data: Array = road.points
+	var n := points_data.size()
+	var ground := func(x: float, z: float) -> float: return float(ground_height.call(x, z)) if ground_height.is_valid() else 0.0
+	# Control points: set heights as given, ground ones on the ground.
+	var points := PackedVector3Array()
+	var set_h := PackedFloat32Array()
+	for i in n:
+		var p: Array = points_data[i].p
+		var is_set: bool = TrackFormat.attr(road, i, "height") == "set"
+		set_h.append(1.0 if is_set else 0.0)
+		points.append(Vector3(p[0], float(p[1]) if is_set else ground.call(float(p[0]), float(p[2])), p[2]))
+	# Sample the spline, noting each sample's segment and how far along it.
+	var along := PackedFloat32Array()
 	for i in n:
 		var p0 := points[(i - 1 + n) % n]
 		var p1 := points[i]
 		var p2 := points[(i + 1) % n]
 		var p3 := points[(i + 2) % n]
 		var steps := maxi(2, int(p1.distance_to(p2) / SAMPLE_M))
+		seg_first.append(samples.size())
 		for s in steps:
 			samples.append(_catmull_rom(p0, p1, p2, p3, float(s) / steps))
+			sample_seg.append(i)
+			along.append(float(s) / steps)
 	var m := samples.size()
+	# Per-sample attributes: blended across the segment, or the segment's own.
+	var seg_attr := []
+	for i in n:
+		var a := {}
+		for key: String in TrackFormat.DEFAULTS:
+			a[key] = TrackFormat.attr(road, i, key)
+		seg_attr.append(a)
+	# (Packed arrays are values: each is resized by name.)
+	half_l.resize(m)
+	half_r.resize(m)
+	bank.resize(m)
+	runoff_l_m.resize(m)
+	runoff_r_m.resize(m)
+	surface.resize(m)
+	runoff_l.resize(m)
+	runoff_r.resize(m)
+	barrier_l.resize(m)
+	barrier_r.resize(m)
+	lanes.resize(m)
+	lines.resize(m)
+	lifted.resize(m)
+	curb_l.resize(m)
+	curb_r.resize(m)
+	for k in m:
+		var s := sample_seg[k]
+		var a: Dictionary = seg_attr[s]
+		var b: Dictionary = seg_attr[(s + 1) % n]
+		var u := smoothstep(0.0, 1.0, along[k])
+		half_l[k] = lerpf(float(a.width_l), float(b.width_l), u)
+		half_r[k] = lerpf(float(a.width_r), float(b.width_r), u)
+		bank[k] = deg_to_rad(lerpf(float(a.bank_deg), float(b.bank_deg), u))
+		surface[k] = TrackFormat.surface_id(String(a.surface))
+		runoff_l[k] = TrackFormat.surface_id(String(a.runoff_l))
+		runoff_r[k] = TrackFormat.surface_id(String(a.runoff_r))
+		runoff_l_m[k] = float(a.runoff_l_m)
+		runoff_r_m[k] = float(a.runoff_r_m)
+		barrier_l[k] = TrackFormat.barrier_id(String(a.barrier_l))
+		barrier_r[k] = TrackFormat.barrier_id(String(a.barrier_r))
+		lanes[k] = clampi(int(a.lanes), 1, 8)
+		lines[k] = maxi(TrackFormat.LINES.find(String(a.lines)), 0)
+	_heights(set_h, along, ground)
 	var total := 0.0
 	for i in m:
 		distances.append(total)
@@ -170,18 +353,84 @@ func _sample(points: PackedVector3Array) -> void:
 	for i in m:
 		var fwd := (samples[(i + 1) % m] - samples[(i - 1 + m) % m]).normalized()
 		tangents.append(fwd)
-		lefts.append(Vector3.UP.cross(fwd).normalized())
+		var left := Vector3.UP.cross(fwd).normalized()
+		var up := fwd.cross(left)
+		if bank[i] != 0.0: # banked: the left edge rises
+			var c := cos(bank[i])
+			var s := sin(bank[i])
+			var banked := left * c + up * s
+			up = fwd.cross(banked)
+			left = banked
+		lefts.append(left)
+		ups.append(up.normalized())
 	for i in m:
 		var a := tangents[(i - 1 + m) % m]
 		var b := tangents[(i + 1) % m]
 		var ds := samples[(i - 1 + m) % m].distance_to(samples[(i + 1) % m])
 		curvature.append(asin(clampf(a.cross(b).y, -1.0, 1.0)) / maxf(ds, 0.01))
-	_find_curbs()
+	_find_curbs(seg_attr)
+	var lowest := INF
+	for i in m:
+		lowest = minf(lowest, samples[i].y)
+		lifted[i] = 1 if ground_height.is_valid() and samples[i].y - float(ground.call(samples[i].x, samples[i].z)) > LIFTED_M else 0
+	kill_y = lowest - 30.0
+
+
+## Sample heights: set points' spline heights, or the ground under the road (averaged across it,
+## smoothed along it, its grade limited), blended by smoothstep across mixed segments.
+func _heights(set_h: PackedFloat32Array, along: PackedFloat32Array, ground: Callable) -> void:
+	var m := samples.size()
+	var n := set_h.size()
+	var any_ground := false
+	for h in set_h:
+		any_ground = any_ground or h < 0.5
+	if not any_ground:
+		return # every height is set: the spline's (v0 tracks)
+	var g := PackedFloat32Array()
+	g.resize(m)
+	for k in m:
+		var p := samples[k]
+		var fwd := (samples[(k + 1) % m] - samples[(k - 1 + m) % m])
+		var left := Vector3(-fwd.z, 0.0, fwd.x).normalized()
+		g[k] = (float(ground.call(p.x, p.z)) + float(ground.call(p.x + left.x * half_l[k], p.z + left.z * half_l[k]))
+			+ float(ground.call(p.x - left.x * half_r[k], p.z - left.z * half_r[k]))) / 3.0
+	# Smooth along the road (Gaussian, sigma GROUND_SMOOTH_M), wrapping.
+	var reach := int(ceil(GROUND_SMOOTH_M * 1.5 / SAMPLE_M))
+	var weights := PackedFloat32Array()
+	for o in range(-reach, reach + 1):
+		var x := o * SAMPLE_M / GROUND_SMOOTH_M
+		weights.append(exp(-0.5 * x * x))
+	var smooth := PackedFloat32Array()
+	smooth.resize(m)
+	for k in m:
+		var sum := 0.0
+		var wsum := 0.0
+		for o in range(-reach, reach + 1):
+			var w := weights[o + reach]
+			sum += g[posmod(k + o, m)] * w
+			wsum += w
+		smooth[k] = sum / wsum
+	# Keep the grade under MAX_GRADE: a pass each way, twice round so it closes.
+	for pass_i in 2:
+		for k in m:
+			var j := (k + 1) % m
+			var step := Vector2(samples[j].x - samples[k].x, samples[j].z - samples[k].z).length() * MAX_GRADE
+			smooth[j] = clampf(smooth[j], smooth[k] - step, smooth[k] + step)
+		for k in range(m - 1, -1, -1):
+			var j := (k - 1 + m) % m
+			var step := Vector2(samples[j].x - samples[k].x, samples[j].z - samples[k].z).length() * MAX_GRADE
+			smooth[j] = clampf(smooth[j], smooth[k] - step, smooth[k] + step)
+	for k in m:
+		var s := sample_seg[k]
+		var w := lerpf(set_h[s], set_h[(s + 1) % n], smoothstep(0.0, 1.0, along[k]))
+		var p := samples[k]
+		p.y = lerpf(smooth[k], p.y, w)
+		samples[k] = p
 
 
 ## Curbs through corners: smoothed curvature over ±6 samples above CURB_CURVATURE, extended
-## 5 samples either side.
-func _find_curbs() -> void:
+## 5 samples either side; a segment's "on" or "off" overrides that per side.
+func _find_curbs(seg_attr: Array) -> void:
 	var n := samples.size()
 	var smooth := PackedFloat32Array()
 	smooth.resize(n)
@@ -197,7 +446,10 @@ func _find_curbs() -> void:
 			if absf(smooth[posmod(i + k, n)]) > CURB_CURVATURE:
 				on = 1
 				break
-		curbs[i] = on
+		var a: Dictionary = seg_attr[sample_seg[i]]
+		curb_l[i] = on if a.curb_l == "auto" else (1 if a.curb_l == "on" else 0)
+		curb_r[i] = on if a.curb_r == "auto" else (1 if a.curb_r == "on" else 0)
+		curbs[i] = curb_l[i] | curb_r[i]
 
 
 ## Extra width at `distance` that still counts as track: the curb, where there is one.

@@ -611,9 +611,10 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 ## Grid spot `i`: two staggered columns behind the line, the first `front` metres back and each
-## column's cars `row` metres apart.
+## column's cars `row` metres apart; the second column back by the track's stagger.
 func grid_transform(i: int, front: float, row: float) -> Transform3D:
-	return track.transform_at(track.start_m - front - (i / 2) * row - (i % 2) * row * 0.5, _grid_lateral(i))
+	var d := track.start_m - front - (i / 2) * row - (i % 2) * row * float(track.grid.stagger)
+	return track.transform_at(d, _grid_lateral(i, d))
 
 
 ## Grid spots behind the start line: two columns, a row every GRID_ROW_M.
@@ -621,8 +622,13 @@ func _grid_distance(i: int) -> float:
 	return track.start_m - grid_front_m - (i / 2) * grid_row_m - (i % 2) * grid_row_m * 0.5
 
 
-func _grid_lateral(i: int) -> float:
-	return track.width / 4.0 * (1.0 if i % 2 == 0 else -1.0)
+## Columns half way to each edge (the narrower side's), pole on the track's pole side.
+func _grid_lateral(i: int, distance := INF) -> float:
+	var d := _grid_distance(i) if is_inf(distance) else distance
+	var column := 1.0 if i % 2 == 0 else -1.0
+	if track.grid.pole == "right":
+		column = -column
+	return 0.5 * minf(track.half_width(d, 1.0), track.half_width(d, -1.0)) * column
 
 
 func _spot_clear(distance: float, lateral: float, except: Racer = null) -> bool:
