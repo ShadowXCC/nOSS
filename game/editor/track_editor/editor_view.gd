@@ -91,7 +91,8 @@ func pick(screen: Vector2) -> Dictionary:
 	var cam := camera.camera
 	var from := cam.project_ray_origin(screen)
 	var dir := cam.project_ray_normal(screen)
-	var space := viewport.world_3d.direct_space_state
+	var world := viewport.find_world_3d() # own_world_3d: world_3d itself is null
+	var space := world.direct_space_state if world else null
 	if space:
 		var q := PhysicsRayQueryParameters3D.create(from, from + dir * 6000.0)
 		var hit := space.intersect_ray(q)
@@ -120,9 +121,11 @@ func center() -> Vector2:
 	return size / 2.0
 
 
-## The cursor: the crosshair in crosshair mode, else the mouse.
+## The cursor: the crosshair in crosshair mode, else the mouse (the middle when the mouse is
+## off the view, like on a panel button).
 func cursor() -> Vector2:
-	return center() if crosshair else get_local_mouse_position()
+	var mouse := get_local_mouse_position()
+	return mouse if not crosshair and Rect2(Vector2.ZERO, size).has_point(mouse) else center()
 
 
 # --- input --------------------------------------------------------------------------------
