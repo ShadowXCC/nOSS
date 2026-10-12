@@ -218,14 +218,13 @@ func _ordered() -> Array[PlayerSlot]:
 func _window_area(screen: int) -> Control:
 	if _windows.has(screen):
 		return _windows[screen].get_node("Area")
-	# A native window, not one drawn inside the main window. force_native alone doesn't do it
-	# (Godot 4.7, X11), so the root stops embedding while the session runs. Player menus embed
-	# their popups in their own views.
+	# A native window, not one drawn inside the main window: the root stops embedding while the
+	# session runs (force_native can't be set on a new, visible window, Godot 4.7). Player menus
+	# embed their popups in their own views.
 	get_tree().root.gui_embed_subwindows = false
 	var w := Window.new()
 	w.name = "Screen%d" % screen
 	w.title = "nOSS"
-	w.force_native = true
 	w.borderless = true
 	w.transient = false
 	w.current_screen = screen
