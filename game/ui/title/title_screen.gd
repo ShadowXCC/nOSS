@@ -5,6 +5,7 @@ extends Control
 @onready var _drive_button: Button = %FreeDriveButton
 @onready var _settings_button: Button = %SettingsButton
 @onready var _quit_button: Button = %QuitButton
+@onready var _buttons: ScrollContainer = %Buttons
 
 var _classes: ClassPicker
 var _players: PlayersMenu
@@ -19,6 +20,7 @@ var _mode := "free"
 func _ready() -> void:
 	theme = UiKit.theme()
 	_apply_text_scale()
+	resized.connect(_fit_buttons)
 	Settings.changed.connect(_apply_text_scale)
 	Players.slots_changed.connect(_apply_text_scale)
 	_version_label.text = "v%s" % ProjectSettings.get_setting("application/config/version")
@@ -64,7 +66,10 @@ func _ready() -> void:
 	var order := [_drive_button, race_button, online_button, trial_button, garage_button, bay_button, _settings_button, _quit_button]
 	for b: Button in order:
 		b.accessibility_name = b.text
+		b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		b.add_theme_font_size_override("font_size", _drive_button.get_theme_font_size("font_size"))
 	UiKit.chain_focus(order)
+	_fit_buttons.call_deferred()
 	# First boot: the accessibility screen comes before anything else (ACC-09).
 	if (not Settings.first_boot_done and DisplayServer.get_name() != "headless" and not Game.dev.has("skip-first-boot")) or Game.dev.get("menu", "") == "access":
 		var first := FirstBootMenu.new()
@@ -197,6 +202,20 @@ func _open_settings() -> void:
 func _apply_text_scale() -> void:
 	get_tree().root.content_scale_factor = Players.menu_text_scale()
 	theme = UiKit.theme()
+	if is_node_ready():
+		_fit_buttons.call_deferred()
+
+
+## The buttons get the height left under the title; with big text they scroll (to the focus).
+func _fit_buttons() -> void:
+	var list := _buttons.get_child(0) as Control
+	var others := (_buttons.get_parent() as Control).get_combined_minimum_size().y - _buttons.custom_minimum_size.y
+	_buttons.custom_minimum_size.y = clampf(size.y - 48.0 - others, 120.0, list.get_combined_minimum_size().y)
+	# Focus may have scrolled while the area was still small: show the focused button again.
+	await get_tree().process_frame
+	var focused := get_viewport().gui_get_focus_owner()
+	if is_inside_tree() and focused and _buttons.is_ancestor_of(focused):
+		_buttons.ensure_control_visible(focused)
 
 
 func _exit_tree() -> void:
