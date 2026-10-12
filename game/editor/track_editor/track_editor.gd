@@ -410,6 +410,8 @@ func _frame_track() -> void:
 
 
 func _process(delta: float) -> void:
+	if tool and not _overlay:
+		tool.tick(delta)
 	_autosave_time += delta
 	if _autosave_time >= AUTOSAVE_S:
 		_autosave_time = 0.0

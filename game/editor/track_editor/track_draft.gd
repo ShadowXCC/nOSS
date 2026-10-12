@@ -243,6 +243,16 @@ func terrain_stroke(rect: Rect2i, before: PackedFloat32Array, after: PackedFloat
 	_changed(&"terrain", { "rect": rect })
 
 
+## Replaces the terrain (refitted to the track), as one action.
+func set_terrain(t: TerrainData, name := "Change terrain") -> void:
+	history.act(name, _swap_terrain.bind(t), _swap_terrain.bind(terrain))
+
+
+func _swap_terrain(t: TerrainData) -> void:
+	terrain = t
+	_changed(&"all", {})
+
+
 func paint_stroke(rect: Rect2i, before: PackedByteArray, after: PackedByteArray) -> void:
 	history.act("Paint ground", _set_paint.bind(rect, after), _set_paint.bind(rect, before), false)
 	_changed(&"paint", { "rect": rect })

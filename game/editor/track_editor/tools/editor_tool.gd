@@ -31,6 +31,11 @@ func pointer(_e: Dictionary) -> void:
 	pass
 
 
+## Every frame while the tool is in use (brushes).
+func tick(_delta: float) -> void:
+	pass
+
+
 ## A shortcut from the view; true if this tool used it.
 func action(_name: String) -> bool:
 	return false
