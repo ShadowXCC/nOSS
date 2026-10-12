@@ -1,0 +1,20 @@
+{
+  "attributions": [],
+  "author": "nOSS contributors",
+  "created": "2026-10-12",
+  "files": {
+    "track.json": "sha256:8e48b60b19a4a72cb73077e6fc84d41aee05f25e66f0fab69e3ec21165aa4457"
+  },
+  "game_min_version": "0.5.1",
+  "id": "proving_ground",
+  "kind": "road",
+  "layout": "sha256:c6f1e240b590c10470607616076eff4f4dd9afbcaa825890fe33e4b2866a1e5b",
+  "length_m": 2519.2,
+  "license": "CC-BY-SA-4.0",
+  "name": "Proving Ground",
+  "schema": "noss.track_package/1",
+  "source": "nOSS",
+  "tags": [],
+  "type": "circuit",
+  "version": 1
+}

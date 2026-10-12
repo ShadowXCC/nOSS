@@ -4,7 +4,8 @@ extends RefCounted
 ##   cars/<hex>/       a car as an unpacked package; files arrive one by one, each checked
 ##                     against the manifest's hash before it lands (a partial car loads at a
 ##                     lower tier: data only, or its smallest LOD)
-##   platforms/<hex>.json, tracks/<hex>.json
+##   tracks/<hex>/     a track (.nosstrack) unpacked the same way; it's used once whole
+##   platforms/<hex>.json
 ##   tmp/              files being written, and partial downloads (<hex>.part) to resume
 ## Files are written to tmp/ and renamed into place, so several games can share one cache.
 
@@ -27,7 +28,12 @@ static func hex(h: String) -> String:
 
 
 static func car_dir(car_hash: String) -> String:
-	return root.path_join("cars").path_join(hex(car_hash))
+	return pkg_dir("cars", car_hash)
+
+
+## Where a package (a car or a track) of this hash is unpacked.
+static func pkg_dir(kind: String, h: String) -> String:
+	return root.path_join(kind).path_join(hex(h))
 
 
 static func file_path(kind: String, h: String) -> String:
@@ -44,11 +50,16 @@ static func part_path(h: String) -> String:
 
 ## The cached car's manifest, or {} if it isn't here (or doesn't hash right).
 static func car_manifest(car_hash: String) -> Dictionary:
-	var path := car_dir(car_hash).path_join("manifest.json")
+	return pkg_manifest("cars", car_hash)
+
+
+## A cached package's manifest, or {} if it isn't here (or doesn't hash right).
+static func pkg_manifest(kind: String, h: String) -> Dictionary:
+	var path := pkg_dir(kind, h).path_join("manifest.json")
 	if not FileAccess.file_exists(path):
 		return {}
 	var bytes := FileAccess.get_file_as_bytes(path)
-	if "sha256:" + PlatformLoader.sha256_hex(bytes) != car_hash:
+	if "sha256:" + PlatformLoader.sha256_hex(bytes) != h:
 		return {}
 	var m: Variant = JSON.parse_string(bytes.get_string_from_utf8())
 	return m if m is Dictionary and m.get("files") is Dictionary else {}
@@ -56,12 +67,22 @@ static func car_manifest(car_hash: String) -> Dictionary:
 
 ## Which of `files` the cached car doesn't have yet.
 static func car_missing(car_hash: String, files: PackedStringArray) -> PackedStringArray:
+	return pkg_missing("cars", car_hash, files)
+
+
+static func pkg_missing(kind: String, h: String, files: PackedStringArray) -> PackedStringArray:
 	var out := PackedStringArray()
-	var dir := car_dir(car_hash)
+	var dir := pkg_dir(kind, h)
 	for rel in files:
 		if not FileAccess.file_exists(dir.path_join(rel)):
 			out.append(rel)
 	return out
+
+
+## The cached package has its manifest and every file it lists (each was hash-checked on arrival).
+static func pkg_complete(kind: String, h: String) -> bool:
+	var m := pkg_manifest(kind, h)
+	return not m.is_empty() and pkg_missing(kind, h, PackedStringArray((m.files as Dictionary).keys())).is_empty()
 
 
 ## A package's files by tier: data (manifest, fit, paint, sound profile), preview (the smallest
@@ -100,14 +121,19 @@ static func model_files(listed: Dictionary) -> PackedStringArray:
 ## Stores a car file after checking its hash: the manifest must hash to the car's hash, other
 ## files to what the cached manifest lists. Returns "" or why not.
 static func put_car_file(car_hash: String, rel: String, bytes: PackedByteArray) -> String:
-	if not valid_hash(car_hash) or not NossPackage.is_safe_path(rel):
+	return put_pkg_file("cars", car_hash, rel, bytes)
+
+
+## Stores a package file (a car's or a track's) after checking its hash against the manifest.
+static func put_pkg_file(kind: String, h: String, rel: String, bytes: PackedByteArray) -> String:
+	if kind not in ["cars", "tracks"] or not valid_hash(h) or not NossPackage.is_safe_path(rel):
 		return "Bad name"
-	var want := car_hash if rel == "manifest.json" else String(car_manifest(car_hash).get("files", {}).get(rel, ""))
+	var want := h if rel == "manifest.json" else String(pkg_manifest(kind, h).get("files", {}).get(rel, ""))
 	if want.is_empty():
 		return "Not in the manifest"
 	if "sha256:" + PlatformLoader.sha256_hex(bytes) != want:
 		return "Hash mismatch"
-	return _write(car_dir(car_hash).path_join(rel), bytes)
+	return _write(pkg_dir(kind, h).path_join(rel), bytes)
 
 
 ## Stores a platform or track file after checking its hash.

@@ -6,7 +6,7 @@ extends Node3D
 ## The track, platform class, views, RaceField and pause are shared. Players can drop in with a
 ## free device and drop out from their pause menu.
 
-const DEFAULT_TRACK := "res://content/tracks/proving_ground/track.json"
+const DEFAULT_TRACK := TrackLibrary.DEFAULT
 const DEFAULT_PLATFORM := "official.track.gt"
 const GRID_BEHIND_LINE := 40.0
 const GRID_ROW_M := 8.0
@@ -23,7 +23,10 @@ const SOUND_UPDATE_S := 0.25
 ## The dedicated server shows results this long, then goes on.
 const DEDICATED_RESULTS_S := 15.0
 
+## The track: a .nosstrack, a track folder or a track.json (TrackLoader).
 var track_path := DEFAULT_TRACK
+## The track already loaded (a menu's load, the editor's draft); else track_path is loaded now.
+var track_package: TrackPackage
 ## P1's car; empty: their profile's last car.
 var car_path := ""
 var platform_id := DEFAULT_PLATFORM
@@ -62,6 +65,8 @@ var grid_front_m := GRID_BEHIND_LINE
 var grid_row_m := GRID_ROW_M
 
 var track: TrackData
+## The track's terrain, or null on flat ground.
+var terrain: TerrainData
 var platform: PlatformLoader.Result
 ## The mode offering this class (its tuning and assist rules).
 var mode := {}
@@ -97,14 +102,20 @@ var _sound_time := 0.0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
-	track = TrackData.load_file(track_path)
+	if track_package == null or not track_package.ok():
+		track_package = TrackLoader.load_package(track_path)
+	if not track_package.ok():
+		push_error("Track %s: %s" % [track_path, track_package.error])
+		track_package = TrackLoader.load_package(DEFAULT_TRACK)
+	track = track_package.track
+	terrain = track_package.terrain
 	var style := StyleProfile.load_profile(track.style)
 	style.apply_globals()
 	var env_node := style.create_environment()
 	world_env = env_node.environment
 	add_child(env_node)
 	add_child(style.create_sun())
-	add_child(TrackBuilder.build(track))
+	add_child(TrackBuilder.build(track, terrain, { "visual": not dedicated }))
 	platform = PlatformLoader.load_file(platform_file) if platform_file else PlatformLoader.load_official(platform_id)
 	if not platform.ok():
 		push_warning("Platform %s: %s" % [platform_id, platform.errors])
@@ -698,7 +709,7 @@ func _open_pause(p: SessionPlayer) -> void:
 		menu.ghost_items = time_trial.choices()
 		menu.ghost_current = time_trial.choice
 		menu.ghost_picked.connect(time_trial.pick)
-		menu.leaderboard = Leaderboard.entries(track.id, platform.platform.id)
+		menu.leaderboard = Leaderboard.entries(track.record_key(), platform.platform.id)
 		menu.leaderboard_title = "%s · %s" % [track.display_name, platform.platform.name]
 	menu.end_session.connect(func() -> void:
 		_resume(p)

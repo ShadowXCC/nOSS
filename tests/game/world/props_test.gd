@@ -26,10 +26,10 @@ func test_the_proving_grounds_set_pieces_came_over() -> void:
 	var xf: Array = v1.props.scatter[0].xf
 	assert_int(xf.size()).is_equal(1400 * 4)
 	# The first builder's seeded trees, in its order.
-	assert_float(xf[0]).is_equal_approx(0.2779, 0.001)
-	assert_float(xf[1]).is_equal_approx(638.7887, 0.001)
-	assert_float(xf[3]).is_equal_approx(7.3227, 0.001)
-	assert_float(xf[xf.size() - 4]).is_equal_approx(-117.6013, 0.001)
+	assert_float(xf[0]).is_equal_approx(0.2779, 0.006) # to the centimetre
+	assert_float(xf[1]).is_equal_approx(638.7887, 0.006)
+	assert_float(xf[3]).is_equal_approx(7.3227, 0.006)
+	assert_float(xf[xf.size() - 4]).is_equal_approx(-117.6013, 0.006)
 	assert_str(TrackFormat.validate(v1)).is_empty()
 
 

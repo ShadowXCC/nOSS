@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noss:schema:track_package:1",
+  "title": "nOSS track package manifest",
+  "description": "manifest.json of a .nosstrack (or a built-in track folder): who made it and every file's hash. The track's content hash is the SHA-256 of this file. See docs/TRACK_EDITOR.md §5.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "version", "name", "author", "license", "type", "files"],
+  "properties": {
+    "schema": { "const": "noss.track_package/1" },
+    "id": {
+      "description": "UUID (built-in tracks: a short id). Stays the same across versions of the same track.",
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-z0-9][a-z0-9_-]{0,63})$"
+    },
+    "version": { "type": "integer", "minimum": 1 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "author": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "license": {
+      "description": "SPDX identifier or free text. Shown, not enforced; personal-use-only tracks stay offline.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "type": { "enum": ["circuit"] },
+    "kind": { "enum": ["road", "scene"] },
+    "length_m": { "type": "number", "minimum": 0, "maximum": 200000 },
+    "layout": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "attributions": { "type": "array", "maxItems": 32, "items": { "type": "string", "maxLength": 256 } },
+    "tags": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$", "maxLength": 32 }
+    },
+    "source": { "type": "string", "maxLength": 256 },
+    "created": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "game_min_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "files": {
+      "description": "Hash of every other file in the package, by path.",
+      "type": "object",
+      "required": ["track.json"],
+      "maxProperties": 511,
+      "propertyNames": {
+        "description": "Relative path, allowed file types only, no '..' or hidden segments.",
+        "pattern": "^(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*\\.(?:json|glb|png|jpg)$",
+        "maxLength": 200
+      },
+      "additionalProperties": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+    }
+  }
+}

@@ -78,7 +78,7 @@
       "required": ["class"],
       "properties": {
         "track": {
-          "description": "A built-in track's id (proving_ground) or a track file's path, relative to the config.",
+          "description": "A track's id (built-in, like proving_ground, or in the track library) or a path (.nosstrack, track folder or track.json), relative to the config.",
           "type": "string",
           "minLength": 1,
           "maxLength": 256

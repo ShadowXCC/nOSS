@@ -1,3 +1,4 @@
+class_name RoadBuilderTest
 extends GdUnitTestSuite
 ## The road builder (EDT-01): pieces per segment for the editor, bridges on lifted road, terrain
 ## tracks, and the build time that keeps editing interactive (B4 gate).

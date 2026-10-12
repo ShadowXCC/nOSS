@@ -109,11 +109,13 @@ func save() -> Error:
 	return OK
 
 
-## The track file of rotation item `i`: a built-in track's id, or a path relative to the config.
+## The track of rotation item `i`: a track's id (built-in, or in the track library), or a path
+## (.nosstrack, a track folder or a track.json) relative to the config.
 func track_path(i: int) -> String:
 	var t := String(rotation[i].get("track", DEFAULT_TRACK))
 	if not t.contains("/") and not t.contains("\\") and not t.contains("."):
-		return TRACKS_DIR.path_join(t).path_join("track.json")
+		var found := TrackLibrary.resolve(t)
+		return found if found else TRACKS_DIR.path_join(t)
 	if t.is_absolute_path() or path.is_empty():
 		return t
 	return path.get_base_dir().path_join(t)

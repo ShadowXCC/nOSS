@@ -131,7 +131,7 @@ static func _v0_props(v0: Dictionary, v1: Dictionary) -> Dictionary:
 		var p := Vector3(rng.randf_range(bounds.position.x, bounds.end.x), 0, rng.randf_range(bounds.position.z, bounds.end.z))
 		if p.distance_to(pad_c) < pad_r or t.is_near_centreline(p, t.width / 2.0 + 16.0 + 12.0):
 			continue
-		xf.append_array([p.x, p.z, 0.0, rng.randf_range(7.0, 13.0)])
+		xf.append_array([snappedf(p.x, 0.01), snappedf(p.z, 0.01), 0.0, snappedf(rng.randf_range(7.0, 13.0), 0.01)])
 	return { "items": items, "scatter": [{ "prop": "tree_billboard", "xf": xf }] if not xf.is_empty() else [] }
 
 

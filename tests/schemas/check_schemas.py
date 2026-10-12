@@ -5,8 +5,8 @@ Every schema must be a valid JSON Schema. For each fixtures/<name>/ folder,
 valid_*.json must pass <name>.schema.json and invalid_*.json must fail it.
 Every official platform in data/platforms/ must pass the platform schema, every mode in
 data/modes/ the mode schema, every preset in data/input_presets/ the input preset schema, and
-data/server.example.json the server schema, and every tire sound in data/tire_sounds/ the tire
-profile schema.
+data/server.example.json the server schema, every tire sound in data/tire_sounds/ the tire
+profile schema, and every built-in track in content/tracks/ the track and track package schemas.
 """
 
 import json
@@ -53,6 +53,15 @@ def main() -> int:
                                  ("tire_profile", "tire_sounds/*.json")]:
         validator = Draft202012Validator(json.loads((SCHEMAS / f"{schema_name}.schema.json").read_text()))
         for path in sorted((ROOT / "data").glob(pattern)):
+            errors = list(validator.iter_errors(json.loads(path.read_text())))
+            checked += 1
+            if errors:
+                failures.append(f"{path.relative_to(ROOT)}: rejected: {errors[0].message}")
+
+    # Built-in tracks: their track.json and manifest.
+    for schema_name, pattern in [("track", "*/track.json"), ("track_package", "*/manifest.json")]:
+        validator = Draft202012Validator(json.loads((SCHEMAS / f"{schema_name}.schema.json").read_text()))
+        for path in sorted((ROOT / "content" / "tracks").glob(pattern)):
             errors = list(validator.iter_errors(json.loads(path.read_text())))
             checked += 1
             if errors:

@@ -451,8 +451,9 @@ func _to_all(type: int, data: Dictionary) -> void:
 
 func _track_name(path: String) -> String:
 	if not _names.has(path):
-		var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
-		_names[path] = String(d.get("name", path.get_file())) if d is Dictionary else path.get_file()
+		var e := TrackLibrary.entry(path)
+		var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(path)) if e.is_empty() and FileAccess.file_exists(path) else null
+		_names[path] = String(e.name) if not e.is_empty() else String(d.get("name", path.get_file())) if d is Dictionary else path.get_file()
 	return _names[path]
 
 

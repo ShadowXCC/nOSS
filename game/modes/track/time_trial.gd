@@ -32,7 +32,7 @@ func _ready() -> void:
 
 
 func folder() -> String:
-	return dir.path_join(session.track.id).path_join(session.platform.platform.id)
+	return dir.path_join(session.track.record_key()).path_join(session.platform.platform.id)
 
 
 func best_path() -> String:
@@ -121,7 +121,7 @@ func _on_lap(time: float, valid: bool, _best: bool) -> void:
 		"platform_hash": g.meta.platform_hash, "version": g.meta.version, "assists": Array(g.meta.assists),
 		"setup": g.meta.setup, "game_speed": g.meta.game_speed, "date": g.meta.date,
 	}
-	var place := Leaderboard.submit(session.track.id, entry)
+	var place := Leaderboard.submit(session.track.record_key(), entry)
 	if place > 0:
 		player.notify("%s  ·  Board P%d" % [Hud.format_time(time), place], 3.0)
 

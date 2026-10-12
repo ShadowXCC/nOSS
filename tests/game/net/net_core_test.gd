@@ -85,7 +85,7 @@ func test_example_config_loads() -> void:
 	assert_int(c.port).is_equal(47800)
 	assert_int(c.max_players).is_equal(16)
 	assert_int(c.rotation.size()).is_equal(2)
-	assert_str(c.track_path(0)).is_equal("res://content/tracks/proving_ground/track.json")
+	assert_str(c.track_path(0)).is_equal("res://content/tracks/proving_ground")
 	var e := c.event(0)
 	assert_str(e.kind).is_equal("race")
 	assert_int(e.practice_min).is_equal(5)
@@ -114,6 +114,10 @@ func test_config_defaults_and_track_paths() -> void:
 	assert_str(c.track_path(0)).is_equal("/srv/noss/tracks/my_track.json")
 	c.rotation[0].track = "/abs/t.json"
 	assert_str(c.track_path(0)).is_equal("/abs/t.json")
+	c.rotation[0].track = "laps.nosstrack"
+	assert_str(c.track_path(0)).is_equal("/srv/noss/laps.nosstrack")
+	c.rotation[0].track = "proving_ground"
+	assert_str(c.track_path(0)).is_equal("res://content/tracks/proving_ground")
 
 
 func test_bans_are_saved_to_the_config_file() -> void:

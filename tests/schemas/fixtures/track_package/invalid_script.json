@@ -1,0 +1,2 @@
+{ "schema": "noss.track_package/1", "id": "proving_ground", "version": 1, "name": "X", "author": "x", "license": "x",
+  "type": "circuit", "files": { "track.json": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", "scene/evil.tscn": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" } }

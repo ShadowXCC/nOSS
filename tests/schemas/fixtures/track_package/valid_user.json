@@ -1,0 +1,4 @@
+{ "schema": "noss.track_package/1", "id": "5b0c8e9e-3f4a-4c1e-9d55-0d8f2a7c1b6e", "version": 3, "name": "Lakeside Loop",
+  "author": "Someone", "license": "CC-BY-4.0", "type": "circuit", "kind": "road", "length_m": 3120.4, "layout": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "attributions": [], "tags": ["hills"], "source": "nOSS Track Editor", "created": "2026-11-02", "game_min_version": "0.6.0",
+  "files": { "track.json": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", "terrain/meta.json": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", "terrain/height.png": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", "thumb.png": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" } }

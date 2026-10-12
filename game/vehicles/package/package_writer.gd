@@ -26,9 +26,7 @@ static func write(path: String, info: Dictionary, files: Dictionary, limits := {
 			result.error = "%s: %s" % [check[0], errors[0]]
 			return result
 
-	var hashes := {}
-	for rel: String in files:
-		hashes[rel] = "sha256:" + PlatformLoader.sha256_hex(files[rel])
+	var hashes := hash_files(files)
 	var manifest := {
 		"schema": "noss.package/1",
 		"id": info.get("id", new_uuid()),
@@ -48,7 +46,7 @@ static func write(path: String, info: Dictionary, files: Dictionary, limits := {
 		if old.get("id") != manifest.id:
 			result.error = "Another car uses that file"
 			return result
-		if _same_content(old, manifest):
+		if same_content(old, manifest, ["name", "author", "license", "family", "tags", "files"]):
 			result.ok = true
 			result.unchanged = true
 			result.manifest = old
@@ -60,17 +58,9 @@ static func write(path: String, info: Dictionary, files: Dictionary, limits := {
 		return result
 
 	var tmp := path + ".tmp"
-	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
-	var zip := ZIPPacker.new()
-	if zip.open(tmp) != OK:
-		result.error = "Can't write " + tmp
+	result.error = write_zip(tmp, manifest, files)
+	if result.error:
 		return result
-	_add(zip, "manifest.json", canonical_json(manifest).to_utf8_buffer())
-	var names := files.keys()
-	names.sort()
-	for rel: String in names:
-		_add(zip, rel, files[rel])
-	zip.close()
 
 	var lim := PackageLoader.DEFAULT_LIMITS.merged(limits, true)
 	if FileAccess.get_file_as_bytes(tmp).size() > int(lim.max_zip_bytes):
@@ -183,8 +173,32 @@ static func garage_path(car_name: String, id: String) -> String:
 	return path
 
 
-static func _same_content(old: Dictionary, new: Dictionary) -> bool:
-	for key in ["name", "author", "license", "family", "tags", "files"]:
+## {relative path: "sha256:…"} for `files` ({relative path: bytes}).
+static func hash_files(files: Dictionary) -> Dictionary:
+	var hashes := {}
+	for rel: String in files:
+		hashes[rel] = "sha256:" + PlatformLoader.sha256_hex(files[rel])
+	return hashes
+
+
+## A package zip at `path`: the manifest first, then the files in name order. Returns an error or "".
+static func write_zip(path: String, manifest: Dictionary, files: Dictionary) -> String:
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var zip := ZIPPacker.new()
+	if zip.open(path) != OK:
+		return "Can't write " + path
+	_add(zip, "manifest.json", canonical_json(manifest).to_utf8_buffer())
+	var names := files.keys()
+	names.sort()
+	for rel: String in names:
+		_add(zip, rel, files[rel])
+	zip.close()
+	return ""
+
+
+## The two manifests agree on `keys` (a save that changed nothing keeps its version).
+static func same_content(old: Dictionary, new: Dictionary, keys: Array) -> bool:
+	for key: String in keys:
 		if JSON.stringify(old.get(key)) != JSON.stringify(new.get(key)):
 			return false
 	return true

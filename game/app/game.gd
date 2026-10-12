@@ -233,7 +233,7 @@ func _session_platform(data: Dictionary) -> PlatformLoader.Result:
 ## A TrackSession for an online session, or null if its track or class isn't here.
 func online_session(data: Dictionary) -> TrackSession:
 	var track := String(data.track)
-	if not track.begins_with(ServerConfig.TRACKS_DIR) or not FileAccess.file_exists(track):
+	if not track.begins_with(ServerConfig.TRACKS_DIR) or TrackLibrary.resolve(track).is_empty():
 		return null # tracks from servers arrive with the editor (M6)
 	var platform := _session_platform(data)
 	if not platform.ok():

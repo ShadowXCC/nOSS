@@ -1,3 +1,4 @@
+class_name TrackGoldenTest
 extends GdUnitTestSuite
 ## The Proving Ground stays exactly as it drove before the track editor (M6): centreline,
 ## curbs, the AI's line and lap time, the race grid and the built pieces' bounds, recorded from
@@ -5,7 +6,7 @@ extends GdUnitTestSuite
 ## give the same.
 
 const V0 := "res://tests/fixtures/tracks/proving_ground_v0.json"
-const BUILT_IN := "res://content/tracks/proving_ground/track.json"
+const BUILT_IN := "res://content/tracks/proving_ground"
 
 const SAMPLES := 1238
 const LENGTH := 2519.1613
@@ -101,7 +102,7 @@ func test_the_v0_proving_ground() -> void:
 
 
 func test_the_built_in_proving_ground() -> void:
-	var t := TrackData.load_file(BUILT_IN)
+	var t := TrackLoader.load_package(BUILT_IN).track
 	_check_track(t)
 	_check_line(t)
 	_check_pieces(t)
