@@ -74,11 +74,18 @@ func _check_grid(spot: Callable) -> void:
 		assert_vector(x.basis.z).is_equal_approx(GRID[i][1], Vector3.ONE * 0.00015)
 
 
+## Pieces built as several nodes now: the site wall is "Perimeter" (it was in "Barriers").
+const MERGED := { "Barriers": ["Barriers", "Perimeter"] }
+
+
 func _check_pieces(t: TrackData) -> void:
 	var root := TrackBuilder.build(t)
 	for piece: String in PIECES:
-		var mi := root.get_node(piece) as MeshInstance3D
-		var a := mi.mesh.get_aabb()
+		var a := AABB()
+		var names: Array = MERGED.get(piece, [piece])
+		for k in names.size():
+			var mi := root.get_node(String(names[k])) as MeshInstance3D
+			a = mi.mesh.get_aabb() if k == 0 else a.merge(mi.mesh.get_aabb())
 		assert_vector(a.position).override_failure_message(piece).is_equal_approx(PIECES[piece][0], Vector3.ONE * 0.002)
 		assert_vector(a.size).override_failure_message(piece).is_equal_approx(PIECES[piece][1], Vector3.ONE * 0.002)
 	root.free()

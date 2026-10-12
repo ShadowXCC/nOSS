@@ -138,8 +138,8 @@ void VehicleSim::integrate(PhysicsDirectBodyState3D *p_state) {
 		Object *collider = hit["collider"];
 		if (collider) {
 			c.surface = int(collider->get_meta("noss_surface", 0));
-			// Terrain: what's painted under this wheel (D91).
-			NossSurfaceMap *map = Object::cast_to<NossSurfaceMap>(collider->get_meta("noss_surface_map", Variant()));
+			// Terrain: what's painted under this wheel (D91). (get_meta with no default errors.)
+			NossSurfaceMap *map = collider->has_meta("noss_surface_map") ? Object::cast_to<NossSurfaceMap>(collider->get_meta("noss_surface_map")) : nullptr;
 			if (map) {
 				int64_t s = map->surface_at(c.point.x, c.point.z);
 				if (s >= 0) {

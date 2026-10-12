@@ -75,7 +75,7 @@ public:
 	Rect paint(int p_layer, double p_x, double p_z, double p_radius, double p_strength, double p_falloff);
 	// final = base inside p_rect, then the road's bed: level with the road (p_depth below it) out
 	// to each side's flat width, blending back to base over p_falloff_m. Where two parts of the
-	// road reach a sample, the one that holds it most wins.
+	// road reach a sample, the one that holds it most wins, then the nearest.
 	Rect conform(const Rect &p_rect, const std::vector<RoadSample> &p_road, double p_falloff_m, double p_depth_m);
 	// First hit of a ray with the final ground, inside the field.
 	bool raycast(const double p_origin[3], const double p_dir[3], double p_max_dist, double r_hit[3]) const;

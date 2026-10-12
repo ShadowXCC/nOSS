@@ -213,6 +213,7 @@ Rect Heightfield::conform(const Rect &p_rect, const std::vector<RoadSample> &p_r
 	double falloff = std::max(p_falloff_m, 0.01);
 	std::vector<float> best_w(size_t(r.width()) * size_t(r.depth()), 0.0f);
 	std::vector<float> best_h(best_w.size(), 0.0f);
+	std::vector<float> best_d(best_w.size(), 1e30f);
 	for (size_t k = 0; k < n; k++) {
 		const RoadSample &a = p_road[k];
 		const RoadSample &b = p_road[(k + 1) % n];
@@ -246,10 +247,13 @@ Rect Heightfield::conform(const Rect &p_rect, const std::vector<RoadSample> &p_r
 					weight *= a.lifted ? t : (1.0 - t); // easing off toward a lifted end
 				}
 				size_t i = size_t(z - r.z0) * size_t(r.width()) + size_t(x - r.x0);
-				if (weight <= best_w[i]) {
+				// The part of the road that holds the cell most wins; among equals, the nearest
+				// (across the flat zone many 2 m segments reach a cell, at their own heights).
+				if (weight < best_w[i] || (weight == best_w[i] && dist >= best_d[i])) {
 					continue;
 				}
 				best_w[i] = float(weight);
+				best_d[i] = float(dist);
 				best_h[i] = float(a.y + (b.y - a.y) * t + lateral * ly / lxz - p_depth_m);
 			}
 		}

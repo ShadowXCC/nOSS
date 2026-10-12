@@ -203,3 +203,18 @@ TEST_CASE("terrain: chunks share their edges and regions round-trip") {
 	f.set_region(r, before);
 	CHECK(f.get_region(r) == before);
 }
+
+TEST_CASE("terrain: on a slope the bed follows the road beside it") {
+	Heightfield f = flat();
+	std::vector<RoadSample> road = straight(0.0);
+	for (RoadSample &s : road) {
+		s.y = s.x * 0.1; // a 10 % climb
+		s.flat_l = 20.0;
+		s.flat_r = 20.0;
+	}
+	Rect all{ 0, 0, f.w, f.d };
+	f.conform(all, road, 12.0, 0.0);
+	for (double x = -40.0; x <= 40.0; x += 5.0) {
+		CHECK(f.height_at(x, 15.0) == doctest::Approx(x * 0.1).epsilon(0.01));
+	}
+}
