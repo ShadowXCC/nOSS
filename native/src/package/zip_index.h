@@ -19,6 +19,14 @@ struct ZipLimits {
 	uint64_t ratio_min_bytes = 1ull << 20;
 };
 
+// Tracks (.nosstrack) may be larger than cars (docs/TRACK_EDITOR.md §5): their ceiling.
+inline ZipLimits track_zip_ceiling() {
+	ZipLimits l;
+	l.max_zip_bytes = 100ull << 20;
+	l.max_total_bytes = 250ull << 20;
+	return l;
+}
+
 struct ZipEntry {
 	std::string name;
 	uint16_t method = 0; // 0 stored, 8 deflate

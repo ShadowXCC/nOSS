@@ -11,6 +11,7 @@
 #include "package/gd_package.h"
 #include "vehicle/gd_conformance.h"
 #include "vehicle/gd_vehicle_sim.h"
+#include "world/gd_terrain.h"
 
 using namespace godot;
 
@@ -25,6 +26,8 @@ static void initialize_noss_core(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(noss::NossConformance);
 	GDREGISTER_ABSTRACT_CLASS(noss::NossMesh);
 	GDREGISTER_ABSTRACT_CLASS(noss::NossAudio);
+	GDREGISTER_CLASS(noss::NossSurfaceMap);
+	GDREGISTER_CLASS(noss::NossTerrain);
 }
 
 static void uninitialize_noss_core(ModuleInitializationLevel p_level) {

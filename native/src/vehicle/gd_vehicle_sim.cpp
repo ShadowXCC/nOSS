@@ -1,6 +1,7 @@
 #include "vehicle/gd_vehicle_sim.h"
 
 #include "vehicle/gd_platform.h"
+#include "world/gd_terrain.h"
 
 #include <godot_cpp/classes/physics_direct_space_state3d.hpp>
 #include <godot_cpp/core/class_db.hpp>
@@ -137,6 +138,14 @@ void VehicleSim::integrate(PhysicsDirectBodyState3D *p_state) {
 		Object *collider = hit["collider"];
 		if (collider) {
 			c.surface = int(collider->get_meta("noss_surface", 0));
+			// Terrain: what's painted under this wheel (D91).
+			NossSurfaceMap *map = Object::cast_to<NossSurfaceMap>(collider->get_meta("noss_surface_map", Variant()));
+			if (map) {
+				int64_t s = map->surface_at(c.point.x, c.point.z);
+				if (s >= 0) {
+					c.surface = int(s);
+				}
+			}
 		}
 	}
 	StepResult r = _model->step(ch, contacts, p_state->get_step());

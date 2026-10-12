@@ -1,0 +1,205 @@
+#include <doctest/doctest.h>
+
+#include <cmath>
+
+#include "world/heightfield.h"
+
+using namespace noss::world;
+
+namespace {
+
+Heightfield flat(int p_side = 101) {
+	Heightfield f;
+	f.create(p_side, p_side, -50.0, -50.0, 1.0, 0.0f, 0);
+	return f;
+}
+
+double variance(const Heightfield &p_f, const Rect &p_r) {
+	double sum = 0.0, sum2 = 0.0;
+	int n = 0;
+	for (int z = p_r.z0; z < p_r.z1; z++) {
+		for (int x = p_r.x0; x < p_r.x1; x++) {
+			double h = p_f.base[size_t(z) * size_t(p_f.w) + size_t(x)];
+			sum += h;
+			sum2 += h * h;
+			n++;
+		}
+	}
+	return sum2 / n - (sum / n) * (sum / n);
+}
+
+// A straight road along +x at y = p_y through the field.
+std::vector<RoadSample> straight(double p_y, double p_bank_ly = 0.0, bool p_lifted = false) {
+	std::vector<RoadSample> road;
+	for (int i = -60; i <= 60; i += 2) {
+		RoadSample s;
+		s.x = i;
+		s.y = p_y;
+		s.z = 0.0;
+		s.lx = 0.0;
+		s.ly = p_bank_ly;
+		s.lz = -1.0; // left of +x, as the game's left = up x forward
+		s.flat_l = 8.0;
+		s.flat_r = 8.0;
+		s.lifted = p_lifted;
+		road.push_back(s);
+	}
+	return road;
+}
+
+} // namespace
+
+TEST_CASE("terrain: a raise dab is full inside, soft at the edge, nothing outside") {
+	Heightfield f = flat();
+	Brush b;
+	b.mode = BrushMode::RAISE;
+	b.radius = 10.0;
+	b.strength = 2.0;
+	b.falloff = 0.5;
+	Rect r = f.brush(b);
+	CHECK_FALSE(r.empty());
+	CHECK(f.base_at(0.0, 0.0) == doctest::Approx(2.0));
+	CHECK(f.base_at(4.0, 0.0) == doctest::Approx(2.0));
+	double edge = f.base_at(8.0, 0.0);
+	CHECK(edge > 0.0);
+	CHECK(edge < 2.0);
+	CHECK(f.base_at(12.0, 0.0) == doctest::Approx(0.0));
+	CHECK(r.x0 >= 0);
+	CHECK(r.x1 <= f.w);
+}
+
+TEST_CASE("terrain: smoothing lowers the variance; flatten reaches its target") {
+	Heightfield f = flat();
+	Brush n;
+	n.mode = BrushMode::NOISE;
+	n.radius = 30.0;
+	n.strength = 5.0;
+	n.scale = 0.2;
+	f.brush(n);
+	Rect area = f.rect_around(0.0, 0.0, 10.0);
+	double before = variance(f, area);
+	CHECK(before > 0.01);
+	Brush s;
+	s.mode = BrushMode::SMOOTH;
+	s.radius = 20.0;
+	s.strength = 1.0;
+	for (int i = 0; i < 5; i++) {
+		f.brush(s);
+	}
+	CHECK(variance(f, area) < before * 0.5);
+	Brush fl;
+	fl.mode = BrushMode::FLATTEN;
+	fl.radius = 20.0;
+	fl.strength = 1.0;
+	fl.falloff = 0.0;
+	fl.target = 3.0;
+	f.brush(fl);
+	CHECK(f.base_at(0.0, 0.0) == doctest::Approx(3.0));
+}
+
+TEST_CASE("terrain: paint keeps the weights at 255") {
+	Heightfield f = flat();
+	f.paint(3, 0.0, 0.0, 10.0, 0.6, 0.5);
+	f.paint(5, 2.0, 0.0, 10.0, 0.4, 0.5);
+	for (int z = 40; z < 60; z++) {
+		for (int x = 40; x < 60; x++) {
+			int sum = 0;
+			for (int l = 0; l < LAYERS; l++) {
+				sum += f.splat[(size_t(z) * size_t(f.w) + size_t(x)) * LAYERS + size_t(l)];
+			}
+			CHECK(sum == 255);
+		}
+	}
+	std::vector<uint8_t> top = f.dominant_layers();
+	CHECK(top[50 * size_t(f.w) + 50] != 0);
+}
+
+TEST_CASE("terrain: conform levels the ground under a road and blends back outside") {
+	Heightfield f = flat();
+	for (float &h : f.base) {
+		h = 5.0f; // ground 5 m up, road at 2 m: cut
+	}
+	f.final_h = f.base;
+	Rect all{ 0, 0, f.w, f.d };
+	f.conform(all, straight(2.0), 12.0, 0.05);
+	CHECK(f.height_at(0.0, 0.0) == doctest::Approx(1.95).epsilon(0.001));
+	CHECK(f.height_at(0.0, 7.0) == doctest::Approx(1.95).epsilon(0.001)); // inside the flat width
+	double mid = f.height_at(0.0, 14.0); // in the falloff
+	CHECK(mid > 1.95);
+	CHECK(mid < 5.0);
+	CHECK(f.height_at(0.0, 25.0) == doctest::Approx(5.0)); // past it
+	CHECK(f.base_at(0.0, 0.0) == doctest::Approx(5.0)); // the shaped ground is kept
+	// Monotonic out through the falloff.
+	double prev = f.height_at(0.0, 8.0);
+	for (double z = 9.0; z <= 20.0; z += 1.0) {
+		double h = f.height_at(0.0, z);
+		CHECK(h >= prev - 1e-6);
+		prev = h;
+	}
+}
+
+TEST_CASE("terrain: a banked road tilts its bed; a lifted one leaves the ground alone") {
+	Heightfield f = flat();
+	Rect all{ 0, 0, f.w, f.d };
+	// Left is -z; ly > 0 raises the left side.
+	f.conform(all, straight(0.0, 0.1), 12.0, 0.0);
+	CHECK(f.height_at(0.0, -5.0) > f.height_at(0.0, 5.0));
+	Heightfield g = flat();
+	g.conform(all, straight(10.0, 0.0, true), 12.0, 0.0);
+	CHECK(g.height_at(0.0, 0.0) == doctest::Approx(0.0));
+}
+
+TEST_CASE("terrain: a ray hits the ground where it is") {
+	Heightfield f = flat();
+	Brush b;
+	b.mode = BrushMode::RAISE;
+	b.radius = 20.0;
+	b.strength = 4.0;
+	b.falloff = 0.0;
+	f.brush(b);
+	f.final_h = f.base;
+	double o[3] = { 0.0, 50.0, 0.0 }, dir[3] = { 0.0, -1.0, 0.0 }, hit[3];
+	REQUIRE(f.raycast(o, dir, 100.0, hit));
+	CHECK(hit[1] == doctest::Approx(4.0).epsilon(0.01));
+	double o2[3] = { -40.0, 10.0, 30.0 }, dir2[3] = { 1.0, -0.2, 0.0 };
+	REQUIRE(f.raycast(o2, dir2, 200.0, hit));
+	CHECK(hit[1] == doctest::Approx(f.height_at(hit[0], hit[2])).epsilon(0.01));
+	double miss[3] = { 0.0, 50.0, 0.0 }, up[3] = { 0.0, 1.0, 0.0 };
+	CHECK_FALSE(f.raycast(miss, up, 100.0, hit));
+}
+
+TEST_CASE("terrain: chunks share their edges and regions round-trip") {
+	Heightfield f;
+	f.create(257, 129, 0.0, 0.0, 1.0, 0.0f, 0);
+	Brush n;
+	n.mode = BrushMode::NOISE;
+	n.x = 128.0;
+	n.z = 64.0;
+	n.radius = 200.0;
+	n.strength = 3.0;
+	n.scale = 0.05;
+	f.brush(n);
+	f.final_h = f.base;
+	std::vector<float> a, b;
+	f.chunk_collision(0, 0, 128, a);
+	f.chunk_collision(1, 0, 128, b);
+	REQUIRE(a.size() == 129u * 129u);
+	for (int z = 0; z <= 128; z++) {
+		CHECK(a[size_t(z) * 129 + 128] == b[size_t(z) * 129]);
+	}
+	float lo, hi;
+	f.chunk_range(0, 0, 128, lo, hi);
+	CHECK(lo <= hi);
+	std::vector<uint16_t> r16;
+	f.chunk_r16(0, 0, 128, lo - 1.0, (hi - lo) + 2.0, r16);
+	CHECK(r16.size() == 131u * 131u);
+	Rect r{ 10, 10, 30, 20 };
+	std::vector<float> before = f.get_region(r);
+	Brush up;
+	up.x = 20.0;
+	up.z = 15.0;
+	up.radius = 5.0;
+	f.brush(up);
+	f.set_region(r, before);
+	CHECK(f.get_region(r) == before);
+}

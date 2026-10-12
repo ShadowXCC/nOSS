@@ -18,7 +18,8 @@ void NossPackage::_bind_methods() {
 }
 
 Dictionary NossPackage::inspect_zip(const PackedByteArray &p_bytes, const Dictionary &p_limits) {
-	package::ZipLimits limits;
+	// Limits can only be lowered from the car ceiling, or the track one (limits.ceiling = "track").
+	package::ZipLimits limits = String(p_limits.get("ceiling", "")) == "track" ? package::track_zip_ceiling() : package::ZipLimits();
 	auto lower = [&](const char *p_key, auto &r_value) {
 		if (p_limits.has(p_key)) {
 			int64_t v = p_limits[p_key];
