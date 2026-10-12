@@ -38,20 +38,18 @@ func test_buttons_stay_on_screen() -> void:
 	var root := get_tree().root
 	var old_size := root.size
 	root.size = Vector2i(1280, 720) # headless windows start at 64 x 64
+	var runner := scene_runner(TITLE_SCENE)
+	var screen := runner.scene() as Control
+	var scroll: ScrollContainer = runner.find_child("Buttons")
+	var quit: Button = runner.find_child("QuitButton")
 	for text_scale in [1.0, 1.5]:
 		root.content_scale_factor = text_scale
-		var runner := scene_runner(TITLE_SCENE)
-		var screen := runner.scene() as Control
-		screen.set_process_unhandled_input(false)
-		root.content_scale_factor = text_scale # the screen applies the players' scale on start
 		await runner.simulate_frames(6)
 		var area := Rect2(Vector2.ZERO, screen.size)
-		var scroll: ScrollContainer = runner.find_child("Buttons")
 		assert_bool(area.encloses(scroll.get_global_rect())).override_failure_message("scale %s: buttons area off screen" % text_scale).is_true()
 		if text_scale == 1.0:
 			for b: Button in scroll.find_children("*", "Button", true, false):
 				assert_bool(area.encloses(b.get_global_rect())).override_failure_message("%s off screen" % b.name).is_true()
-		var quit: Button = runner.find_child("QuitButton")
 		quit.grab_focus()
 		await runner.simulate_frames(4)
 		assert_bool(scroll.get_global_rect().grow(1.0).encloses(quit.get_global_rect())).override_failure_message("scale %s: focused Quit not shown" % text_scale).is_true()
