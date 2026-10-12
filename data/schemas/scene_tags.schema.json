@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noss:schema:scene_tags:1",
+  "title": "nOSS scene tags",
+  "description": "scene/tags.json inside a .nosstrack made from a 3D scene (Track Fitting): what each part of scene/scene.glb is to a car. A surface's tag is its mesh's (by node name), else its material's (by name), else the first rule whose pattern matches its mesh or material name, else the default. See docs/TRACK_EDITOR.md §7.1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "rules", "materials", "meshes", "default", "style"],
+  "properties": {
+    "schema": { "const": "noss.scene_tags/1" },
+    "rules": {
+      "description": "In order: a pattern ('*' for any run of characters, case ignored) against mesh and material names.",
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["match", "tag"],
+        "properties": {
+          "match": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "tag": { "$ref": "#/$defs/tag" }
+        }
+      }
+    },
+    "materials": {
+      "description": "Material name to tag.",
+      "type": "object",
+      "maxProperties": 1024,
+      "propertyNames": { "maxLength": 128 },
+      "additionalProperties": { "$ref": "#/$defs/tag" }
+    },
+    "meshes": {
+      "description": "Mesh node name to tag; overrides its materials'.",
+      "type": "object",
+      "maxProperties": 20000,
+      "propertyNames": { "maxLength": 128 },
+      "additionalProperties": { "$ref": "#/$defs/tag" }
+    },
+    "default": {
+      "description": "Untagged surfaces. auto: solid, and driven on as concrete.",
+      "anyOf": [{ "const": "auto" }, { "$ref": "#/$defs/tag" }]
+    },
+    "style": {
+      "description": "own: the scene's materials as they are; retro: textures made small and sharp to match retro_ps2.",
+      "enum": ["own", "retro"]
+    }
+  },
+  "$defs": {
+    "tag": {
+      "enum": ["asphalt", "concrete", "curb", "paint", "grass", "gravel", "dirt", "sand", "snow", "ice", "wall", "no-collide", "water"]
+    }
+  }
+}

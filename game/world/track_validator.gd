@@ -24,10 +24,10 @@ const GRID_SHARE := 0.4
 const SECTOR_GAP_M := 100.0
 ## The road keeps this far from the terrain's edge.
 const EDGE_M := 50.0
-## The AI line: how far it may stray past its corridor, step sideways per sample, and how slow
-## the reference car may have to go.
+## The AI line: how far it may stray past its corridor, how sharply it may bend (1/m: a kink
+## tighter than any corner), and how slow the reference car may have to go.
 const LINE_SLACK_M := 0.05
-const LINE_KINK_M := 0.6
+const LINE_KINK := 1.0 / 8.0
 const LINE_SLOW := 4.0
 ## Road a car still gets through past a prop.
 const FREE_M := 3.0
@@ -66,6 +66,7 @@ static func inputs(draft: TrackDraft) -> Dictionary:
 		"props": (draft.layout.get("props", {}) as Dictionary).duplicate(true),
 		"area": draft.terrain.area() if draft.terrain else Rect2(),
 		"license": String(draft.info.get("license", "")),
+		"scene": draft.scene,
 		"platform": PlatformLoader.load_official(REFERENCE_PLATFORM).platform,
 	}
 
@@ -96,6 +97,8 @@ func _check(line: RacingLine) -> void:
 	_sectors()
 	_terrain_edge()
 	_props()
+	if _in.get("scene") != null:
+		_scene()
 	_ai_line(line if line else RacingLine.solve(t))
 
 
@@ -193,6 +196,44 @@ func _terrain_edge() -> void:
 	_spots(hits, "error", "Road leaves the terrain at %s")
 
 
+## A fitted scene (Track Fitting): something tagged to drive on, under the whole centreline, the
+## grid and every checkpoint.
+func _scene() -> void:
+	var scene: SceneTrack = _in.scene
+	if not scene.surfaces.any(func(s: Dictionary) -> bool: return s.tag in SceneTrack.DRIVABLE):
+		_add("error", "No surfaces tagged")
+		return
+	var gaps := PackedInt32Array()
+	var untagged := PackedInt32Array()
+	for i in range(0, t.samples.size(), 2):
+		match _ground_under(scene, t.samples[i]):
+			"auto":
+				untagged.append(i)
+			"":
+				gaps.append(i)
+	_spots(untagged, "error", "Road surface not tagged at %s")
+	_spots(gaps, "error", "Gap at %s")
+	for slot in int(t.grid.slots):
+		if _ground_under(scene, t.grid_slot(slot).origin) == "":
+			_add("error", "Grid off the road", t.start_m)
+			break
+	var d := 0.0
+	while d < t.length:
+		if _ground_under(scene, t.point_at(t.start_m + d)) == "":
+			_add("error", "Checkpoint blocked at %s" % _where(t.start_m + d), t.start_m + d)
+		d += maxf(t.checkpoint_spacing, 10.0)
+
+
+## What a car on the centreline at `p` stands on: a drivable tag, "auto" (untagged), or "" (no
+## ground there: a gap, water, a wall).
+static func _ground_under(scene: SceneTrack, p: Vector3) -> String:
+	var hit := scene.ray_down(p.x, p.z, p.y + 2.0)
+	if not hit.hit or absf((hit.position as Vector3).y - p.y) > 1.5:
+		return ""
+	var tag := String(hit.tag)
+	return tag if tag in SceneTrack.DRIVABLE or tag == "auto" else ""
+
+
 ## Props that stand on the road: a warning, or an error when a car can't get past.
 func _props() -> void:
 	var props: Dictionary = _in.props
@@ -273,7 +314,7 @@ func _ai_line(line: RacingLine) -> void:
 	for i in n:
 		var c := RacingLine.limits(t, i)
 		var o := line.offsets[i]
-		if o > c.x + LINE_SLACK_M or o < c.y - LINE_SLACK_M or absf(line.offsets[(i + 1) % n] - o) > LINE_KINK_M or speeds[i] < LINE_SLOW:
+		if o > c.x + LINE_SLACK_M or o < c.y - LINE_SLACK_M or absf(line.curvature[i]) > LINE_KINK or speeds[i] < LINE_SLOW:
 			bad.append(i)
 	_spots(bad, "error", "AI line error at %s")
 

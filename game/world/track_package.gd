@@ -11,6 +11,8 @@ var manifest := {}
 var layout := {}
 var track: TrackData
 var terrain: TerrainData
+## A track made from a 3D scene: the scene and its tags (Track Fitting).
+var scene: SceneTrack
 var thumb := PackedByteArray()
 var minimap := PackedByteArray()
 var error := ""

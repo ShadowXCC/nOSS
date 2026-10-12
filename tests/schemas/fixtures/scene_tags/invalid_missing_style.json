@@ -1,0 +1,7 @@
+{
+  "schema": "noss.scene_tags/1",
+  "rules": [],
+  "materials": {},
+  "meshes": {},
+  "default": "wall"
+}

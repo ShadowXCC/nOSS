@@ -1,0 +1,8 @@
+{
+  "schema": "noss.scene_tags/1",
+  "rules": [{ "match": "*road*", "tag": "asphalt" }, { "match": "*grass*", "tag": "grass" }],
+  "materials": { "grey": "curb", "grey2": "curb" },
+  "meshes": { "pond": "water" },
+  "default": "auto",
+  "style": "own"
+}

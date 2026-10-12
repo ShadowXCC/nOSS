@@ -3,7 +3,9 @@ extends EditorTool
 ## banking and height, and each segment's surface, lines, curbs, barriers and run-off.
 ## Mouse: click the ground to add a point (on the road: in it), drag a point, Alt+drag for its
 ## height. Keys and controller: the crosshair grabs and drops; [ and ] (LB/RB) step through the
-## points; Delete (X) removes one. Every view action is also a button.
+## points; Delete (X) removes one. Every view action is also a button. On a fitted scene (Track
+## Fitting) the points are the road's centreline: they go only on surfaces tagged to drive on,
+## at the scene's height, and nothing is built from them.
 
 ## A point is under the cursor within this many pixels.
 const PICK_PX := 22.0
@@ -23,6 +25,8 @@ func title() -> String:
 
 
 func hint() -> String:
+	if draft.scene:
+		return "Click along the middle of the road · drag to move · [ ] step · Del removes · F5 drives"
 	return "Click to add a point · drag to move · Alt+drag: height · [ ] step · Del removes · F5 drives"
 
 
@@ -70,7 +74,13 @@ func pointer(e: Dictionary) -> void:
 				draft.drag_point(_dragging, p)
 			elif e.hit.hit:
 				var p := _point_pos(_dragging)
-				draft.drag_point(_dragging, Vector3(e.hit.position.x, p.y, e.hit.position.z))
+				var to := Vector3(e.hit.position.x, p.y, e.hit.position.z)
+				if draft.scene:
+					var on: Variant = _on_scene_road(e.hit.position)
+					if on == null:
+						return # not onto what isn't road
+					to = on
+				draft.drag_point(_dragging, to)
 		"release":
 			if _dragging >= 0:
 				draft.end_move("Point height" if _height_drag else "Move point")
@@ -156,20 +166,43 @@ func _select(i: int) -> void:
 
 
 ## A new point at `at`: into the road if it's on it, else after the selected point (or last).
+## Where a click at `at` lands on a fitted scene's road, or null if it isn't a surface to drive on.
+func _on_scene_road(at: Vector3) -> Variant:
+	var hit := draft.scene.ray_down(at.x, at.z, at.y + 3.0)
+	if not hit.hit or String(hit.tag) not in SceneTrack.DRIVABLE:
+		return null
+	return hit.position
+
+
 func _add_at(at: Vector3) -> void:
+	if draft.scene:
+		var on: Variant = _on_scene_road(at)
+		if on == null:
+			editor.say("Not a road surface")
+			return
+		at = on
 	var t := draft.track()
 	var index := draft.points().size() if selected < 0 else selected + 1
 	if t.samples.size() > 2:
 		var proj := t.project(at)
 		var i: int = proj.index
-		if absf(proj.lateral) < maxf(t.half_l[i], t.half_r[i]) + INSERT_M:
+		var on: Vector3 = proj.point
+		var reach := maxf(t.half_l[i], t.half_r[i]) + INSERT_M
+		# On the road itself (not just in line with it, past its end): into it there. Near the
+		# selected point, or on its own way on (the stretch back to the first point while the road
+		# is being laid), the click carries the road on from it instead.
+		var near_selected := false
+		if selected >= 0 and selected < t.seg_first.size():
+			var gap := absf(float(proj.distance) - t.distances[t.seg_first[selected]])
+			near_selected = minf(gap, t.length - gap) < reach or t.sample_seg[i] == selected
+		if Vector2(at.x - on.x, at.z - on.z).length() < reach and not near_selected:
 			index = t.sample_seg[i] + 1
 			at = proj.point
 	var attrs := {}
 	if draft.points().size() > 0:
 		# A new point follows its neighbour's height mode.
 		var near := clampi(index - 1, 0, draft.points().size() - 1)
-		if TrackFormat.attr(draft.layout.road, near, "height") == "set":
+		if TrackFormat.attr(draft.layout.road, near, "height") == "set" and draft.scene == null:
 			attrs.height = "set"
 			at.y = _height_of(near)
 	draft.add_point(index, at, attrs)
@@ -211,7 +244,7 @@ func panel() -> Array:
 	out.append(row)
 	if i < 0:
 		out.append(_text("%d points. Select one to change it, or set the whole road below." % n))
-		out.append_array(_defaults())
+		out.append_array(_defaults(draft.scene != null))
 		out.append(UiKit.button("Flip direction", func() -> void:
 			draft.flip_direction()
 			editor.say("Direction flipped"), "Drive it the other way round"))
@@ -224,6 +257,12 @@ func panel() -> Array:
 	var idx := PackedInt32Array([i])
 	out.append(UiKit.number("X", p.x, -20000.0, 20000.0, 1.0, "%.0f m", func(v: float) -> void: draft.move_point(i, Vector3(v, p.y, p.z))))
 	out.append(UiKit.number("Z", p.z, -20000.0, 20000.0, 1.0, "%.0f m", func(v: float) -> void: draft.move_point(i, Vector3(p.x, p.y, v))))
+	if draft.scene:
+		# A fitted scene: the scene is the road; the point only sets the line and its widths.
+		out.append_array(_attr_rows(idx, i, true, true))
+		out.append(UiKit.button("Delete point", _delete, "Delete or X"))
+		out.append(UiKit.button("Deselect", func() -> void: _select(-1), "Set the whole road"))
+		return out
 	var height_mode := String(TrackFormat.attr(road, i, "height"))
 	out.append(UiKit.spinner("Height", [["ground", "On the ground"], ["set", "Set"]], height_mode, func(v: String) -> void:
 		if v == "set":
@@ -250,15 +289,17 @@ func panel() -> Array:
 	return out
 
 
-## The rows for one point (`point`: its widths and banking) or its segment (surface, lines,
-## curbs, barriers, run-off).
-func _attr_rows(idx: PackedInt32Array, i: int, point: bool) -> Array:
+## The rows for one point (`point`: its widths and banking; `widths_only`: just the widths) or
+## its segment (surface, lines, curbs, barriers, run-off).
+func _attr_rows(idx: PackedInt32Array, i: int, point: bool, widths_only := false) -> Array:
 	var road: Dictionary = draft.layout.road
 	var set_attr := func(key: String, v: Variant) -> void: draft.set_attr(idx, key, v)
 	var out := []
 	if point:
 		out.append(UiKit.number("Width left", float(TrackFormat.attr(road, i, "width_l")), 2.0, 30.0, 0.5, "%.1f m", set_attr.bind("width_l"), "Centreline to the left edge"))
 		out.append(UiKit.number("Width right", float(TrackFormat.attr(road, i, "width_r")), 2.0, 30.0, 0.5, "%.1f m", set_attr.bind("width_r"), "Centreline to the right edge"))
+		if widths_only:
+			return out
 		out.append(UiKit.number("Banking", float(TrackFormat.attr(road, i, "bank_deg")), -25.0, 25.0, 0.5, "%.1f°", set_attr.bind("bank_deg"), "Positive raises the left edge"))
 		return out
 	out.append(UiKit.spinner("Surface", _surfaces(["asphalt", "concrete", "dirt", "gravel", "sand", "snow", "ice", "grass"]), String(TrackFormat.attr(road, i, "surface")), set_attr.bind("surface")))
@@ -278,13 +319,15 @@ func _attr_rows(idx: PackedInt32Array, i: int, point: bool) -> Array:
 	return out
 
 
-## The whole road's settings (no point selected).
-func _defaults() -> Array:
+## The whole road's settings (no point selected); `widths_only`: just the widths (a fitted scene).
+func _defaults(widths_only := false) -> Array:
 	var out := []
 	var d: Dictionary = draft.layout.road.defaults
 	var set_default := func(key: String, v: Variant) -> void: draft.set_default(key, v)
 	out.append(UiKit.number("Width left", float(d.get("width_l", 6.0)), 2.0, 30.0, 0.5, "%.1f m", set_default.bind("width_l")))
 	out.append(UiKit.number("Width right", float(d.get("width_r", 6.0)), 2.0, 30.0, 0.5, "%.1f m", set_default.bind("width_r")))
+	if widths_only:
+		return out
 	out.append(UiKit.spinner("Surface", _surfaces(["asphalt", "concrete", "dirt", "gravel", "sand", "snow", "ice", "grass"]), String(d.get("surface", "asphalt")), set_default.bind("surface")))
 	out.append(UiKit.spinner("Run-off", _surfaces(["grass", "gravel", "asphalt", "concrete", "sand", "dirt"]), String(d.get("runoff_l", "grass")), func(v: String) -> void:
 		draft.set_default("runoff_l", v)

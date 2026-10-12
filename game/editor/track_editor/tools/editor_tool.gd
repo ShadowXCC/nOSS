@@ -13,6 +13,11 @@ func title() -> String:
 	return ""
 
 
+## Whether the tool works on this draft (Terrain and Paint need terrain; Surfaces, a scene).
+func available() -> bool:
+	return true
+
+
 ## The panel's controls, top to bottom (rebuilt by editor.refresh_panel()).
 func panel() -> Array:
 	return []

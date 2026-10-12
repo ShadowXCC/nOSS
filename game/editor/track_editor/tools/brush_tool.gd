@@ -44,6 +44,10 @@ func _live(_rect: Rect2i) -> void:
 	pass
 
 
+func available() -> bool:
+	return draft.terrain != null
+
+
 func activate() -> void:
 	if draft.terrain == null:
 		editor.say("This track has no terrain")

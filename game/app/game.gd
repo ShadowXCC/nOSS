@@ -34,7 +34,8 @@ extends Node
 ##   --bay-auto           Fitting Bay: save and drive as soon as the import is in (timed runs)
 ##   --bay-step=<step>    Fitting Bay: show this step after the import (screenshots)
 ##   --editor             open the track editor; --editor-track=<ref>: on that track,
-##                        --editor-template=<id>: on a new track from a template, --editor-tool=<t>
+##                        --editor-template=<id>: on a new track from a template, --editor-tool=<t>,
+##                        --editor-import=<file>: a new track on a 3D scene (Track Fitting)
 ## Online (also read before "--", so `noss_server --config server.json` works):
 ##   --server             run as a dedicated server (the "Linux Server" export always does)
 ##   --config=<file>      the dedicated server's config (data/server.example.json)
@@ -396,7 +397,7 @@ func return_to_editor() -> void:
 	get_tree().change_scene_to_node(TrackEditor.new())
 
 
-## Dev: --editor (--editor-track, --editor-template).
+## Dev: --editor (--editor-track, --editor-template, --editor-import).
 func open_dev_editor() -> void:
 	var track := TrackLibrary.resolve(String(dev.get("editor-track", ""))) if dev.has("editor-track") else ""
 	open_track_editor(track, String(dev.get("editor-template", "")))

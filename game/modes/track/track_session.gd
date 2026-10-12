@@ -119,7 +119,10 @@ func _ready() -> void:
 	world_env = env_node.environment
 	add_child(env_node)
 	add_child(style.create_sun())
-	add_child(TrackBuilder.build(track, terrain, { "visual": not dedicated }))
+	var built := TrackBuilder.build(track, terrain, { "visual": not dedicated, "scene": track_package.scene })
+	add_child(built)
+	for area: Node in built.find_children("Water*", "Area3D", false, false):
+		(area as Area3D).body_entered.connect(_on_water)
 	platform = PlatformLoader.load_file(platform_file) if platform_file else PlatformLoader.load_official(platform_id)
 	if not platform.ok():
 		push_warning("Platform %s: %s" % [platform_id, platform.errors])
@@ -258,6 +261,14 @@ func _add_player(slot: PlayerSlot, at: Variant = null) -> SessionPlayer:
 
 func is_online() -> bool:
 	return not online.is_empty()
+
+
+## A car in a fitted scene's water: back on the road.
+func _on_water(body: Node3D) -> void:
+	for r in racers:
+		if r.vehicle == body and not r.waiting:
+			r.notify("In the water", 2.0)
+			r.reset_car()
 
 
 ## A server's rules (MP-06), narrowing the platform's and mode's: allowed assists, setups locked,

@@ -5,7 +5,8 @@ extends RefCounted
 ## with the surface the tire model reads (docs/PHYSICS.md §4).
 ##
 ## opts: visual (false: collision only, for the dedicated server), segmented (the editor: road
-## pieces per control segment, under a "Road" node), per_item (the editor: a node per prop).
+## pieces per control segment, under a "Road" node), per_item (the editor: a node per prop),
+## scene (a SceneTrack: a fitted scene is the road and the ground; the spline only guides).
 
 var track: TrackData
 var terrain: TerrainData
@@ -17,7 +18,11 @@ var _ground_y := -0.03
 static func build(data: TrackData, ground: TerrainData = null, opts := {}) -> Node3D:
 	var b := _builder(data, ground, Node3D.new(), bool(opts.get("visual", true)))
 	b.root.name = "Track"
-	b._ground()
+	var scene: SceneTrack = opts.get("scene")
+	if scene:
+		scene.build(b.root, b.visual)
+	else:
+		b._ground()
 	var road := RoadBuilder.new(data, ground)
 	road.visual = b.visual
 	if opts.get("segmented", false):

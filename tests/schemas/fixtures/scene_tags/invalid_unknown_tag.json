@@ -1,0 +1,8 @@
+{
+  "schema": "noss.scene_tags/1",
+  "rules": [{ "match": "*road*", "tag": "lava" }],
+  "materials": {},
+  "meshes": {},
+  "default": "auto",
+  "style": "own"
+}

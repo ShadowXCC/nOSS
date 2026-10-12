@@ -11,7 +11,7 @@ signal closed
 const AUTOSAVE_S := 120.0
 const PANEL_WIDTH := 640
 const FONT_SIZE := 24
-const TOOL_ORDER := ["Road", "Terrain", "Paint", "Props", "Race", "Check", "File"]
+const TOOL_ORDER := ["Road", "Surfaces", "Terrain", "Paint", "Props", "Race", "Check", "File"]
 ## The AI line and the checks run this long after the last change (sooner while dragging a pin).
 const ANALYSE_S := 0.6
 const ANALYSE_LIVE_S := 0.05
@@ -110,6 +110,9 @@ func _ready() -> void:
 	_open_draft(draft)
 	if Game.dev.has("editor-tool"):
 		show_tool(String(Game.dev["editor-tool"]).capitalize())
+	if Game.dev.has("editor-import") and not Game.has_meta(&"editor_imported"):
+		Game.set_meta(&"editor_imported", true) # once per run (not again after a test drive)
+		import_scene(String(Game.dev["editor-import"]))
 
 
 ## Shows `d` (a new or restored draft) in the editor.
@@ -143,7 +146,8 @@ func _make_tools() -> void:
 		t.editor = self
 		t.draft = draft
 		t.view = view
-		tools[t.title()] = t
+		if t.available():
+			tools[t.title()] = t
 	for title: String in TOOL_ORDER:
 		if not tools.has(title):
 			continue
@@ -159,7 +163,8 @@ func _extra_tools() -> Array:
 	var out := []
 	for path: String in ["res://game/editor/track_editor/tools/road_tool.gd", "res://game/editor/track_editor/tools/terrain_tool.gd",
 			"res://game/editor/track_editor/tools/paint_tool.gd", "res://game/editor/track_editor/tools/props_tool.gd",
-			"res://game/editor/track_editor/tools/race_tool.gd", "res://game/editor/track_editor/tools/check_tool.gd"]:
+			"res://game/editor/track_editor/tools/race_tool.gd", "res://game/editor/track_editor/tools/check_tool.gd",
+			"res://game/editor/track_editor/tools/surfaces_tool.gd"]:
 		if ResourceLoader.exists(path):
 			out.append((load(path) as GDScript).new())
 	return out
@@ -360,6 +365,47 @@ static func minimap(t: TrackData) -> Image:
 	return img
 
 
+## A new track on a 3D scene (Track Fitting): imported and read on a worker, then opened on the
+## Surfaces tool.
+func import_scene(path: String) -> void:
+	say("Importing " + path.get_file())
+	WorkerJob.start(self, func() -> Variant:
+		var r := ModelImport.import_file(path, SceneTrack.LIMITS)
+		if r.scene:
+			r.scene.free()
+		if not r.ok():
+			return r.error
+		var s := SceneTrack.from_glb(r.glb)
+		if not s.ok():
+			return s.error()
+		return TrackDraft.from_import(s, path),
+		func(result: Variant) -> void:
+			if result is String:
+				say(result)
+				return
+			_open_draft(result)
+			show_tool("Surfaces")
+			say("Imported: tag the road, then click along its middle with the Road tool"),
+		ModelImport.SCENE_TIMEOUT_S, func() -> Variant: return "Import timed out",
+		func(result: Variant) -> void:
+			if result is TrackDraft and (result as TrackDraft).scene:
+				(result as TrackDraft).scene.free_scene())
+
+
+func _browse_scene() -> void:
+	var dialog := FileDialog.new()
+	dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	dialog.access = FileDialog.ACCESS_FILESYSTEM
+	dialog.use_native_dialog = true
+	dialog.filters = PackedStringArray(["*.glb, *.gltf, *.fbx ; 3D scenes"])
+	dialog.title = "Import a scene"
+	dialog.file_selected.connect(import_scene)
+	dialog.canceled.connect(dialog.queue_free)
+	dialog.file_selected.connect(func(_p: String) -> void: dialog.queue_free())
+	add_child(dialog)
+	dialog.popup_file_dialog()
+
+
 ## Drives the track from the cursor (or the grid): see Game.start_test_drive.
 func test_drive(from_grid: bool) -> void:
 	var t := draft.track()
@@ -553,6 +599,7 @@ class FileTool:
 			editor.save(), "A new track from this one"))
 		out.append(UiKit.button("New track", _new, "Start again"))
 		out.append(UiKit.button("Open track", _open, "Edit another track"))
+		out.append(UiKit.button("Import scene", editor._browse_scene, "A track from a 3D scene (glb, gltf, fbx)"))
 		out.append(UiKit.button("Show track files", func() -> void:
 			DirAccess.make_dir_recursive_absolute(TrackLibrary.user_dir)
 			OS.shell_open(ProjectSettings.globalize_path(TrackLibrary.user_dir)), "Your .nosstrack files, to share"))

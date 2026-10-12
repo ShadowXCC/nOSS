@@ -33,7 +33,10 @@ func rebuild_all() -> void:
 	if draft.terrain:
 		draft.terrain.conform(t)
 	_ground = _part("Ground")
-	TrackBuilder.add_ground(_ground, t, draft.terrain)
+	if draft.scene:
+		draft.scene.build(_ground) # a fitted scene is the ground and the road
+	else:
+		TrackBuilder.add_ground(_ground, t, draft.terrain)
 	_road = _part("Road")
 	RoadBuilder.new(t, draft.terrain).build_all(_road, true)
 	_start = _part("Start")
@@ -106,6 +109,9 @@ func _flush() -> void:
 	if pending.has(&"race") or pending.has(&"road") or pending.has(&"terrain"):
 		_clear(_start)
 		TrackBuilder.add_gantry(_start, t)
+	if pending.has(&"scene") and draft.scene:
+		_clear(_ground)
+		draft.scene.build(_ground)
 	if pending.has(&"paint") and terrain_view():
 		var rect: Rect2i = pending.paint.get("rect", Rect2i())
 		terrain_view().update_paint(rect)

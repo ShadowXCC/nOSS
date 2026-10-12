@@ -4,7 +4,7 @@ extends RefCounted
 ## its undo history. Every change goes through a command here, so the editor's tools, undo and
 ## the headless checks share one path. `changed` tells the preview what to rebuild:
 ##   road (info.segments: the control segments touched; none: all), race, props, scatter,
-##   terrain (info.rect, samples), paint (info.rect), info, all.
+##   terrain (info.rect, samples), paint (info.rect), scene (its tags), info, all.
 
 signal changed(what: StringName, info: Dictionary)
 
@@ -19,6 +19,8 @@ var id := ""
 var info := {}
 var layout := {}
 var terrain: TerrainData
+## A track made from a 3D scene (Track Fitting): the scene is the road and the ground.
+var scene: SceneTrack
 ## The library file it was opened from or saved to ("" until its first save).
 var path := ""
 var history := EditHistory.new()
@@ -47,6 +49,7 @@ static func from_package(pkg: TrackPackage) -> TrackDraft:
 	var d := TrackDraft.new()
 	d.layout = pkg.layout.duplicate(true)
 	d.terrain = pkg.terrain
+	d.scene = pkg.scene
 	var m := pkg.manifest
 	if pkg.builtin() or m.is_empty():
 		d.id = PackageWriter.new_uuid()
@@ -60,6 +63,25 @@ static func from_package(pkg: TrackPackage) -> TrackDraft:
 	for image: Array in [["thumb.png", pkg.thumb], ["minimap.png", pkg.minimap]]:
 		if not (image[1] as PackedByteArray).is_empty():
 			d.images[image[0]] = image[1]
+	d.saved_version = d.history.version()
+	return d
+
+
+## A new track on an imported scene (ModelImport with SceneTrack.LIMITS, then SceneTrack): no
+## road yet. Its points go on the scene's road ("centreline" mode). `source`: the file it came from.
+static func from_import(scene_track: SceneTrack, source: String, track_name := "") -> TrackDraft:
+	var d := TrackDraft.new()
+	d.scene = scene_track
+	d.id = PackageWriter.new_uuid()
+	var name := track_name if track_name else source.get_file().get_basename().capitalize()
+	d.info = { "name": name, "author": _author(), "license": "CC-BY-SA-4.0", "attributions": [] }
+	d.layout = TrackFormat.blank(d.id, name)
+	d.layout.road.mode = "centreline"
+	d.layout.road.defaults.merge({ "height": "set", "curb_l": "off", "curb_r": "off", "barrier_l": "none", "barrier_r": "none",
+		"runoff_l_m": 0.0, "runoff_r_m": 0.0, "lines": "none" }, true)
+	d.layout.ground = { "flat_y": snappedf(d.scene.bounds.position.y - 1.0, 0.01), "surface": "grass" }
+	d.layout.race.gantry = false
+	d.layout.scene = { "glb": "scene/scene.glb", "tags": "scene/tags.json" }
 	d.saved_version = d.history.version()
 	return d
 
@@ -332,6 +354,27 @@ func set_scatter_live(prop: String, xf: Array) -> void:
 	_set_scatter(prop, xf, false)
 
 
+## The scene's tags (scene/tags.json), as one action.
+func set_scene_tags(tag_data: Dictionary, name := "Change surfaces") -> void:
+	if scene == null:
+		return
+	var before := scene.tags.duplicate(true)
+	history.act(name, _set_tags.bind(tag_data.duplicate(true)), _set_tags.bind(before), true)
+
+
+func _set_tags(tag_data: Dictionary) -> void:
+	scene.set_tags(tag_data)
+	_changed(&"scene", {})
+
+
+## Several points' attributes at once, as one action: {point index: {key: value}}.
+func set_point_attrs(changes: Dictionary, name: String) -> void:
+	_edit(name, "road", func() -> void:
+		for i: int in changes:
+			if i >= 0 and i < points().size():
+				(points()[i] as Dictionary).merge(changes[i], true), &"road")
+
+
 func set_env(key: String, value: Variant) -> void:
 	_edit("Set " + key.replace("_", " "), "environment", func() -> void: layout.environment[key] = value, &"all")
 
@@ -356,6 +399,9 @@ func files() -> Dictionary:
 	out["track.json"] = PackageWriter.canonical_json(layout).to_utf8_buffer()
 	if terrain:
 		out.merge(terrain.to_files())
+	if scene:
+		out["scene/scene.glb"] = scene.glb
+		out["scene/tags.json"] = scene.tags_bytes()
 	out.merge(images)
 	return out
 
@@ -371,6 +417,7 @@ func to_package() -> TrackPackage:
 	layout.name = info.name
 	pkg.layout = layout.duplicate(true)
 	pkg.terrain = terrain
+	pkg.scene = scene
 	pkg.track = track()
 	pkg.path = path
 	pkg.manifest = TrackWriter.manifest_for(manifest_info(), {}, layout)
@@ -457,12 +504,15 @@ func _snapshot() -> Dictionary:
 		snap.terrain = { "meta": PackageWriter.canonical_json(terrain.meta).to_utf8_buffer(), "size": size,
 			"height": terrain.field.get_base_u16(float(terrain.meta.height_min), float(terrain.meta.height_step)),
 			"splat": [terrain.field.get_splat_rgba(0), terrain.field.get_splat_rgba(1)] }
+	if scene:
+		snap.scene = { "scene/scene.glb": scene.glb, "scene/tags.json": scene.tags_bytes() }
 	return snap
 
 
 static func _write_snapshot(dir: String, snap: Dictionary) -> String:
 	var files := { "track.json": snap["track.json"] }
 	files.merge(snap.images)
+	files.merge(snap.get("scene", {}))
 	if snap.has("terrain"):
 		var t: Dictionary = snap.terrain
 		var size: Vector2i = t.size

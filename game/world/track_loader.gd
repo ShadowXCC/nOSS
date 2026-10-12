@@ -134,6 +134,20 @@ static func _read(pkg: TrackPackage, source: PackageSource, lim: Dictionary, opt
 		if loaded.has("error"):
 			return String(loaded.error)
 		pkg.terrain = loaded.terrain
+	if layout.get("scene") is Dictionary and opts.get("scene", true):
+		var tag_data: Variant = JSON.parse_string((files.get("scene/tags.json", PackedByteArray()) as PackedByteArray).get_string_from_utf8())
+		if not tag_data is Dictionary:
+			return "scene/tags.json isn't valid JSON"
+		var why := SceneTrack.validate_tags(tag_data)
+		if why:
+			return "scene/tags.json: " + why
+		var scene_limits := SceneTrack.LIMITS.duplicate()
+		for key: String in lim:
+			if scene_limits.has(key) and int(lim[key]) < int(scene_limits[key]):
+				scene_limits[key] = int(lim[key])
+		pkg.scene = SceneTrack.from_glb(files.get("scene/scene.glb", PackedByteArray()), tag_data, scene_limits)
+		if not pkg.scene.ok():
+			return pkg.scene.error()
 	pkg.track = TrackData.from_dict(layout, pkg.terrain.ground_height() if pkg.terrain else Callable())
 	pkg.track.builtin = pkg.path.begins_with("res://")
 	if pkg.terrain:

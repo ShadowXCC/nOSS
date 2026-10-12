@@ -64,6 +64,8 @@ func build_segment(s: int) -> Node3D:
 
 ## Replaces the nodes of `segments` under `root` (built segmented).
 func rebuild_segments(root: Node3D, segments: PackedInt32Array) -> void:
+	if track.kind != "road":
+		return
 	for s in segments:
 		var old := root.get_node_or_null("Seg_%d" % s)
 		if old:

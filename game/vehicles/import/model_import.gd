@@ -1,7 +1,8 @@
 class_name ModelImport
 extends RefCounted
 ## Brings a GLB, glTF or FBX file into the Fitting Bay (docs/VEHICLE_PACKAGE.md §7 step 1,
-## PKG-02). A GLB that already passes the package checks is kept byte for byte. Anything else
+## PKG-02), or a scene into the track editor (Track Fitting, with SceneTrack.LIMITS). A GLB that
+## already passes the checks is kept byte for byte. Anything else
 ## (FBX, .gltf with separate files, external or WebP textures, oversized textures) is
 ## re-exported through Godot into a plain GLB. Either way the result is parsed again, so the
 ## Fitting Bay sees exactly the scene the game will load. Parsing runs on a worker thread.
@@ -10,6 +11,8 @@ const EXTENSIONS := ["glb", "gltf", "fbx"]
 ## Source files can be bigger than packages: an FBX or a .gltf shrinks when packed.
 const MAX_SOURCE_BYTES := 200 << 20
 const TIMEOUT_S := 90.0
+## A whole scene takes longer.
+const SCENE_TIMEOUT_S := 180.0
 ## Compressed geometry Godot can't decode.
 const UNSUPPORTED := {
 	"KHR_draco_mesh_compression": "Draco", "EXT_meshopt_compression": "meshopt", "KHR_meshopt_compression": "meshopt",
@@ -33,19 +36,19 @@ class Result:
 
 
 ## Imports on a worker thread; `on_done` gets the Result on the main thread.
-static func import_async(path: String, on_done: Callable) -> void:
+static func import_async(path: String, on_done: Callable, limits := PackageLoader.DEFAULT_LIMITS, timeout_s := TIMEOUT_S) -> void:
 	var job := _Job.new()
 	job.on_done = on_done
 	job.task = WorkerThreadPool.add_task(func() -> void:
-		var result := import_file(path)
+		var result := import_file(path, limits)
 		job.finish.call_deferred(result), true, "Import " + path.get_file())
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree:
-		tree.create_timer(TIMEOUT_S, true, false, true).timeout.connect(job.time_out.bind(path))
+		tree.create_timer(timeout_s, true, false, true).timeout.connect(job.time_out.bind(path))
 
 
-## Blocking import. Check ok() on the result.
-static func import_file(path: String) -> Result:
+## Blocking import. Check ok() on the result. `limits`: a car's (PackageLoader) or a scene's.
+static func import_file(path: String, limits := PackageLoader.DEFAULT_LIMITS) -> Result:
 	var r := Result.new()
 	r.path = path
 	var os_path := ProjectSettings.globalize_path(path)
@@ -75,7 +78,7 @@ static func import_file(path: String) -> Result:
 			r.error = _unsupported(gltf)
 			if r.error:
 				return r
-		var check := PackageLoader.check_glb(bytes, PackageLoader.DEFAULT_LIMITS)
+		var check := PackageLoader.check_glb(bytes, limits)
 		if check.error.is_empty():
 			r.glb = bytes # already a clean package model: keep it exactly
 		else:
@@ -97,17 +100,17 @@ static func import_file(path: String) -> Result:
 			r.error = "Model failed to load"
 			return r
 		r.converted = true
-		r.glb = export_glb(scene)
+		r.glb = export_glb(scene, limits)
 		scene.free()
 		if r.glb.is_empty():
 			r.error = "Model failed to convert"
 			return r
-	var check := PackageLoader.check_glb(r.glb, PackageLoader.DEFAULT_LIMITS)
+	var check := PackageLoader.check_glb(r.glb, limits)
 	if check.error:
 		r.error = "Model can't be used: " + check.error
 		return r
 	r.triangles = check.triangles
-	if check.triangles > PackageLoader.DEFAULT_LIMITS.max_lod0_triangles:
+	if check.triangles > int(limits.max_lod0_triangles):
 		r.error = "Too many triangles: %d" % check.triangles
 		return r
 	r.scene = _parse_glb(r.glb, "")
@@ -118,10 +121,10 @@ static func import_file(path: String) -> Result:
 
 ## A scene as a package GLB: everything visible, textures within the size limit. Returns
 ## empty bytes if the export fails or the result is still too large.
-static func export_glb(scene: Node3D) -> PackedByteArray:
+static func export_glb(scene: Node3D, limits := PackageLoader.DEFAULT_LIMITS) -> PackedByteArray:
 	for node in [scene] + scene.find_children("*", "Node3D", true, false):
 		(node as Node3D).visible = true # a hidden node would require KHR_node_visibility
-	_limit_textures(scene)
+	_limit_textures(scene, int(limits.max_texture_size))
 	for format in ["PNG", "JPEG"]:
 		var doc := GLTFDocument.new()
 		doc.image_format = format
@@ -130,7 +133,7 @@ static func export_glb(scene: Node3D) -> PackedByteArray:
 		if doc.append_from_scene(scene, state) != OK:
 			return PackedByteArray()
 		var bytes := doc.generate_buffer(state)
-		if bytes.size() <= int(PackageLoader.DEFAULT_LIMITS.max_zip_bytes):
+		if bytes.size() <= int(limits.max_zip_bytes):
 			return bytes
 	return PackedByteArray()
 
@@ -164,9 +167,8 @@ static func _scene(doc: GLTFDocument, state: GLTFState) -> Node3D:
 	return scene
 
 
-## Downscales any texture bigger than the package limit.
-static func _limit_textures(scene: Node3D) -> void:
-	var limit := int(PackageLoader.DEFAULT_LIMITS.max_texture_size)
+## Downscales any texture bigger than `limit`.
+static func _limit_textures(scene: Node3D, limit: int) -> void:
 	var seen := {}
 	for mi: MeshInstance3D in scene.find_children("*", "MeshInstance3D", true, false):
 		for s in mi.mesh.get_surface_count() if mi.mesh else 0:
