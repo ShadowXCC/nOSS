@@ -33,6 +33,8 @@ extends Node
 ##   --import=<path>      Fitting Bay: import this model
 ##   --bay-auto           Fitting Bay: save and drive as soon as the import is in (timed runs)
 ##   --bay-step=<step>    Fitting Bay: show this step after the import (screenshots)
+##   --editor             open the track editor; --editor-track=<ref>: on that track,
+##                        --editor-template=<id>: on a new track from a template, --editor-tool=<t>
 ## Online (also read before "--", so `noss_server --config server.json` works):
 ##   --server             run as a dedicated server (the "Linux Server" export always does)
 ##   --config=<file>      the dedicated server's config (data/server.example.json)
@@ -69,6 +71,8 @@ var headless := false
 var dedicated := false
 ## The Fitting Bay's draft, kept while the player test-drives it.
 var bay_draft: Variant = null
+## The track editor's draft (TrackDraft), kept while the player test-drives it.
+var track_draft: Variant = null
 var _time := 0.0
 var _shots_taken := 0
 var _dev_import_used := false
@@ -140,7 +144,7 @@ static func parse_args(engine_args: PackedStringArray, user_args: PackedStringAr
 
 ## First scene after boot.
 func first_scene() -> String:
-	return "" if dedicated or dev.has("drive") or dev.has("bay") or dev.has("garage") or dev.has("race") or dev.has("time-trial") else TITLE
+	return "" if dedicated or dev.has("drive") or dev.has("bay") or dev.has("garage") or dev.has("race") or dev.has("time-trial") or dev.has("editor") else TITLE
 
 
 ## Dev: --race starts the last race set up, with --race-laps, --race-ai, --race-practice,
@@ -312,6 +316,25 @@ func open_fitting_bay(import_path := "", step := "") -> void:
 		bay.auto = dev.has("bay-auto")
 	bay.import_path = import_path
 	get_tree().change_scene_to_node(bay)
+
+
+## The track editor: on the draft being edited (back from a test drive), a track (a path), a
+## new track from a template, or (none) an empty one.
+func open_track_editor(track := "", template := "") -> void:
+	get_tree().paused = false
+	if track:
+		var pkg := TrackLoader.load_package(track)
+		if pkg.ok():
+			track_draft = TrackDraft.from_package(pkg)
+	elif template:
+		track_draft = TrackTemplates.make(template)
+	get_tree().change_scene_to_node(TrackEditor.new())
+
+
+## Dev: --editor (--editor-track, --editor-template).
+func open_dev_editor() -> void:
+	var track := TrackLibrary.resolve(String(dev.get("editor-track", ""))) if dev.has("editor-track") else ""
+	open_track_editor(track, String(dev.get("editor-template", "")))
 
 
 func go_title() -> void:

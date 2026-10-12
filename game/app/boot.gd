@@ -15,6 +15,8 @@ func _ready() -> void:
 		Game.open_fitting_bay.call_deferred()
 	elif Game.dev.has("garage"):
 		Game.open_garage.call_deferred()
+	elif Game.dev.has("editor"):
+		Game.open_dev_editor.call_deferred()
 	elif Game.dev.has("race") or Game.dev.has("time-trial"):
 		Game.start_dev_event.call_deferred()
 	elif Game.first_scene().is_empty():

@@ -15,12 +15,7 @@ var _ground_y := -0.03
 
 
 static func build(data: TrackData, ground: TerrainData = null, opts := {}) -> Node3D:
-	var b := TrackBuilder.new()
-	b.track = data
-	b.terrain = ground
-	b.visual = bool(opts.get("visual", true))
-	b._ground_y = float(data.raw.get("ground", {}).get("flat_y", -0.03))
-	b.root = Node3D.new()
+	var b := _builder(data, ground, Node3D.new(), bool(opts.get("visual", true)))
 	b.root.name = "Track"
 	b._ground()
 	var road := RoadBuilder.new(data, ground)
@@ -38,6 +33,27 @@ static func build(data: TrackData, ground: TerrainData = null, opts := {}) -> No
 	props.visual = b.visual
 	props.build(b.root, bool(opts.get("per_item", false)))
 	return b.root
+
+
+## The ground alone, into `parent` (the editor builds the parts apart).
+static func add_ground(parent: Node3D, data: TrackData, ground: TerrainData, visual := true) -> void:
+	_builder(data, ground, parent, visual)._ground()
+
+
+## The start line and gantry alone, into `parent`.
+static func add_gantry(parent: Node3D, data: TrackData, visual := true) -> void:
+	if data.gantry and data.samples.size() > 2:
+		_builder(data, null, parent, visual)._start_gantry()
+
+
+static func _builder(data: TrackData, ground: TerrainData, into: Node3D, visual: bool) -> TrackBuilder:
+	var b := TrackBuilder.new()
+	b.track = data
+	b.terrain = ground
+	b.visual = visual
+	b._ground_y = float(data.raw.get("ground", {}).get("flat_y", -0.03))
+	b.root = into
+	return b
 
 
 # --- parts ------------------------------------------------------------------------------

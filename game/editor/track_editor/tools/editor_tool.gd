@@ -1,0 +1,51 @@
+class_name EditorTool
+extends RefCounted
+## One of the track editor's tools (Road, Terrain, Paint, Props, Race, Check, File): its panel,
+## what it does with the view's pointer and shortcuts, and what it draws.
+
+var editor: TrackEditor
+var draft: TrackDraft
+var view: EditorView
+
+
+## The tab's name.
+func title() -> String:
+	return ""
+
+
+## The panel's controls, top to bottom (rebuilt by editor.refresh_panel()).
+func panel() -> Array:
+	return []
+
+
+func activate() -> void:
+	pass
+
+
+func deactivate() -> void:
+	view.gizmos.show_brush(Vector3.ZERO, 0.0, Callable())
+
+
+## A view pointer event (EditorView.pointer).
+func pointer(_e: Dictionary) -> void:
+	pass
+
+
+## A shortcut from the view; true if this tool used it.
+func action(_name: String) -> bool:
+	return false
+
+
+## The draft changed (also after undo and redo).
+func draft_changed(_what: StringName) -> void:
+	pass
+
+
+## Redraws the editor's gizmos for this tool.
+func refresh_gizmos() -> void:
+	view.gizmos.show_track(draft.track(), draft.points())
+
+
+## A short line for the key-hint bar.
+func hint() -> String:
+	return ""

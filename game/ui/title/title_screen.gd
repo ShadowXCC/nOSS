@@ -36,6 +36,13 @@ func _ready() -> void:
 	bay_button.custom_minimum_size = _drive_button.custom_minimum_size
 	bay_button.pressed.connect(func() -> void: Game.open_fitting_bay())
 	_drive_button.add_sibling(bay_button)
+	var editor_button := Button.new()
+	editor_button.name = "TrackEditorButton"
+	editor_button.text = "Track Editor"
+	editor_button.accessibility_description = "Build tracks"
+	editor_button.custom_minimum_size = _drive_button.custom_minimum_size
+	editor_button.pressed.connect(func() -> void: Game.open_track_editor())
+	_drive_button.add_sibling(editor_button)
 	var garage_button := Button.new()
 	garage_button.name = "GarageButton"
 	garage_button.text = "Garage"
@@ -64,7 +71,7 @@ func _ready() -> void:
 	online_button.custom_minimum_size = _drive_button.custom_minimum_size
 	online_button.pressed.connect(_open_online)
 	race_button.add_sibling(online_button)
-	var order := [_drive_button, race_button, online_button, trial_button, garage_button, bay_button, _settings_button, _quit_button]
+	var order := [_drive_button, race_button, online_button, trial_button, garage_button, bay_button, editor_button, _settings_button, _quit_button]
 	for b: Button in order:
 		b.accessibility_name = b.text
 		b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
