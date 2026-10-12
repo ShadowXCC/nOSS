@@ -17,6 +17,10 @@ var _details: VBoxContainer
 var _status: Label
 var _loading := ""
 var _overlay: Control
+var _back_button: Button
+## The selected car's enabled action buttons; the one that opened the overlay gets focus back.
+var _actions: Array[Button] = []
+var _last_action: Button
 
 
 func _ready() -> void:
@@ -48,8 +52,8 @@ func _ready() -> void:
 	_grid.add_theme_constant_override("h_separation", 16)
 	_grid.add_theme_constant_override("v_separation", 16)
 	scroll.add_child(_grid)
-	var back := UiKit.button("Back", _back, "Back to the title screen")
-	list.add_child(back)
+	_back_button = UiKit.button("Back", _back, "Back to the title screen")
+	list.add_child(_back_button)
 
 	var right := VBoxContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -88,7 +92,7 @@ func _reload(select_path := "") -> void:
 		b.alignment = HORIZONTAL_ALIGNMENT_CENTER
 		b.accessibility_name = String(m.name)
 		b.accessibility_description = "%s by %s, %s" % [_family_name(m.family), m.author, "built in" if car.official else "your car"]
-		b.pressed.connect(_select.bind(i))
+		b.pressed.connect(_open_actions.bind(i))
 		b.focus_entered.connect(_select.bind(i))
 		_grid.add_child(b)
 		_cards.append(b)
@@ -100,24 +104,41 @@ func _reload(select_path := "") -> void:
 		_select(select)
 
 
-## Arrow keys and pads move around the grid; the last row wraps to Back.
+## Arrow keys and pads move around the grid; down from the last row goes to Back. Confirm on a
+## car goes to its actions, and back from there returns to the car.
 func _link_grid_focus() -> void:
 	for i in _cards.size():
 		var c := _cards[i]
 		var left := _cards[i - 1] if i % COLUMNS > 0 else c
 		var right := _cards[i + 1] if i % COLUMNS < COLUMNS - 1 and i + 1 < _cards.size() else c
 		var up := _cards[i - COLUMNS] if i >= COLUMNS else c
-		var down := _cards[i + COLUMNS] if i + COLUMNS < _cards.size() else c
+		var down: Control = _cards[i + COLUMNS] if i + COLUMNS < _cards.size() else _back_button
 		c.focus_neighbor_left = c.get_path_to(left)
 		c.focus_neighbor_right = c.get_path_to(right)
 		c.focus_neighbor_top = c.get_path_to(up)
 		c.focus_neighbor_bottom = c.get_path_to(down)
+	if not _cards.is_empty():
+		_back_button.focus_neighbor_top = _back_button.get_path_to(_cards[-1])
+		_back_button.focus_neighbor_bottom = _back_button.get_path_to(_cards[0])
+
+
+## The car's actions take the focus (confirm on its card).
+func _open_actions(i: int) -> void:
+	_select(i)
+	if not _actions.is_empty():
+		_actions[0].grab_focus()
+
+
+func _focus_in_actions() -> bool:
+	var f := get_viewport().gui_get_focus_owner()
+	return f != null and _actions.has(f)
 
 
 func _select(i: int) -> void:
 	if i == _selected and _details.get_child_count() > 0:
 		return
 	_selected = i
+	_last_action = null
 	var car := _cars[i]
 	var m: Dictionary = car.manifest
 	for child in _details.get_children():
@@ -136,12 +157,22 @@ func _select(i: int) -> void:
 		UiKit.button("Copy sound to…", _copy_sound, "Give another car this engine sound"),
 		UiKit.button("Delete", _delete, "Delete this car"),
 	]
+	_actions.clear()
 	for b: Button in buttons:
 		b.custom_minimum_size = Vector2(0, 52)
 		if car.official and b.text in ["Paint", "Delete", "Sound"]:
 			b.disabled = true
+			b.focus_mode = Control.FOCUS_NONE
+		else:
+			_actions.append(b)
+			b.pressed.connect(func() -> void: _last_action = b)
 		actions.add_child(b)
 	_details.add_child(actions)
+	# Left/right and up/down both step through the enabled actions.
+	UiKit.chain_focus(_actions, false)
+	for k in _actions.size():
+		_actions[k].focus_neighbor_left = _actions[k].focus_neighbor_top
+		_actions[k].focus_neighbor_right = _actions[k].focus_neighbor_bottom
 	# Load the car for the turntable.
 	_preview.clear()
 	_loading = car.path
@@ -207,6 +238,15 @@ func _paint() -> void:
 	var menu := Control.new()
 	menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var list := UiKit.panel(menu, "Paint", 720)
+	# Presets and colours scroll; Save and Cancel stay in view below them.
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 600)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	list.add_child(scroll)
+	var rows := VBoxContainer.new()
+	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(rows)
 	var controls := []
 	for preset: Dictionary in paint.get("presets", []):
 		controls.append(UiKit.button(String(preset.name), func() -> void:
@@ -224,10 +264,11 @@ func _paint() -> void:
 		controls.append(UiKit.option(slot.capitalize() + " finish", FittingBay.FINISHES, data.finish, func(v: String) -> void:
 			data.finish = v
 			_paint_preview(slot, data)))
-	controls.append(UiKit.button("Save", func() -> void: _save_paint(paint)))
-	controls.append(UiKit.button("Cancel", _close_overlay))
 	for c: Control in controls:
+		rows.add_child(c)
+	for c: Control in [UiKit.button("Save", func() -> void: _save_paint(paint)), UiKit.button("Cancel", _close_overlay)]:
 		list.add_child(c)
+		controls.append(c)
 	_show_overlay(menu)
 	UiKit.chain_focus(controls)
 
@@ -313,7 +354,9 @@ func _close_overlay() -> void:
 	if is_instance_valid(_overlay):
 		_overlay.queue_free()
 	_overlay = null
-	if _selected >= 0 and _selected < _cards.size():
+	if is_instance_valid(_last_action) and _last_action.is_inside_tree():
+		_last_action.grab_focus.call_deferred()
+	elif _selected >= 0 and _selected < _cards.size():
 		_cards[_selected].grab_focus.call_deferred()
 
 
@@ -327,6 +370,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		if is_instance_valid(_overlay):
 			_close_overlay()
+		elif _focus_in_actions() and _selected >= 0 and _selected < _cards.size():
+			_cards[_selected].grab_focus()
 		else:
 			_back()
 

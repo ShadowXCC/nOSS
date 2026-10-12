@@ -241,6 +241,11 @@ static func color(text: String, value: Color, on_changed: Callable) -> HBoxConta
 	b.color = value
 	b.edit_alpha = false
 	b.custom_minimum_size = Vector2(160, 56)
+	# A compact picker, so its popup fits on screen under the menu's text size.
+	var picker := b.get_picker()
+	picker.presets_visible = false
+	picker.color_modes_visible = false
+	picker.sampler_visible = false
 	var hex := label("#" + value.to_html(false).to_upper(), 24)
 	hex.custom_minimum_size = Vector2(130, 0)
 	b.color_changed.connect(func(c: Color) -> void:
