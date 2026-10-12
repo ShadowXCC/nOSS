@@ -16,6 +16,7 @@ Already on the system and used, but not installed by this project: `libsdl3-0` (
 | LLVM MinGW 20261006, UCRT (~618 MB) | `.tools/llvm-mingw/` (gitignored) | Cross-compiling `noss_core` for Windows (`tools/setup_export.sh`) | `rm -rf .tools/llvm-mingw` |
 | SDL 3.4.18 for Windows (`SDL3.dll`, 2.8 MB) | `native/bin/SDL3.dll` (gitignored) | Shipped with Windows builds for wheels and FFB | `rm native/bin/SDL3.dll` |
 | Test car models: Kenney Car Kit 3.1 (CC0, 4.8 MB zip, extracted) and Khronos ToyCar (CC0, 5.4 MB GLB) | `.tools/test_models/` (gitignored) | Fitting Bay import tests and the M2 acceptance run. A few Kenney files are also committed as test fixtures. | `rm -rf .tools/test_models` |
+| Kenney Racing Kit 2.0 (CC0, 6.1 MB zip, sha256 `8a71ea16219315a01d00d5a90c4f6b5c090faddbc56d80ecf727e2b3b853c6c0`, extracted, 18 MB) | `.tools/test_models/kenney_racing-kit.zip` and `kenney_racing-kit/` (gitignored) | Source for the Track Fitting test circuit (`tools/make_kenney_circuit.gd`); the circuit it makes is committed as a fixture. | `rm -rf .tools/test_models/kenney_racing-kit*` |
 | Python venv: SCons 4.11.1, jsonschema 4.26.0 (+ deps) | `.venv/` (gitignored) | Build `noss_core`; check JSON schemas | `rm -rf .venv/` |
 | godot-cpp 10.0.0-stable | `native/thirdparty/godot-cpp` (submodule) | C++ bindings for `noss_core` | `git submodule deinit -f native/thirdparty/godot-cpp` |
 | SDL 3.4.18 (source) | `native/thirdparty/SDL` (submodule) | Headers for the runtime-loaded SDL3 | `git submodule deinit -f native/thirdparty/SDL` |

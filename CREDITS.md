@@ -38,4 +38,5 @@ Used for testing only; not part of the game.
 | Asset | Author | License | Where |
 |---|---|---|---|
 | [Car Kit](https://kenney.nl/assets/car-kit) 3.1 (3 models and their texture) | Kenney | CC0 1.0 | `tests/fixtures/models/kenney/` (Fitting Bay import tests) |
+| [Racing Kit](https://kenney.nl/assets/racing-kit) 2.0 (road, trackside and scenery pieces, assembled into a circuit by `tools/make_kenney_circuit.gd`) | Kenney | CC0 1.0 | `tests/fixtures/tracks/kenney/` (Track Fitting tests) |
 | [Toy Car](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/ToyCar) | Guido Odendahl, Eric Chadwick | CC0 1.0 | Downloaded to `.tools/test_models/` for the M2 acceptance run; not committed |
