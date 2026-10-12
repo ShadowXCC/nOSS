@@ -682,7 +682,7 @@ func _open_pause(p: SessionPlayer) -> void:
 	menu.online = is_online()
 	menu.is_host = is_online() and Net.is_server()
 	menu.to_lobby.connect(func() -> void:
-		_resume()
+		_resume(p)
 		if Net.host_logic:
 			Net.host_logic.end_session())
 	menu.can_setup = race.kind != "race" and p.car_setup != null and not p.car_setup.allowed.is_empty()
@@ -695,21 +695,21 @@ func _open_pause(p: SessionPlayer) -> void:
 		menu.leaderboard = Leaderboard.entries(track.id, platform.platform.id)
 		menu.leaderboard_title = "%s · %s" % [track.display_name, platform.platform.name]
 	menu.end_session.connect(func() -> void:
-		_resume()
+		_resume(p)
 		race.end_session())
 	menu.restart.connect(func() -> void:
-		_resume()
+		_resume(p)
 		_close_results()
 		race.restart_session())
-	menu.resumed.connect(_resume)
+	menu.resumed.connect(_resume.bind(p))
 	menu.reset_car.connect(func() -> void:
-		_resume()
+		_resume(p)
 		p.reset_car())
 	menu.change_car.connect(func() -> void:
-		_resume()
+		_resume(p)
 		p.open_picker(true))
 	menu.leave.connect(func() -> void:
-		_resume()
+		_resume(p)
 		Players.leave(p.slot))
 	menu.quit_to_title.connect(func() -> void:
 		if is_online():
@@ -719,8 +719,9 @@ func _open_pause(p: SessionPlayer) -> void:
 	p.show_overlay(menu, not is_online())
 
 
-func _resume() -> void:
-	var p := paused_by
+## Closes `who`'s pause menu (online nobody holds the pause, so the menu's owner is passed in).
+func _resume(who: SessionPlayer = null) -> void:
+	var p := who if who else paused_by
 	paused_by = null
 	get_tree().paused = false
 	for other in players:

@@ -59,16 +59,20 @@ func _physics_process(_delta: float) -> void:
 
 
 func _process(delta: float) -> void:
-	if joining or adding:
+	if adding or (joining and not get_tree().paused):
 		_scan_joins()
+	elif joining:
+		_baseline() # nobody joins mid-pause: presses then are for the pause menu
 	for slot in slots:
 		if slot.ai:
 			continue
 		var fired := slot.input.poll_menu(delta)
-		if slot.menu_target == null or not is_instance_valid(slot.menu_target) or not slot.menu_target.is_inside_tree():
-			continue
 		for action in fired:
-			push_action(slot.menu_target, Bindings.MENU_EVENTS[action])
+			# One key can fire two actions (Esc: back and pause); the first may close the menu.
+			var target := slot.menu_target
+			if target == null or not is_instance_valid(target) or not target.is_inside_tree():
+				break
+			push_action(target, Bindings.MENU_EVENTS[action])
 
 
 ## A press and release of `action` into `viewport`, as GUI navigation. The viewport's own
@@ -98,7 +102,7 @@ static func track_focus(viewport: Viewport) -> void:
 ## The control a player's viewport last focused, if it's still there and visible.
 static func focus_of(viewport: Viewport) -> Control:
 	var c: Variant = viewport.get_meta(&"player_focus") if viewport.has_meta(&"player_focus") else null
-	if c is Control and is_instance_valid(c) and c.is_inside_tree() and c.is_visible_in_tree():
+	if is_instance_valid(c) and c is Control and c.is_inside_tree() and c.is_visible_in_tree():
 		return c
 	return null
 

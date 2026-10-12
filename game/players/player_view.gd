@@ -40,6 +40,11 @@ var _camera: Camera3D
 
 func _init() -> void:
 	name = "PlayerView"
+	# Paused, the window only hands clicks to controls that can process: the view keeps taking
+	# them for its menus, while the world in it (camera rig) pauses.
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	viewport.process_mode = Node.PROCESS_MODE_PAUSABLE
+	_overlay_layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	stretch = true
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	focus_mode = Control.FOCUS_NONE
