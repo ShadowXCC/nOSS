@@ -117,3 +117,24 @@ func _zip(file_name: String, files: Dictionary) -> String:
 		zip.close_file()
 	zip.close()
 	return TMP + file_name
+
+
+## Leaving a screen while its car loads: the result is dropped, not delivered to a freed node.
+func test_a_load_for_a_freed_node_is_dropped() -> void:
+	var asker := Asker.new()
+	add_child(asker)
+	var got := []
+	asker.ask(got)
+	asker.free()
+	for i in 120:
+		await get_tree().process_frame
+	assert_array(got).is_empty()
+
+
+class Asker:
+	extends Node
+
+	func ask(got: Array) -> void:
+		PackageLoader.load_async("res://content/cars/noss_box", func(pkg: VehiclePackage) -> void:
+			got.append(name)
+			pkg.free_scenes())

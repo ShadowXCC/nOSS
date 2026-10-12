@@ -392,9 +392,11 @@ static func chain_focus(controls: Array, focus_first := true) -> void:
 
 ## Focuses `c` at the end of the frame, if it's still in the tree then (a menu may close first).
 static func focus_later(c: Control) -> void:
+	var id := c.get_instance_id() # not `c` itself: a freed capture errors when the call comes
 	(func() -> void:
-		if is_instance_valid(c) and c.is_inside_tree():
-			c.grab_focus()).call_deferred()
+		var target := instance_from_id(id) as Control
+		if target and target.is_inside_tree():
+			target.grab_focus()).call_deferred()
 
 
 static func _focus_target(c: Control) -> Control:

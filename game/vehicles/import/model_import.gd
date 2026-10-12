@@ -199,6 +199,10 @@ class _Job:
 				result.scene.free() # timed out earlier
 			return
 		done = true
+		if not on_done.is_valid(): # whoever asked is gone (left the screen meanwhile)
+			if result.scene:
+				result.scene.free()
+			return
 		on_done.call(result)
 
 	func time_out(path: String) -> void:
@@ -208,4 +212,5 @@ class _Job:
 		var result := Result.new()
 		result.path = path
 		result.error = "Import timed out"
-		on_done.call(result)
+		if on_done.is_valid():
+			on_done.call(result)

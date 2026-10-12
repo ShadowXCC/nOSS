@@ -435,6 +435,9 @@ class _Job:
 			pkg.free_scenes() # timed out earlier
 			return
 		done = true
+		if not on_done.is_valid(): # whoever asked is gone (left the screen meanwhile)
+			pkg.free_scenes()
+			return
 		on_done.call(pkg)
 
 	func time_out(path: String) -> void:
@@ -444,4 +447,5 @@ class _Job:
 		var pkg := VehiclePackage.new()
 		pkg.path = path
 		pkg.error = "Load timed out"
-		on_done.call(pkg)
+		if on_done.is_valid():
+			on_done.call(pkg)
