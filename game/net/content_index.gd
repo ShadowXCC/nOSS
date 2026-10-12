@@ -1,8 +1,8 @@
 class_name ContentIndex
 extends RefCounted
 ## What this game can send to others, by file hash (D80): files of the packages in play (own
-## cars from the garage or the built-ins, cached cars), plus single files (tracks, platforms).
-## Only files added here are ever sent.
+## cars from the garage or the built-ins, cached cars, the server's track), plus single files
+## (platforms). Only files added here are ever sent.
 
 ## file hash -> [path, rel]: a package (zip or folder) and the file in it, or a plain file ("").
 var _files := {}
@@ -10,13 +10,15 @@ var _files := {}
 var _cars := {}
 ## package path -> open PackageSource (a zip is read whole when opened, so keep it open)
 var _sources := {}
+## package path -> the limits it's opened with (a track's are higher than a car's)
+var _limits := {}
 var _mutex := Mutex.new()
 
 
 ## Adds a package's manifest and every file it has (a cached car may not have them all yet).
-## Returns the car's hash, or "".
-func add_package(path: String) -> String:
-	var source := PackageSource.open(path, PackageLoader.DEFAULT_LIMITS)
+## Returns the package's hash, or "". `limits`: TrackLoader.LIMITS for a track.
+func add_package(path: String, limits := PackageLoader.DEFAULT_LIMITS) -> String:
+	var source := PackageSource.open(path, limits)
 	if source.error or not source.has("manifest.json"):
 		source.close()
 		return ""
@@ -28,6 +30,7 @@ func add_package(path: String) -> String:
 	var car_hash := "sha256:" + PlatformLoader.sha256_hex(bytes)
 	_mutex.lock()
 	_cars[car_hash] = path
+	_limits[path] = limits
 	_files[car_hash] = [path, "manifest.json"]
 	for rel: String in manifest.files:
 		if source.has(rel):
@@ -82,7 +85,7 @@ func read(h: String) -> PackedByteArray:
 	else:
 		var source: PackageSource = _sources.get(at[0])
 		if source == null:
-			source = PackageSource.open(at[0], PackageLoader.DEFAULT_LIMITS)
+			source = PackageSource.open(at[0], _limits.get(at[0], PackageLoader.DEFAULT_LIMITS))
 			_sources[at[0]] = source
 		if not source.error:
 			bytes = source.read(at[1])

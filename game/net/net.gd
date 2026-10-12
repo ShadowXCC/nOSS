@@ -300,11 +300,12 @@ static func platform_result(id: String, class_hash: String) -> PlatformLoader.Re
 	return r
 
 
-## Clients fetch the lobby's platform if it isn't here, and every car in the lobby they don't
-## have (each tier for all of them first).
+## Clients fetch the lobby's track and platform if they aren't here, and every car in the lobby
+## they don't have (each tier for all of them first).
 func _fetch_cars() -> void:
 	if content == null or is_server():
 		return
+	_fetch_track(String(lobby.get("track", "")), int(lobby.get("track_bytes", -1)))
 	var class_hash := String(lobby.get("class_hash", ""))
 	if class_hash and not platform_result(String(lobby.get("class", "")), class_hash).ok():
 		content.fetch_file("platforms", class_hash, 1)
@@ -312,6 +313,19 @@ func _fetch_cars() -> void:
 	for p in roster:
 		if p.car and p.car_note.is_empty() and not p.id in my_ids:
 			content.fetch_car(p.car, 1, content.max_tier)
+
+
+func _fetch_track(h: String, bytes: int) -> void:
+	if content and not is_server() and ContentStore.valid_hash(h):
+		content.fetch_track(h, 1, bytes)
+
+
+## Whether the lobby's track is here (always, when hosting).
+func track_here() -> bool:
+	if is_server():
+		return true
+	var h := String(lobby.get("track", ""))
+	return not ContentStore.valid_hash(h) or content != null and content.track_path(h) != ""
 
 
 ## Every car in the session (AI cars included) this game doesn't have.
@@ -363,8 +377,10 @@ func _handle(type: int, data: Dictionary) -> void:
 			if not NetProtocol.has_fields(data, { "track": [TYPE_STRING, 256], "class": [TYPE_STRING, 64], "event": TYPE_DICTIONARY }) \
 					or roster.is_empty() and not is_server():
 				return
-			session = { "track": data.track, "class": data["class"], "class_hash": String(data.get("class_hash", "")),
+			session = { "track": data.track, "track_name": String(data.get("track_name", "")), "track_bytes": int(data.get("track_bytes", -1)),
+				"class": data["class"], "class_hash": String(data.get("class_hash", "")),
 				"event": data.event, "roster": roster, "rules": data.get("rules", {}) if data.get("rules") is Dictionary else {} }
+			_fetch_track(String(data.track), int(data.get("track_bytes", -1)))
 			race_begin = {}
 			session_started.emit(session)
 		NetProtocol.Msg.ROSTER:

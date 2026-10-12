@@ -6,7 +6,7 @@ extends RefCounted
 ## before decoding, its fields after. Car states and content chunks have their own packed formats.
 
 ## Bumped whenever messages change: a client and server must match.
-const VERSION := 1
+const VERSION := 2
 const DEFAULT_PORT := 47800
 ## Channels beyond Godot's channel 0 (which carries reliable control messages).
 const EXTRA_CHANNELS := 2
@@ -56,7 +56,7 @@ enum Msg {
 	NOT_FOUND = 32, ## {hash}
 	CANCEL = 33, ## {hash}: stop sending / no longer wanted
 	# Sessions.
-	SESSION = 40, ## server: {track, class, event, roster: [players]}: a session starts (or is on, to a late joiner)
+	SESSION = 40, ## server: {track (its hash), track_id, track_name, track_bytes, class, event, roster: [players]}: a session starts (or is on, to a late joiner)
 	ROSTER = 41, ## server: {roster}: who's in the session changed (join, leave, car)
 	SESSION_END = 42, ## server: {}: back to the lobby
 	RACE_BEGIN = 43, ## server: {kind, index, grid: [car ids], rolling}: a session of the event starts

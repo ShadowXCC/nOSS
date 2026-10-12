@@ -35,7 +35,8 @@ var _ai: Array = [] # the session's AI cars (roster entries)
 var _ai_paths := {} # AI car id -> its package here
 var _in_session := {} # player ids in the session (a race takes no one mid-way)
 var _dirty := false
-var _names := {} # track path / platform id -> display name
+var _names := {} # platform id -> display name
+var _tracks := {} # track path (the config's) -> track_info()
 
 
 func _init(p_server: NetServer) -> void:
@@ -87,8 +88,60 @@ func platform_result() -> PlatformLoader.Result:
 	return r
 
 
+## Where the session's track is here (what track_info() settled on).
 func track_path() -> String:
-	return config.track_path(rotation_index)
+	return String(track_info().path)
+
+
+## The current track as it goes to players (EDT-08): {path, hash, id, name, bytes}. A track that
+## can't go online (personal use, over the size cap, unreadable) gives way to the default one,
+## with a log line. The track is offered to anyone who asks for it by hash.
+func track_info() -> Dictionary:
+	var path := config.track_path(rotation_index)
+	if not _tracks.has(path):
+		_tracks[path] = _make_track_info(path)
+		if content and _tracks[path].hash:
+			content.share_track(_tracks[path].path)
+	return _tracks[path]
+
+
+func _make_track_info(path: String) -> Dictionary:
+	var source := path
+	if path.ends_with(".json"):
+		source = _package_json(path)
+	var m := TrackLoader.read_manifest(source) if source else {}
+	var bytes := NetContent.package_bytes(source, TrackLoader.LIMITS) if not m.is_empty() else 0
+	var why := ""
+	if m.is_empty():
+		why = "Track not found"
+	elif not ContentIndex.shareable(m):
+		why = "Personal-use tracks stay offline"
+	elif bytes > int(config.caps.get("max_track_mb", 100)) << 20:
+		why = "Track too large"
+	if why:
+		log_line.emit("%s: %s" % [why, path])
+		var fallback := TrackLibrary.DEFAULT
+		return _make_track_info(fallback) if path != fallback else { "path": fallback, "hash": "", "id": "", "name": "", "bytes": 0 }
+	return { "path": source, "hash": TrackLibrary.manifest_hash(source), "id": String(m.get("id", "")),
+		"name": String(m.get("name", source.get_file())), "bytes": bytes }
+
+
+## A bare track.json (no manifest) as a package in the cache, so it can be sent by hash.
+func _package_json(path: String) -> String:
+	var bytes := FileAccess.get_file_as_bytes(path)
+	var layout: Variant = JSON.parse_string(bytes.get_string_from_utf8())
+	if not layout is Dictionary:
+		return ""
+	if layout.get("schema") == TrackFormat.LEGACY:
+		layout = TrackFormat.upgrade_v0(layout)
+		bytes = PackageWriter.canonical_json(layout).to_utf8_buffer()
+	var dir := ContentStore.root.path_join("hosted").path_join(PlatformLoader.sha256_hex(bytes).left(16))
+	if not FileAccess.file_exists(dir.path_join("manifest.json")):
+		var info := { "id": String(layout.get("id", "")), "version": 1, "name": String(layout.get("name", path.get_file().get_basename())),
+			"author": "Unknown", "license": "CC-BY-SA-4.0", "created": Time.get_date_string_from_unix_time(FileAccess.get_modified_time(path)) }
+		if TrackWriter.write_folder(dir, info, { "track.json": bytes }):
+			return ""
+	return dir
 
 
 func event() -> RaceEvent:
@@ -104,7 +157,7 @@ func lobby_dict() -> Dictionary:
 		players.append(d)
 	return {
 		"name": config.name, "motd": config.motd, "state": state, "max": config.max_players,
-		"track": track_path(), "track_name": _track_name(track_path()),
+		"track": track_info().hash, "track_id": track_info().id, "track_name": track_info().name, "track_bytes": track_info().bytes,
 		"class": platform_id(), "class_name": _class_name(platform_id()), "class_hash": platform_result().hash,
 		"event": event().to_dict(), "players": players,
 		"rules": { "own_sounds": config.caps.own_sounds, "custom_platforms": config.caps.custom_platforms,
@@ -116,7 +169,7 @@ func lobby_dict() -> Dictionary:
 func discovery_info() -> Dictionary:
 	return {
 		"name": config.name, "port": config.port, "players": server.player_count(), "max": config.max_players,
-		"password": not config.password.is_empty(), "track": _track_name(track_path()), "class": _class_name(platform_id()),
+		"password": not config.password.is_empty(), "track": track_info().name, "class": _class_name(platform_id()),
 		"state": state, "version": NetProtocol.game_version(),
 		"fp": NetIdentity.short(server.identity.fingerprint) if server.identity else "",
 	}
@@ -227,7 +280,7 @@ func start_session() -> void:
 	_ai = []
 	state = "session"
 	_to_all(NetProtocol.Msg.SESSION, session_dict())
-	log_line.emit("Session: %s, %s, %s" % [_track_name(track_path()), _class_name(platform_id()), event().kind])
+	log_line.emit("Session: %s, %s, %s" % [track_info().name, _class_name(platform_id()), event().kind])
 	_dirty = true
 
 
@@ -246,8 +299,9 @@ func end_session() -> void:
 func session_dict() -> Dictionary:
 	if state != "session" or _ai.is_empty():
 		_ai = _ai_entries()
-	return { "track": track_path(), "class": platform_id(), "class_hash": platform_result().hash, "event": event().to_dict(),
-		"roster": roster(), "rules": rules_dict() }
+	var t := track_info()
+	return { "track": t.hash, "track_id": t.id, "track_name": t.name, "track_bytes": t.bytes,
+		"class": platform_id(), "class_hash": platform_result().hash, "event": event().to_dict(), "roster": roster(), "rules": rules_dict() }
 
 
 ## The server's rules a session follows (MP-06).
@@ -322,7 +376,7 @@ func next_event() -> void:
 	rotation_index = (rotation_index + 1) % config.rotation.size()
 	state = "lobby"
 	ready_peers.clear()
-	_say("Next: %s, %s" % [_track_name(track_path()), _class_name(platform_id())])
+	_say("Next: %s, %s" % [track_info().name, _class_name(platform_id())])
 	_dirty = true
 
 
@@ -447,14 +501,6 @@ func _to_all(type: int, data: Dictionary) -> void:
 	server.broadcast(type, data)
 	if local_sink.is_valid():
 		local_sink.call(type, data)
-
-
-func _track_name(path: String) -> String:
-	if not _names.has(path):
-		var e := TrackLibrary.entry(path)
-		var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(path)) if e.is_empty() and FileAccess.file_exists(path) else null
-		_names[path] = String(e.name) if not e.is_empty() else String(d.get("name", path.get_file())) if d is Dictionary else path.get_file()
-	return _names[path]
 
 
 func _class_name(id: String) -> String:

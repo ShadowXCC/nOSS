@@ -13,10 +13,12 @@ and exits 0 (PASS) or 1 (FAIL).
   tools/net_check.py --clients 12 --quad 1 --duration 60           # 16 players, free drive
   tools/net_check.py --clients 3 --rtt 150 --jitter 10 --loss 1     # through a bad link
   tools/net_check.py --fresh --ai 15 --rate 50mbit --rtt 20         # a fresh client fetches every car
+  tools/net_check.py --track my.nosstrack --fresh --ai 3 --laps 1   # ...and the server's own track
 
 With --fresh, the server's AI cars are this machine's garage cars (every one before any twice), and
 one bot with an empty cache fetches them all whole; it reports when every car was there as a
-preview and whole (target: whole within 60 s).
+preview and whole (target: whole within 60 s). A --track that isn't built in must reach it too
+(the bot prints how long it took).
 """
 
 import argparse
@@ -90,6 +92,8 @@ def main(argv=None):
     p.add_argument("--laps", type=int, default=3)
     p.add_argument("--ai", type=int, default=0, help="AI cars the server adds (races)")
     p.add_argument("--class", dest="klass", default="official.track.gt")
+    p.add_argument("--track", default="proving_ground",
+                   help="the server's track: an id, or a .nosstrack / track folder (sent to bots that lack it)")
     p.add_argument("--port", type=int, default=47850)
     p.add_argument("--rtt", type=float, default=0.0, help="simulated round trip, ms")
     p.add_argument("--jitter", type=float, default=0.0)
@@ -109,6 +113,10 @@ def main(argv=None):
     if args.fresh:
         args.clients, args.quad, args.event = 1, 0, "race"
     players = args.clients + 4 * args.quad
+    track = args.track
+    if Path(track).exists():  # a path here, not an id: the config lives in the logs' folder
+        track = str(Path(track).resolve())
+    builtin_track = (ROOT / "content" / "tracks" / args.track).is_dir()
     event = {"kind": args.event}
     if args.event == "race":
         event.update({"practice_min": 5 if args.fresh else 0, "qualifying_min": 0, "race_laps": args.laps,
@@ -116,7 +124,7 @@ def main(argv=None):
                       "ai_cars": "garage" if args.fresh else "builtin"})
     config = {
         "schema": "noss.server/1", "name": "net_check", "port": args.port, "max_players": 16, "lan": False,
-        "rotation": [{"track": "proving_ground", "class": args.klass, "event": event}],
+        "rotation": [{"track": track, "class": args.klass, "event": event}],
         "plausibility": args.plausibility,
     }
     config_path = logs / "server.json"
@@ -183,6 +191,7 @@ def main(argv=None):
 
     # Gather the bots' reports.
     reports, contacts, fails, results, checks = {}, [], [], None, []
+    track_ms = {}
     for name, proc, _ in procs:
         text = (logs / f"{name}.log").read_text(errors="replace")
         if args.verbose:
@@ -192,6 +201,8 @@ def main(argv=None):
                 reports[name] = json.loads(line[len("NETCHECK "):])
             elif "Checks failed:" in line:
                 checks.append(line.split("Checks failed:", 1)[1].strip())
+            elif line.startswith("NETCHECK_TRACK "):
+                track_ms[name] = int(line.split()[1])
             elif line.startswith("NETCHECK_RESULTS "):
                 results = json.loads(line[len("NETCHECK_RESULTS "):])
             elif line.startswith("NETCHECK_CONTACT "):
@@ -202,8 +213,8 @@ def main(argv=None):
     if timed_out:
         fails.append("bots still running at the deadline")
 
-    print("net_check: %d players (%d bots), %s, %s%s" % (
-        players, len(bots), args.event, args.klass,
+    print("net_check: %d players (%d bots), %s, %s, %s%s" % (
+        players, len(bots), args.event, args.klass, Path(args.track).name,
         f", link {args.rtt:g} ms RTT, jitter {args.jitter:g} ms, loss {args.loss:g}%, rate {args.rate}" if sim else ""))
     print("%-7s %4s %8s %8s %8s %9s %9s %9s %8s %7s %5s" % ("bot", "pl", "down", "max", "up", "err med", "err p95", "err max", "contacts", "RSS", "thr"))
     worst_down = 0.0
@@ -226,6 +237,10 @@ def main(argv=None):
         if name not in reports:
             fails.append(f"{name} reported nothing")
     print("server RSS %.0f MB, bots max %.0f MB" % (peak.get("server", 0.0), max([v for k, v in peak.items() if k.startswith("bot")] or [0])))
+    for name, ms in sorted(track_ms.items()):
+        print("%s got the track in %d ms" % (name, ms))
+    if args.fresh and not builtin_track and "bot00" not in track_ms:
+        fails.append("the fresh bot never got the track")
     if args.fresh:
         r = reports.get("bot00", {})
         print("fresh client: %d cars, all as previews in %.1f s, whole in %.1f s (target %g s)" % (

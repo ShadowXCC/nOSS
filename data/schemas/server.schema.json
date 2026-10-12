@@ -56,6 +56,7 @@
       "additionalProperties": false,
       "properties": {
         "max_package_mb": { "type": "integer", "minimum": 1, "maximum": 50 },
+        "max_track_mb": { "description": "Largest track this server sends; a bigger one gives way to the Proving Ground.", "type": "integer", "minimum": 1, "maximum": 100 },
         "own_sounds": { "description": "Own engine recordings; tuned built-in sounds always play.", "type": "boolean" },
         "custom_platforms": { "type": "boolean" },
         "transfer_kbps": { "description": "Content upload per transfer, KB/s.", "type": "integer", "minimum": 64, "maximum": 65536 },

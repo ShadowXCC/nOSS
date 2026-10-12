@@ -61,9 +61,10 @@ static func resolve(ref: String) -> String:
 	return ""
 
 
-## The track here with this content hash: built-in, the library, or a complete download.
-static func by_hash(h: String) -> String:
-	for e in list():
+## The track here with this content hash: built-in, the library (unless not `include_user`), or a
+## complete download.
+static func by_hash(h: String, include_user := true) -> String:
+	for e in list(include_user):
 		if e.hash == h:
 			return e.path
 	var cached := ContentStore.pkg_dir("tracks", h) if ContentStore.valid_hash(h) else ""

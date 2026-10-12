@@ -2,7 +2,8 @@ class_name LobbyMenu
 extends Control
 ## An online lobby (docs/NETWORKING.md §5, MP-03, MP-07): the event, everyone in it with their
 ## car, chat, and Ready. Your own players' rows pick their car; other players' rows mute them,
-## and admins can kick or ban from there. The host (or an admin) starts the session.
+## and admins can kick or ban from there. The host (or an admin) starts the session. A track
+## that isn't here yet comes first: Ready waits for it ("Getting track 40%", EDT-08).
 
 ## Back to the Online menu; `reason` says why if the server ended it.
 signal left(reason: String)
@@ -21,6 +22,9 @@ var _is_ready := false
 var _picked := {} # local index -> package path
 var _sub: Control
 var _focused_once := false
+var _track_check := 0.0
+## What the Ready button says about the track ("": it's here; "?": not checked yet).
+var _track_shown := "?"
 
 
 func _ready() -> void:
@@ -74,6 +78,33 @@ func _ready() -> void:
 		_show_host_info("Opening port" if Net.host_logic.config.upnp else "")
 	_refresh()
 	_rechain(true)
+
+
+## Ready waits for the track: the button says how far it is.
+func _process(delta: float) -> void:
+	_track_check -= delta
+	if _track_check > 0.0:
+		return
+	_track_check = 0.25
+	var text := ""
+	if not Net.track_here():
+		var h := String(Net.lobby.get("track", ""))
+		var progress := Net.content.track_progress(h) if Net.content else 0.0
+		text = Net.content.track_refusal(h) if progress < 0.0 else "Getting track %d%%" % roundi(progress * 100.0)
+	if text != _track_shown:
+		var was_waiting := _track_shown not in ["", "?"]
+		_track_shown = text
+		_ready_button.disabled = not text.is_empty()
+		if text:
+			UiKit.set_shown_text(_ready_button, text)
+			_ready_button.accessibility_name = text
+		else:
+			UiKit.set_shown_text(_ready_button, "Ready ✓" if _is_ready else "Ready")
+			_ready_button.accessibility_name = "Ready, on" if _is_ready else "Ready"
+			if was_waiting:
+				_status.text = "Track here"
+	if text.is_empty():
+		_dev_auto() # the track may have come between lobby updates
 
 
 func _exit_tree() -> void:
@@ -134,7 +165,7 @@ func _refresh() -> void:
 ## Dev: --auto-ready readies once this game's cars are in; --auto-start (hosting) starts once
 ## everyone is ready (bots, checks).
 func _dev_auto() -> void:
-	if Game.dev.has("auto-ready") and not _is_ready and not Net.my_ids.is_empty() \
+	if Game.dev.has("auto-ready") and not _is_ready and not Net.my_ids.is_empty() and Net.track_here() \
 			and Net.roster.filter(func(p: NetPlayer) -> bool: return p.id in Net.my_ids and p.car != "").size() == Net.my_ids.size():
 		_toggle_ready()
 	if Game.dev.has("auto-start") and Net.host_logic and Net.host_logic.state == "lobby" and Net.host_logic.all_ready() \
@@ -206,6 +237,8 @@ func _open_sub(menu: Control) -> void:
 
 
 func _toggle_ready() -> void:
+	if not Net.track_here():
+		return
 	_is_ready = not _is_ready
 	Net.set_ready(_is_ready)
 	UiKit.set_shown_text(_ready_button, "Ready ✓" if _is_ready else "Ready")

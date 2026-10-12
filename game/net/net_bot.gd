@@ -5,7 +5,8 @@ extends Node
 ## prints what it measured as one line, "NETCHECK {json}", when it quits: bytes per second down
 ## and up, how far off the remote cars it showed were, its cars' contacts with other cars (for
 ## pile-ups), each also printed as it happens ("NETCHECK_CONTACT …"), and the lowest ENet packet
-## throttle it saw (below 32, ENet drops car states).
+## throttle it saw (below 32, ENet drops car states). A track it had to fetch prints
+## "NETCHECK_TRACK <ms>" when it's here.
 
 const CONTACT_IMPULSE := 150.0 # N·s in one tick counts as contact (as race_check)
 
@@ -35,6 +36,8 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if Net.content and not Net.content.track_ready.is_connected(_on_track):
+		Net.content.track_ready.connect(_on_track)
 	_time_cars()
 	var session := _session()
 	if session == null or session.net == null:
@@ -71,6 +74,10 @@ func _physics_process(delta: float) -> void:
 		_contacts += 1
 		var p := v.global_position
 		print("NETCHECK_CONTACT %.3f %d %d %.1f %.1f %.1f" % [now, id, other, p.x, p.y, p.z])
+
+
+func _on_track(h: String) -> void:
+	print("NETCHECK_TRACK %d" % Net.content.track_ms(h))
 
 
 ## --bot-full: has every car of the session arrived (as a preview, whole)?

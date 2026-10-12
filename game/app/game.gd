@@ -247,14 +247,52 @@ func start_online_session(data: Dictionary) -> void:
 		# The server's own class is still on its way (PLT-09): start when it's here.
 		Net.content.file_ready.connect(func(_h: String) -> void: start_online_session(data), CONNECT_ONE_SHOT)
 		return
+	var track := String(data.track)
+	if session_track(track).is_empty() and Net.content and not Net.is_server():
+		var why := Net.content.track_refusal(track)
+		if why.is_empty():
+			# The track is still coming (EDT-08): start when it's here.
+			Net.content.fetch_track(track, 1, int(data.get("track_bytes", -1)))
+			_track_wait = data
+			if not Net.content.track_ready.is_connected(_on_session_track):
+				Net.content.track_ready.connect(_on_session_track)
+				Net.content.track_refused.connect(_on_session_track.unbind(1))
+			return
 	var session := online_session(data)
 	if session == null:
+		var why := Net.content.track_refusal(track) if Net.content else ""
 		Net.leave()
-		net_status = "Track or class not found"
+		net_status = why if why else "Track or class not found"
 		go_title()
 		return
 	get_tree().paused = false
 	get_tree().change_scene_to_node(session)
+
+
+## The session waiting for its track (start_online_session), or {}.
+var _track_wait := {}
+
+
+## A track came (or can't): start the session waiting for it, if it's still on.
+func _on_session_track(h: String) -> void:
+	if _track_wait.is_empty() or h != String(_track_wait.track):
+		return
+	var data := _track_wait
+	_track_wait = {}
+	if Net.session.get("track") == data.track:
+		start_online_session(data)
+
+
+## Where a session's track is here: the host's own, or by hash (built-in, library, download), or
+## by id or path (built-in tracks, tests); "" while it isn't here.
+func session_track(ref: String) -> String:
+	if Net.host_logic:
+		var info := Net.host_logic.track_info()
+		if info.hash == ref or info.path == ref:
+			return String(info.path)
+	if ref.begins_with("sha256:"):
+		return Net.content.track_path(ref) if Net.content else TrackLibrary.by_hash(ref)
+	return TrackLibrary.resolve(ref)
 
 
 ## The session's platform: the server's own when hosting, else official or from the cache.
@@ -266,9 +304,9 @@ func _session_platform(data: Dictionary) -> PlatformLoader.Result:
 
 ## A TrackSession for an online session, or null if its track or class isn't here.
 func online_session(data: Dictionary) -> TrackSession:
-	var track := String(data.track)
-	if not track.begins_with(ServerConfig.TRACKS_DIR) or TrackLibrary.resolve(track).is_empty():
-		return null # tracks from servers arrive with the editor (M6)
+	var track := session_track(String(data.track))
+	if track.is_empty():
+		return null
 	var platform := _session_platform(data)
 	if not platform.ok():
 		return null

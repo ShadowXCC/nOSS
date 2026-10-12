@@ -1,15 +1,18 @@
 class_name HostMenu
 extends Control
-## Hosting a game (MP-01, MP-06): the server's name, password and size, the class and event,
-## LAN discovery and the router port. This game runs the server and plays at the same time.
-## The last settings are remembered (the password isn't).
+## Hosting a game (MP-01, MP-06): the server's name, password and size, the class, track and
+## event, LAN discovery and the router port. This game runs the server and plays at the same
+## time; players who don't have the track get it from here (EDT-08). The last settings are
+## remembered (the password isn't).
 
 signal closed
 
 var config := ServerConfig.defaults()
 var _kind := "free"
+var _track := TrackLibrary.DEFAULT
 var _rows: Array = []
 var _status: Label
+var _race_settings: Button
 
 
 func _ready() -> void:
@@ -26,6 +29,10 @@ func _ready() -> void:
 	if Game.dev.has("port"):
 		config.port = int(Game.dev.port)
 	_kind = config.event(0).kind
+	var tracks := TrackLibrary.list(true, false) # personal-use tracks stay offline
+	var last := TrackLibrary.resolve(String(config.rotation[0].get("track", "")))
+	if tracks.any(func(e: Dictionary) -> bool: return e.path == last):
+		_track = last
 	var list := UiKit.panel(self, "Host", 860)
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(0, 600)
@@ -48,9 +55,12 @@ func _ready() -> void:
 			classes.append([r.platform.id, "%s %s" % [mode.name, r.platform.name]])
 	_add(rows, UiKit.spinner("Class", classes, config.rotation[0].get("class", "official.track.gt"),
 		func(id: String) -> void: config.rotation[0]["class"] = id, "How every car drives"))
+	_add(rows, UiKit.spinner("Track", tracks.map(func(e: Dictionary) -> Array: return [e.path, TrackLibrary.label(e)]), _track,
+		func(path: String) -> void: _track = path, "Players without it get it from you"))
 	_add(rows, UiKit.spinner("Event", [["free", "Free drive"], ["race", "Race weekend"]], _kind,
 		func(k: String) -> void: _kind = k))
-	_add(rows, UiKit.button("Race settings", _open_event, "Sessions, laps, AI and rules"))
+	_race_settings = UiKit.button("Race settings", _open_event, "Sessions, laps, AI and rules")
+	_add(rows, _race_settings)
 	var ports := []
 	for i in NetDiscovery.PORTS:
 		ports.append([NetProtocol.DEFAULT_PORT + i, "UDP %d" % (NetProtocol.DEFAULT_PORT + i)])
@@ -79,12 +89,12 @@ func _open_event() -> void:
 	menu.picked.connect(func(_e: RaceEvent) -> void:
 		_kind = "race"
 		menu.closed.emit())
-	UiKit.open_sub(self, menu, func() -> void: (_rows[5] as Control).grab_focus())
+	UiKit.open_sub(self, menu, func() -> void: _race_settings.grab_focus())
 
 
 func _host() -> void:
 	var e := Settings.last_event() if _kind == "race" else RaceEvent.free_drive()
-	config.rotation[0]["track"] = ServerConfig.DEFAULT_TRACK
+	config.rotation[0]["track"] = _track
 	config.rotation[0]["event"] = e.to_dict()
 	var saved := config.to_dict()
 	saved.password = ""

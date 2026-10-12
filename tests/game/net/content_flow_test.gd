@@ -1,7 +1,8 @@
 extends GdUnitTestSuite
-## Cars travel by hash over real ENet (MP-05, D80): a client fetches the host's car tier by
-## tier and loads it from the cache; the server fetches a client's car when it's picked; a car
-## over the server's cap is refused.
+## Cars and tracks travel by hash over real ENet (MP-05, D80, EDT-08): a client fetches the
+## host's car tier by tier and loads it from the cache; the server fetches a client's car when
+## it's picked; a car over the server's cap is refused. A user track goes whole, is checked and
+## loads; personal-use tracks never go; one too large is refused.
 
 var port := 0
 var server: NetServer
@@ -189,3 +190,106 @@ func test_partial_cars_load_at_their_tier() -> void:
 	assert_int(preview.lods.size()).is_equal(1)
 	preview.free_scenes()
 	source.close()
+
+
+## A track only the server has (an editor track, not in anyone's library).
+func _user_track(file: String, license := "CC-BY-SA-4.0") -> String:
+	var path := dir.path_join(file)
+	DirAccess.remove_absolute(path)
+	var d := TrackTemplates.make("oval")
+	d.info.name = file.get_basename()
+	d.info.license = license
+	assert_bool(d.save(path).ok).is_true()
+	return path
+
+
+func test_a_user_track_travels_and_loads() -> void:
+	var path := _user_track("net_oval.nosstrack")
+	var cfg := ServerConfig.defaults()
+	cfg.rotation[0].track = path
+	_start(cfg)
+	var info := host.track_info()
+	assert_str(info.path).is_equal(path)
+	assert_str(info.hash).is_equal(TrackLibrary.manifest_hash(path))
+	assert_int(info.bytes).is_greater(1000)
+	var lobby := host.lobby_dict()
+	assert_str(lobby.track).is_equal(info.hash)
+	assert_str(lobby.track_name).is_equal("net_oval")
+	assert_bool(await _pump(func() -> bool: return client.state == NetClient.State.JOINED)).is_true()
+	var h: String = info.hash
+	assert_str(client_content.track_path(h)).is_empty()
+	var ready := []
+	client_content.track_ready.connect(func(t: String) -> void: ready.append(t))
+	client_content.fetch_track(h, 1, info.bytes)
+	assert_bool(await _pump(func() -> bool: return not ready.is_empty(), 20.0)).is_true()
+	assert_float(client_content.track_progress(h)).is_equal(1.0)
+	assert_int(client_content.track_ms(h)).is_greater_equal(0)
+	# Here by hash, checked against its manifest as it loads.
+	var here := TrackLibrary.by_hash(h)
+	assert_str(here).is_equal(ContentStore.pkg_dir("tracks", h))
+	var pkg := TrackLoader.load_package(here)
+	assert_str(pkg.error).is_empty()
+	assert_str(pkg.track.display_name).is_equal("net_oval")
+	assert_object(pkg.terrain).is_not_null()
+	# A session on it starts from the cache.
+	var session := Game.online_session(host.session_dict())
+	assert_object(session).is_not_null()
+	assert_str(session.track_path).is_equal(here)
+	for n: Node in [session.views, session.field, session.race, session]: # made with it, added in _ready
+		n.free()
+
+
+func test_personal_use_tracks_stay_offline() -> void:
+	var path := _user_track("net_mine.nosstrack", ContentIndex.PERSONAL)
+	var h := TrackLibrary.manifest_hash(path)
+	var cfg := ServerConfig.defaults()
+	cfg.rotation[0].track = path
+	_start(cfg)
+	var lines := []
+	host.log_line.connect(func(l: String) -> void: lines.append(l))
+	# The server runs the Proving Ground instead, and says why.
+	assert_str(host.track_info().path).is_equal(TrackLibrary.DEFAULT)
+	assert_bool(lines.any(func(l: String) -> bool: return l.begins_with("Personal-use tracks stay offline"))).is_true()
+	assert_str(server_content.share_track(path)).is_empty()
+	assert_bool(server_content.index.has(h)).is_false()
+	# Asked for it anyway, nothing comes.
+	assert_bool(await _pump(func() -> bool: return client.state == NetClient.State.JOINED)).is_true()
+	client_content.fetch_track(h, 1)
+	await _pump(func() -> bool: return false, 1.5)
+	assert_str(TrackLibrary.by_hash(h)).is_empty()
+
+
+func test_a_track_too_large_is_refused() -> void:
+	var path := _user_track("net_big.nosstrack")
+	var cfg := ServerConfig.defaults()
+	cfg.rotation[0].track = path
+	_start(cfg)
+	var info := host.track_info()
+	assert_bool(await _pump(func() -> bool: return client.state == NetClient.State.JOINED)).is_true()
+	var refused := []
+	client_content.track_refused.connect(func(_h: String, why: String) -> void: refused.append(why))
+	# Said up front: refused at once.
+	client_content.track_cap = 1000
+	client_content.fetch_track(info.hash, 1, info.bytes)
+	assert_array(refused).is_equal(["Track too large"])
+	assert_float(client_content.track_progress(info.hash)).is_equal(-1.0)
+	# Said small, but its files add up to more.
+	var other := _user_track("net_big2.nosstrack")
+	var cfg2 := ServerConfig.defaults()
+	cfg2.rotation[0].track = other
+	host.config = cfg2
+	host._tracks.clear()
+	var h2: String = host.track_info().hash
+	refused.clear()
+	client_content.track_cap = 20_000
+	client_content.fetch_track(h2, 1, 100)
+	assert_bool(await _pump(func() -> bool: return not refused.is_empty())).is_true()
+	assert_str(refused[0]).is_equal("Track too large")
+	assert_str(TrackLibrary.by_hash(h2)).is_empty()
+	# A server won't send one over its own cap: it runs the Proving Ground.
+	var cfg3 := ServerConfig.defaults()
+	cfg3.rotation[0].track = other
+	cfg3.caps.max_track_mb = 0
+	host.config = cfg3
+	host._tracks.clear()
+	assert_str(host.track_info().path).is_equal(TrackLibrary.DEFAULT)
