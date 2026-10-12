@@ -104,7 +104,7 @@ func _ready() -> void:
 	if draft == null:
 		var autosaved := TrackDraft.autosaves()
 		draft = TrackDraft.blank()
-		if not autosaved.is_empty() and not Game.dev.has("editor-track") and not Game.dev.has("editor-template"):
+		if not autosaved.is_empty() and not Game.dev.has("editor-track") and not Game.dev.has("editor-template") and not Game.dev.has("editor-import"):
 			_offer_restore(autosaved[0])
 		Game.track_draft = draft
 	_open_draft(draft)
@@ -406,7 +406,8 @@ func _browse_scene() -> void:
 	dialog.popup_file_dialog()
 
 
-## Drives the track from the cursor (or the grid): see Game.start_test_drive.
+## Drives the track from the cursor (or the grid, also when the cursor isn't on any ground): see
+## Game.start_test_drive.
 func test_drive(from_grid: bool) -> void:
 	var t := draft.track()
 	if t.samples.size() < 3:
@@ -415,11 +416,20 @@ func test_drive(from_grid: bool) -> void:
 	var at: Variant = null
 	if not from_grid:
 		var hit := view.pick(view.cursor())
-		if hit.hit:
+		if hit.hit and _ground_at(hit.position):
 			var fwd := -view.camera.camera.global_basis.z
 			at = spawn_at(t, hit.position, fwd)
 	remember_view()
 	Game.start_test_drive(draft, at)
+
+
+## Whether there's ground at `p` to start on (a fitted scene ends; so does terrain).
+func _ground_at(p: Vector3) -> bool:
+	if draft.scene:
+		return draft.scene.ray_down(p.x, p.z, p.y + 2.0).hit
+	if draft.terrain:
+		return draft.terrain.area().has_point(Vector2(p.x, p.z))
+	return true
 
 
 ## Where a test drive from `p` starts: on the road, along it (kept off the edges); off it, on
