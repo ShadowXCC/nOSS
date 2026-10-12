@@ -22,7 +22,8 @@ extends Node
 ##   --perf               print frame, CPU, physics and per-view GPU times every second
 ##   --fullscreen         fullscreen for this run; --no-vsync: no vsync (measurements)
 ##   --pause-at=<s>       open the last player's pause menu
-##   --menu=<m>           title: open classes, players or settings (--join=<n>: n devices join)
+##   --menu=<m>           title: open classes, event, players, settings, online or online-players
+##                        (--join=<n>: n devices join)
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
 ##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5; a list like 5,30,90 takes several), one per window
 ##   --quit-at=<s>        quit after this many seconds

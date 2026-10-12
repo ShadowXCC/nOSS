@@ -84,6 +84,9 @@ func _ready() -> void:
 		"players": _open_players(String(Settings.profile.get("last_platform", "official.track.gt")))
 		"settings": _open_settings()
 		"online": _open_online()
+		"online-players":
+			_open_online()
+			_online._open_players()
 	if Net.online(): # back from an online session: its lobby
 		_open_online()
 		_open_lobby()

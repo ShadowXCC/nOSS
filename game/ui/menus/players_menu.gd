@@ -8,10 +8,15 @@ extends Control
 signal started
 signal closed
 
-## A card's content is laid out at this size, then scaled to fit.
+## A card's content is laid out at this size, then scaled to fit; online cards are shorter
+## (no car), so their text comes out bigger.
 const CARD_REF := Vector2(520, 1000)
+const CARD_REF_ONLINE := Vector2(520, 800)
 
 var platform_id := ""
+## Before going online (LOC-05): who plays on this machine. Cars are picked in the lobby, and
+## any player's Done (or back on a card) returns to the Online menu.
+var online := false
 
 var _platform := {}
 var _holders: Array[Control] = []
@@ -43,8 +48,10 @@ func _ready() -> void:
 	var title := UiKit.label("Players", 48)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
-	head.add_child(UiKit.label(String(_platform.get("name", "")), 34))
-	var hint := UiKit.label("Press any button to join. To share the keyboard, set a player's keyboard to one side.", 24)
+	if not online:
+		head.add_child(UiKit.label(String(_platform.get("name", "")), 34))
+	var hint := UiKit.label(("Press any button to join, then Done." if online else "Press any button to join.")
+		+ " To share the keyboard, set a player's keyboard to one side.", 24)
 	hint.accessibility_live = AccessibilityServer.AccessibilityLiveMode.LIVE_POLITE
 	column.add_child(hint)
 	var row := HBoxContainer.new()
@@ -56,6 +63,12 @@ func _ready() -> void:
 		holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		holder.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		row.add_child(holder)
+		var join := UiKit.label("Press to join", 28)
+		join.name = "JoinHint"
+		join.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		join.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		join.modulate = Color(1, 1, 1, 0.6)
+		holder.add_child(join)
 		_holders.append(holder)
 	var foot := HBoxContainer.new()
 	column.add_child(foot)
@@ -118,7 +131,7 @@ func _add_card(slot: PlayerSlot) -> void:
 	slot.ready = false
 	var v := PlayerView.new()
 	v.slot = slot
-	v.reference = CARD_REF
+	v.reference = _card_ref()
 	v.viewport.disable_3d = true
 	v.viewport.transparent_bg = true
 	v.set_listener(false)
@@ -141,6 +154,8 @@ func _refresh() -> void:
 		var card: PlayerCard = v.overlay_root.get_child(0) if v.overlay_root.get_child_count() > 0 else null
 		if card and card.visible:
 			card.rebuild()
+	for holder in _holders:
+		holder.get_node(^"JoinHint").visible = not holder.get_children().any(func(c: Node) -> bool: return c is PlayerView)
 	_preview.queue_redraw()
 	_check_start()
 
@@ -151,6 +166,10 @@ func _check_start() -> void:
 		for slot in Players.slots:
 			slot.menu_target = null
 		started.emit()
+
+
+func _card_ref() -> Vector2:
+	return CARD_REF_ONLINE if online else CARD_REF
 
 
 func compatible_cars() -> Array:
@@ -188,7 +207,7 @@ func open_settings(slot: PlayerSlot, access := false) -> void:
 	var back := func() -> void:
 		menu.queue_free()
 		_expanded = null
-		v.reference = CARD_REF
+		v.reference = _card_ref()
 		card.visible = true
 		_refresh()
 		card.focus_row("Access" if access else "Settings")
@@ -265,21 +284,8 @@ class PlayerCard:
 			var p := Settings.new_profile() if id == "+new" else Settings.get_profile(id)
 			Players.set_profile(slot, p)))
 
-		var cars := menu.compatible_cars()
-		var car := String(slot.profile.data.get("last_car", ""))
-		if not cars.any(func(c: Array) -> bool: return c[0] == car):
-			car = menu.default_car()
-		var thumb := TextureRect.new()
-		thumb.custom_minimum_size = Vector2(0, 160)
-		thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		thumb.texture = GarageFiles.thumbnail(car)
-		thumb.visible = thumb.texture != null
-		list.add_child(thumb)
-		_add(list, UiKit.spinner("Car", cars, car, func(path: String) -> void:
-			slot.profile.set_value("last_car", path)
-			thumb.texture = GarageFiles.thumbnail(path)
-			thumb.visible = thumb.texture != null))
+		if not menu.online: # online, cars are picked in the lobby
+			_add_car_row(list)
 
 		var zone := slot.keyboard_zone()
 		if zone:
@@ -299,11 +305,14 @@ class PlayerCard:
 			_status.text = "Press a button on it", "Wheel, pedals or a second controller"))
 		_add(list, UiKit.button("Access", func() -> void: menu.open_settings(slot, true), "Accessibility presets for this player"))
 		_add(list, UiKit.button("Settings", func() -> void: menu.open_settings(slot), "Controls, assists, HUD"))
-		var ready_button := UiKit.button("Ready ✓" if slot.ready else "Ready", func() -> void:
-			slot.ready = not slot.ready
-			rebuild()
-			menu._check_start())
-		_add(list, ready_button)
+		if menu.online:
+			_add(list, UiKit.button("Done", func() -> void: menu.closed.emit(), "Back to Online"))
+		else:
+			var ready_button := UiKit.button("Ready ✓" if slot.ready else "Ready", func() -> void:
+				slot.ready = not slot.ready
+				rebuild()
+				menu._check_start())
+			_add(list, ready_button)
 		_add(list, UiKit.button("Leave", func() -> void: Players.leave(slot)))
 		_status = UiKit.label("Ready. Waiting for the others" if slot.ready else "", 22)
 		_status.accessibility_live = AccessibilityServer.AccessibilityLiveMode.LIVE_POLITE
@@ -312,6 +321,23 @@ class PlayerCard:
 		UiKit.chain_focus(_rows)
 		if focus_text:
 			focus_row(focus_text)
+
+	func _add_car_row(list: VBoxContainer) -> void:
+		var cars := menu.compatible_cars()
+		var car := String(slot.profile.data.get("last_car", ""))
+		if not cars.any(func(c: Array) -> bool: return c[0] == car):
+			car = menu.default_car()
+		var thumb := TextureRect.new()
+		thumb.custom_minimum_size = Vector2(0, 160)
+		thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		thumb.texture = GarageFiles.thumbnail(car)
+		thumb.visible = thumb.texture != null
+		list.add_child(thumb)
+		_add(list, UiKit.spinner("Car", cars, car, func(path: String) -> void:
+			slot.profile.set_value("last_car", path)
+			thumb.texture = GarageFiles.thumbnail(path)
+			thumb.visible = thumb.texture != null))
 
 	func focus_row(prefix: String) -> void:
 		for r: Control in _rows:
@@ -331,6 +357,8 @@ class PlayerCard:
 		if Players.adding == slot:
 			Players.adding = null
 			_status.text = ""
+		elif menu.online: # back to Online; Leave is its own row
+			menu.closed.emit()
 		elif slot.ready:
 			slot.ready = false
 			rebuild()

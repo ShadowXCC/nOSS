@@ -84,6 +84,11 @@ func grab_focus_first() -> void:
 	(_rows[0] as Control).grab_focus()
 
 
+## Players or Host is open over this menu (its own rows are hidden meanwhile).
+func _sub_open() -> bool:
+	return not is_visible_in_tree() or not (_rows[0] as Control).is_visible_in_tree()
+
+
 func _add(parent: Control, c: Control) -> void:
 	parent.add_child(c)
 	_rows.append(c)
@@ -126,8 +131,8 @@ func _rebuild_lan() -> void:
 		UiKit.focus_later(refocus)
 	elif focused_key and is_inside_tree():
 		UiKit.focus_later(_join_button)
-	elif focused == null and is_visible_in_tree():
-		(func() -> void: if is_inside_tree() and is_visible_in_tree(): grab_focus_first()).call_deferred()
+	elif focused == null and not _sub_open():
+		(func() -> void: if is_inside_tree() and not _sub_open(): grab_focus_first()).call_deferred()
 
 
 func _join(address: String, password: String) -> void:
@@ -174,6 +179,7 @@ func _open_host() -> void:
 ## The Players screen, for local players to join before going online; "Ready" brings them back.
 func _open_players() -> void:
 	var menu := PlayersMenu.new()
+	menu.online = true
 	menu.platform_id = String(Settings.profile.get("last_platform", "official.track.gt"))
 	menu.started.connect(func() -> void: menu.closed.emit())
 	UiKit.open_sub(self, menu, func() -> void:
@@ -182,6 +188,7 @@ func _open_players() -> void:
 
 
 func _unhandled_input(e: InputEvent) -> void:
-	if e.is_action_pressed("ui_cancel"):
+	# With Players or Host open, back belongs to them (a card's B also arrives here raw).
+	if e.is_action_pressed("ui_cancel") and not _sub_open():
 		get_viewport().set_input_as_handled()
 		closed.emit()

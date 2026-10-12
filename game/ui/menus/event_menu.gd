@@ -102,6 +102,7 @@ static func _minutes(values: Array) -> Array:
 
 
 func _unhandled_input(e: InputEvent) -> void:
-	if e.is_action_pressed("ui_cancel"):
+	# Hidden behind the Players screen: back belongs to that one.
+	if e.is_action_pressed("ui_cancel") and is_visible_in_tree():
 		get_viewport().set_input_as_handled()
 		closed.emit()

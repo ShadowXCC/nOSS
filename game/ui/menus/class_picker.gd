@@ -64,6 +64,7 @@ func grab_focus_first() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
+	# Hidden behind the next menu: back belongs to that one.
+	if event.is_action_pressed("ui_cancel") and is_visible_in_tree():
 		get_viewport().set_input_as_handled()
 		closed.emit()
