@@ -149,10 +149,6 @@
           }
         }
       ]
-    },
-    "legacy": {
-      "description": "Set pieces of a noss.track/0 file, built as they were (upgraded tracks only).",
-      "type": "object"
     }
   },
   "$defs": {

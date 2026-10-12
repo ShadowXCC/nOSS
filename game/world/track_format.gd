@@ -70,7 +70,7 @@ static func blank(id: String, name: String) -> Dictionary:
 
 ## A noss.track/0 file as noss.track/1: the same centreline (points [x, z(, y)] become set
 ## heights), one width, its start, sectors and checkpoints, the race grid and AI caution the
-## game used then, flat grass, and its set pieces kept as they were built.
+## game used then, flat grass, and its set pieces as props where they stood.
 static func upgrade_v0(d: Dictionary) -> Dictionary:
 	var out := blank(String(d.get("id", "")), String(d.get("name", d.get("id", ""))))
 	out.style = String(d.get("style", StyleProfile.DEFAULT))
@@ -91,13 +91,48 @@ static func upgrade_v0(d: Dictionary) -> Dictionary:
 	race.sectors_m = d.get("sectors_m", []).map(func(s: Variant) -> float: return float(s))
 	race.checkpoint_spacing_m = float(d.get("checkpoint_spacing_m", 100.0))
 	race.ai.caution_until_m = 1100.0 # tuned for the Proving Ground
-	var legacy := {}
-	for key in ["skidpad", "grandstand", "pit_building"]:
-		if d.has(key):
-			legacy[key] = d[key]
-	legacy.trees = true
-	out.legacy = legacy
+	out.props = _v0_props(d, out)
 	return out
+
+
+## A noss.track/0 file's set pieces as props, where its builder put them: the skidpad, the
+## grandstand and pit building beside the road, and its 1400 seeded trees (billboards).
+static func _v0_props(v0: Dictionary, v1: Dictionary) -> Dictionary:
+	var t := TrackData.from_dict(v1)
+	var items := []
+	var pad: Dictionary = v0.get("skidpad", {})
+	if not pad.is_empty():
+		items.append({ "prop": "skidpad", "p": [float(pad.center[0]), 0.0, float(pad.center[1])],
+			"size": [float(pad.get("pad_radius_m", 72.0)), 0.0, float(pad.get("radius_m", 60.0))] })
+	for key in ["grandstand", "pit_building"]:
+		var g: Dictionary = v0.get(key, {})
+		if g.is_empty():
+			continue
+		var side := 1.0 if g.get("side", "left" if key == "grandstand" else "right") == "left" else -1.0
+		var x := t.transform_at(float(g.at_m))
+		var away := x.basis.x * side
+		var at := x.origin + away * (t.width / 2.0 + (14.0 if key == "grandstand" else 26.0))
+		var length := float(g.get("length_m", 100.0 if key == "grandstand" else 120.0))
+		items.append({ "prop": key, "p": [at.x, at.y, at.z], "yaw_deg": rad_to_deg(atan2(-away.z, away.x)),
+			"size": [13.0 if key == "grandstand" else 12.0, 9.9 if key == "grandstand" else 9.0, length] })
+	# The trees, exactly as the first builder threw them.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(t.id)
+	var bounds := AABB(t.samples[0], Vector3.ZERO)
+	for p in t.samples:
+		bounds = bounds.expand(p)
+	bounds = bounds.grow(400.0)
+	var pad_c := Vector3(pad.center[0], 0, pad.center[1]) if not pad.is_empty() else Vector3(INF, 0, INF)
+	var pad_r: float = pad.get("pad_radius_m", 0.0) + 15.0
+	var xf := []
+	var tries := 0
+	while xf.size() < 1400 * 4 and tries < 1400 * 20:
+		tries += 1
+		var p := Vector3(rng.randf_range(bounds.position.x, bounds.end.x), 0, rng.randf_range(bounds.position.z, bounds.end.z))
+		if p.distance_to(pad_c) < pad_r or t.is_near_centreline(p, t.width / 2.0 + 16.0 + 12.0):
+			continue
+		xf.append_array([p.x, p.z, 0.0, rng.randf_range(7.0, 13.0)])
+	return { "items": items, "scatter": [{ "prop": "tree_billboard", "xf": xf }] if not xf.is_empty() else [] }
 
 
 ## Schema errors for a v1 track ("" if none). Scatter arrays are checked here rather than by

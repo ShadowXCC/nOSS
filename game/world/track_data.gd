@@ -28,8 +28,6 @@ var style := StyleProfile.DEFAULT
 var width := 12.0
 ## The track file as noss.track/1.
 var raw := {}
-## A noss.track/0 file's set pieces (skidpad, grandstand, pit building, trees), built as before.
-var legacy := {}
 ## "road": built from the spline; "centreline": a fitted scene (the spline only guides).
 var kind := "road"
 ## Built in (res://): records are keyed by id alone.
@@ -113,7 +111,6 @@ static func from_dict(data: Dictionary, ground_height := Callable()) -> TrackDat
 		data = TrackFormat.upgrade_v0(data)
 	var t := TrackData.new()
 	t.raw = data
-	t.legacy = data.get("legacy", {})
 	t.id = String(data.get("id", ""))
 	t.display_name = String(data.get("name", t.id))
 	t.style = String(data.get("style", StyleProfile.DEFAULT))
