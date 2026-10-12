@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noss:schema:terrain:1",
+  "title": "nOSS terrain",
+  "description": "terrain/meta.json inside a .nosstrack: where the heightmap lies and how to read it. height.png is 16-bit grey, (chunks x 256 + 1) samples a side, h = height_min + value x height_step; splat_0.png and splat_1.png hold eight paint layers' weights. See docs/TRACK_EDITOR.md §2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "origin", "chunks", "chunk_m", "cell_m", "height_min", "height_step", "layers"],
+  "properties": {
+    "schema": { "const": "noss.terrain/1" },
+    "origin": {
+      "description": "World x, z of the first sample.",
+      "type": "array",
+      "prefixItems": [{ "$ref": "#/$defs/coord" }, { "$ref": "#/$defs/coord" }],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "chunks": {
+      "type": "array",
+      "prefixItems": [{ "$ref": "#/$defs/chunks" }, { "$ref": "#/$defs/chunks" }],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "chunk_m": { "const": 256 },
+    "cell_m": { "const": 1 },
+    "height_min": { "type": "number", "minimum": -10000, "maximum": 10000 },
+    "height_step": { "type": "number", "minimum": 0.001, "maximum": 1 },
+    "falloff_m": { "type": "number", "minimum": 0, "maximum": 100 },
+    "layers": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "grass" }, { "const": "dirt" }, { "const": "sand" }, { "const": "gravel" },
+        { "const": "rock" }, { "const": "snow" }, { "const": "concrete" }, { "const": "asphalt" }
+      ],
+      "minItems": 8,
+      "maxItems": 8
+    }
+  },
+  "$defs": {
+    "coord": { "type": "number", "minimum": -100000, "maximum": 100000 },
+    "chunks": { "type": "integer", "minimum": 1, "maximum": 16 }
+  }
+}

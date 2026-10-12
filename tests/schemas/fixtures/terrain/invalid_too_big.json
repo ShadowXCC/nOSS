@@ -1,0 +1,3 @@
+{ "schema": "noss.terrain/1", "origin": [0, 0], "chunks": [40, 4], "chunk_m": 256, "cell_m": 1,
+  "height_min": -100.0, "height_step": 0.01,
+  "layers": ["grass", "dirt", "sand", "gravel", "rock", "snow", "concrete", "asphalt"] }

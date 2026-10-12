@@ -17,6 +17,92 @@ static func asphalt() -> Texture2D:
 		return img)
 
 
+## Asphalt without painted lines (the road builder draws its own markings).
+static func asphalt_plain() -> Texture2D:
+	return _cached("asphalt_plain", func() -> Image: return _asphalt_image(128))
+
+
+static func dirt() -> Texture2D:
+	return _cached("dirt", func() -> Image: return _dirt_image())
+
+
+static func sand() -> Texture2D:
+	return _cached("sand", func() -> Image: return _sand_image())
+
+
+static func rock() -> Texture2D:
+	return _cached("rock", func() -> Image: return _rock_image())
+
+
+static func snow() -> Texture2D:
+	return _cached("snow", func() -> Image: return _snow_image())
+
+
+## The terrain's paint layers (TerrainData.LAYERS) as one array, 128 px each.
+static func terrain_layers() -> Texture2DArray:
+	if _cache.has("terrain_layers"):
+		return _cache.terrain_layers
+	var images: Array[Image] = []
+	for make: Callable in [_grass_image, _dirt_image, _sand_image, _gravel_image, _rock_image, _snow_image, _concrete_image, _asphalt_image.bind(128)]:
+		var img: Image = make.call()
+		if img.get_width() != 128:
+			img.resize(128, 128, Image.INTERPOLATE_NEAREST)
+		img.generate_mipmaps()
+		images.append(img)
+	var array := Texture2DArray.new()
+	array.create_from_images(images)
+	_cache.terrain_layers = array
+	return array
+
+
+static func _asphalt_image(size: int) -> Image:
+	var img := _noise_image(size, size, 0.34, 0.035, 11, 0.05 * 256.0 / size)
+	_speckle(img, 0.06, Color(0.40, 0.40, 0.41), 21)
+	_speckle(img, 0.06, Color(0.29, 0.29, 0.30), 22)
+	return img
+
+
+static func _grass_image() -> Image:
+	var img := _noise_image(128, 128, 0.0, 0.0, 31, 0.12, Color(0.22, 0.36, 0.14), Color(0.33, 0.48, 0.2))
+	_speckle(img, 0.05, Color(0.17, 0.28, 0.1), 32)
+	return img
+
+
+static func _dirt_image() -> Image:
+	var img := _noise_image(128, 128, 0.0, 0.0, 71, 0.1, Color(0.33, 0.24, 0.16), Color(0.47, 0.36, 0.25))
+	_speckle(img, 0.05, Color(0.26, 0.19, 0.13), 72)
+	return img
+
+
+static func _sand_image() -> Image:
+	var img := _noise_image(128, 128, 0.0, 0.0, 81, 0.08, Color(0.72, 0.64, 0.46), Color(0.84, 0.77, 0.58))
+	_speckle(img, 0.03, Color(0.62, 0.55, 0.4), 82)
+	return img
+
+
+static func _gravel_image() -> Image:
+	var img := _noise_image(64, 64, 0.0, 0.0, 41, 0.3, Color(0.55, 0.5, 0.42), Color(0.72, 0.67, 0.57))
+	_speckle(img, 0.08, Color(0.4, 0.37, 0.32), 42)
+	return img
+
+
+static func _rock_image() -> Image:
+	var img := _noise_image(128, 128, 0.0, 0.0, 91, 0.06, Color(0.36, 0.35, 0.33), Color(0.55, 0.54, 0.5))
+	_speckle(img, 0.04, Color(0.28, 0.27, 0.26), 92)
+	return img
+
+
+static func _snow_image() -> Image:
+	return _noise_image(128, 128, 0.0, 0.0, 101, 0.07, Color(0.82, 0.85, 0.9), Color(0.96, 0.97, 1.0))
+
+
+static func _concrete_image() -> Image:
+	var img := _noise_image(128, 128, 0.0, 0.0, 51, 0.06, Color(0.56, 0.56, 0.54), Color(0.66, 0.66, 0.63))
+	img.fill_rect(Rect2i(0, 0, 128, 1), Color(0.45, 0.45, 0.43)) # slab joints
+	img.fill_rect(Rect2i(0, 0, 1, 128), Color(0.45, 0.45, 0.43))
+	return img
+
+
 static func curb() -> Texture2D:
 	return _cached("curb", func() -> Image:
 		var img := Image.create(16, 32, false, Image.FORMAT_RGBA8)
@@ -26,25 +112,15 @@ static func curb() -> Texture2D:
 
 
 static func grass() -> Texture2D:
-	return _cached("grass", func() -> Image:
-		var img := _noise_image(128, 128, 0.0, 0.0, 31, 0.12, Color(0.22, 0.36, 0.14), Color(0.33, 0.48, 0.2))
-		_speckle(img, 0.05, Color(0.17, 0.28, 0.1), 32)
-		return img)
+	return _cached("grass", _grass_image)
 
 
 static func gravel() -> Texture2D:
-	return _cached("gravel", func() -> Image:
-		var img := _noise_image(64, 64, 0.0, 0.0, 41, 0.3, Color(0.55, 0.5, 0.42), Color(0.72, 0.67, 0.57))
-		_speckle(img, 0.08, Color(0.4, 0.37, 0.32), 42)
-		return img)
+	return _cached("gravel", _gravel_image)
 
 
 static func concrete() -> Texture2D:
-	return _cached("concrete", func() -> Image:
-		var img := _noise_image(128, 128, 0.0, 0.0, 51, 0.06, Color(0.56, 0.56, 0.54), Color(0.66, 0.66, 0.63))
-		img.fill_rect(Rect2i(0, 0, 128, 1), Color(0.45, 0.45, 0.43)) # slab joints
-		img.fill_rect(Rect2i(0, 0, 1, 128), Color(0.45, 0.45, 0.43))
-		return img)
+	return _cached("concrete", _concrete_image)
 
 
 static func tyre_wall() -> Texture2D:
