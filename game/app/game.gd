@@ -331,6 +331,33 @@ func open_track_editor(track := "", template := "") -> void:
 	get_tree().change_scene_to_node(TrackEditor.new())
 
 
+## Drives the editor's draft as it is: P1 alone in their last car and class, from `at` (a
+## Transform3D) or the grid (null). The pause menu and editor_back lead back to the editor
+## with its history (EDT-06). The draft is autosaved first.
+func start_test_drive(draft: TrackDraft, at: Variant = null) -> void:
+	if not PlayerProfile.read_only:
+		draft.autosave_async(self)
+	open_session(test_drive_session(draft, at))
+
+
+func test_drive_session(draft: TrackDraft, at: Variant = null) -> TrackSession:
+	get_tree().paused = false
+	var session := TrackSession.new()
+	session.track_package = draft.to_package()
+	session.editor_return = true
+	session.start_at = at
+	session.solo = true
+	session.platform_id = String(Settings.profile.get("last_platform", "")) if Settings.profile.get("last_platform", "") else TrackSession.DEFAULT_PLATFORM
+	session.autodrive = dev.has("autodrive")
+	return session
+
+
+## Back from a test drive: the editor on the same draft, as it was left.
+func return_to_editor() -> void:
+	get_tree().paused = false
+	get_tree().change_scene_to_node(TrackEditor.new())
+
+
 ## Dev: --editor (--editor-track, --editor-template).
 func open_dev_editor() -> void:
 	var track := TrackLibrary.resolve(String(dev.get("editor-track", ""))) if dev.has("editor-track") else ""

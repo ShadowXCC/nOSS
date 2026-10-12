@@ -9,6 +9,7 @@ signal change_car
 signal leave
 signal quit_to_title
 signal back_to_bay
+signal back_to_editor
 signal end_session
 signal restart
 ## The setup menu closed (apply and save its changes).
@@ -22,6 +23,8 @@ signal to_lobby
 var slot: PlayerSlot
 ## Test-driving a Fitting Bay draft: offers the way back.
 var bay_return := false
+## Test-driving the track editor's draft: offers the way back.
+var editor_return := false
 ## Players other than P1 can drop out.
 var can_leave := false
 ## Hotswap is allowed (not in a race).
@@ -75,6 +78,8 @@ func _ready() -> void:
 	])
 	if bay_return:
 		_buttons.insert(1, UiKit.button("Back to Fitting Bay", func() -> void: back_to_bay.emit()))
+	if editor_return:
+		_buttons.insert(1, UiKit.button("Back to editor", func() -> void: back_to_editor.emit(), "Keep editing the track"))
 	if can_leave:
 		_buttons.insert(_buttons.size() - 1, UiKit.button("Leave", func() -> void: leave.emit(), "Drop out; the others keep driving"))
 	for b: Button in _buttons:

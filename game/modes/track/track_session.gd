@@ -36,6 +36,10 @@ var platform_file := ""
 var fitting_mode := "normal"
 ## Test-driving a Fitting Bay draft: the pause menu leads back, and the car isn't remembered.
 var bay_return := false
+## Test-driving the track editor's draft: the pause menu (and editor_back) lead back.
+var editor_return := false
+## Where P1 starts (a test drive from the editor's cursor); null: the grid.
+var start_at: Variant = null
 ## Cars can be swapped mid-drive (free drive, practice, cruise; docs/VEHICLE_PACKAGE.md §8).
 var hotswap_allowed := true
 ## Online: the server's rule for swaps: "practice" (not in races), "never" or "always".
@@ -155,7 +159,7 @@ func _ready() -> void:
 		for slot in Players.slots.slice(0, 1 if solo else Players.MAX):
 			if autodrive:
 				slot.ai = true
-			_add_player(slot)
+			_add_player(slot, start_at if slot.index == 0 else null)
 		safe_rejoin = safe_rejoin or ai_racers > 0
 		var pool := ai_car_pool()
 		var skills := []
@@ -691,6 +695,7 @@ func _open_pause(p: SessionPlayer) -> void:
 	var menu := PauseMenu.new()
 	menu.slot = p.slot
 	menu.bay_return = bay_return
+	menu.editor_return = editor_return
 	menu.can_leave = p.slot.index > 0 and not is_online()
 	menu.can_change_car = hotswap_allowed
 	menu.can_end_session = race.kind in ["practice", "qualifying"]
@@ -734,6 +739,7 @@ func _open_pause(p: SessionPlayer) -> void:
 			Net.leave()
 		Game.go_title())
 	menu.back_to_bay.connect(func() -> void: Game.open_fitting_bay())
+	menu.back_to_editor.connect(func() -> void: Game.return_to_editor())
 	p.show_overlay(menu, not is_online())
 
 

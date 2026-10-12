@@ -360,16 +360,34 @@ static func minimap(t: TrackData) -> Image:
 	return img
 
 
+## Drives the track from the cursor (or the grid): see Game.start_test_drive.
 func test_drive(from_grid: bool) -> void:
-	if not Game.has_method("start_test_drive"):
-		say("Test drive comes next")
-		return
 	var t := draft.track()
 	if t.samples.size() < 3:
 		say("Add at least 3 points first")
 		return
+	var at: Variant = null
+	if not from_grid:
+		var hit := view.pick(view.cursor())
+		if hit.hit:
+			var fwd := -view.camera.camera.global_basis.z
+			at = spawn_at(t, hit.position, fwd)
 	remember_view()
-	Game.call("start_test_drive", draft, null if from_grid else view.pick(view.cursor()).position)
+	Game.start_test_drive(draft, at)
+
+
+## Where a test drive from `p` starts: on the road, along it (kept off the edges); off it, on
+## the spot facing `facing`.
+static func spawn_at(t: TrackData, p: Vector3, facing: Vector3) -> Transform3D:
+	var proj := t.project(p)
+	var i: int = proj.index
+	var lateral: float = proj.lateral
+	var reach := (t.half_l[i] if lateral >= 0.0 else t.half_r[i]) + 2.0
+	if absf(lateral) < reach and absf(p.y - (proj.point as Vector3).y) < 3.0:
+		return t.transform_at(proj.distance, clampf(lateral, -t.half_r[i] + 1.5, t.half_l[i] - 1.5))
+	var fwd := Vector3(facing.x, 0.0, facing.z)
+	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.BACK
+	return Transform3D(Basis(Vector3.UP.cross(fwd), Vector3.UP, fwd), p)
 
 
 ## Keeps the camera, tool and selection for coming back.

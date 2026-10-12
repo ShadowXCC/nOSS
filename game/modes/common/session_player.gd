@@ -160,6 +160,8 @@ func _physics_process(delta: float) -> void:
 			vehicle.steering_wheel_lock_deg = slot.input.wheel.platform_lock_deg
 		if slot.input.just_pressed("pause"):
 			pause_requested.emit(self)
+		elif slot.input.just_pressed("editor_back") and session.editor_return:
+			Game.return_to_editor()
 		elif slot.input.just_pressed("hotswap_menu") and session.hotswap_allowed:
 			open_picker(false)
 

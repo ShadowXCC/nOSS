@@ -66,6 +66,11 @@
         "key": "Escape"
       }
     ],
+    "editor_back": [
+      {
+        "key": "F5"
+      }
+    ],
     "menu_up": [
       {
         "key": "W"

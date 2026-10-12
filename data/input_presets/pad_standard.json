@@ -70,6 +70,11 @@
         "button": "start"
       }
     ],
+    "editor_back": [
+      {
+        "button": "dpad_down"
+      }
+    ],
     "menu_up": [
       {
         "button": "dpad_up"
