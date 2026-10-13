@@ -37,7 +37,7 @@ How nOSS is put together: engine, languages, code layout and the main runtime sy
 | Layer | Language | Contents |
 |---|---|---|
 | Gameplay and UI | **GDScript** | Game flow, modes, menus, HUD, track editor, Fitting Bay, networking glue, high-level AI behavior |
-| Native core: `noss_core` | **C++20** GDExtension (godot-cpp) | Vehicle sim (tires, suspension, drivetrain, aero), conformance maneuvers, wheel input and FFB (SDL3), package validation, mesh work (LODs, connected parts, principal axes; meshoptimizer), engine sound synthesis, traffic bulk update, procedural road and terrain mesh generation |
+| Native core: `noss_core` | **C++20** GDExtension (godot-cpp) | Vehicle sim (tires, suspension, drivetrain, aero), conformance maneuvers, wheel input and FFB (SDL3), package validation, mesh work (LODs, connected parts, principal axes; meshoptimizer), engine and tire sound synthesis, terrain (heightfield brushes, paint, the road's bed, chunk data, 16-bit PNG, the surface map), traffic bulk update |
 | Tools | **Python 3** (stdlib only) | `fm4_to_noss.py`, packers, conformance report tools |
 
 **Rule:** start in GDScript and move code to C++ once profiling shows it's hot, or when it needs a native library. The vehicle sim is C++ from day one.
@@ -55,14 +55,18 @@ nOSS/
 │  ├─ vehicles/           platform loader, package loader and writer, fitting, visual rig,
 │  │                      cameras; import/ (model import, analysis, LODs)
 │  ├─ modes/              common/, track/, kart/, highway/, endless/
-│  ├─ world/              track runtime, terrain, procedural gen, weather, time of day
+│  ├─ world/              track data and format, track packages (load, write, library), the
+│  │                      track builder (road, props, scenes), terrain/, props/, checks;
+│  │                      later procedural gen, weather, time of day
 │  ├─ ai/                 racing, traffic, police
 │  ├─ net/                server, client, lobby, chat, content transfer, car states, race sync
-│  ├─ editor/             track editor, Fitting Bay, Track Fitting
+│  ├─ editor/             track_editor/ (draft and history, view, gizmos, preview, tools/:
+│  │                      road, surfaces, terrain, paint, props, race, check), fitting_bay/
 │  ├─ audio/              engine sound player, SFX, music
 │  └─ ui/                 menus, HUD, themes, garage
 ├─ native/                C++ GDExtension "noss_core"
 │  ├─ src/core/  src/vehicle/  src/input/  src/package/  src/traffic/  src/mesh/  src/audio/
+│  │  src/world/          terrain heightfield, PNG16, surface map (M6)
 │  ├─ thirdparty/         godot-cpp, SDL3, doctest, meshoptimizer (M2) (submodules)
 │  └─ SConstruct
 ├─ data/
@@ -71,12 +75,16 @@ nOSS/
 │  ├─ items/                                   kart items
 │  ├─ sound_profiles/                          built-in engine sounds
 │  ├─ input_presets/                           device presets
-│  └─ schemas/                                 JSON schemas (platform, package, fit, paint; track and sound later)
-├─ content/               original CC-BY-SA assets: default car, test tracks, props, textures
+│  ├─ tire_sounds/                             built-in tire profiles
+│  └─ schemas/                                 JSON schemas (platform, package, fit, paint, sound, track,
+│                                              track package, terrain, scene tags, server, input presets)
+├─ content/               original CC-BY-SA assets: default cars, tracks/<id>/ (built-in tracks as folders)
 ├─ tools/                 dev setup, build and test scripts; fm4_to_noss.py, conformance runner, packers
 ├─ addons/gdUnit4/        GDScript test framework (vendored)
 ├─ tests/
 │  ├─ game/               gdUnit4 tests, mirroring game/
+│  ├─ editor/             track_check: the M6 acceptance build (a scene, run by tools/track_check.sh)
+│  ├─ race/               race_check: the AI race soak
 │  ├─ native/             doctest tests for noss_core
 │  └─ schemas/            JSON schema checks and fixtures
 └─ docs/
@@ -185,7 +193,7 @@ Endless mode and large real-world maps go far beyond single-precision range.
 |---|---|
 | Main | Game logic, UI, scene tree, render submission |
 | Physics | Godot physics plus `VehicleSim`, on the main thread for now (D34) |
-| Worker pool | Package validation, import and LOD generation; procedural chunk and terrain mesh builds; content transfer decode |
+| Worker pool | Package and track validation and loading, model and scene import, LOD generation; the track editor's AI line and checks, autosave encoding; content transfer decode |
 | Native FFB | ~500 Hz loop that mixes the latest FFB inputs (`native/src/ffb/`) and updates SDL3 haptic effects |
 
 ## 10. Data and save locations
@@ -203,14 +211,15 @@ user://
 ├─ profiles/<player>.json      bindings, assists, FFB, preferred cameras, HUD and comfort options
 ├─ players.json                which profile each device belongs to, each profile's monitor
 ├─ garage/<id>.noss            player car packages
-├─ tracks/<id>.nosstrack       player tracks (+ .autosave/)
+├─ tracks/<name>.nosstrack     player tracks; .autosave/<id>/ (drafts, a note beside each)
 ├─ platforms/                  custom and downloaded platforms
 ├─ setups/<platform>/<track>.json
 ├─ ghosts/<track>/<platform>/   best.json and ghosts from friends
 ├─ leaderboards/<track>.json    local time-trial leaderboards
 ├─ replays/
 ├─ identity/key.pem            this install's online key (fingerprint = SHA-256 of its public key)
-├─ cache/content/              downloaded cars (unpacked), platforms, tracks, by hash; tmp/
+├─ cache/content/              downloaded cars and tracks (unpacked), platforms, by hash; hosted/ (a
+│                              server's bare track.json as a package); tmp/
 ├─ instances/<n>/              settings, profiles and key of a second copy on one PC (--instance)
 └─ logs/                       server.log (dedicated server)
 ```
@@ -219,7 +228,8 @@ user://
 
 ## 11. Testing
 
-- **Run everything:** `tools/run_tests.sh` (native build, doctest, schemas, gdUnit4 headless, boot smoke test).
+- **Run everything:** `tools/run_tests.sh` (native build, doctest, schemas, gdUnit4 headless, conformance, an AI race, an online race, the track editor's 3 km acceptance build, boot smoke test).
+- **Track editor:** `tools/track_check.sh` builds a 3 km track headless with the editor's own commands, checks, saves and reloads it, races 8 AI cars on it and sends it to a fresh bot online. The Proving Ground has a golden test (samples, curbs, AI line, lap time, grid, pieces) that every change to the track code must keep.
 - **GDScript:** gdUnit4, run headless (`godot --headless`).
 - **Native:** doctest unit tests for tire, suspension and drivetrain math.
 - **Platform conformance:** `tools/run_conformance.sh` drives standard maneuvers across each platform's geometry range on a native flat-ground harness, and checks the harness against Jolt ([PLATFORMS.md §5](PLATFORMS.md#5-conformance-tests)).

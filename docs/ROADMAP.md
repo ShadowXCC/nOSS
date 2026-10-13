@@ -115,12 +115,14 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
 - Test-drive, undo/redo, autosave, validation (EDT-06).
 - `.nosstrack` save, load and online transfer (EDT-07).
 - Track Fitting for glTF/FBX scenes (EDT-08).
-- Decide on Terrain3D vs. our own terrain.
+- Decide on Terrain3D vs. our own terrain. *Our own (D91).*
 
 **Acceptance:**
-- [ ] A 3 km circuit can be built from scratch in under 30 minutes.
-- [ ] AI races it, and it transfers to a client online.
-- [ ] An imported glTF track scene is fitted and raced.
+- [ ] A 3 km circuit can be built from scratch in under 30 minutes. *Built headless with the editor's own commands by `tools/track_check.sh` (14 points, a hill under the road, a banked corner, gravel run-off, armco, paint, 1500 trees, grandstands, a pit building, a 16-car grid, 3 sectors, an AI pin): no check errors, saved and loaded back unchanged. The hand-timed build is still to do; the editor logs "first valid save N s after opening".*
+- [x] AI races it, and it transfers to a client online. *The same track: 8 AI cars raced a lap, all finished, no pile-ups (`race_check`); a bot with an empty cache got it from the dedicated server in about 0.15 s and raced (`net_check --fresh`, 4 garage cars whole in 14 s).*
+- [x] An imported glTF track scene is fitted and raced. *A circuit made from the Kenney Racing Kit (CC0, 771 m) is imported, tagged (rules, plus the kit's grey edges as curbs), clicked along, its widths measured, its start and grid set; it checks clean, saves and loads back, and 6 AI cars raced a lap on it with no resets (`track_fitting_test`, `race_check`). Test-driven from the editor (autodrive) and back.*
+
+**Notes:** The Proving Ground is unchanged to the millimetre through every change to the track code (a golden test). Editor timings on the 3 km track: opens in 0.4 s; dragging a point updates in about 18 ms, and the ground catches up in about 0.2 s when you let go; a brush dab 1.3 ms. Four splitscreen views on it: about 165 fps, 2.4 ms GPU. The screen-reader walk covers the editor. Found and fixed on the way: road clicks past the road's end snapping back onto it, editor picks missing the view's world, a lost last ack stalling transfers, AI cars taking off over crests, and the acceleration check flagging landings.
 
 ## M7: Highway
 

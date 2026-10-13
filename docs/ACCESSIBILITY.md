@@ -78,7 +78,7 @@ The first-boot screen includes a short photosensitivity notice.
 
 | Feature | Details |
 |---|---|
-| Full rebinding | Every action on every device, including menus ([INPUT.md §7](INPUT.md#7-profiles-and-presets)) |
+| Full rebinding | Every action on every device, including menus ([INPUT.md §7](INPUT.md#7-profiles-and-presets)). Gap: the track editor's own shortcuts can't be rebound yet (D103); every one of them is also a button in its panel. |
 | Hold or toggle | Every hold action can be a toggle: throttle, brake, handbrake, look back, free look, throw back, scoreboard |
 | One-handed presets | Controller left-hand, controller right-hand and one-hand keyboard, in `data/input_presets/` |
 | Analog tuning | Deadzones, curves and sensitivity on every axis. Smoothing turns digital inputs (keys, switches) into steady analog values. |
@@ -86,6 +86,14 @@ The first-boot screen includes a short photosensitivity notice.
 | Adaptive controllers | The Xbox Adaptive Controller and similar devices show up as standard controllers. Switches can be bound to any action. |
 | Menus | Fully usable with directions, confirm and cancel only. A mouse is never required. Repeat delay and rate are adjustable. |
 | No mashing, no timers | No action needs rapid repeated presses. Menus never time out. |
+
+### 5.1b Track editor (M6)
+
+The editor works with a mouse, the keyboard alone, or a controller (D95):
+- **Crosshair:** with keys or a controller the view works round a crosshair in its middle (move, turn, zoom). Grabbing and dropping is a toggle, never a hold, and brushes are switched on and off ("Brush on").
+- **Everything is also in the panel:** every view action has a button ("Add point at cursor", "Start at cursor", "Place at cursor", Previous and Next, Delete), and every value a field. Tab, F6 or B moves between the view and the panel.
+- **Spoken status:** what each action did ("Point 4 picked up", "Undone: Move point", "Not a road surface") goes to a status line read out politely; the Check tab says how many problems there are, and each problem is a button that shows where it is.
+- **Colour is never alone:** points, pins, the AI line and grid boxes are told apart by shape and label as well as colour.
 
 ### 5.2 Driving assists for access
 
@@ -137,7 +145,7 @@ Each new local player who joins (press-to-join, [INPUT.md §3](INPUT.md#3-joinin
 - **Every milestone:** the main flow works with controller only and with keyboard only.
 - **From M4:** the main flow (boot → race → results) works with a screen reader.
 - **Colorblind check:** a test simulates each palette's colour vision (Machado 2009) and requires the colours that must differ to stay apart (CIE76 ΔE ≥ 20). For review, `tools/cvd_shots.gd` turns screenshots (taken with a display; headless can't render) into deuteranopia, protanopia and tritanopia versions.
-- **Screen reader:** `tools/a11y_check.py` walks boot → race → results over AT-SPI in a private session (accessible names, focus on every screen). From M5 it also walks Online → Host → lobby.
+- **Screen reader:** `tools/a11y_check.py` walks boot → race → results over AT-SPI in a private session (accessible names, focus on every screen). From M5 it also walks Online → Host → lobby, and from M6 the track editor: every tool, a new oval's race setup and checks, and out (`--editor-only` for just that). The test drive and back are covered by unit tests: AT-SPI can't send the driving keys here.
 - **Flash check:** with Reduce flashing on, police lights (M7) and kart items (M8) stay at or under 3 flashes per second.
 - **Feedback:** once the GitHub repo exists, issues get an `accessibility` label.
 

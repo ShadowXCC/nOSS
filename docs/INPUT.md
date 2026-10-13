@@ -15,7 +15,7 @@ Each local player has their own set of actions:
 | View | `camera_next`, `look_left`, `look_right`, `look_back`, `free_look` (mouse or right stick) |
 | Car | `horn`, `lights`, `reset_car`, `hotswap_menu` |
 | Kart | `use_item`, `throw_back` (hold), `drift` |
-| UI | `pause`, `chat`, `scoreboard`, `confirm`, `cancel` |
+| UI | `pause`, `chat`, `scoreboard`, `confirm`, `cancel`, `editor_back` (a test drive back to the track editor, M6) |
 
 **Defaults** come from presets (§7); every action, menus included, can be rebound per player on every device.
 
@@ -30,10 +30,13 @@ Each local player has their own set of actions:
 | Reset car | R | R | ] | View |
 | Change car | Tab | Tab | [ | D-pad up |
 | Pause | Esc | Esc | Backspace | Start |
+| Back to editor (test drives) | F5 | F5 | F8 | D-pad down |
 | Menu confirm, back | Enter or Space, Esc or Backspace | Space or F, Esc or G | Enter, Backspace | A, B |
 | Frame rate | F3 (any keyboard) | | | — |
 
-One-handed controller layouts (`pad_left_hand`, `pad_right_hand`) put driving on one half of the pad; reset and change car are then in the pause menu.
+One-handed controller layouts (`pad_left_hand`, `pad_right_hand`) put driving on one half of the pad; reset, change car and back to editor are then in the pause menu.
+
+The **track editor** has its own controls for its view (mouse, keyboard or controller with a crosshair; [TRACK_EDITOR.md §2](TRACK_EDITOR.md#2-editor-tools)). They can't be rebound yet (D103).
 
 ## 2. Input sources
 

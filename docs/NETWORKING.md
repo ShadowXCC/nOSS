@@ -18,6 +18,7 @@ Both run identical server code (`NetServer` for connections, `NetHost` for the l
 ## 2. Transport
 
 - **ENet** (UDP) through Godot's `ENetMultiplayerPeer`, polled by our own `SceneMultiplayer`. Default port **UDP 47800**, configurable (D83).
+- **Protocol version 2** (M6: the track travels by hash, D98). A client and server must match it and the game version ("Version mismatch").
 - **No RPCs** (D78). Every message is raw bytes (`send_bytes`): one type byte, then either a `var_to_bytes` Dictionary (control messages; never objects; size-checked before decoding, field-checked after) or a packed binary layout (car states, race state, content).
 - **Channels:**
 
@@ -48,10 +49,11 @@ Both run identical server code (`NetServer` for connections, `NetHost` for the l
 
 ```
 connect ─► join checks (versions, key, password, bans, room)
-        ─► lobby: everyone's players, class, event, chat; each player picks a car, Ready
+        ─► lobby: everyone's players, track (by hash), class, event, chat; each player picks a car
+        ─► a client without the track gets it first ("Getting track 40%"); then Ready
         ─► the server fetches each picked car from its owner (§7); clients fetch everyone's
         ─► start (host, admin /start, or the dedicated server once all are ready)
-        ─► SESSION: track, class (and its hash), event, rules, roster in grid order
+        ─► SESSION: track (hash, id, name, size), class (and its hash), event, rules, roster in grid order
         ─► each game builds its session: its own players drive, every other car is remote
         ─► races: the server runs the event, clients follow (§6); results; next session
         ─► back to the lobby (host, last session over, or everyone gone)
@@ -94,25 +96,27 @@ connect ─► join checks (versions, key, password, bans, room)
 *Requirements: MP-05, PLT-09, AV-06. D80.*
 
 - **Everything is addressed by content hash:** cars (with their engine sounds), tracks, platforms. A car's hash is its manifest's; each file is checked against the manifest's hash for it.
-- **Cache:** `user://cache/content/` — `cars/<hex>/` (an unpacked package, filled file by file), `platforms/<hex>.json`, `tracks/<hex>.json`, `tmp/` (files being written, and partial downloads to resume). Files are renamed into place, so several games can share one cache. Content is never downloaded twice.
+- **Cache:** `user://cache/content/` — `cars/<hex>/` and `tracks/<hex>/` (unpacked packages, filled file by file; a track is used once it's whole), `platforms/<hex>.json`, `hosted/` (a server's bare `track.json` made into a package so it can be sent), `tmp/` (files being written, and partial downloads to resume). Files are renamed into place, so several games can share one cache. Content is never downloaded twice.
 - **Transfer** (`NetTransfer`): a file is asked for by hash; the sender compresses it with zstd and offers it (size, compressed size, chunk size); 4 KB chunks go as unreliable packets, acked with the next missing chunk plus each chunk just received; lost chunks (48 later sends acked, or a timeout) are sent again. The rate grows while the round trip stays near its best and holds or drains when a queue builds, so car states always get through (NFR-05). About one round trip of data is in flight. Limits per server: 2 MB/s per file, 8 MB/s per client (configurable). A broken transfer resumes from what's in `tmp/`.
+  - Acks are unreliable too. A receiver acks a file it has finished again if its chunks still come (the sender missed the last ack), and a sender that hears nothing for 15 s stops; the receiver asks again if it still wants the file (D104). Before this, a lost last ack kept the sender resending for ever and held its rate at the floor.
   - Reliable ENet was measured and ruled out: its 64 KB window caps a transfer at about 0.4 MB/s at 150 ms.
 - **Order and placeholders:**
-  1. **Track and platforms** must arrive before the session starts (a server's own platform travels by hash; tracks from servers arrive with the editor in M6).
+  1. **Track and platforms** must arrive before the session starts. A track goes whole (manifest, then every file it lists, ahead of any car), checked file by file, into the cache, where the game finds it by hash. Ready waits for it; a session that starts meanwhile waits too. A server's own platform travels by hash.
   2. **Cars** stream in tiers, each tier for every car before the next: data (manifest, `fit.json`, `paint.json`, `sound/profile.json`), then each car's smallest LOD, then the rest, then own recordings if the server allows them.
   3. Until a car arrives it's the class's built-in car in the player's colour; with its data, a box its size on stock wheels (the right collision hull from the first second); then its smallest LOD; then the full model.
-- **Server caps** (MP-06): max package size (the files' total; a car over it stays a placeholder, "Car too large for this server"), own sound recordings on/off (tuned built-in sounds always play), custom platforms on/off.
-- **Personal-use cars stay offline** (Requirements §6). A package marked `personal-use-only` (the FM4 converter's) isn't listed in the online car picker ("Personal-use cars stay offline"), is never an AI car and is never sent, even if asked for. Dev only: `--share-personal` lets a server send them to its own bots on the same PC (`tools/net_check.py --fresh`).
+- **Server caps** (MP-06): max package size (the files' total; a car over it stays a placeholder, "Car too large for this server"), max track size (`caps.max_track_mb`, up to 100; a bigger track in the rotation gives way to the Proving Ground, "Track too large" in the log), own sound recordings on/off (tuned built-in sounds always play), custom platforms on/off. A client refuses a track over 100 MB ("Track too large").
+- **Personal-use cars and tracks stay offline** (Requirements §6). A package marked `personal-use-only` (the FM4 converter's) isn't listed in the online car picker ("Personal-use cars stay offline"), is never an AI car and is never sent, even if asked for. A personal-use track isn't offered in the Host menu, and a server given one runs the Proving Ground instead ("Personal-use tracks stay offline"). Dev only: `--share-personal` lets a server send them to its own bots on the same PC (`tools/net_check.py --fresh`).
 - **The host relays.** It fetches each player's car from its owner as soon as it's picked and sends it on, so clients never connect to each other.
+- Measured (M6): a fresh bot got a 3 km editor track (terrain, 1500 trees; 0.1 MB) in about 0.15 s on one PC, then 4 garage cars whole in 14 s (`tools/track_check.sh`).
 - Measured (acceptance 2, one PC): a fresh bot fetched 11 real cars (8 FM4 rips of 13–18 MB, sent to the bot with `--share-personal`, and 3 small CC0 cars) through a simulated 50 Mbit link: all as previews in 2.5 s and whole in 22.7 s at 20 ms; 3.3 s and 25.0 s at 150 ms.
 
 ## 8. Rules, cheating and fairness
 
-- **Server rules** (MP-06): the event rotation (track, class, event), allowed assists (narrowing the platform's and mode's), setups allowed or locked, normal or strict fitting, car swaps (outside races, never or always), collisions and track limits (per event), package size cap, own recordings, custom platforms.
+- **Server rules** (MP-06): the event rotation (track: an id, a `.nosstrack`, a track folder or a `track.json`; class; event), allowed assists (narrowing the platform's and mode's), setups allowed or locked, normal or strict fitting, car swaps (outside races, never or always), collisions and track limits (per event), package size cap, own recordings, custom platforms.
 - **Platform data comes from the server**, identified by hash. An official class must be the same file as the client's; a server's own platform is sent and used from the cache (never as `official.*`).
 - **Plausibility checks** (D87, `Plausibility`) on every remote car's states:
   - speed above the platform's top speed (peak power against drag) plus 15% and 8 m/s
-  - acceleration beyond 45 m/s², away from contacts and resets
+  - acceleration along the ground beyond 45 m/s², away from contacts and resets (landing off a crest or a kerb's knock is up and down, so it doesn't count, D104)
   - moving further between states than its speed allows (a teleport not marked as a reset)
   - a reset that jumps more than 40 m ahead along the track
   - states stamped more than 0.5 s ahead of the server's clock or 5 s behind
