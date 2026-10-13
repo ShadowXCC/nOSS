@@ -72,12 +72,12 @@ static func load_shared(path: String, on_done: Callable, opts := {}) -> void:
 	var key := path + "|" + String(opts.get("models", "all")) + ("|partial" if opts.get("partial", false) else "")
 	var entry: Variant = _shared.get(key)
 	if entry is VehiclePackage:
-		var copy := _copy(entry)
+		var pkg_copy := copy(entry)
 		(func() -> void:
 			if WorkerJob.alive(on_done):
-				on_done.call(copy)
+				on_done.call(pkg_copy)
 			else:
-				copy.free_scenes()).call_deferred()
+				pkg_copy.free_scenes()).call_deferred()
 		return
 	if entry is Array:
 		entry.append(on_done)
@@ -94,7 +94,7 @@ static func load_shared(path: String, on_done: Callable, opts := {}) -> void:
 			_shared.erase(key)
 		for callback: Callable in waiting:
 			if WorkerJob.alive(callback):
-				callback.call(_copy(pkg) if pkg.ok() else pkg), {}, opts)
+				callback.call(copy(pkg) if pkg.ok() else pkg), {}, opts)
 
 
 ## Frees the cached packages' scenes (copies already handed out stay).
@@ -105,7 +105,8 @@ static func clear_shared() -> void:
 	_shared.clear()
 
 
-static func _copy(pkg: VehiclePackage) -> VehiclePackage:
+## A copy that shares meshes and textures but has its own model scenes (one per car on screen).
+static func copy(pkg: VehiclePackage) -> VehiclePackage:
 	var c := VehiclePackage.new()
 	c.path = pkg.path
 	c.hash = pkg.hash
