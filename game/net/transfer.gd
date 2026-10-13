@@ -9,6 +9,9 @@ extends RefCounted
 ## while the link keeps up, and falls back on loss or when the round trip grows (a queue
 ## building), so car states always get through. The receiver keeps what it has in tmp/ and asks
 ## to resume from there after a break. A finished file is checked against its hash before use.
+## Acks are unreliable too: a sender that missed the last one resends, and the receiver acks a
+## file it has finished again; a sender that hears nothing for STALL_S stops (the receiver asks
+## again if it still wants the file).
 
 signal received(h: String, bytes: PackedByteArray)
 signal failed(h: String, reason: String)
@@ -77,6 +80,7 @@ var _early_count := 0
 var _order := 0
 # Sending
 var _out := {} # xfer -> Out
+var _finished := {} # xfer -> [chunks, when]: files received lately, acked again if chunks still come
 var _preparing := {} # hash -> [requests waiting for compression]
 var _held: Array[Dictionary] = [] # {hash, from, at}
 var _tokens := 0.0
@@ -132,6 +136,8 @@ class Out:
 	## Every chunk below this is acked.
 	var base := 0
 	var tokens := 0.0
+	## When an ack last came (or the offer went).
+	var heard := 0.0
 
 	func in_flight() -> int:
 		return outstanding
@@ -315,6 +321,7 @@ func _on_offer(d: Dictionary) -> void:
 	if d.chunk < 256 or d.chunk > MAX_CHUNK:
 		_give_up(d.hash, "Bad offer")
 		return
+	_finished.erase(d.xfer) # the number's come round again
 	var t := In.new()
 	t.xfer = d.xfer
 	t.hash = d.hash
@@ -357,6 +364,9 @@ func _on_chunk(bytes: PackedByteArray) -> void:
 	var i := int(bytes.decode_u32(3))
 	var t: In = _in.get(x)
 	if t == null:
+		if _finished.has(x):
+			_send_final_ack_x(x, int(_finished[x][0])) # its sender missed the last ack
+			return
 		if not _asked.is_empty() and _early_count < MAX_EARLY:
 			if not _early.has(x):
 				_early[x] = []
@@ -408,6 +418,7 @@ func _send_acks() -> void:
 
 func _finish(t: In) -> void:
 	_in.erase(t.xfer)
+	_finished[t.xfer] = [t.chunks, _now]
 	_send_final_ack(t)
 	t.file.close()
 	t.file = null
@@ -423,9 +434,13 @@ func _finish(t: In) -> void:
 
 
 func _send_final_ack(t: In) -> void:
+	_send_final_ack_x(t.xfer, t.chunks)
+
+
+func _send_final_ack_x(x: int, chunks: int) -> void:
 	var p := PackedByteArray([MSG_ACK, 0, 0, 0, 0, 0, 0, 0])
-	p.encode_u16(1, t.xfer)
-	p.encode_u32(3, t.chunks)
+	p.encode_u16(1, x)
+	p.encode_u32(3, chunks)
 	send_raw.call(p)
 
 
@@ -440,6 +455,12 @@ func _done(h: String, bytes: PackedByteArray, ok: bool) -> void:
 
 
 func _check_stalls() -> void:
+	for x: int in _finished.keys():
+		if _now - float(_finished[x][1]) > STALL_S * 4.0:
+			_finished.erase(x)
+	for x: int in _out.keys():
+		if _now - (_out[x] as Out).heard > STALL_S:
+			_out.erase(x) # the receiver's gone quiet: it asks again if it still wants the file
 	for h: String in _asked.keys():
 		var ask: Dictionary = _asked[h]
 		var t: In = null
@@ -517,6 +538,7 @@ func _prepared(h: String, packed: PackedByteArray, size: int) -> void:
 func _offer(h: String, blob: Dictionary, from_bytes: int) -> void:
 	var o := Out.new()
 	o.xfer = _next_xfer
+	o.heard = _now
 	_next_xfer = _next_xfer % 65535 + 1
 	o.hash = h
 	o.data = blob.data
@@ -562,6 +584,7 @@ func _on_ack(bytes: PackedByteArray) -> void:
 	var o: Out = _out.get(x)
 	if o == null:
 		return
+	o.heard = _now
 	var cum := mini(int(bytes.decode_u32(3)), o.chunks)
 	var n := bytes[7] if bytes.size() > 7 else 0
 	if bytes.size() < 8 + n * 4:

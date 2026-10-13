@@ -39,6 +39,14 @@ func test_plausibility() -> void:
 		t += 1.0 / 30.0
 		pos += Vector3(40.0 / 30.0, 0, 0)
 		assert_array(Array(p.check(_state(t, pos, Vector3(40, 0, 0)), t, track))).is_empty()
+	# Landing off a crest: a jolt up and down is no flag; the same along the ground is.
+	for vel: Vector3 in [Vector3(40, -8, 0), Vector3(40, 0, 0)]:
+		t += 1.0 / 30.0
+		pos += Vector3(40.0 / 30.0, 0, 0)
+		assert_array(Array(p.check(_state(t, pos, vel), t, track))).is_empty()
+	t += 1.0 / 30.0
+	pos += Vector3(40.0 / 30.0, 0, 0)
+	assert_array(Array(p.check(_state(t, pos, Vector3(50, 0, 0)), t, track))).contains(["acceleration"])
 	# Too fast, too far, wrong clock.
 	assert_array(Array(p.check(_state(t + 0.033, pos + Vector3(1.3, 0, 0), Vector3(200, 0, 0)), t + 0.033, track))).contains(["speed"])
 	assert_array(Array(p.check(_state(t + 0.066, pos + Vector3(60, 0, 0), Vector3(40, 0, 0)), t + 0.066, track))).contains(["teleport"])

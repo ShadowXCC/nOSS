@@ -3,7 +3,8 @@ extends RefCounted
 ## The server's checks on a remote car's states (docs/NETWORKING.md §8, D87). nOSS is open source,
 ## so a determined cheater can change their game; these make cheating hard and visible:
 ## - speed above the platform's top speed (power against drag) plus a margin
-## - acceleration no car could do, away from contacts and resets
+## - acceleration no car could do, away from contacts and resets (along the ground: landing off a
+##   crest or a kerb's knock is up and down, a speed cheat isn't)
 ## - moving further between two states than its speed allows (a teleport not marked as a reset)
 ## - a reset that jumps ahead along the track
 ## - states stamped far from the server's clock
@@ -64,7 +65,8 @@ func check(s: CarState, now: float, track: TrackData, contact := false) -> Packe
 		var could := maxf(_last.velocity.length(), s.velocity.length()) * dt + JUMP_SLACK_M
 		if moved > could and s.flags & CarState.FLAG_WAITING == 0:
 			out.append("teleport")
-		if dt > 0.01 and now >= _grace_until and (s.velocity - _last.velocity).length() / dt > MAX_ACCEL:
+		var dv := s.velocity - _last.velocity
+		if dt > 0.01 and now >= _grace_until and Vector2(dv.x, dv.z).length() / dt > MAX_ACCEL:
 			out.append("acceleration")
 	_last = s
 	return out

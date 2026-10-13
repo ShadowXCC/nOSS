@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Runs every test suite: native (doctest), JSON schemas, tools (unittest), GDScript (gdUnit4, headless),
-# platform conformance, a short AI race check, a short online check, boot smoke test.
+# platform conformance, a short AI race check, a short online check, the track editor's 3 km
+# acceptance build (raced and sent online), boot smoke test.
 # Exits non-zero if any fails. Run tools/setup_dev.sh once first.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -41,6 +42,9 @@ tools/race_check.sh --cars=12 --laps=1 --seed=1 --builtin --bad=stall | grep -E 
 
 step "Online check (3 bots and an AI car race a lap, 150 ms)"
 .venv/bin/python tools/net_check.py --clients 3 --event race --laps 1 --ai 1 --rtt 150 --jitter 10 --loss 1 | grep -E "^(net_check|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("net check")
+
+step "Track check (3 km track: built in the editor, raced, sent online)"
+tools/track_check.sh | grep -E "^(track_check|Race|Time|net_check|bot00 got|fresh|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("track check")
 
 step "Godot: boot"
 boot_log="$($GODOT --headless --quit-after 30 2>&1)"

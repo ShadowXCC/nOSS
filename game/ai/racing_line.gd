@@ -24,6 +24,9 @@ const POWER_SHARE := 0.82
 ## Braking uses this share of the grip (ABS works around the peak).
 const BRAKE_SHARE := 0.9
 const ROLLING := 0.012
+## Over a crest the line keeps this much of the car's weight on its tires (lifting for it, as a
+## driver does), instead of taking off.
+const CREST_LOAD := 0.75
 
 ## Lines solved lately (track layout -> RacingLine), oldest first.
 static var _cache := {}
@@ -177,6 +180,8 @@ func _profile_3d(mu: float, downforce: float, drag: float, power: float, driven:
 		var denom := k * (c - mu * s) - mu * downforce
 		var num := GRAVITY * (mu * c + s)
 		v[i] = MAX_SPEED if denom <= 1e-6 or num <= 0.0 else minf(sqrt(num / denom), MAX_SPEED)
+		if crest[i] > 1e-5: # over a crest, slow enough that the tires keep some load
+			v[i] = minf(v[i], sqrt(GRAVITY * cos(atan(grade[i])) * CREST_LOAD / crest[i]))
 	var slowest := 0
 	for i in n:
 		if v[i] < v[slowest]:

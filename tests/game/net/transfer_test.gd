@@ -103,6 +103,40 @@ func test_files_arrive_whole() -> void:
 	assert_bool(await _run(link, func() -> bool: return not ends[0].busy() and not ends[1].busy(), 1.0)).is_true()
 
 
+## A finished file's last ack is lost: the sender resends, the receiver acks it again, and the
+## sender lets go (rather than resending it for ever and holding its rate down).
+func test_a_lost_last_ack_is_sent_again() -> void:
+	var ends := _ends()
+	var f := _file("small.bin", 3000)
+	ends[0].index.add_file(f.path)
+	var link := Link.new(ends[0], ends[1])
+	var dropped := [0]
+	var send: Callable = ends[1].send_raw
+	ends[1].send_raw = func(bytes: PackedByteArray) -> void:
+		if bytes[0] == NetTransfer.MSG_ACK and bytes.size() == 8 and dropped[0] == 0:
+			dropped[0] += 1 # the "all here" ack
+			return
+		send.call(bytes)
+	var res := _collect(ends[1])
+	ends[1].want(f.hash)
+	assert_bool(await _run(link, func() -> bool: return res.got.has(f.hash))).is_true()
+	assert_int(dropped[0]).is_equal(1)
+	assert_bool(ends[0].busy()).is_true()
+	assert_bool(await _run(link, func() -> bool: return not ends[0].busy(), 3.0)).is_true()
+
+
+## The receiver goes quiet mid-file: the sender stops after a while.
+func test_a_sender_stops_when_nobody_answers() -> void:
+	var ends := _ends()
+	var f := _file("big.bin", 2_000_000)
+	ends[0].index.add_file(f.path)
+	var link := Link.new(ends[0], ends[1])
+	ends[1].want(f.hash)
+	assert_bool(await _run(link, func() -> bool: return not ends[0]._out.is_empty())).is_true()
+	link.cut = true
+	assert_bool(await _run(link, func() -> bool: return ends[0]._out.is_empty(), NetTransfer.STALL_S + 2.0)).is_true()
+
+
 func test_loss_reordering_and_delay() -> void:
 	var ends := _ends()
 	var f := _file("lossy.bin", 400_000)

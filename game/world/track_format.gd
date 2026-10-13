@@ -157,5 +157,7 @@ static func layout_hash(d: Dictionary) -> String:
 	var race: Dictionary = d.get("race", {}).duplicate(true)
 	if race.get("ai") is Dictionary:
 		(race.ai as Dictionary).erase("pins")
-	var key := PackageWriter.canonical_json({ "road": d.get("road", {}), "race": race })
+	# Through JSON first: numbers come back as floats, as they do from a file, so a draft (16) and
+	# its saved track (16.0) hash the same.
+	var key := PackageWriter.canonical_json(JSON.parse_string(JSON.stringify({ "road": d.get("road", {}), "race": race })))
 	return "sha256:" + PlatformLoader.sha256_hex(key.to_utf8_buffer())
