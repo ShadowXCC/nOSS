@@ -60,3 +60,40 @@ func test_undo_goes_through_the_history_and_outlives_the_screen() -> void:
 	assert_str(d.undo()).is_equal("Add point")
 	again.queue_free()
 	await get_tree().process_frame
+
+
+## Every slider and spinner on every tool's panel can be changed (a point and a prop selected):
+## a callback that takes its arguments the wrong way round fails here as a script error.
+func test_every_value_control_works() -> void:
+	var d := TrackTemplates.make("oval")
+	d.add_prop({ "prop": "tent", "p": [0.0, 0.0, 0.0], "yaw_deg": 0.0, "scale": 1.0, "ground": true })
+	var e := _editor(d)
+	await get_tree().process_frame
+	for title: String in e.tools:
+		e.show_tool(title)
+		if title == "Road":
+			e.tool.call("_select", 0)
+		elif title == "Props":
+			e.tool.call("_select", 0)
+		await get_tree().process_frame
+		var controls: Array = e._content.find_children("*", "Control", true, false)
+		for c: Control in controls:
+			if not is_instance_valid(c) or not c.is_inside_tree():
+				continue # the panel came again after an earlier change
+			if c is Range:
+				var r := c as Range
+				r.value = r.min_value + (r.max_value - r.min_value) * 0.6
+			elif c is Button and c.has_node(^"Row"):
+				(c as Button).pressed.emit()
+		await get_tree().process_frame
+	# A road width set from its field reaches the point.
+	e.show_tool("Road")
+	e.tool.call("_select", 0)
+	await get_tree().process_frame
+	for c in e._content.find_children("*", "HSlider", true, false):
+		if String((c as HSlider).accessibility_name) == "Width left":
+			(c as HSlider).value = 8.0
+			break
+	assert_float(float(TrackFormat.attr(d.layout.road, 0, "width_l"))).is_equal(8.0)
+	e.queue_free()
+	await get_tree().process_frame

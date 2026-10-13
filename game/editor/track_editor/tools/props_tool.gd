@@ -272,8 +272,8 @@ func _item_rows() -> Array:
 	var p: Array = item.p
 	out.append(UiKit.number("X", float(p[0]), -20000.0, 20000.0, 0.5, "%.1f m", func(v: float) -> void: change.call("p", [v, p[1], p[2]])))
 	out.append(UiKit.number("Z", float(p[2]), -20000.0, 20000.0, 0.5, "%.1f m", func(v: float) -> void: change.call("p", [p[0], p[1], v])))
-	out.append(UiKit.number("Turn", float(item.get("yaw_deg", 0.0)), -180.0, 180.0, 5.0, "%.0f°", change.bind("yaw_deg")))
-	out.append(UiKit.number("Scale", float(item.get("scale", 1.0)), 0.25, 5.0, 0.05, "%.2f×", change.bind("scale")))
+	out.append(UiKit.number("Turn", float(item.get("yaw_deg", 0.0)), -180.0, 180.0, 5.0, "%.0f°", func(v: float) -> void: change.call("yaw_deg", v)))
+	out.append(UiKit.number("Scale", float(item.get("scale", 1.0)), 0.25, 5.0, 0.05, "%.2f×", func(v: float) -> void: change.call("scale", v)))
 	if t.has("size"):
 		var size: Array = item.get("size", t.size)
 		out.append(UiKit.number("Size", float(size[2]), 4.0, 400.0, 1.0, "%.0f m", func(v: float) -> void: change.call("size", [size[0], size[1], v]),

@@ -293,7 +293,8 @@ func panel() -> Array:
 ## its segment (surface, lines, curbs, barriers, run-off).
 func _attr_rows(idx: PackedInt32Array, i: int, point: bool, widths_only := false) -> Array:
 	var road: Dictionary = draft.layout.road
-	var set_attr := func(key: String, v: Variant) -> void: draft.set_attr(idx, key, v)
+	# Bound with its key: a control calls it with the value first, then the key.
+	var set_attr := func(v: Variant, key: String) -> void: draft.set_attr(idx, key, v)
 	var out := []
 	if point:
 		out.append(UiKit.number("Width left", float(TrackFormat.attr(road, i, "width_l")), 2.0, 30.0, 0.5, "%.1f m", set_attr.bind("width_l"), "Centreline to the left edge"))
@@ -323,7 +324,7 @@ func _attr_rows(idx: PackedInt32Array, i: int, point: bool, widths_only := false
 func _defaults(widths_only := false) -> Array:
 	var out := []
 	var d: Dictionary = draft.layout.road.defaults
-	var set_default := func(key: String, v: Variant) -> void: draft.set_default(key, v)
+	var set_default := func(v: Variant, key: String) -> void: draft.set_default(key, v)
 	out.append(UiKit.number("Width left", float(d.get("width_l", 6.0)), 2.0, 30.0, 0.5, "%.1f m", set_default.bind("width_l")))
 	out.append(UiKit.number("Width right", float(d.get("width_r", 6.0)), 2.0, 30.0, 0.5, "%.1f m", set_default.bind("width_r")))
 	if widths_only:

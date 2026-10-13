@@ -188,13 +188,13 @@ func selected_track() -> String:
 ## preloaded track_package goes straight in).
 func open_session(session: TrackSession) -> void:
 	if session.track_package and session.track_package.ok():
-		get_tree().change_scene_to_node(session)
+		_switch(session)
 		return
-	get_tree().change_scene_to_node(LoadingScreen.new())
+	_switch(LoadingScreen.new())
 	TrackLoader.load_async(self, session.track_path, func(pkg: TrackPackage) -> void:
 		if pkg.ok():
 			session.track_package = pkg
-		get_tree().change_scene_to_node(session))
+		_switch(session))
 
 
 ## `solo`: only P1 drives (garage and Fitting Bay); otherwise every joined player. `track`: a
@@ -267,7 +267,7 @@ func start_online_session(data: Dictionary) -> void:
 		go_title()
 		return
 	get_tree().paused = false
-	get_tree().change_scene_to_node(session)
+	_switch(session)
 
 
 ## The session waiting for its track (start_online_session), or {}.
@@ -325,7 +325,7 @@ func online_session(data: Dictionary) -> TrackSession:
 
 ## The dedicated server: no title, no players of its own.
 func start_server() -> void:
-	get_tree().change_scene_to_node(ServerMain.new())
+	_switch(ServerMain.new())
 
 
 func _on_online_session_ended() -> void:
@@ -342,7 +342,7 @@ func _on_net_cut_off(reason: String) -> void:
 
 func open_garage() -> void:
 	get_tree().paused = false
-	get_tree().change_scene_to_node(Garage.new())
+	_switch(Garage.new())
 
 
 func open_fitting_bay(import_path := "", step := "") -> void:
@@ -354,7 +354,7 @@ func open_fitting_bay(import_path := "", step := "") -> void:
 		import_path = import_path if import_path else String(dev.get("import", ""))
 		bay.auto = dev.has("bay-auto")
 	bay.import_path = import_path
-	get_tree().change_scene_to_node(bay)
+	_switch(bay)
 
 
 ## The track editor: on the draft being edited (back from a test drive), a track (a path), a
@@ -367,7 +367,7 @@ func open_track_editor(track := "", template := "") -> void:
 			track_draft = TrackDraft.from_package(pkg)
 	elif template:
 		track_draft = TrackTemplates.make(template)
-	get_tree().change_scene_to_node(TrackEditor.new())
+	_switch(TrackEditor.new())
 
 
 ## Drives the editor's draft as it is: P1 alone in their last car and class, from `at` (a
@@ -394,7 +394,7 @@ func test_drive_session(draft: TrackDraft, at: Variant = null) -> TrackSession:
 ## Back from a test drive: the editor on the same draft, as it was left.
 func return_to_editor() -> void:
 	get_tree().paused = false
-	get_tree().change_scene_to_node(TrackEditor.new())
+	_switch(TrackEditor.new())
 
 
 ## Dev: --editor (--editor-track, --editor-template, --editor-import).
@@ -403,9 +403,15 @@ func open_dev_editor() -> void:
 	open_track_editor(track, String(dev.get("editor-template", "")))
 
 
+## Changes the running scene once this frame's input and signals are done: a menu button that
+## starts something mustn't pull its own screen out from under the press it's handling.
+func _switch(scene: Node) -> void:
+	get_tree().change_scene_to_node.call_deferred(scene)
+
+
 func go_title() -> void:
 	get_tree().paused = false
-	get_tree().change_scene_to_file(TITLE)
+	get_tree().change_scene_to_file.call_deferred(TITLE)
 
 
 func _exit_tree() -> void:

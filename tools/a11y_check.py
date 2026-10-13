@@ -141,12 +141,19 @@ def check_screen(label, settle=8.0):
         s = states(n)
         if s is None or not s.contains(Atspi.StateType.SHOWING):
             continue
-        role = n.get_role_name()
+        try:
+            role = n.get_role_name()
+        except Exception:  # gone while we looked (a panel being rebuilt)
+            continue
         if s.contains(Atspi.StateType.FOCUSED):
             focused = n
         if s.contains(Atspi.StateType.FOCUSABLE) and role not in ("frame", "application", "section", "panel", "filler"):
             count += 1
-            if not (n.get_name() or "").strip():
+            try:
+                name = n.get_name() or ""
+            except Exception:
+                continue
+            if not name.strip():
                 unnamed.append(role)
     if unnamed:
         problems.append(f"{label}: {len(unnamed)} unnamed control(s): {', '.join(sorted(set(unnamed)))}")
@@ -156,6 +163,9 @@ def check_screen(label, settle=8.0):
             if st is not None and st.contains(Atspi.StateType.FOCUSED):
                 log(f"    focused but not showing: {n.get_role_name()} '{n.get_name()}' states {[s.value_nick for s in st.get_states()]}")
     focus_text = f"'{focused.get_name()}' ({focused.get_role_name()})" if focused is not None else "nothing"
+    if focused is None and not any(states(n) is not None and states(n).contains(Atspi.StateType.ACTIVE)
+                                   for n in walk(a) if n.get_role_name() == "frame"):
+        focus_text += " (the game's window isn't active: another window has the keyboard)"
     if focused is None or focused.get_role_name() in ("frame", "section"):
         problems.append(f"{label}: focus is on {focus_text}")
     log(f"  {label}: {count} focusable controls, focus on {focus_text}")

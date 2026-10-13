@@ -82,6 +82,8 @@ static func push_action(viewport: Viewport, action: String) -> void:
 	if c and viewport.gui_get_focus_owner() != c:
 		c.grab_focus()
 	for pressed in [true, false]:
+		if not viewport.is_inside_tree():
+			return # the press closed this screen
 		var e := InputEventAction.new()
 		e.action = action
 		e.pressed = pressed
