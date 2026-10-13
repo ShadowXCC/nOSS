@@ -11,20 +11,21 @@ const DEFAULT := "res://content/tracks/proving_ground"
 const PERSONAL := "personal-use-only"
 
 
-## [{path, id, name, author, license, length_m, kind, builtin, hash}], built-ins first, then the
-## player's by name. Without `include_user`: built-ins only (bots).
-static func list(include_user := true, include_personal := true) -> Array[Dictionary]:
+## [{path, id, name, author, license, length_m, kind, type, builtin, hash}], built-ins first, then
+## the player's by name. Without `include_user`: built-ins only (bots). With `type`, only tracks of
+## that type ("circuit", "highway").
+static func list(include_user := true, include_personal := true, type := "") -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for dir in DirAccess.get_directories_at(BUILTIN_DIR):
 		var e := entry(BUILTIN_DIR + dir)
-		if not e.is_empty():
+		if not e.is_empty() and (type.is_empty() or e.type == type):
 			out.append(e)
 	if include_user and DirAccess.dir_exists_absolute(user_dir):
 		var mine: Array[Dictionary] = []
 		for file in DirAccess.get_files_at(user_dir):
 			if file.ends_with(".nosstrack"):
 				var e := entry(user_dir.path_join(file))
-				if not e.is_empty() and (include_personal or e.license != PERSONAL):
+				if not e.is_empty() and (include_personal or e.license != PERSONAL) and (type.is_empty() or e.type == type):
 					mine.append(e)
 		mine.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return String(a.name).naturalnocasecmp_to(String(b.name)) < 0)
 		out.append_array(mine)
@@ -39,7 +40,7 @@ static func entry(path: String) -> Dictionary:
 	return {
 		"path": path, "id": String(m.get("id", "")), "name": String(m.get("name", path.get_file())),
 		"author": String(m.get("author", "")), "license": String(m.get("license", "")),
-		"length_m": float(m.get("length_m", 0.0)), "kind": String(m.get("kind", "road")),
+		"length_m": float(m.get("length_m", 0.0)), "kind": String(m.get("kind", "road")), "type": String(m.get("type", "circuit")),
 		"builtin": path.begins_with("res://"), "hash": manifest_hash(path),
 	}
 

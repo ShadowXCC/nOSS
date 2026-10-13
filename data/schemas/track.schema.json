@@ -12,7 +12,7 @@
     "name": { "type": "string", "minLength": 1, "maxLength": 64 },
     "author": { "type": "string", "maxLength": 64 },
     "license": { "type": "string", "maxLength": 64 },
-    "type": { "enum": ["circuit"] },
+    "type": { "enum": ["circuit", "highway"] },
     "style": { "type": "string", "pattern": "^[a-z0-9_]+$", "maxLength": 32 },
     "road": {
       "type": "object",
@@ -74,6 +74,125 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "highway": {
+      "description": "A highway's carriageways, ramps, portals, runs and traffic (type highway; docs/TRACK_EDITOR.md §1, D106). The road is the median's centreline; direction 1 drives along it on its right, -1 the other way.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "drive": { "enum": ["right"] },
+        "lanes": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "lane_m": { "type": "number", "minimum": 2.5, "maximum": 5 },
+        "median_m": { "type": "number", "minimum": 0.5, "maximum": 40 },
+        "shoulder_in_m": { "type": "number", "minimum": 0, "maximum": 5 },
+        "shoulder_out_m": { "type": "number", "minimum": 0, "maximum": 6 },
+        "median_barrier": { "enum": ["none", "concrete", "armco", "fence"] },
+        "speed_kmh": { "$ref": "#/$defs/speed" },
+        "zones": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["from_m", "to_m"],
+            "properties": {
+              "dir": { "enum": [-1, 0, 1] },
+              "from_m": { "$ref": "#/$defs/distance" },
+              "to_m": { "$ref": "#/$defs/distance" },
+              "speed_kmh": { "$ref": "#/$defs/speed" },
+              "tunnel": { "type": "boolean" },
+              "name": { "$ref": "#/$defs/label" }
+            }
+          }
+        },
+        "ramps": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "kind", "from", "to"],
+            "properties": {
+              "id": { "$ref": "#/$defs/id" },
+              "name": { "$ref": "#/$defs/label" },
+              "kind": { "enum": ["exit", "entry", "link"] },
+              "from": { "$ref": "#/$defs/ramp_end" },
+              "to": { "$ref": "#/$defs/ramp_end" },
+              "lanes": { "type": "integer", "minimum": 1, "maximum": 2 },
+              "lane_m": { "type": "number", "minimum": 2.5, "maximum": 5 },
+              "taper_m": { "type": "number", "minimum": 40, "maximum": 600 },
+              "speed_kmh": { "$ref": "#/$defs/speed" },
+              "traffic": { "type": "boolean" },
+              "points": {
+                "type": "array",
+                "maxItems": 200,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["p"],
+                  "properties": {
+                    "p": { "$ref": "#/$defs/vec3" },
+                    "height": { "enum": ["ground", "set"] }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "portals": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "p"],
+            "properties": {
+              "id": { "$ref": "#/$defs/id" },
+              "name": { "$ref": "#/$defs/label" },
+              "p": { "$ref": "#/$defs/vec3" },
+              "yaw_deg": { "type": "number", "minimum": -360, "maximum": 360 }
+            }
+          }
+        },
+        "runs": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "dir", "from_m", "to_m"],
+            "properties": {
+              "id": { "$ref": "#/$defs/id" },
+              "name": { "$ref": "#/$defs/label" },
+              "dir": { "enum": [-1, 1] },
+              "from_m": { "$ref": "#/$defs/distance" },
+              "to_m": { "$ref": "#/$defs/distance" }
+            }
+          }
+        },
+        "traps": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["dir", "at_m"],
+            "properties": {
+              "dir": { "enum": [-1, 1] },
+              "at_m": { "$ref": "#/$defs/distance" }
+            }
+          }
+        },
+        "traffic": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "count": { "type": "integer", "minimum": 0, "maximum": 1000 },
+            "exit_share": { "type": "number", "minimum": 0, "maximum": 1 },
+            "seed": { "type": "integer", "minimum": 0, "maximum": 2147483647 }
           }
         }
       }
@@ -152,6 +271,19 @@
     }
   },
   "$defs": {
+    "label": { "type": "string", "maxLength": 48 },
+    "speed": { "type": "number", "minimum": 20, "maximum": 300 },
+    "barrier": { "enum": ["none", "auto", "tyres", "armco", "concrete", "fence", "sound_wall"] },
+    "ramp_end": {
+      "description": "Where a ramp meets the road: a carriageway (dir) at a distance along the road (from: where it starts to leave; to: where it has merged), or a portal.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dir": { "enum": [-1, 1] },
+        "at_m": { "$ref": "#/$defs/distance" },
+        "portal": { "$ref": "#/$defs/id" }
+      }
+    },
     "id": { "type": "string", "pattern": "^[a-z0-9_]+$", "maxLength": 32 },
     "distance": { "type": "number", "minimum": 0, "maximum": 200000 },
     "coord": { "type": "number", "minimum": -100000, "maximum": 100000 },
@@ -180,8 +312,8 @@
         "runoff_r": { "$ref": "#/$defs/surface" },
         "runoff_l_m": { "type": "number", "minimum": 0, "maximum": 200 },
         "runoff_r_m": { "type": "number", "minimum": 0, "maximum": 200 },
-        "barrier_l": { "enum": ["none", "auto", "tyres", "armco", "concrete", "fence"] },
-        "barrier_r": { "enum": ["none", "auto", "tyres", "armco", "concrete", "fence"] }
+        "barrier_l": { "$ref": "#/$defs/barrier" },
+        "barrier_r": { "$ref": "#/$defs/barrier" }
       }
     }
   }

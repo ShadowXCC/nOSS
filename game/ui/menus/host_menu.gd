@@ -29,7 +29,7 @@ func _ready() -> void:
 	if Game.dev.has("port"):
 		config.port = int(Game.dev.port)
 	_kind = config.event(0).kind
-	var tracks := TrackLibrary.list(true, false) # personal-use tracks stay offline
+	var tracks := TrackLibrary.list(true, false, "circuit") # personal-use tracks stay offline
 	var last := TrackLibrary.resolve(String(config.rotation[0].get("track", "")))
 	if tracks.any(func(e: Dictionary) -> bool: return e.path == last):
 		_track = last

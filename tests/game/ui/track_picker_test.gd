@@ -14,6 +14,7 @@ func before() -> void:
 
 func after() -> void:
 	DirAccess.remove_absolute(TrackLibrary.user_dir.path_join("hills.nosstrack"))
+	DirAccess.remove_absolute(TrackLibrary.user_dir.path_join("ring.nosstrack"))
 	Settings.use_folder("user://")
 
 
@@ -52,4 +53,28 @@ func test_the_race_menu_offers_the_tracks() -> void:
 	track_row.gui_input.emit(right)
 	assert_str(String(Settings.profile.last_track)).ends_with("hills.nosstrack")
 	menu.queue_free()
+	Settings.profile.last_track = ""
+
+
+func test_highways_and_circuits_are_listed_apart() -> void:
+	var ring: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://tests/fixtures/tracks/highway_ring_small.json"))
+	var files := { "track.json": JSON.stringify(ring).to_utf8_buffer() }
+	var r := TrackWriter.write(TrackLibrary.user_dir.path_join("ring.nosstrack"), { "name": "Ring", "author": "Tester", "license": "CC0-1.0" }, files)
+	assert_str(String(r.error)).is_empty()
+	var highways := TrackLibrary.list(true, true, "highway")
+	assert_int(highways.size()).is_equal(1)
+	assert_str(String(highways[0].type)).is_equal("highway")
+	assert_bool(TrackLibrary.list(true, true, "circuit").any(func(e: Dictionary) -> bool: return e.type == "highway")).is_false()
+	var picker := TrackPicker.new()
+	picker.type = "highway"
+	add_child(picker)
+	await get_tree().process_frame
+	var names := picker._buttons.map(func(b: Button) -> String: return UiKit.text_of(b))
+	assert_int(names.size()).is_equal(2)
+	assert_str(String(names[0])).starts_with("Ring · 4.4 km")
+	picker.queue_free()
+	# A circuit menu never starts on a highway, even if it was picked last.
+	Settings.profile.last_track = String(highways[0].path)
+	assert_str(Game.selected_track("circuit")).is_equal(TrackLibrary.DEFAULT)
+	assert_str(Game.selected_track("highway")).is_equal(String(highways[0].path))
 	Settings.profile.last_track = ""

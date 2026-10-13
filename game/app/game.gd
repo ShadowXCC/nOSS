@@ -172,16 +172,22 @@ func apply_dev_event(e: RaceEvent) -> void:
 		e.ai_skill = float(dev["ai-skill"])
 
 
-## The track to drive: --track, else the last one picked, else the Proving Ground.
-func selected_track() -> String:
+## The track to drive: --track, else the last one picked, else the Proving Ground (or the first
+## highway). With `type`, only a track of that type.
+func selected_track(type := "") -> String:
 	if dev.has("track"):
 		var t := TrackLibrary.resolve(String(dev.track))
-		if t:
+		if t and (type.is_empty() or TrackLibrary.entry(t).get("type", "circuit") == type):
 			return t
 		push_warning("No track " + String(dev.track))
 	var last := String(Settings.profile.get("last_track", ""))
 	var found := TrackLibrary.resolve(last) if last else ""
-	return found if found else TrackLibrary.DEFAULT
+	if found and (type.is_empty() or TrackLibrary.entry(found).get("type", "circuit") == type):
+		return found
+	if type == "highway":
+		var highways := TrackLibrary.list(true, true, "highway")
+		return highways[0].path if not highways.is_empty() else ""
+	return TrackLibrary.DEFAULT
 
 
 ## Starts `session`, its track loaded off the main thread first behind a loading screen (a
@@ -202,7 +208,7 @@ func open_session(session: TrackSession) -> void:
 func start_free_drive(car_path := "", platform_id := "", bay_return := false, solo := true, track := "") -> void:
 	get_tree().paused = false
 	var session := TrackSession.new()
-	session.track_path = track if track else selected_track()
+	session.track_path = track if track else selected_track("circuit")
 	session.bay_return = bay_return
 	session.solo = solo and not dev.has("players")
 	session.car_path = car_path if car_path else String(dev.get("car", ""))
@@ -225,7 +231,7 @@ func start_event(event: RaceEvent, platform_id: String, track := "") -> void:
 		return
 	get_tree().paused = false
 	var session := TrackSession.new()
-	session.track_path = track if track else selected_track()
+	session.track_path = track if track else selected_track("circuit")
 	session.event = event
 	session.solo = event.kind == "time_trial"
 	session.platform_id = platform_id

@@ -146,8 +146,8 @@ func _on_class_picked(id: String) -> void:
 
 ## The track picker, then `then` (track path). With only one track, straight on (unless `always`).
 func _open_tracks(then: Callable, always := false) -> void:
-	if TrackLibrary.list().size() <= 1 and not always:
-		then.call(Game.selected_track())
+	if TrackLibrary.list(true, true, "circuit").size() <= 1 and not always:
+		then.call(Game.selected_track("circuit"))
 		return
 	_tracks = TrackPicker.new()
 	_tracks.picked.connect(func(path: String) -> void:

@@ -28,12 +28,27 @@ const CAUTION_AUTO := -1.0
 
 ## Surfaces by name, as VehicleSim reads them (docs/PHYSICS.md §4).
 const SURFACES := ["asphalt", "concrete", "curb", "paint", "grass", "gravel", "dirt", "sand", "snow", "ice"]
-const BARRIERS := ["none", "auto", "tyres", "armco", "concrete", "fence"]
+const BARRIERS := ["none", "auto", "tyres", "armco", "concrete", "fence", "sound_wall"]
 const CURBS := ["auto", "on", "off"]
 const LINES := ["none", "edges", "lanes", "all"]
 const BARRIER_NONE := 0
 const BARRIER_AUTO := 1
 const BARRIER_TYRES := 2
+const BARRIER_CONCRETE := 4
+const BARRIER_SOUND_WALL := 6
+const TYPES := ["circuit", "highway"]
+
+## A highway's carriageways and traffic (type "highway", D106): lanes each way, counted from the
+## outside; the median between the two directions; shoulders inside and out; the speed limit.
+const HIGHWAY_DEFAULTS := {
+	"drive": "right", "lanes": 3, "lane_m": 3.6, "median_m": 2.4, "shoulder_in_m": 0.8, "shoulder_out_m": 3.0,
+	"median_barrier": "concrete", "speed_kmh": 110.0,
+	"zones": [], "ramps": [], "portals": [], "runs": [], "traps": [],
+	"traffic": { "count": 150, "exit_share": 0.15, "seed": 1 },
+}
+const RAMP_DEFAULTS := { "name": "", "lanes": 1, "lane_m": 3.6, "taper_m": 200.0, "speed_kmh": 70.0, "traffic": true, "points": [] }
+## The road's own run-off on a highway: a concrete strip to the barrier.
+const HIGHWAY_RUNOFF_M := 0.6
 
 
 ## A VehicleSim surface id by name (asphalt if unknown).
@@ -66,6 +81,88 @@ static func blank(id: String, name: String) -> Dictionary:
 		"environment": {},
 		"scene": null,
 	}
+
+
+## A track's highway section with every default filled in ({} if it isn't a highway).
+static func highway_settings(d: Dictionary) -> Dictionary:
+	if d.get("type", "circuit") != "highway":
+		return {}
+	var h: Dictionary = HIGHWAY_DEFAULTS.duplicate(true)
+	var own: Dictionary = d.get("highway", {})
+	for key: String in own:
+		h[key] = own[key].duplicate(true) if own[key] is Dictionary or own[key] is Array else own[key]
+	var traffic: Dictionary = HIGHWAY_DEFAULTS.traffic.duplicate()
+	traffic.merge(own.get("traffic", {}), true)
+	h.traffic = traffic
+	var ramps := []
+	for r: Dictionary in h.ramps:
+		var full: Dictionary = RAMP_DEFAULTS.duplicate(true)
+		full.merge(r, true)
+		ramps.append(full)
+	h.ramps = ramps
+	return h
+
+
+## Centreline to each outer edge of a highway: half the median, the inner shoulder, the lanes,
+## the outer shoulder.
+static func highway_half(h: Dictionary) -> float:
+	return float(h.median_m) / 2.0 + float(h.shoulder_in_m) + int(h.lanes) * float(h.lane_m) + float(h.shoulder_out_m)
+
+
+## The road defaults a highway's carriageways need: both widths to the outer edge, no curbs, a
+## concrete strip to a concrete barrier; the highway draws its own lines.
+static func highway_road_defaults(h: Dictionary, defaults := {}) -> Dictionary:
+	var out: Dictionary = DEFAULTS.duplicate()
+	out.merge(defaults, true)
+	var half := highway_half(h)
+	out.width_l = half
+	out.width_r = half
+	out.bank_deg = 0.0
+	out.lanes = int(h.lanes)
+	out.lines = "none"
+	out.curb_l = "off"
+	out.curb_r = "off"
+	for side in ["l", "r"]:
+		out["runoff_" + side] = "concrete"
+		out["runoff_%s_m" % side] = HIGHWAY_RUNOFF_M
+		if out["barrier_" + side] in ["auto", "tyres", "none"]:
+			out["barrier_" + side] = "concrete"
+	return out
+
+
+## Problems the schema can't see in a highway section ("" if none): ramp ends that don't fit
+## their kind, unknown or duplicate portals and ids.
+static func validate_highway(d: Dictionary) -> String:
+	if d.get("type", "circuit") != "highway":
+		return "" if not d.has("highway") else "$.highway: only on highway tracks"
+	var h: Dictionary = d.get("highway", {})
+	var portals := {}
+	for p: Dictionary in h.get("portals", []):
+		if portals.has(p.id):
+			return "$.highway.portals: %s twice" % p.id
+		portals[p.id] = true
+	var ids := {}
+	for r: Dictionary in h.get("ramps", []):
+		if ids.has(r.id):
+			return "$.highway.ramps: %s twice" % r.id
+		ids[r.id] = true
+		var ends := { "from": r.from, "to": r.to }
+		for key: String in ends:
+			var e: Dictionary = ends[key]
+			var on_road := e.has("dir") and e.has("at_m")
+			if on_road == e.has("portal"):
+				return "$.highway.ramps.%s.%s: a road end (dir, at_m) or a portal" % [r.id, key]
+			if e.has("portal") and not portals.has(e.portal):
+				return "$.highway.ramps.%s.%s: no portal %s" % [r.id, key, e.portal]
+		var want: Array = { "exit": [true, false], "entry": [false, true], "link": [true, true] }[r.kind]
+		if [r.from.has("dir"), r.to.has("dir")] != want:
+			return "$.highway.ramps.%s: an %s goes %s" % [r.id, r.kind, { "exit": "from the road to a portal", "entry": "from a portal to the road", "link": "from the road to the road" }[r.kind]]
+	var runs := {}
+	for run: Dictionary in h.get("runs", []):
+		if runs.has(run.id):
+			return "$.highway.runs: %s twice" % run.id
+		runs[run.id] = true
+	return ""
 
 
 ## A noss.track/0 file as noss.track/1: the same centreline (points [x, z(, y)] become set
@@ -141,6 +238,9 @@ static func validate(d: Dictionary) -> String:
 	var errors := JsonSchema.validate(d, JsonSchema.load_schema("track"))
 	if not errors.is_empty():
 		return errors[0]
+	var highway := validate_highway(d)
+	if highway:
+		return highway
 	for group: Dictionary in d.get("props", {}).get("scatter", []):
 		var xf: Array = group.xf
 		if xf.size() % 4 != 0:
@@ -152,12 +252,18 @@ static func validate(d: Dictionary) -> String:
 
 
 ## A track's layout identity: its road and race setup (AI pins left out), so editing props or
-## paint keeps lap records while moving a corner doesn't.
+## paint keeps lap records while moving a corner doesn't. A highway's carriageways and ramps
+## count too (its traffic doesn't); tracks without one hash as they always did.
 static func layout_hash(d: Dictionary) -> String:
 	var race: Dictionary = d.get("race", {}).duplicate(true)
 	if race.get("ai") is Dictionary:
 		(race.ai as Dictionary).erase("pins")
+	var layout := { "road": d.get("road", {}), "race": race }
+	if d.get("highway") is Dictionary:
+		var h: Dictionary = (d.highway as Dictionary).duplicate(true)
+		h.erase("traffic")
+		layout.highway = h
 	# Through JSON first: numbers come back as floats, as they do from a file, so a draft (16) and
 	# its saved track (16.0) hash the same.
-	var key := PackageWriter.canonical_json(JSON.parse_string(JSON.stringify({ "road": d.get("road", {}), "race": race })))
+	var key := PackageWriter.canonical_json(JSON.parse_string(JSON.stringify(layout)))
 	return "sha256:" + PlatformLoader.sha256_hex(key.to_utf8_buffer())

@@ -1,0 +1,4 @@
+{ "schema": "noss.track/1", "id": "ring", "name": "Ring", "type": "highway",
+  "road": { "points": [ { "p": [0, 0, 0] }, { "p": [1500, 0, 0] }, { "p": [1500, 0, 900] } ] },
+  "race": { "start_m": 50 },
+  "highway": { "ramps": [ { "id": "off", "kind": "slip", "from": { "dir": 1, "at_m": 200 }, "to": { "portal": "harbour" } } ] } }

@@ -22,7 +22,7 @@
       "minLength": 1,
       "maxLength": 128
     },
-    "type": { "enum": ["circuit"] },
+    "type": { "enum": ["circuit", "highway"] },
     "kind": { "enum": ["road", "scene"] },
     "length_m": { "type": "number", "minimum": 0, "maximum": 200000 },
     "layout": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },

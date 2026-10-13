@@ -95,7 +95,7 @@ static func manifest_for(info: Dictionary, files: Dictionary, layout: Dictionary
 		"name": info.name,
 		"author": info.author,
 		"license": info.license,
-		"type": "circuit",
+		"type": String(layout.get("type", "circuit")),
 		"kind": "scene" if layout.get("scene") is Dictionary else "road",
 		"length_m": snappedf(t.length, 0.1),
 		"layout": TrackFormat.layout_hash(layout),

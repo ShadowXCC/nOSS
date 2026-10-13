@@ -19,7 +19,7 @@ const DASH_OFF := 9.0
 ## Auto barriers: tyre walls on the outside of corners tighter than this radius.
 const BARRIER_CURVATURE := 1.0 / 260.0
 ## Barrier sizes by type id (TrackFormat.BARRIERS): [height, thickness].
-const BARRIER_SIZE := { 2: [0.9, 1.0], 3: [0.75, 0.3], 4: [1.0, 0.6], 5: [2.5, 0.12] }
+const BARRIER_SIZE := { 2: [0.9, 1.0], 3: [0.75, 0.3], 4: [1.0, 0.6], 5: [2.5, 0.12], 6: [4.5, 0.25] }
 const SKIRT := 0.3
 const DECK := 0.6
 const PILLAR_EVERY_M := 20.0

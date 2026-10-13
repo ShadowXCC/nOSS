@@ -1,0 +1,13 @@
+{ "schema": "noss.track/1", "id": "ring", "name": "Ring", "type": "highway",
+  "road": { "defaults": { "width_l": 15.8, "width_r": 15.8, "lines": "none", "barrier_l": "sound_wall" },
+    "points": [ { "p": [0, 0, 0] }, { "p": [1500, 0, 0] }, { "p": [1500, 0, 900] }, { "p": [0, 9, 900], "height": "set" } ] },
+  "race": { "start_m": 50 },
+  "highway": { "drive": "right", "lanes": 3, "lane_m": 3.6, "median_m": 2.4, "speed_kmh": 110,
+    "zones": [ { "dir": 0, "from_m": 100, "to_m": 400, "speed_kmh": 80, "tunnel": true, "name": "Tunnel" } ],
+    "ramps": [ { "id": "off", "name": "Harbour", "kind": "exit", "from": { "dir": 1, "at_m": 200 }, "to": { "portal": "harbour" },
+      "lanes": 1, "taper_m": 200, "traffic": true, "points": [ { "p": [400, 0, -60] }, { "p": [500, 6, -90], "height": "set" } ] },
+      { "id": "x", "kind": "link", "from": { "dir": -1, "at_m": 900 }, "to": { "dir": 1, "at_m": 700 } } ],
+    "portals": [ { "id": "harbour", "name": "Harbour", "p": [600, 0, -120], "yaw_deg": 170 } ],
+    "runs": [ { "id": "sprint", "name": "Sprint", "dir": 1, "from_m": 0, "to_m": 1200 } ],
+    "traps": [ { "dir": -1, "at_m": 800 } ],
+    "traffic": { "count": 150, "exit_share": 0.15, "seed": 7 } } }

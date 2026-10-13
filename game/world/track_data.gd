@@ -30,6 +30,12 @@ var width := 12.0
 var raw := {}
 ## "road": built from the spline; "centreline": a fitted scene (the spline only guides).
 var kind := "road"
+## "circuit" or "highway" (TrackFormat.TYPES).
+var type := "circuit"
+## A loop (every track's main road), or an open strip with two ends (a highway's ramps, D107).
+var closed := true
+## A highway's carriageways, ramps and runs (D106); null on circuits.
+var highway: HighwayLayout
 ## Built in (res://): records are keyed by id alone.
 var builtin := false
 ## Centreline samples every ~2 m, with their along-track distance from the first point.
@@ -119,9 +125,14 @@ static func from_dict(data: Dictionary, ground_height := Callable()) -> TrackDat
 	var defaults: Dictionary = road.get("defaults", {})
 	t.width = float(defaults.get("width_l", TrackFormat.DEFAULTS.width_l)) + float(defaults.get("width_r", TrackFormat.DEFAULTS.width_r))
 	t.layout_hash = TrackFormat.layout_hash(data)
+	t.type = String(data.get("type", "circuit"))
+	# A highway on flat ground still knows the ground (at 0), so its viaducts stand on supports.
+	var ground := ground_height if ground_height.is_valid() or t.type != "highway" else func(_x: float, _z: float) -> float: return 0.0
 	if (road.get("points", []) as Array).size() >= 3: # fewer make no loop
-		t._sample(road, ground_height)
+		t._sample(road, ground)
 	t._read_race(data.get("race", {}))
+	if t.type == "highway" and t.samples.size() >= 3:
+		t.highway = HighwayLayout.build(t, TrackFormat.highway_settings(data), ground)
 	return t
 
 
@@ -172,13 +183,17 @@ func from_start(distance: float) -> float:
 
 
 func index_at(distance: float) -> int:
-	var d := fposmod(distance, length)
+	var d := fposmod(distance, length) if closed else clampf(distance, 0.0, length)
 	var i := distances.bsearch(d, true) - 1
 	return clampi(i, 0, samples.size() - 1)
 
 
 func point_at(distance: float) -> Vector3:
 	var i := index_at(distance)
+	if not closed:
+		var k := mini(i + 1, samples.size() - 1)
+		var along := clampf(distance, 0.0, length) - distances[i]
+		return samples[i].lerp(samples[k], clampf(along / maxf(distances[k] - distances[i], 0.001), 0.0, 1.0))
 	var j := (i + 1) % samples.size()
 	var span := (distances[j] if j > 0 else length) - distances[i]
 	return samples[i].lerp(samples[j], clampf((fposmod(distance, length) - distances[i]) / maxf(span, 0.001), 0.0, 1.0))
@@ -229,6 +244,9 @@ func sector_of(distance: float) -> int:
 ## Samples of control segment `seg`: [first, end) (end may wrap past the last sample).
 func segment_samples(seg: int) -> Vector2i:
 	var n := seg_first.size()
+	if not closed:
+		var first := seg_first[clampi(seg, 0, n - 1)]
+		return Vector2i(first, seg_first[seg + 1] if seg + 1 < n else samples.size() - 1)
 	var a := seg_first[posmod(seg, n)]
 	var b := seg_first[posmod(seg + 1, n)]
 	return Vector2i(a, b if b > a else b + samples.size())
@@ -237,8 +255,10 @@ func segment_samples(seg: int) -> Vector2i:
 ## Nearest point on the centreline. With `hint` (a sample index, e.g. last tick's) it walks
 ## from there to the nearest sample, which takes a step or two for a moving car. Height counts
 ## past PROJECT_FREE_Y, so bridges and the roads under them stay apart.
-## Returns {index, distance, lateral (+ = left), point}.
+## Returns {index, distance, lateral (+ = left), point}. An open strip clamps to its ends.
 func project(pos: Vector3, hint := -1) -> Dictionary:
+	if not closed:
+		return _project_open(pos, hint)
 	var n := samples.size()
 	var best := -1
 	var best_d2 := INF
@@ -273,6 +293,45 @@ func project(pos: Vector3, hint := -1) -> Dictionary:
 	var on := samples[best] + seg * t
 	var dist := fposmod(distances[best] + seg.length() * t, length)
 	return { "index": best, "distance": dist, "lateral": (pos - on).dot(lefts[best]), "point": on }
+
+
+func _project_open(pos: Vector3, hint: int) -> Dictionary:
+	var n := samples.size()
+	var best := -1
+	var best_d2 := INF
+	if hint >= 0 and hint < n:
+		best = hint
+		best_d2 = _d2(best, pos)
+		for step in 200:
+			var d_fwd := _d2(best + 1, pos) if best + 1 < n else INF
+			var d_back := _d2(best - 1, pos) if best > 0 else INF
+			if d_fwd < best_d2 and d_fwd <= d_back:
+				best += 1
+				best_d2 = d_fwd
+			elif d_back < best_d2:
+				best -= 1
+				best_d2 = d_back
+			else:
+				break
+		if best_d2 > 2500.0:
+			return _project_open(pos, -1)
+	else:
+		for i in n:
+			var d2 := _d2(i, pos)
+			if d2 < best_d2:
+				best_d2 = d2
+				best = i
+	# Refine on the segment either side (no wrap; the ends clamp).
+	var a := best if best < n - 1 else best - 1
+	if best > 0 and best < n - 1:
+		var back := samples[best] - samples[best - 1]
+		if (pos - samples[best]).dot(back) < 0.0:
+			a = best - 1
+	var seg := samples[a + 1] - samples[a]
+	var t := clampf((pos - samples[a]).dot(seg) / maxf(seg.length_squared(), 1e-6), 0.0, 1.0)
+	var on := samples[a] + seg * t
+	var k := a if t < 0.5 else a + 1
+	return { "index": k, "distance": distances[a] + seg.length() * t, "lateral": (pos - on).dot(lefts[a]), "point": on }
 
 
 ## True if any centreline sample is within `radius` (XZ) of `pos`. Uses a coarse grid.

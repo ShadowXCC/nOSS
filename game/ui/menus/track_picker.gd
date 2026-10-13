@@ -9,6 +9,8 @@ signal closed
 ## The track to start on (a path); else the last one picked.
 var current := ""
 var title := "Track"
+## Only tracks of this type ("circuit", "highway").
+var type := "circuit"
 var _preview: TrackMap
 var _buttons: Array = []
 var _maps := {} # path -> TrackData (centreline only)
@@ -19,7 +21,7 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	if current.is_empty():
-		current = Game.selected_track()
+		current = Game.selected_track(type)
 	var list := UiKit.panel(self, title, 1180)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 24)
@@ -37,7 +39,7 @@ func _ready() -> void:
 	_preview.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(_preview)
 	var first: Button
-	for e in TrackLibrary.list():
+	for e in TrackLibrary.list(true, true, type):
 		var path: String = e.path
 		var b := UiKit.button(TrackLibrary.label(e), func() -> void: _pick(path), "Built in" if e.builtin else "Your track")
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
