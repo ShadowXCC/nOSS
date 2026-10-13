@@ -92,10 +92,13 @@ func tick(delta: float) -> void:
 	var at := Vector2(_cursor.position.x, _cursor.position.z)
 	var rect := draft.terrain.field.rect_around(at, radius)
 	_keep_tiles(rect)
+	var t0 := Time.get_ticks_usec()
 	var changed := _apply(at, dt)
 	if changed.has_area():
 		_stroke_rect = changed if not _stroke_rect.has_area() else _stroke_rect.merge(changed)
 		_live(changed)
+	if Game.dev.has("perf"):
+		print("perf editor dab %.1f ms" % ((Time.get_ticks_usec() - t0) / 1000.0))
 
 
 func _begin_stroke() -> void:

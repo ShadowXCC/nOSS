@@ -37,6 +37,10 @@ var _changes := 0
 var _analyse_in := -1.0
 var _analyse_job: WorkerJob
 var _analyse_again := false
+## For the hand-timed build (M6: "a 3 km circuit in under 30 minutes"): when the editor opened,
+## and whether a save has passed the checks yet.
+var _opened_ms := Time.get_ticks_msec()
+var _saved_once := false
 
 
 func _ready() -> void:
@@ -110,6 +114,8 @@ func _ready() -> void:
 	_open_draft(draft)
 	if Game.dev.has("editor-tool"):
 		show_tool(String(Game.dev["editor-tool"]).capitalize())
+	if Game.dev.has("perf"):
+		print("perf editor open %d ms" % (Time.get_ticks_msec() - _opened_ms))
 	if Game.dev.has("editor-import") and not Game.has_meta(&"editor_imported"):
 		Game.set_meta(&"editor_imported", true) # once per run (not again after a test drive)
 		import_scene(String(Game.dev["editor-import"]))
@@ -134,6 +140,8 @@ func _open_draft(d: TrackDraft) -> void:
 	_update_title()
 	analysis = {}
 	_analyse_in = 0.0
+	if is_inside_tree() and _overlay == null: # a prompt (restore?) keeps the focus
+		UiKit.focus_later(_tool_buttons.get(tool.title(), view))
 
 
 ## Every tool, the ones built so far.
@@ -281,6 +289,9 @@ func save() -> void:
 	if r.ok:
 		draft.delete_autosave()
 		say("Saved" if not r.unchanged else "No changes")
+		if not _saved_once:
+			_saved_once = true
+			print("Track editor: first valid save %d s after opening (%.2f km)" % [(Time.get_ticks_msec() - _opened_ms) / 1000, draft.track().length / 1000.0])
 	else:
 		say(String(r.error))
 	_update_title()
@@ -543,7 +554,11 @@ func _process(delta: float) -> void:
 		_autosave_time = 0.0
 		if draft.history.version() != _autosaved_version and not PlayerProfile.read_only:
 			_autosaved_version = draft.history.version()
-			draft.autosave_async(self, func(err: String) -> void: say("Autosave failed: " + err if err else "Autosaved"))
+			var t0 := Time.get_ticks_msec()
+			draft.autosave_async(self, func(err: String) -> void:
+				say("Autosave failed: " + err if err else "Autosaved")
+				if Game.dev.has("perf"):
+					print("perf editor autosave %d ms" % (Time.get_ticks_msec() - t0)))
 
 
 func _unhandled_input(event: InputEvent) -> void:

@@ -91,6 +91,27 @@ func test_a_move_rebuilds_only_its_segments() -> void:
 	await get_tree().process_frame
 
 
+## While a point is dragged only the road follows; the ground's bed is cut on release, for the
+## segments the drag touched (not the whole map).
+func test_a_drag_cuts_the_ground_when_it_ends() -> void:
+	var d := TrackTemplates.make("circuit")
+	var preview := TrackPreview.new()
+	add_child(preview)
+	preview.setup(d)
+	var p: Array = d.points()[6].p
+	for k in 3:
+		d.drag_point(6, Vector3(p[0] + 5.0 * (k + 1), p[1], p[2]))
+		preview._flush()
+	var waiting: Rect2i = preview._unconformed
+	assert_bool(waiting.has_area()).is_true()
+	assert_bool(waiting.size.x < d.terrain.field.get_size().x).is_true()
+	d.end_move()
+	await get_tree().process_frame
+	assert_bool(preview._unconformed.has_area()).is_false()
+	preview.queue_free()
+	await get_tree().process_frame
+
+
 func test_templates_build() -> void:
 	for t: Array in TrackTemplates.list():
 		var d := TrackTemplates.make(String(t[0]))

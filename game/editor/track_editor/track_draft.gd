@@ -130,7 +130,13 @@ func drag_point(i: int, p: Vector3) -> void:
 		return
 	if not _dragging.has("road"):
 		_dragging.road = layout.road.duplicate(true)
+		_dragging.segments = PackedInt32Array()
 	points()[i].p = _vec(p)
+	var touched: PackedInt32Array = _dragging.segments
+	for s in _around(i):
+		if s not in touched:
+			touched.append(s)
+	_dragging.segments = touched
 	_changed(&"road", { "segments": _around(i), "live": true })
 
 
@@ -139,10 +145,12 @@ func end_move(name := "Move point") -> void:
 	if not _dragging.has("road"):
 		return
 	var before := { "road": _dragging.road }
+	var segments: PackedInt32Array = _dragging.get("segments", PackedInt32Array())
 	_dragging.erase("road")
+	_dragging.erase("segments")
 	var after := { "road": layout.road.duplicate(true) }
 	history.act(name, _set_section.bind("road", after, &"road"), _set_section.bind("road", before, &"road"), false)
-	_changed(&"road", {})
+	_changed(&"road", { "segments": segments } if not segments.is_empty() else {})
 
 
 func delete_point(i: int) -> void:

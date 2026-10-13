@@ -15,6 +15,8 @@ var _props: Node3D
 var _built: TrackData
 var _pending := {}
 var _since := 0.0
+## Ground the road's bed hasn't been cut into yet (live drags leave it to the release).
+var _unconformed := Rect2i()
 
 
 func setup(d: TrackDraft) -> void:
@@ -25,6 +27,7 @@ func setup(d: TrackDraft) -> void:
 
 ## Everything again, from the draft.
 func rebuild_all() -> void:
+	var t0 := Time.get_ticks_usec()
 	for child in get_children():
 		remove_child(child)
 		child.queue_free()
@@ -44,6 +47,8 @@ func rebuild_all() -> void:
 	_props = _part("Props")
 	PropBuilder.new(t, draft.terrain).build(_props, true)
 	_built = t
+	if Game.dev.has("perf"):
+		print("perf editor rebuild %.1f ms (%.2f km)" % [(Time.get_ticks_usec() - t0) / 1000.0, t.length / 1000.0])
 
 
 func terrain_view() -> TerrainView:
@@ -93,6 +98,13 @@ func _process(delta: float) -> void:
 
 
 func _flush() -> void:
+	var t0 := Time.get_ticks_usec()
+	_flush_parts()
+	if Game.dev.has("perf"):
+		print("perf editor update %.1f ms" % ((Time.get_ticks_usec() - t0) / 1000.0))
+
+
+func _flush_parts() -> void:
 	_since = 0.0
 	var pending := _pending
 	_pending = {}
@@ -105,7 +117,8 @@ func _flush() -> void:
 		# The road follows the ground: it, its bed and anything standing on it come again.
 		_rebuild_road(t, PackedInt32Array(), rect)
 	elif pending.has(&"road"):
-		_rebuild_road(t, pending.road.get("segments", PackedInt32Array()) if not pending.road.has("all") else PackedInt32Array(), Rect2i())
+		_rebuild_road(t, pending.road.get("segments", PackedInt32Array()) if not pending.road.has("all") else PackedInt32Array(), Rect2i(),
+			bool(pending.road.get("live", false)))
 	if pending.has(&"race") or pending.has(&"road") or pending.has(&"terrain"):
 		_clear(_start)
 		TrackBuilder.add_gantry(_start, t)
@@ -116,15 +129,17 @@ func _flush() -> void:
 		var rect: Rect2i = pending.paint.get("rect", Rect2i())
 		terrain_view().update_paint(rect)
 		terrain_collision().update_surfaces()
-	if pending.has(&"props") or pending.has(&"scatter") or pending.has(&"road") or pending.has(&"terrain"):
+	var live_road := pending.has(&"road") and bool(pending.road.get("live", false)) and pending.size() == 1
+	if (pending.has(&"props") or pending.has(&"scatter") or pending.has(&"road") or pending.has(&"terrain")) and not live_road:
 		_clear(_props)
 		PropBuilder.new(t, draft.terrain).build(_props, true)
 	_built = t
 
 
 ## The road again: only `segments` if the points are the same ones (a move), else all of it,
-## with the ground's bed cut round it and the terrain's drawing and collision after it.
-func _rebuild_road(t: TrackData, segments: PackedInt32Array, ground_rect: Rect2i) -> void:
+## with the ground's bed cut round it and the terrain's drawing and collision after it. `live`
+## (dragging): the road alone; the ground catches up when the drag ends.
+func _rebuild_road(t: TrackData, segments: PackedInt32Array, ground_rect: Rect2i, live := false) -> void:
 	var partial := not segments.is_empty() and _built != null and _built.seg_first.size() == t.seg_first.size()
 	var builder := RoadBuilder.new(t, draft.terrain)
 	if draft.terrain:
@@ -133,9 +148,15 @@ func _rebuild_road(t: TrackData, segments: PackedInt32Array, ground_rect: Rect2i
 			rect = rect.merge(_segments_rect(_built, segments)).merge(_segments_rect(t, segments))
 		else:
 			rect = Rect2i(Vector2i.ZERO, draft.terrain.field.get_size())
-		var changed := draft.terrain.conform(t, rect)
-		terrain_view().update_rect(changed)
-		terrain_collision().update_rect(changed)
+		if live:
+			_unconformed = rect if not _unconformed.has_area() else _unconformed.merge(rect)
+		else:
+			if _unconformed.has_area():
+				rect = rect.merge(_unconformed)
+				_unconformed = Rect2i()
+			var changed := draft.terrain.conform(t, rect)
+			terrain_view().update_rect(changed)
+			terrain_collision().update_rect(changed)
 	if partial:
 		builder.rebuild_segments(_road, segments)
 	else:

@@ -2,7 +2,8 @@
 """Screen-reader check (ACC-03; M4 acceptance: boot -> race -> results with a screen reader).
 
 Runs the game with accessibility on and walks title -> Race -> class -> event -> Players -> a
-1-lap race -> results -> title, then Online -> Host -> the lobby -> Leave (M5), through AT-SPI,
+1-lap race -> results -> title, then Online -> Host -> the lobby -> Leave (M5), then the track
+editor: every tool, a new oval, its race setup and checks, and out (M6), through AT-SPI,
 the interface screen readers (Orca) use: it finds controls by their accessible names, presses
 them with their accessibility actions, and checks that every focusable control on each screen
 has a name and that something has focus.
@@ -11,7 +12,8 @@ Runs in a private D-Bus session with the accessibility bus switched on in memory
 desktop's settings are left alone. Needs python3-gi with Atspi (on GNOME by default) and a
 display. Writes no settings or profiles (--no-save).
 
-    tools/a11y_check.py            # exit code 0 = pass
+    tools/a11y_check.py                # exit code 0 = pass
+    tools/a11y_check.py --editor-only  # just the track editor
 """
 import os
 import subprocess
@@ -19,8 +21,10 @@ import sys
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# --screens=-1: P1 on the game's own window, whatever monitor this PC's players are set to (the
+# walk reads focus from that window).
 GAME_ARGS = ["--skip-first-boot", "--no-save", "--screen-reader", "--autodrive", "--join=1", "--race-laps=1", "--race-ai=3",
-             "--race-practice=0", "--race-quali=0", "--race-grid=random", "--port=47895", "--no-upnp"]
+             "--race-practice=0", "--race-quali=0", "--race-grid=random", "--port=47895", "--no-upnp", "--screens=-1"]
 
 if os.environ.get("NOSS_A11Y_PRIVATE") != "1":
     env = dict(os.environ, NOSS_A11Y_PRIVATE="1", GSETTINGS_BACKEND="memory")
@@ -170,6 +174,27 @@ def step(label, name, role="button", prefix=False, timeout=20.0):
     return True
 
 
+def editor_walk():
+    """The track editor (M6): each tool's panel, a new oval's race setup and checks, then out."""
+    log("Track editor")
+    if not step("Title (editor)", "Track Editor"):
+        return
+    if find("Start new", "button", timeout=3.0) is not None:  # an autosave from another run
+        step("Restore prompt", "Start new")
+    for tool in ["Road", "Terrain", "Paint", "Props", "Race", "Check", "File"]:  # the tool tabs toggle
+        if not step(f"Editor: {tool}", tool, role="toggle button", prefix=(tool == "Check")):
+            return
+    step("Editor: File", "New track")
+    step("New track", "Oval", prefix=True)
+    for tool in ["Road", "Race", "Check"]:
+        step(f"Oval: {tool}", tool, role="toggle button", prefix=(tool == "Check"))
+    step("Oval: leave", "Exit")
+    if find("Don't save", "button", timeout=3.0) is not None:
+        step("Unsaved prompt", "Don't save")
+    if find("Race", "button", timeout=20.0) is None:
+        problems.append("Out of the editor: no title")
+
+
 def main():
     subprocess.run(["busctl", "--user", "set-property", "org.a11y.Bus", "/org/a11y/bus", "org.a11y.Status", "IsEnabled", "b", "true"],
                    check=False, capture_output=True)
@@ -179,6 +204,10 @@ def main():
                             cwd=ROOT, stdout=log_file, stderr=subprocess.STDOUT)
     log(f"Game log: {log_path}")
     try:
+        if "--editor-only" in sys.argv:
+            if find("Track Editor", "button", timeout=60.0) is not None:
+                editor_walk()
+            raise SystemExit(report())
         log("Title")
         ok = step("Title", "Race")
         ok = ok and step("Class", "Track GT", prefix=True)
@@ -207,12 +236,20 @@ def main():
                         step("Online again", "Back")
                     elif ok:
                         problems.append("Lobby: no Leave button")
+                if find("Track Editor", "button", timeout=20.0) is not None:
+                    editor_walk()
+                else:
+                    problems.append("Back at the title: no Track Editor button")
     finally:
         game.terminate()
         try:
             game.wait(10)
         except subprocess.TimeoutExpired:
             game.kill()
+    return report()
+
+
+def report():
     if problems:
         for p in problems:
             log("FAIL " + p)
