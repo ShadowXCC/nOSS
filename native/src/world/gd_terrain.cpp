@@ -211,7 +211,8 @@ Rect2i NossTerrain::conform(const Rect2i &p_rect, const PackedFloat32Array &p_ro
 	const float *r = p_road.ptr();
 	for (size_t i = 0; i < road.size(); i++) {
 		const float *s = r + i * 9;
-		road[i] = { s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8] > 0.5f };
+		int flags = int(s[8] + 0.5f); // 1: lifted, 2: the road ends here
+		road[i] = { s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], (flags & 1) != 0, (flags & 2) != 0 };
 	}
 	return to_rect2i(_field.conform(to_rect(p_rect), road, p_falloff_m, p_depth_m));
 }

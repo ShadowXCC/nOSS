@@ -127,16 +127,29 @@ func conform(track: TrackData, rect := Rect2i()) -> Rect2i:
 	return field.conform(area_rect, road_samples(track), FALLOFF_M, BED_DEPTH_M)
 
 
-## The road for conform: per sample x, y, z, left, how far it levels each side, lifted.
+## The road for conform: per sample x, y, z, left, how far it levels each side, and flags (1:
+## lifted, 2: the road ends after this sample). A highway's main road closes on a copy of its first
+## sample, then each ramp follows, ending on its last.
 static func road_samples(track: TrackData) -> PackedFloat32Array:
 	var out := PackedFloat32Array()
 	if track == null or track.kind != "road":
 		return out
-	out.resize(track.samples.size() * 9)
-	for i in track.samples.size():
+	_append_samples(out, track, range(track.samples.size()))
+	if track.highway and not track.highway.ramps.is_empty():
+		_append_samples(out, track, [0])
+		out[out.size() - 1] += 2.0
+		for r in track.highway.ramps:
+			_append_samples(out, r.track, range(r.track.samples.size()))
+			out[out.size() - 1] += 2.0
+	return out
+
+
+static func _append_samples(out: PackedFloat32Array, track: TrackData, indices: Array) -> void:
+	var k := out.size()
+	out.resize(k + indices.size() * 9)
+	for i: int in indices:
 		var p := track.samples[i]
 		var l := track.lefts[i]
-		var k := i * 9
 		out[k] = p.x
 		out[k + 1] = p.y
 		out[k + 2] = p.z
@@ -146,7 +159,7 @@ static func road_samples(track: TrackData) -> PackedFloat32Array:
 		out[k + 6] = track.half_l[i] + (TrackData.CURB_WIDTH if track.curb_l[i] else 0.0) + track.runoff_l_m[i]
 		out[k + 7] = track.half_r[i] + (TrackData.CURB_WIDTH if track.curb_r[i] else 0.0) + track.runoff_r_m[i]
 		out[k + 8] = 1.0 if track.lifted[i] else 0.0
-	return out
+		k += 9
 
 
 ## Samples of chunk `c` (with the shared edge sample).

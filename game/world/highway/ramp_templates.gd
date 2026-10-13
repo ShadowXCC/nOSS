@@ -1,8 +1,9 @@
 class_name RampTemplates
 extends RefCounted
-## Ready-made ramps (D107): an exit to a portal, an entry from a portal, an interchange (an exit
-## and an entry sharing a portal between them, one side of a diamond), and a crossover that
-## leaves one carriageway, climbs over the road in a teardrop and joins the other. Each is laid
+## Ready-made ramps (D107): an exit into a portal, an entry out of one, an interchange (an exit
+## and an entry, one side of a diamond, their two tunnel mouths side by side), and a crossover
+## that leaves one carriageway, climbs over the road in a teardrop and joins the other. A portal
+## serves one ramp: its mouth lines up with the ramp's end. Each is laid
 ## out in the road's frame where it leaves (as if the road ran straight on); the checks catch a
 ## ramp that cuts into a bending road. Distances are along the road, metres from its point 0.
 
@@ -37,22 +38,14 @@ static func entry(t: TrackData, h: Dictionary, dir: int, at_m: float, id: String
 		"points": pts.map(_point) }, "portal": portal }
 
 
-## An exit from direction `dir` at `at_m` to a portal, and an entry from that portal back onto the
-## same carriageway further on: [exit taper 200 m, out 260 m, back 260 m, entry taper 200 m], 920 m
-## of road in all. Returns {ramps: [exit, entry], portal}.
+## An exit from direction `dir` at `at_m` into a portal, and an entry out of a second portal 60 m
+## on, back onto the same carriageway further along: [exit taper 200 m, out 260 m, back 260 m,
+## entry taper 200 m], about 980 m of road. Returns {ramps: [exit, entry], portals: [out, in]}.
 static func interchange(t: TrackData, h: Dictionary, dir: int, at_m: float, prefix: String, name := "") -> Dictionary:
-	var c := _out(h)
-	var e := exit(t, h, dir, at_m, prefix + "_off", prefix, name)
-	var join_m := at_m + dir * (2.0 * TAPER_M + 520.0)
-	var frame := _frame(t, dir, join_m - dir * TAPER_M)
-	var portal_at: Array = e.portal.p
-	var p := Vector3(float(portal_at[0]), 0.0, float(portal_at[2]))
-	var pts := [_at(frame, -140.0, c + 18.0), _at(frame, -60.0, c + 4.0)]
-	var on := { "id": prefix + "_on", "name": name, "kind": "entry", "from": { "portal": prefix }, "to": { "dir": dir, "at_m": _m(t, join_m) },
-		"points": pts.map(_point) }
-	# Out of the portal is towards the entry.
-	e.portal = _portal(prefix, name, p, ((pts[0] as Vector3) - p).normalized())
-	return { "ramps": [e.ramp, on], "portal": e.portal }
+	var e := exit(t, h, dir, at_m, prefix + "_off", prefix + "_out", name)
+	var join_m := at_m + dir * (2.0 * TAPER_M + 580.0)
+	var on := entry(t, h, dir, join_m, prefix + "_on", prefix + "_in", name)
+	return { "ramps": [e.ramp, on.ramp], "portals": [e.portal, on.portal] }
 
 
 ## A crossover from direction `dir` at `at_m` to the other direction: out to the right, a

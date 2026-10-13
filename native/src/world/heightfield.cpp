@@ -217,7 +217,7 @@ Rect Heightfield::conform(const Rect &p_rect, const std::vector<RoadSample> &p_r
 	for (size_t k = 0; k < n; k++) {
 		const RoadSample &a = p_road[k];
 		const RoadSample &b = p_road[(k + 1) % n];
-		if (a.lifted && b.lifted) {
+		if ((a.lifted && b.lifted) || a.end) {
 			continue;
 		}
 		double reach = std::max({ a.flat_l, a.flat_r, b.flat_l, b.flat_r }) + falloff;

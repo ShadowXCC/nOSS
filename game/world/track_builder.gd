@@ -73,6 +73,7 @@ func _ground() -> void:
 	var bounds := _bounds()
 	var size := maxf(bounds.size.x, bounds.size.z) + 4000.0
 	var center := bounds.get_center()
+	var surface := TrackFormat.surface_id(String(track.raw.get("ground", {}).get("surface", "grass")))
 	if visual:
 		var mesh := PlaneMesh.new()
 		mesh.size = Vector2(size, size)
@@ -82,14 +83,18 @@ func _ground() -> void:
 		mi.name = "Grass"
 		mi.mesh = mesh
 		mi.position = Vector3(center.x, _ground_y, center.z)
-		var m := WorldMaterials.get_material("grass", RetroTextures.grass(), 1.0, 0.1, true, Vector2.ONE / 5.0)
-		m.set_shader_parameter("variation", 0.22)
-		m.set_shader_parameter("variation_noise", RetroTextures.variation())
-		mi.material_override = m
+		if surface == VehicleSim.SURFACE_GRASS:
+			var m := WorldMaterials.get_material("grass", RetroTextures.grass(), 1.0, 0.1, true, Vector2.ONE / 5.0)
+			m.set_shader_parameter("variation", 0.22)
+			m.set_shader_parameter("variation_noise", RetroTextures.variation())
+			mi.material_override = m
+		else: # a city's ground: concrete and the like
+			mi.name = "Ground"
+			mi.material_override = WorldMaterials.surface(surface)
 		root.add_child(mi)
 	var body := StaticBody3D.new()
 	body.name = "GrassBody"
-	body.set_meta(&"noss_surface", TrackFormat.surface_id(String(track.raw.get("ground", {}).get("surface", "grass"))))
+	body.set_meta(&"noss_surface", surface)
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
 	box.size = Vector3(bounds.size.x + 1200.0, 10.0, bounds.size.z + 1200.0)

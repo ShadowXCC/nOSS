@@ -53,7 +53,7 @@ func test_a_ramp_starts_on_the_road_edge_and_widens() -> void:
 		# Fully out once the taper ends.
 		if not r.head_main.is_empty():
 			assert_float(r.track.half_l[r.head_main.size() - 1] * 2.0).is_equal_approx(r.width, 0.01)
-			assert_float(r.track.half_l[0]).is_less(0.01)
+			assert_float(r.track.half_l[0]).is_equal_approx(RampData.MIN_WIDTH / 2.0, 0.001)
 
 
 func test_no_ramp_cuts_into_the_road() -> void:
@@ -143,8 +143,8 @@ func test_lane_graph_connects_ramps_to_the_outer_lanes() -> void:
 	# Direction -1's lanes run against the road: their first step goes the other way.
 	var lane: PackedVector3Array = g.lanes[h.main_lane(-1, 0)].points
 	assert_float((lane[1] - lane[0]).dot(_t.tangents[0])).is_less(0.0)
-	assert_int((g.portals.harbour.in as Array).size()).is_equal(1)
-	assert_int((g.portals.harbour.out as Array).size()).is_equal(1)
+	assert_int((g.portals.harbour_out.in as Array).size()).is_equal(1)
+	assert_int((g.portals.harbour_in.out as Array).size()).is_equal(1)
 
 
 func test_speed_limits_and_tunnels_come_from_zones() -> void:
@@ -180,6 +180,9 @@ func test_format_checks_ramp_ends() -> void:
 	bad = d.duplicate(true)
 	bad.highway.ramps[1].id = bad.highway.ramps[0].id
 	assert_str(TrackFormat.validate(bad)).contains("twice")
+	bad = d.duplicate(true)
+	bad.highway.ramps[1].from = bad.highway.ramps[0].to.duplicate()
+	assert_str(TrackFormat.validate(bad)).contains("serves two ramps")
 	var circuit := TrackFormat.blank("c", "C")
 	circuit.highway = {}
 	assert_str(TrackFormat.validate_highway(circuit)).contains("only on highway tracks")

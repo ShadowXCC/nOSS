@@ -44,12 +44,14 @@ struct Brush {
 };
 
 // The road for conform: its centreline samples (in order, closed), each with its left vector
-// (banked) and how far the ground is levelled each side (road, curb and run-off).
+// (banked) and how far the ground is levelled each side (road, curb and run-off). Several roads go
+// in one list, each ending on a sample marked `end` (a highway's ramps, D107).
 struct RoadSample {
 	double x = 0.0, y = 0.0, z = 0.0;
 	double lx = 1.0, ly = 0.0, lz = 0.0;
 	double flat_l = 6.0, flat_r = 6.0;
 	bool lifted = false; // on supports: the ground is left alone
+	bool end = false; // no road from here to the next sample
 };
 
 class Heightfield {

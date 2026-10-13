@@ -142,10 +142,16 @@ static func validate_highway(d: Dictionary) -> String:
 			return "$.highway.portals: %s twice" % p.id
 		portals[p.id] = true
 	var ids := {}
+	var used := {}
 	for r: Dictionary in h.get("ramps", []):
 		if ids.has(r.id):
 			return "$.highway.ramps: %s twice" % r.id
 		ids[r.id] = true
+		for e: Dictionary in [r.from, r.to]:
+			if e.has("portal"):
+				if used.has(e.portal):
+					return "$.highway.portals: %s serves two ramps" % e.portal
+				used[e.portal] = true
 		var ends := { "from": r.from, "to": r.to }
 		for key: String in ends:
 			var e: Dictionary = ends[key]

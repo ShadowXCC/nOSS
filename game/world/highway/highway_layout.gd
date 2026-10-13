@@ -184,6 +184,26 @@ func locate(pos: Vector3, hint := {}) -> Dictionary:
 	return best
 
 
+## True if a road (the main road or a ramp) runs under `p` at least `clear` m below it: a pillar
+## standing there would land on it.
+func road_below(p: Vector3, clear := 2.0) -> bool:
+	var mp := main.project(p)
+	var k := int(mp.index)
+	var edge: float = main.half_l[k] if float(mp.lateral) >= 0.0 else main.half_r[k]
+	if absf(float(mp.lateral)) <= edge + 0.5 and main.samples[k].y < p.y - clear:
+		return true
+	for i in ramps.size():
+		var box := _ramp_boxes[i]
+		if p.x < box.position.x or p.x > box.end.x or p.z < box.position.z or p.z > box.end.z:
+			continue
+		var r := ramps[i].track
+		var rp := r.project(p)
+		var ri := int(rp.index)
+		if absf(float(rp.lateral)) <= r.half_l[ri] + 0.5 and r.samples[ri].y < p.y - clear:
+			return true
+	return false
+
+
 ## A car's spot in lane `lane` of direction `dir` at main-road distance `d`: on the road, facing
 ## the way that carriageway drives.
 func spawn_spot(dir: int, d: float, lane: int) -> Transform3D:

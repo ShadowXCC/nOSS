@@ -13,6 +13,7 @@ var track: TrackData:
 var cars: Callable
 
 var _points := PackedVector2Array()
+var _ramps: Array[PackedVector2Array] = []
 var _bounds := Rect2()
 
 
@@ -36,6 +37,15 @@ func _draw() -> void:
 		_bounds = Rect2(_points[0], Vector2.ZERO)
 		for p in _points:
 			_bounds = _bounds.expand(p)
+		_ramps.clear()
+		if track.highway:
+			for r in track.highway.ramps:
+				var pts := PackedVector2Array()
+				for k in range(0, r.track.samples.size(), 4):
+					pts.append(Vector2(r.track.samples[k].x, r.track.samples[k].z))
+				_ramps.append(pts)
+				for p in pts:
+					_bounds = _bounds.expand(p)
 	var margin := minf(size.x, size.y) * 0.1
 	var fit := minf((size.x - 2.0 * margin) / maxf(_bounds.size.x, 1.0), (size.y - 2.0 * margin) / maxf(_bounds.size.y, 1.0))
 	var offset := (size - _bounds.size * fit) / 2.0
@@ -45,6 +55,12 @@ func _draw() -> void:
 		line.append(to_map.call(p))
 	line.append(line[0])
 	var width := maxf(size.y / 90.0, 2.0)
+	for ramp in _ramps:
+		var rl := PackedVector2Array()
+		for p in ramp:
+			rl.append(to_map.call(p))
+		if rl.size() > 1:
+			draw_polyline(rl, Color(0.55, 0.55, 0.52), width * 0.6, true)
 	draw_polyline(line, Color(0, 0, 0), width * 2.2, true)
 	draw_polyline(line, Color(0.85, 0.85, 0.82), width, true)
 	var start := track.transform_at(track.start_m)

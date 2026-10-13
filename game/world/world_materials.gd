@@ -24,6 +24,15 @@ static func get_material(key: String, texture: Texture2D, roughness: float, spec
 	return m
 
 
+## A lit-up material (lamp heads, tunnel lights): `color`, glowing at `glow` of it.
+static func glowing(key: String, color: Color, glow := 1.0) -> ShaderMaterial:
+	if _cache.has(key):
+		return _cache[key]
+	var m := get_material(key, null, 0.5, 0.3, false, Vector2.ONE, color)
+	m.set_shader_parameter("emission", color * glow)
+	return m
+
+
 ## The material for a surface by VehicleSim id (roads, run-offs).
 static func surface(id: int) -> ShaderMaterial:
 	match id:

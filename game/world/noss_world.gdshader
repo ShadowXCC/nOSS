@@ -14,6 +14,8 @@ uniform bool world_uv = false; // planar XZ mapping for terrain
 uniform float roughness : hint_range(0.0, 1.0) = 0.9;
 uniform float specular : hint_range(0.0, 1.0) = 0.2;
 uniform bool alpha_scissor = false;
+// Lamps, tunnel lights: glow at this colour (black: none).
+uniform vec3 emission : source_color = vec3(0.0);
 // Low-frequency colour variation in world space, to break up tiling.
 uniform float variation = 0.0;
 uniform sampler2D variation_noise : repeat_enable, filter_linear_mipmap, hint_default_white;
@@ -36,6 +38,7 @@ void fragment() {
 	ALBEDO = mix(vec3(grey), c, style_saturation);
 	ROUGHNESS = roughness;
 	SPECULAR = specular;
+	EMISSION = emission;
 	if (alpha_scissor) {
 		ALPHA = t.a * albedo.a;
 		ALPHA_SCISSOR_THRESHOLD = 0.5;

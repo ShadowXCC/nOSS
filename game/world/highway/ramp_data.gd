@@ -12,6 +12,8 @@ const SHOULDER_M := 0.6
 const GORE_M := 2.5
 ## Its barriers stand this far outside its edges.
 const RUNOFF_M := 0.5
+## Where it leaves or joins the road it starts this wide (no zero-width triangles).
+const MIN_WIDTH := 0.05
 
 var id := ""
 var name := ""
@@ -37,6 +39,9 @@ var tail_main := PackedInt32Array()
 ## Ramp samples where its own inner barrier starts and ends (past the gore).
 var gore_head := 0
 var gore_tail := 0
+## Strip samples attached to the road at the start ([0, head_count)) and from tail_start on.
+var head_count := 0
+var tail_start := 0
 ## The traffic lane through it, in driving order: from the road's outer lane (or the portal) to
 ## the road's outer lane (or the portal).
 var lane_path := PackedVector3Array()
@@ -91,7 +96,7 @@ func _build(layout: HighwayLayout, r: Dictionary, ground: Callable) -> void:
 		for n in head_main.size():
 			var k := head_main[n]
 			var u := smoothstep(0.0, 1.0, traveled[n] / taper_m)
-			_attached(layout, int(from.dir), k, w * u, pts, fwds, lefts, ups, halves)
+			_attached(layout, int(from.dir), k, maxf(w * u, MIN_WIDTH), pts, fwds, lefts, ups, halves)
 			on_main.append(k)
 			lane_lat.append(lerpf(layout.lane_lateral(int(from.dir), 0), _centre_lateral(layout, int(from.dir), k), u))
 		start_point = pts[pts.size() - 1]
@@ -122,7 +127,7 @@ func _build(layout: HighwayLayout, r: Dictionary, ground: Callable) -> void:
 		for n in tail_main.size():
 			var k := tail_main[n]
 			var u := smoothstep(0.0, 1.0, 1.0 - traveled[n] / taper_m)
-			_attached(layout, dir, k, w * u, tail_pts, tail_fwds, tail_lefts, tail_ups, tail_halves)
+			_attached(layout, dir, k, maxf(w * u, MIN_WIDTH), tail_pts, tail_fwds, tail_lefts, tail_ups, tail_halves)
 			tail_lat.append(lerpf(layout.lane_lateral(dir, 0), _centre_lateral(layout, dir, k), u))
 		end_point = tail_pts[0]
 		end_tangent = tail_fwds[0]
@@ -137,7 +142,7 @@ func _build(layout: HighwayLayout, r: Dictionary, ground: Callable) -> void:
 	ctrl.append(end_point)
 	var free := _sample_open(ctrl, start_tangent, end_tangent)
 	# Join: attached head (its last sample is the free part's first point), free, attached tail.
-	var head_count := pts.size()
+	head_count = pts.size()
 	var first_free := 1 if head_count > 0 else 0
 	var last_free := free.size() - (2 if not tail_pts.is_empty() else 1)
 	for i in range(first_free, last_free + 1):
@@ -147,7 +152,7 @@ func _build(layout: HighwayLayout, r: Dictionary, ground: Callable) -> void:
 		ups.append(Vector3.ZERO)
 		halves.append(w / 2.0)
 		on_main.append(-1)
-	var tail_start := pts.size()
+	tail_start = pts.size()
 	pts.append_array(tail_pts)
 	fwds.append_array(tail_fwds)
 	lefts.append_array(tail_lefts)

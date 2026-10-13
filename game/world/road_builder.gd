@@ -33,12 +33,16 @@ var terrain: TerrainData
 ## Without visuals (the dedicated server): collision only.
 var visual := true
 var _ground_y := -0.03
+## A highway's markings, median, mouths and extras (null on circuits).
+var _hw: HighwayBuilder
 
 
 func _init(t: TrackData, ground: TerrainData = null) -> void:
 	track = t
 	terrain = ground
 	_ground_y = float(t.raw.get("ground", {}).get("flat_y", -0.03))
+	if t.highway:
+		_hw = HighwayBuilder.new(self, t.highway)
 
 
 ## Every piece into `root`: one node per kind, or one per segment ("Seg_<n>") if `segmented`.
@@ -51,6 +55,34 @@ func build_all(root: Node3D, segmented := false) -> void:
 	else:
 		_add_batches(root, _batches(0, track.samples.size()))
 	_add_batches(root, { "barrier:perimeter": _perimeter() })
+	if _hw:
+		for r in track.highway.ramps:
+			root.add_child(build_ramp(r))
+		root.add_child(_hw.extras())
+
+
+## A highway ramp's road as one node, "Ramp_<id>".
+func build_ramp(r: RampData) -> Node3D:
+	var rb := RoadBuilder.new(r.track, terrain)
+	rb.visual = visual
+	rb._hw = HighwayBuilder.new(rb, track.highway, r)
+	var node := Node3D.new()
+	node.name = "Ramp_" + r.id
+	rb._add_batches(node, rb._batches(0, r.track.samples.size() - 1))
+	return node
+
+
+## Rebuilds a highway's ramps and its extras (signs, portals, cushions) under `root`.
+func rebuild_highway(root: Node3D) -> void:
+	if not _hw:
+		return
+	for child in root.get_children():
+		if String(child.name).begins_with("Ramp_") or child.name == &"Highway":
+			root.remove_child(child)
+			child.queue_free()
+	for r in track.highway.ramps:
+		root.add_child(build_ramp(r))
+	root.add_child(_hw.extras())
 
 
 ## Segment `s`'s pieces as one node, "Seg_<s>".
@@ -88,18 +120,28 @@ func _batches(first: int, end: int) -> Dictionary:
 		var surface := int(track.surface[k])
 		_road_quad(_batch(out, "road:%d" % surface), k, j)
 		if visual:
-			_lines(_batch(out, "lines"), k, j)
+			if _hw:
+				_hw.lines(_batch(out, "lines"), k, j)
+			else:
+				_lines(_batch(out, "lines"), k, j)
 		for side: float in [1.0, -1.0]:
 			if (track.curb_l if side > 0.0 else track.curb_r)[k]:
 				_curb(_batch(out, "curbs"), k, j, side)
 			var runoff := int((track.runoff_l if side > 0.0 else track.runoff_r)[k])
-			if runoff != _ground_surface() and (track.runoff_l_m if side > 0.0 else track.runoff_r_m)[k] > 0.1:
+			if runoff != _ground_surface() and (track.runoff_l_m if side > 0.0 else track.runoff_r_m)[k] > 0.1 and not _gapped(k, side) and not _gapped(j, side):
 				_runoff(_batch(out, "runoff:%d" % runoff), k, j, side)
 		if track.lifted[k] or track.lifted[j]:
 			_deck(_batch(out, "bridge"), k, j)
 	_barriers(out, first, end)
 	_pillars(out, first, end)
+	if _hw and _hw.ramp == null:
+		_hw.main_pieces(out, first, end)
 	return out
+
+
+## True where `side` of sample `k` opens onto another road (a highway's ramp mouths).
+func _gapped(k: int, side: float) -> bool:
+	return _hw != null and _hw.gapped(k, side)
 
 
 func _batch(out: Dictionary, key: String) -> MeshBatch:
@@ -196,6 +238,8 @@ func _runoff(b: MeshBatch, i: int, j: int, side: float) -> void:
 ## A deck under the road where it stands on supports, and a concrete parapet each side.
 func _deck(b: MeshBatch, i: int, j: int) -> void:
 	for side: float in [1.0, -1.0]:
+		if _gapped(i, side) or _gapped(j, side):
+			continue
 		var oi := _edge(i, side, PARAPET[1])
 		var oj := _edge(j, side, PARAPET[1])
 		var ii := _edge(i, side)
@@ -231,7 +275,7 @@ func _barriers(out: Dictionary, first: int, end: int) -> void:
 				run_type = kind
 			if kind > 0:
 				run.append(_barrier_point(k, side))
-			if track.lifted[k]:
+			if track.lifted[k] and not _gapped(k, side):
 				parapet.append(_edge(k, side, PARAPET[1] / 2.0))
 			else:
 				_wall(out, parapet, 4, 0.0, PARAPET)
@@ -249,7 +293,7 @@ func _wall(out: Dictionary, path: PackedVector3Array, kind: int, u: float, size:
 
 ## The barrier type on `side` at sample `k` (0: none).
 func _barrier_at(k: int, side: float) -> int:
-	if track.lifted[k]:
+	if track.lifted[k] or _gapped(k, side):
 		return 0
 	var kind := int((track.barrier_l if side > 0.0 else track.barrier_r)[k])
 	if kind != TrackFormat.BARRIER_AUTO:
@@ -287,6 +331,8 @@ func _pillars(out: Dictionary, first: int, end: int) -> void:
 		next = d + PILLAR_EVERY_M
 		for side: float in [1.0, -1.0]:
 			var top := _edge(k, side, -0.5) + Vector3.DOWN * DECK
+			if _hw and _hw.highway.road_below(top):
+				continue
 			var ground := terrain.height_at(top.x, top.z) - 0.5 if terrain else _ground_y
 			var h := top.y - ground
 			if h > 0.5:
@@ -323,7 +369,9 @@ func _perimeter() -> MeshBatch:
 # --- nodes ----------------------------------------------------------------------------------
 
 
-const NAMES := { "lines": "Lines", "curbs": "Curbs", "bridge": "Bridge" }
+const NAMES := { "lines": "Lines", "curbs": "Curbs", "bridge": "Bridge", "lamps": "Lamps", "lamp_heads": "LampHeads",
+	"tunnel": "Tunnel", "tunnel_lights": "TunnelLights", "gantry": "Gantries", "sign_board": "SignBoards", "cushion": "Cushions",
+	"portal": "Portals", "portal_dark": "PortalShells", "portal_floor": "PortalFloors" }
 
 
 func _add_batches(parent: Node3D, batches: Dictionary) -> void:
@@ -367,9 +415,34 @@ func _add_batches(parent: Node3D, batches: Dictionary) -> void:
 					"5":
 						node_name = "Fences"
 						material = WorldMaterials.get_material("fence", RetroTextures.concrete(), 0.6, 0.3, false, Vector2.ONE, Color(0.45, 0.5, 0.45))
-			"bridge":
+			"bridge", "tunnel", "portal":
 				surface = VehicleSim.SURFACE_CONCRETE
 				material = WorldMaterials.get_material("concrete_world_uv", RetroTextures.concrete(), 0.8, 0.25, true, Vector2.ONE / 6.0)
+			"median":
+				surface = VehicleSim.SURFACE_CONCRETE
+				node_name = "Median"
+				material = WorldMaterials.get_material("armco", RetroTextures.concrete(), 0.35, 0.6, false, Vector2.ONE, Color(0.78, 0.8, 0.84)) if parts[1] == "armco" \
+					else WorldMaterials.get_material("concrete_wall", RetroTextures.concrete(), 0.85, 0.2)
+			"lamps":
+				material = WorldMaterials.get_material("lamp_pole", null, 0.5, 0.5, false, Vector2.ONE, Color(0.55, 0.57, 0.6))
+			"lamp_heads":
+				material = WorldMaterials.glowing("lamp_head", Color(1.0, 0.86, 0.6), 1.6)
+			"tunnel_lights":
+				material = WorldMaterials.glowing("tunnel_light", Color(1.0, 0.92, 0.75), 2.0)
+			"gantry":
+				surface = VehicleSim.SURFACE_CONCRETE
+				material = WorldMaterials.get_material("gantry_steel", null, 0.45, 0.6, false, Vector2.ONE, Color(0.6, 0.62, 0.66))
+			"sign_board":
+				material = WorldMaterials.get_material("sign_green", null, 0.6, 0.2, false, Vector2.ONE, Color(0.06, 0.36, 0.2))
+			"cushion":
+				surface = VehicleSim.SURFACE_CONCRETE
+				material = WorldMaterials.get_material("cushion", RetroTextures.checker(), 0.6, 0.2, false, Vector2(1, 2), Color(1.0, 0.82, 0.1))
+			"portal_dark":
+				surface = VehicleSim.SURFACE_CONCRETE
+				material = WorldMaterials.get_material("portal_dark", null, 1.0, 0.0, false, Vector2.ONE, Color(0.03, 0.03, 0.035))
+			"portal_floor":
+				surface = VehicleSim.SURFACE_ASPHALT
+				material = WorldMaterials.surface(VehicleSim.SURFACE_ASPHALT)
 		_add_piece(parent, node_name, b, material, surface)
 
 

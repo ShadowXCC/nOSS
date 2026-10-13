@@ -176,6 +176,12 @@ func scatter_points(id: String, center: Vector2, radius: float, density_per_100m
 func _near_road(p: Vector2) -> bool:
 	if track.samples.size() < 2:
 		return false
+	if track.highway:
+		for r in track.highway.ramps:
+			var rp := r.track.project(Vector3(p.x, ground_at(p.x, p.y), p.y))
+			var ri: int = rp.index
+			if absf(float(rp.lateral)) < r.track.half_l[ri] + RampData.RUNOFF_M + 3.0 and (Vector3(p.x, 0, p.y) - Vector3(rp.point.x, 0, rp.point.z)).length() < r.width + 4.0:
+				return true
 	if _reach_max < 0.0:
 		for i in track.samples.size():
 			_reach_max = maxf(_reach_max, maxf(track.half_l[i] + track.runoff_l_m[i], track.half_r[i] + track.runoff_r_m[i]))

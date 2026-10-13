@@ -149,6 +149,39 @@ TEST_CASE("terrain: a banked road tilts its bed; a lifted one leaves the ground 
 	CHECK(g.height_at(0.0, 0.0) == doctest::Approx(0.0));
 }
 
+TEST_CASE("terrain: roads in one list break where one ends") {
+	Heightfield f = flat();
+	for (float &h : f.base) {
+		h = 5.0f;
+	}
+	f.final_h = f.base;
+	Rect all{ 0, 0, f.w, f.d };
+	// Two straights at z = 0 and z = 50, each ending on a sample marked `end`: nothing joins the end
+	// of one to the start of the next (or the last back to the first).
+	std::vector<RoadSample> road = straight(2.0);
+	road.back().end = true;
+	for (RoadSample s : straight(2.0)) {
+		s.z = 50.0;
+		road.push_back(s);
+	}
+	road.back().end = true;
+	f.conform(all, road, 6.0, 0.0);
+	CHECK(f.height_at(0.0, 0.0) == doctest::Approx(2.0).epsilon(0.001));
+	CHECK(f.height_at(0.0, 50.0) == doctest::Approx(2.0).epsilon(0.001));
+	CHECK(f.height_at(0.0, 25.0) == doctest::Approx(5.0)); // between them: untouched
+	// Without the marks the jump from one road to the next is levelled too.
+	Heightfield g = flat();
+	for (float &h : g.base) {
+		h = 5.0f;
+	}
+	g.final_h = g.base;
+	for (RoadSample &s : road) {
+		s.end = false;
+	}
+	g.conform(all, road, 6.0, 0.0);
+	CHECK(g.height_at(0.0, 25.0) < 4.0);
+}
+
 TEST_CASE("terrain: a ray hits the ground where it is") {
 	Heightfield f = flat();
 	Brush b;
