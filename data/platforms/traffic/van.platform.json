@@ -1,0 +1,174 @@
+{
+  "schema": "noss.platform/1",
+  "id": "official.traffic.van",
+  "name": "Traffic van",
+  "version": "0.1.0",
+  "family": "car",
+  "modes": [
+    "highway"
+  ],
+  "accepts_families": [
+    "car",
+    "truck"
+  ],
+  "layout": {
+    "drive": "rwd",
+    "axles": [
+      {
+        "steer": true,
+        "driven": false,
+        "wheels": 2
+      },
+      {
+        "steer": false,
+        "driven": true,
+        "wheels": 2
+      }
+    ]
+  },
+  "geometry": {
+    "wheelbase_m": {
+      "ref": 3.4,
+      "min": 2.9,
+      "max": 4.0
+    },
+    "track_m": {
+      "ref": 1.7,
+      "min": 1.58,
+      "max": 1.82
+    },
+    "ride_height_m": {
+      "ref": 0.18,
+      "min": 0.12,
+      "max": 0.25
+    },
+    "wheel_radius_m": {
+      "ref": 0.34,
+      "min": 0.3,
+      "max": 0.4
+    },
+    "envelope_m": {
+      "length": [
+        4.6,
+        6.6
+      ],
+      "width": [
+        1.85,
+        2.15
+      ],
+      "height": [
+        1.85,
+        2.8
+      ]
+    }
+  },
+  "mass": {
+    "kg": 2300,
+    "front_weight": 0.55,
+    "cog_height_over_track": 0.42,
+    "yaw_dynamic_index": 1.0
+  },
+  "engine": {
+    "torque_curve_nm": [
+      [
+        1000,
+        250
+      ],
+      [
+        1800,
+        360
+      ],
+      [
+        3000,
+        370
+      ],
+      [
+        4000,
+        330
+      ],
+      [
+        4400,
+        300
+      ]
+    ],
+    "idle_rpm": 750,
+    "redline_rpm": 4200,
+    "limiter_rpm": 4400,
+    "inertia_kgm2": 0.3,
+    "engine_brake_nm": 90
+  },
+  "gearbox": {
+    "type": "auto",
+    "ratios": [
+      4.2,
+      2.5,
+      1.6,
+      1.2,
+      1.0,
+      0.8
+    ],
+    "reverse": 3.8,
+    "final_drive": 3.7,
+    "shift_time_s": 0.3
+  },
+  "differential": {
+    "type": "open"
+  },
+  "brakes": {
+    "max_torque_nm": 7000,
+    "bias_front": 0.62
+  },
+  "suspension": {
+    "front": {
+      "freq_hz": 1.5,
+      "damping_bump": 0.45,
+      "damping_rebound": 0.65,
+      "travel_m": 0.12
+    },
+    "rear": {
+      "freq_hz": 1.6,
+      "damping_bump": 0.45,
+      "damping_rebound": 0.65,
+      "travel_m": 0.13
+    },
+    "roll_gradient_deg_per_g": 3.0,
+    "roll_stiffness_front_share": 0.6
+  },
+  "steering": {
+    "max_road_angle_deg": 34,
+    "wheel_rotation_deg": 1080
+  },
+  "aero": {
+    "cd_a": 1.4,
+    "cl_a_front": 0.0,
+    "cl_a_rear": 0.0,
+    "slipstream": true
+  },
+  "tires": {
+    "model": "pacejka_lite",
+    "compound": "street",
+    "mu_peak": 0.95,
+    "load_sensitivity": 0.1,
+    "peak_slip_ratio": 0.12,
+    "peak_slip_angle_deg": 8.0,
+    "relaxation_length_m": 0.32,
+    "rolling_resistance": 0.012,
+    "wear": false,
+    "temperature": false
+  },
+  "assists_allowed": [
+    "abs",
+    "tcs",
+    "stability",
+    "auto_gearbox",
+    "auto_clutch"
+  ],
+  "damage": {
+    "cosmetic": true,
+    "mechanical": []
+  },
+  "tunable": {},
+  "ffb": {
+    "reference_rack_nm": 7.0
+  }
+}
