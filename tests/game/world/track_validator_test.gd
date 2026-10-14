@@ -193,3 +193,64 @@ func _slowest(v: PackedFloat32Array) -> float:
 	for s in v:
 		m = minf(m, s)
 	return m
+
+
+# --- highways (EDT-10) ----------------------------------------------------------------------
+
+
+func test_the_highway_template_and_fixture_pass() -> void:
+	var d := TrackTemplates.make("highway")
+	assert_array(_texts(d)).override_failure_message(str(_texts(d))).is_empty()
+	var f := TrackDraft.from_package(TrackLoader.load_package("res://tests/fixtures/tracks/highway_ring_small.json", {}, { "terrain": false }))
+	assert_array(_texts(f, "error")).override_failure_message(str(_texts(f))).is_empty()
+
+
+func test_a_ramp_bent_back_is_too_tight_and_one_on_the_road_overlaps() -> void:
+	var d := TrackTemplates.make("highway")
+	var id := "interchange_1_off"
+	var pts: Array = d.ramp(id).points
+	var a := Vector3(pts[0].p[0], 0, pts[0].p[2])
+	var b := Vector3(pts[1].p[0], 0, pts[1].p[2])
+	# A hairpin between its two points: out, back, out again.
+	d.add_ramp_point(id, 1, a + (b - a) * 0.5 + Vector3(0, 0, -6))
+	d.add_ramp_point(id, 2, a + (b - a) * 0.2 + Vector3(0, 0, -9))
+	assert_bool(_has(_texts(d, "error"), "Ramp too tight")).is_true()
+	d.undo()
+	d.undo()
+	# Its second point dragged onto the road.
+	var t := d.track()
+	var on := t.project(b).point as Vector3
+	d.drag_ramp_point(id, 1, on)
+	d.end_ramp_move()
+	assert_bool(_has(_texts(d, "error"), "Ramp overlaps road")).is_true()
+
+
+func test_ramps_on_the_same_mouth_and_on_each_other() -> void:
+	var d := TrackTemplates.make("highway")
+	var at := float(d.ramp("interchange_1_off").from.at_m)
+	d.add_ramp("exit", 1, at + 50.0)
+	var found := _texts(d, "error")
+	assert_bool(_has(found, "Ramps too close")).override_failure_message(str(found)).is_true()
+	assert_bool(_has(found, "Ramps overlap")).override_failure_message(str(found)).is_true()
+
+
+func test_a_steep_ramp_warns() -> void:
+	var d := TrackTemplates.make("highway")
+	var p: Array = d.ramp("interchange_1_off").points[1].p
+	d.drag_ramp_point("interchange_1_off", 1, Vector3(p[0], 14.0, p[2]))
+	d.end_ramp_move()
+	assert_bool(_has(_texts(d, "warning"), "Ramp too steep")).is_true()
+
+
+func test_no_way_back_no_crossover_and_short_runs() -> void:
+	var d := TrackTemplates.make("highway")
+	d.delete_ramp("interchange_1_on")
+	d.delete_ramp("crossover_2")
+	var warnings := _texts(d, "warning")
+	assert_array(warnings).contains(["Exit with no entry back", "Crossover one way only"])
+	d.delete_ramp("crossover_1")
+	assert_array(_texts(d, "warning")).contains(["No crossover"])
+	d.set_runs([{ "id": "r", "name": "Dash", "dir": -1, "from_m": 1500.0, "to_m": 500.0 }])
+	assert_array(_texts(d, "error")).is_empty()
+	d.set_runs([{ "id": "r", "name": "Dash", "dir": 1, "from_m": 900.0, "to_m": 1300.0 }])
+	assert_array(_texts(d, "error")).contains(["Run too short: Dash"])

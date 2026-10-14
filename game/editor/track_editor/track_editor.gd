@@ -313,8 +313,8 @@ func _analyse() -> void:
 	var stamp := _changes
 	_analyse_job = WorkerJob.start(self, func() -> Dictionary:
 		var t: TrackData = inputs.track
-		if t.samples.size() < 3 or t.length < TrackValidator.MIN_LENGTH_M:
-			return { "problems": TrackValidator.run(inputs) }
+		if t.samples.size() < 3 or t.length < TrackValidator.MIN_LENGTH_M or t.highway:
+			return { "problems": TrackValidator.run(inputs) } # highways have no racing line
 		var line := RacingLine.solve(t)
 		return { "line": line, "lap_s": line.lap_time(line.speed_profile(inputs.platform)), "problems": TrackValidator.run(inputs, line) },
 		_analysed.bind(stamp), 30.0, func() -> Dictionary: return {})

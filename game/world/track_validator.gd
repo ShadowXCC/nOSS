@@ -35,6 +35,11 @@ const FREE_M := 3.0
 const PROP_STEP_M := 3.0
 ## Problems of one kind listed at most.
 const MAX_EACH := 3
+## Highways (EDT-10): the steepest a ramp should be, the shortest a run may be, and how far a
+## ramp may reach into the road it isn't attached to.
+const RAMP_STEEP := 0.08
+const RUN_MIN_M := 500.0
+const RAMP_INTO_M := 0.3
 ## The car the AI line's speeds are checked with (and the editor's "AI lap" is timed with).
 const REFERENCE_PLATFORM := "official.track.gt"
 const LEVELS := ["error", "warning", "info"]
@@ -93,13 +98,17 @@ func _check(line: RacingLine) -> void:
 	_overlaps()
 	_folds()
 	_heights()
-	_grid()
+	if t.highway:
+		_highway()
+	else:
+		_grid()
 	_sectors()
 	_terrain_edge()
 	_props()
 	if _in.get("scene") != null:
 		_scene()
-	_ai_line(line if line else RacingLine.solve(t))
+	if not t.highway: # traffic and the highway driver follow lanes, not a racing line
+		_ai_line(line if line else RacingLine.solve(t))
 
 
 ## The road over itself without a bridge's clearance.
@@ -304,6 +313,109 @@ static func _footprint(id: String, size: Array, scale: float) -> Vector2:
 			box = AABB(v, Vector3.ZERO) if first else box.expand(v)
 			first = false
 	return Vector2(maxf(absf(box.position.x), absf(box.end.x)), maxf(absf(box.position.z), absf(box.end.z))) * scale
+
+
+## A highway's ramps build, aren't too tight or steep, keep off the road and each other, and
+## leave the road where no other ramp does; a way back on after an exit; crossovers each way;
+## runs long enough; and traffic can drive it all.
+func _highway() -> void:
+	var h := t.highway
+	for e in h.errors:
+		_add("error", e)
+	var mouths := { 1: {}, -1: {} } # direction: {main sample: ramp index}
+	var cells := {} # Vector2i: [[ramp index, sample]]
+	var exits := { 1: [], -1: [] }
+	var entries := { 1: 0, -1: 0 }
+	var links := { 1: 0, -1: 0 }
+	for ri in h.ramps.size():
+		var r := h.ramps[ri]
+		var rt := r.track
+		var label := r.name if r.name else r.id
+		var n := rt.samples.size()
+		var tight := false
+		var steep := false
+		var into := false
+		var span := maxi(int(STEEP_RUN_M / TrackData.SAMPLE_M), 1)
+		for k in n:
+			var p := rt.samples[k]
+			if absf(rt.curvature[k]) * maxf(rt.half_l[k], rt.half_r[k]) > FOLD:
+				tight = tight or _once("error", "Ramp too tight: " + label, p)
+			if k + span < n:
+				var q := rt.samples[k + span]
+				var run_m := Vector2(q.x - p.x, q.z - p.z).length()
+				if run_m > 0.1 and absf(q.y - p.y) / run_m > RAMP_STEEP:
+					steep = steep or _once("warning", "Ramp too steep: " + label, p)
+			if k < r.head_count or k >= r.tail_start:
+				continue # attached: it is the road's edge there
+			var proj := t.project(p)
+			var mi: int = proj.index
+			var edge := maxf(t.half_l[mi], t.half_r[mi])
+			if absf(float(proj.lateral)) - r.width / 2.0 < edge - RAMP_INTO_M and absf(p.y - t.samples[mi].y) < CLEARANCE_M:
+				into = into or _once("error", "Ramp overlaps road: " + label, p)
+			var cell := Vector2i(floori(p.x / 20.0), floori(p.z / 20.0))
+			if not cells.has(cell):
+				cells[cell] = []
+			cells[cell].append([ri, k])
+		for end: Array in [[r.from, r.head_main], [r.to, r.tail_main]]:
+			var e: Dictionary = end[0]
+			if not e.has("dir"):
+				continue
+			var taken: Dictionary = mouths[int(e.dir)]
+			for k in (end[1] as PackedInt32Array):
+				if taken.has(k) and taken[k] != ri:
+					var o := h.ramps[taken[k]]
+					_add("error", "Ramps too close: %s, %s" % [o.name if o.name else o.id, label], t.distances[k])
+					break
+				taken[k] = ri
+		match r.kind:
+			"exit":
+				exits[int(r.from.dir)].append(float(r.from.at_m))
+			"entry":
+				entries[int(r.to.dir)] += 1
+			"link":
+				links[int(r.from.dir)] += 1
+	_ramps_cross(cells)
+	for dir: int in [1, -1]:
+		if not exits[dir].is_empty() and entries[dir] == 0:
+			_add("warning", "Exit with no entry back", exits[dir][0])
+	if not h.ramps.is_empty() and (links[1] == 0 or links[-1] == 0):
+		_add("warning", "No crossover" if links[1] + links[-1] == 0 else "Crossover one way only")
+	for run: Dictionary in h.runs:
+		if fposmod(int(run.dir) * (float(run.to_m) - float(run.from_m)), t.length) < RUN_MIN_M:
+			_add("error", "Run too short: " + String(run.name), float(run.from_m))
+	var traffic := NossTraffic.new()
+	var err := traffic.setup(h.lane_graph(), TrafficTypes.list(), 1, maxi(int(h.settings.traffic.count), 1), float(h.settings.traffic.exit_share))
+	if err:
+		_add("error", "Traffic can't drive it: " + err)
+
+
+## Two ramps (their free parts) on each other without a bridge's clearance.
+func _ramps_cross(cells: Dictionary) -> void:
+	var h := t.highway
+	var found := {}
+	for cell: Vector2i in cells:
+		for dx in range(-1, 2):
+			for dz in range(-1, 2):
+				var other: Vector2i = cell + Vector2i(dx, dz)
+				if not cells.has(other):
+					continue
+				for a: Array in cells[cell]:
+					for b: Array in cells[other]:
+						if int(a[0]) >= int(b[0]) or found.has(Vector2i(a[0], b[0])):
+							continue
+						var ra := h.ramps[a[0]]
+						var rb := h.ramps[b[0]]
+						var pa := ra.track.samples[a[1]]
+						var pb := rb.track.samples[b[1]]
+						if Vector2(pa.x - pb.x, pa.z - pb.z).length() < (ra.width + rb.width) / 2.0 and absf(pa.y - pb.y) < CLEARANCE_M:
+							found[Vector2i(a[0], b[0])] = true
+							_add("error", "Ramps overlap: %s, %s" % [ra.name if ra.name else ra.id, rb.name if rb.name else rb.id], null, pa)
+
+
+## Adds a problem at `point` and says so (one per ramp and kind: true stops the next).
+func _once(level: String, text: String, point: Vector3) -> bool:
+	_add(level, text, null, point)
+	return true
 
 
 ## The AI's line: inside the road, smooth, and not slower than a walk.
