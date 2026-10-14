@@ -32,6 +32,21 @@ func test_events_from_servers_are_checked() -> void:
 	assert_str(RaceEvent.from_dict({ "kind": "drift" }).kind).is_equal("free")
 
 
+func test_highway_settings_go_only_with_highway_events() -> void:
+	assert_bool(RaceEvent.free_drive().to_dict().has("traffic")).is_false()
+	var h := RaceEvent.highway("score", true, 250)
+	h.direction = -1
+	var back := RaceEvent.from_dict(h.to_dict())
+	assert_str(back.kind).is_equal("highway")
+	assert_str(back.sub).is_equal("score")
+	assert_bool(back.police).is_true()
+	assert_int(back.traffic).is_equal(250)
+	assert_int(back.direction).is_equal(-1)
+	# What a server's config file holds passes its schema.
+	assert_array(JsonSchema.validate({ "schema": "noss.server/1", "rotation": [{ "track": "t", "class": "official.highway.street", "event": h.to_dict() }] }, JsonSchema.load_schema("server"))).is_empty()
+	assert_int(RaceEvent.from_dict({ "kind": "highway", "traffic": 9000 }).traffic).is_equal(RaceEvent.TRAFFIC_MAX)
+
+
 ## A race session with AI cars that have network ids (no network needed).
 func _session() -> TrackSession:
 	Players.clear()

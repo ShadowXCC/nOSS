@@ -40,6 +40,8 @@ const CHOICES := {
 }
 const KEYS := ["kind", "practice_min", "qualifying_min", "race_laps", "race_min", "ai_count", "ai_skill",
 	"start", "grid", "collisions", "track_limits", "ai_cars", "sub", "police", "traffic", "run", "direction"]
+## Written only for highway events (circuit events stay as older games and servers know them).
+const HIGHWAY_KEYS := ["sub", "police", "traffic", "run", "direction"]
 ## Traffic cars at most.
 const TRAFFIC_MAX := 400
 
@@ -88,7 +90,8 @@ func sessions() -> PackedStringArray:
 func to_dict() -> Dictionary:
 	var d := {}
 	for key: String in KEYS:
-		d[key] = get(key)
+		if kind == "highway" or key not in HIGHWAY_KEYS:
+			d[key] = get(key)
 	return d
 
 
