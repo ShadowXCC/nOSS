@@ -35,6 +35,7 @@ void VehicleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("select_gear", "gear"), &VehicleSim::select_gear);
 	ClassDB::bind_method(D_METHOD("set_assists", "assists"), &VehicleSim::set_assists);
 	ClassDB::bind_method(D_METHOD("reset"), &VehicleSim::reset);
+	ClassDB::bind_method(D_METHOD("roll_at", "speed"), &VehicleSim::roll_at);
 	ClassDB::bind_method(D_METHOD("get_speed"), &VehicleSim::get_speed);
 	ClassDB::bind_method(D_METHOD("get_rpm"), &VehicleSim::get_rpm);
 	ClassDB::bind_method(D_METHOD("get_gear"), &VehicleSim::get_gear);
@@ -192,6 +193,12 @@ void VehicleSim::set_assists(const Dictionary &p_assists) {
 void VehicleSim::reset() {
 	if (_model) {
 		_model->reset();
+	}
+}
+
+void VehicleSim::roll_at(double p_speed) {
+	if (_model) {
+		_model->roll_at(p_speed);
 	}
 }
 

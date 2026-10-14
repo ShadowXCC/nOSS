@@ -1,0 +1,211 @@
+{
+  "schema": "noss.platform/1",
+  "id": "official.highway.super",
+  "name": "Super",
+  "version": "0.1.0",
+  "family": "car",
+  "modes": [
+    "highway",
+    "track"
+  ],
+  "accepts_families": [
+    "car"
+  ],
+  "layout": {
+    "drive": "awd",
+    "axles": [
+      {
+        "steer": true,
+        "driven": true,
+        "wheels": 2
+      },
+      {
+        "steer": false,
+        "driven": true,
+        "wheels": 2
+      }
+    ]
+  },
+  "geometry": {
+    "wheelbase_m": {
+      "ref": 2.65,
+      "min": 2.35,
+      "max": 2.95
+    },
+    "track_m": {
+      "ref": 1.65,
+      "min": 1.5,
+      "max": 1.8
+    },
+    "ride_height_m": {
+      "ref": 0.1,
+      "min": 0.07,
+      "max": 0.15
+    },
+    "wheel_radius_m": {
+      "ref": 0.34,
+      "min": 0.31,
+      "max": 0.38
+    },
+    "envelope_m": {
+      "length": [
+        4.0,
+        5.0
+      ],
+      "width": [
+        1.8,
+        2.1
+      ],
+      "height": [
+        1.05,
+        1.4
+      ]
+    }
+  },
+  "mass": {
+    "kg": 1450,
+    "front_weight": 0.44,
+    "cog_height_over_track": 0.28,
+    "yaw_dynamic_index": 0.95
+  },
+  "engine": {
+    "torque_curve_nm": [
+      [
+        1000,
+        380
+      ],
+      [
+        2500,
+        600
+      ],
+      [
+        4500,
+        720
+      ],
+      [
+        6000,
+        720
+      ],
+      [
+        7000,
+        690
+      ],
+      [
+        7600,
+        600
+      ]
+    ],
+    "idle_rpm": 900,
+    "redline_rpm": 7500,
+    "limiter_rpm": 7700,
+    "inertia_kgm2": 0.16,
+    "engine_brake_nm": 80
+  },
+  "gearbox": {
+    "type": "auto",
+    "ratios": [
+      3.4,
+      2.3,
+      1.75,
+      1.38,
+      1.12,
+      0.94,
+      0.8
+    ],
+    "reverse": 3.2,
+    "final_drive": 3.3,
+    "shift_time_s": 0.1
+  },
+  "differential": {
+    "type": "open",
+    "rear": {
+      "type": "lsd_clutch",
+      "preload_nm": 60,
+      "power_lock": 0.35,
+      "coast_lock": 0.2
+    },
+    "center": {
+      "type": "viscous",
+      "front_share": 0.4,
+      "viscous_nm_per_rad_s": 40,
+      "preload_nm": 20
+    }
+  },
+  "brakes": {
+    "max_torque_nm": 8000,
+    "bias_front": 0.6
+  },
+  "suspension": {
+    "front": {
+      "freq_hz": 2.2,
+      "damping_bump": 0.5,
+      "damping_rebound": 0.7,
+      "travel_m": 0.09
+    },
+    "rear": {
+      "freq_hz": 2.3,
+      "damping_bump": 0.5,
+      "damping_rebound": 0.7,
+      "travel_m": 0.1
+    },
+    "roll_gradient_deg_per_g": 1.1,
+    "roll_stiffness_front_share": 0.56
+  },
+  "steering": {
+    "max_road_angle_deg": 29,
+    "wheel_rotation_deg": 620
+  },
+  "aero": {
+    "cd_a": 0.7,
+    "cl_a_front": -0.3,
+    "cl_a_rear": -0.5,
+    "slipstream": true
+  },
+  "tires": {
+    "model": "pacejka_lite",
+    "compound": "sport",
+    "mu_peak": 1.25,
+    "load_sensitivity": 0.1,
+    "peak_slip_ratio": 0.12,
+    "peak_slip_angle_deg": 7.5,
+    "relaxation_length_m": 0.28,
+    "rolling_resistance": 0.013,
+    "wear": false,
+    "temperature": false
+  },
+  "assists_allowed": [
+    "abs",
+    "tcs",
+    "stability",
+    "auto_gearbox",
+    "auto_clutch",
+    "steer_aid",
+    "racing_line",
+    "auto_throttle",
+    "brake_assist",
+    "steering_assist",
+    "autodrive"
+  ],
+  "damage": {
+    "cosmetic": true,
+    "mechanical": [
+      "alignment",
+      "engine"
+    ]
+  },
+  "tunable": {
+    "gearbox.final_drive": {
+      "min": 2.9,
+      "max": 3.7,
+      "step": 0.05
+    },
+    "brakes.bias_front": {
+      "min": 0.54,
+      "max": 0.66,
+      "step": 0.01
+    }
+  },
+  "ffb": {
+    "reference_rack_nm": 9.0
+  }
+}

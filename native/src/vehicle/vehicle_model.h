@@ -255,6 +255,9 @@ public:
 	StepResult step(const Chassis &p_chassis, const std::vector<Contact> &p_contacts, double p_dt);
 	// Stops wheels and engine, e.g. after a reset. Keeps the gear unless it's reverse.
 	void reset();
+	// After reset: the wheels already rolling at p_speed (m/s) forward, in the gear an automatic
+	// would hold there (a car placed at speed, e.g. traffic turned into a physics car, D120).
+	void roll_at(double p_speed);
 	// Takes over engine, gearbox, wheel spin and assist state from p_other (hotswap).
 	void take_state(const VehicleModel &p_other);
 

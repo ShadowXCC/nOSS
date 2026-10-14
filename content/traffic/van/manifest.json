@@ -1,0 +1,23 @@
+{
+  "author": "nOSS contributors",
+  "created": "2026-10-14",
+  "family": "car",
+  "files": {
+    "fit.json": "sha256:a9cc263c4ee68a72bccc0ec10a932a6bd7b893afea30052a3916c18548ec365f",
+    "model/body.glb": "sha256:37ef6c1f43482b40888db7e88bc80998f60bd42565b559183236351d6a265acc",
+    "model/lod1.glb": "sha256:051f205fdabcaefe701a58f91d382b2766f823f8da47dadea9b3bac829002e3a",
+    "paint.json": "sha256:57c053aeeabc6dd857a82513fe3ceb75024de2cea37c603a9b0b005eb99de8e2",
+    "sound/profile.json": "sha256:d37a829849de714722f752002b19d04f0ca66b57cb99cec2c690c0c026e5a79b"
+  },
+  "game_min_version": "0.7.0",
+  "id": "d3f8b5a7-9c44-4e91-8d6f-4b5c6d7e8f94",
+  "license": "CC-BY-SA-4.0",
+  "name": "nOSS Van",
+  "schema": "noss.package/1",
+  "source": "tools/make_traffic_set.gd",
+  "tags": [
+    "traffic",
+    "original"
+  ],
+  "version": 1
+}

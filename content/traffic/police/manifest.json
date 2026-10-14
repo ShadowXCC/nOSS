@@ -1,0 +1,24 @@
+{
+  "author": "nOSS contributors",
+  "created": "2026-10-14",
+  "family": "car",
+  "files": {
+    "fit.json": "sha256:380576a6c8a985bf9a1a1990ce849a768df9a4fcf0773b042ea2fec62e1a883a",
+    "model/body.glb": "sha256:d0d1ebf142b1d60d04bffc35850ca1a475ea9164a716f0b77940ef7df8586f74",
+    "model/lod1.glb": "sha256:9faf24d45afc54e3fac2d14764c2c8b63fc6ca9e286f09c138c5f58cff602184",
+    "paint.json": "sha256:bed50f909493161b41c054e1dad54d47537734e8574d9d5a40b27d1d513983c0",
+    "sound/profile.json": "sha256:d37a829849de714722f752002b19d04f0ca66b57cb99cec2c690c0c026e5a79b"
+  },
+  "game_min_version": "0.7.0",
+  "id": "06cbe8da-cf77-41c4-9092-7e8f9a0b1c27",
+  "license": "CC-BY-SA-4.0",
+  "name": "nOSS Police",
+  "schema": "noss.package/1",
+  "source": "tools/make_traffic_set.gd",
+  "tags": [
+    "traffic",
+    "original",
+    "police"
+  ],
+  "version": 1
+}

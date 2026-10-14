@@ -2,12 +2,41 @@
   "schema": "noss.mode/1",
   "id": "highway",
   "name": "Highway",
-  "classes": ["official.highway.street"],
-  "tuning": { "allow": ["gearbox.final_drive", "brakes.bias_front"] },
-  "assists": {
-    "allowed": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid", "auto_throttle", "brake_assist", "steering_assist", "autodrive"],
-    "defaults": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch"]
+  "classes": [
+    "official.highway.street",
+    "official.highway.super"
+  ],
+  "tuning": {
+    "allow": [
+      "gearbox.final_drive",
+      "brakes.bias_front"
+    ]
   },
-  "damage": { "cosmetic": true, "mechanical": false },
-  "physics_layer": "none"
+  "assists": {
+    "allowed": [
+      "abs",
+      "tcs",
+      "stability",
+      "auto_gearbox",
+      "auto_clutch",
+      "steer_aid",
+      "auto_throttle",
+      "brake_assist",
+      "steering_assist",
+      "autodrive"
+    ],
+    "defaults": [
+      "abs",
+      "tcs",
+      "stability",
+      "auto_gearbox",
+      "auto_clutch"
+    ]
+  },
+  "damage": {
+    "cosmetic": true,
+    "mechanical": false
+  },
+  "physics_layer": "none",
+  "police_class": "official.highway.interceptor"
 }

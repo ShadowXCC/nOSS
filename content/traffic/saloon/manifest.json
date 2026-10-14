@@ -1,0 +1,23 @@
+{
+  "author": "nOSS contributors",
+  "created": "2026-10-14",
+  "family": "car",
+  "files": {
+    "fit.json": "sha256:6570906f0d490413f979daf31c90e3ecbe80bcbc3b8600ae0090e04726096060",
+    "model/body.glb": "sha256:39dc6ab243d391c743bf80db4e664dd3cee4d367a6656ccd2039769dff50a37b",
+    "model/lod1.glb": "sha256:ca511b83d9c66c4f20e61d07aa79def03818c386de85734280f7b150771370d1",
+    "paint.json": "sha256:d1993c34d5918a99b0d5bb32d8c74f03c1e00cb6f5da5bedac9cf8e5a6695d04",
+    "sound/profile.json": "sha256:d37a829849de714722f752002b19d04f0ca66b57cb99cec2c690c0c026e5a79b"
+  },
+  "game_min_version": "0.7.0",
+  "id": "b1d6f3e5-7a22-4c7f-8b4d-2f3a4b5c6d72",
+  "license": "CC-BY-SA-4.0",
+  "name": "nOSS Saloon",
+  "schema": "noss.package/1",
+  "source": "tools/make_traffic_set.gd",
+  "tags": [
+    "traffic",
+    "original"
+  ],
+  "version": 1
+}

@@ -14,6 +14,13 @@ const FINISHES := {
 }
 const BRAKE_ON_ENERGY := 4.0
 const BRAKE_OFF_ENERGY := 0.0
+## Light groups the game switches (fit.json "lights"): their glow colour and energy when on.
+const LIGHTS := {
+	"brake": [Color(1.0, 0.08, 0.04), BRAKE_ON_ENERGY],
+	"head": [Color(1.0, 0.96, 0.85), 1.2],
+	"indicator_L": [Color(1.0, 0.55, 0.05), 3.0],
+	"indicator_R": [Color(1.0, 0.55, 0.05), 3.0],
+}
 
 var package: VehiclePackage
 var fitted: Fitting.Result
@@ -26,6 +33,9 @@ var _steering: Array[Array] = [] # [node, rest, pivot, axis]
 var _paint := {} # slot -> ShaderMaterial
 var _brake_materials: Array[BaseMaterial3D] = []
 var _brake_on := false
+## Group -> its materials (copies per car), and how bright each group is now (0..1, head up to 2).
+var _light_materials := {}
+var _light_level := {}
 var _lod_distances: Array = []
 
 ## Car LOD distances are multiplied by this (splitscreen lowers it, docs/ARCHITECTURE.md §6).
@@ -117,6 +127,26 @@ func set_brake_lights(on: bool) -> void:
 		m.emission_energy_multiplier = BRAKE_ON_ENERGY if on else BRAKE_OFF_ENERGY
 
 
+## Indicators showing now (the caller blinks them).
+func set_indicators(left: bool, right: bool) -> void:
+	set_light("indicator_L", 1.0 if left else 0.0)
+	set_light("indicator_R", 1.0 if right else 0.0)
+
+
+## A light group at `level` of its full glow (head lights: 1 on, 2 flashed).
+func set_light(group: String, level: float) -> void:
+	if is_equal_approx(float(_light_level.get(group, 0.0)), level) or not _light_materials.has(group):
+		return
+	_light_level[group] = level
+	var energy: float = LIGHTS[group][1] * level
+	for m: BaseMaterial3D in _light_materials[group]:
+		m.emission_energy_multiplier = energy
+
+
+func light_level(group: String) -> float:
+	return float(_light_level.get(group, 0.0))
+
+
 func set_paint(slot: String, color: Color, finish := "") -> void:
 	var m: ShaderMaterial = _paint.get(slot)
 	if m == null:
@@ -185,6 +215,8 @@ func _setup() -> void:
 
 	_apply_paint()
 	_find_brake_lights()
+	for group: String in ["head", "indicator_L", "indicator_R"]:
+		_find_lights(group)
 	for mi: MeshInstance3D in model_root.find_children("*", "MeshInstance3D", true, false):
 		for s in mi.mesh.get_surface_count() if mi.mesh else 0:
 			var m := mi.get_active_material(s) as BaseMaterial3D
@@ -306,6 +338,29 @@ func _find_brake_lights() -> void:
 				copies[m] = copy
 				_brake_materials.append(copy)
 			mi.set_surface_override_material(s, copies[m])
+
+
+## The materials of light group `group` (fit.json "lights"), copied per car, glowing at 0 to start.
+func _find_lights(group: String) -> void:
+	var patterns: Array = package.fit.get("lights", {}).get(group, [])
+	if patterns.is_empty():
+		return
+	var copies := {}
+	for mi: MeshInstance3D in model_root.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null:
+			continue
+		for s in mi.mesh.get_surface_count():
+			var m := mi.mesh.surface_get_material(s) as BaseMaterial3D
+			if m == null or not patterns.any(func(p: String) -> bool: return m.resource_name.matchn(p)):
+				continue
+			if not copies.has(m):
+				var copy := m.duplicate() as BaseMaterial3D
+				copy.emission_enabled = true
+				copy.emission = LIGHTS[group][0]
+				copy.emission_energy_multiplier = 0.0
+				copies[m] = copy
+			mi.set_surface_override_material(s, copies[m])
+	_light_materials[group] = copies.values()
 
 
 func _find_all(node_name: String) -> Array[Node3D]:

@@ -1,0 +1,198 @@
+{
+  "schema": "noss.platform/1",
+  "id": "official.highway.interceptor",
+  "name": "Interceptor",
+  "version": "0.1.0",
+  "family": "car",
+  "modes": [
+    "highway"
+  ],
+  "accepts_families": [
+    "car"
+  ],
+  "layout": {
+    "drive": "awd",
+    "axles": [
+      {
+        "steer": true,
+        "driven": true,
+        "wheels": 2
+      },
+      {
+        "steer": false,
+        "driven": true,
+        "wheels": 2
+      }
+    ]
+  },
+  "geometry": {
+    "wheelbase_m": {
+      "ref": 2.85,
+      "min": 2.55,
+      "max": 3.15
+    },
+    "track_m": {
+      "ref": 1.62,
+      "min": 1.48,
+      "max": 1.78
+    },
+    "ride_height_m": {
+      "ref": 0.14,
+      "min": 0.1,
+      "max": 0.2
+    },
+    "wheel_radius_m": {
+      "ref": 0.35,
+      "min": 0.31,
+      "max": 0.39
+    },
+    "envelope_m": {
+      "length": [
+        4.4,
+        5.4
+      ],
+      "width": [
+        1.8,
+        2.1
+      ],
+      "height": [
+        1.3,
+        1.75
+      ]
+    }
+  },
+  "mass": {
+    "kg": 1700,
+    "front_weight": 0.53,
+    "cog_height_over_track": 0.33,
+    "yaw_dynamic_index": 1.0
+  },
+  "engine": {
+    "torque_curve_nm": [
+      [
+        1000,
+        400
+      ],
+      [
+        2500,
+        620
+      ],
+      [
+        4000,
+        680
+      ],
+      [
+        5500,
+        680
+      ],
+      [
+        6500,
+        660
+      ],
+      [
+        7000,
+        580
+      ]
+    ],
+    "idle_rpm": 750,
+    "redline_rpm": 6800,
+    "limiter_rpm": 7000,
+    "inertia_kgm2": 0.2,
+    "engine_brake_nm": 80
+  },
+  "gearbox": {
+    "type": "auto",
+    "ratios": [
+      3.5,
+      2.35,
+      1.72,
+      1.34,
+      1.08,
+      0.9,
+      0.76
+    ],
+    "reverse": 3.2,
+    "final_drive": 3.45,
+    "shift_time_s": 0.12
+  },
+  "differential": {
+    "type": "open",
+    "rear": {
+      "type": "lsd_clutch",
+      "preload_nm": 60,
+      "power_lock": 0.35,
+      "coast_lock": 0.2
+    },
+    "center": {
+      "type": "viscous",
+      "front_share": 0.4,
+      "viscous_nm_per_rad_s": 40,
+      "preload_nm": 20
+    }
+  },
+  "brakes": {
+    "max_torque_nm": 8500,
+    "bias_front": 0.62
+  },
+  "suspension": {
+    "front": {
+      "freq_hz": 1.8,
+      "damping_bump": 0.45,
+      "damping_rebound": 0.65,
+      "travel_m": 0.11
+    },
+    "rear": {
+      "freq_hz": 1.9,
+      "damping_bump": 0.45,
+      "damping_rebound": 0.65,
+      "travel_m": 0.12
+    },
+    "roll_gradient_deg_per_g": 1.6,
+    "roll_stiffness_front_share": 0.6
+  },
+  "steering": {
+    "max_road_angle_deg": 30,
+    "wheel_rotation_deg": 720
+  },
+  "aero": {
+    "cd_a": 0.78,
+    "cl_a_front": -0.15,
+    "cl_a_rear": -0.25,
+    "slipstream": true
+  },
+  "tires": {
+    "model": "pacejka_lite",
+    "compound": "sport",
+    "mu_peak": 1.2,
+    "load_sensitivity": 0.1,
+    "peak_slip_ratio": 0.12,
+    "peak_slip_angle_deg": 8.0,
+    "relaxation_length_m": 0.3,
+    "rolling_resistance": 0.013,
+    "wear": false,
+    "temperature": false
+  },
+  "assists_allowed": [
+    "abs",
+    "tcs",
+    "stability",
+    "auto_gearbox",
+    "auto_clutch",
+    "steer_aid",
+    "auto_throttle",
+    "brake_assist",
+    "steering_assist",
+    "autodrive"
+  ],
+  "damage": {
+    "cosmetic": true,
+    "mechanical": [
+      "alignment",
+      "engine"
+    ]
+  },
+  "tunable": {},
+  "ffb": {
+    "reference_rack_nm": 8.0
+  }
+}

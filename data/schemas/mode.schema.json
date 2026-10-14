@@ -17,6 +17,11 @@
       "uniqueItems": true,
       "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)+$" }
     },
+    "police_class": {
+      "description": "The platform police drive in this mode (highway: AI only for now).",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)+$"
+    },
     "tuning": {
       "type": "object",
       "additionalProperties": false,

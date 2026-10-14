@@ -1,0 +1,12 @@
+{
+  "schema": "noss.paint/1",
+  "slots": {
+    "primary": {
+      "color": "#23324f",
+      "finish": "metallic",
+      "materials": [
+        "Paint_Primary"
+      ]
+    }
+  }
+}

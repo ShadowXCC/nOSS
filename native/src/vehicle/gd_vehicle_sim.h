@@ -45,6 +45,7 @@ public:
 	void select_gear(int64_t p_gear);
 	void set_assists(const godot::Dictionary &p_assists);
 	void reset();
+	void roll_at(double p_speed);
 
 	double get_speed() const;
 	double get_rpm() const;

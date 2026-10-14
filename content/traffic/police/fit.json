@@ -1,0 +1,125 @@
+{
+  "cameras": {
+    "bumper": null,
+    "hood": null
+  },
+  "envelope": {
+    "max": [
+      0.95,
+      1.63,
+      2.45
+    ],
+    "min": [
+      -0.95,
+      0.0,
+      -2.45
+    ]
+  },
+  "exhaust_points": [
+    [
+      0.48,
+      0.3,
+      -2.45
+    ]
+  ],
+  "eye_point": [
+    0.43,
+    1.29,
+    0.37
+  ],
+  "ground_y": 0.0,
+  "hide_nodes": [],
+  "lights": {
+    "brake": [
+      "tail_light"
+    ],
+    "head": [
+      "head_light"
+    ],
+    "indicator_L": [
+      "indicator_L"
+    ],
+    "indicator_R": [
+      "indicator_R"
+    ],
+    "reverse": []
+  },
+  "lod_distances_m": [
+    0,
+    45
+  ],
+  "model_transform": {
+    "offset_m": [
+      0,
+      0,
+      0
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0
+  },
+  "schema": "noss.fit/1",
+  "steering_wheel": null,
+  "wheel_mode": "model",
+  "wheels": [
+    {
+      "axle": 1,
+      "center": [
+        0.8,
+        0.34,
+        1.425
+      ],
+      "id": "LF",
+      "node": "hub_LF",
+      "radius": 0.34,
+      "side": "L",
+      "spin_node": "wheel_LF",
+      "width": 0.23
+    },
+    {
+      "axle": 1,
+      "center": [
+        -0.8,
+        0.34,
+        1.425
+      ],
+      "id": "RF",
+      "node": "hub_RF",
+      "radius": 0.34,
+      "side": "R",
+      "spin_node": "wheel_RF",
+      "width": 0.23
+    },
+    {
+      "axle": 2,
+      "center": [
+        0.8,
+        0.34,
+        -1.425
+      ],
+      "id": "LR",
+      "node": "hub_LR",
+      "radius": 0.34,
+      "side": "L",
+      "spin_node": "wheel_LR",
+      "width": 0.23
+    },
+    {
+      "axle": 2,
+      "center": [
+        -0.8,
+        0.34,
+        -1.425
+      ],
+      "id": "RR",
+      "node": "hub_RR",
+      "radius": 0.34,
+      "side": "R",
+      "spin_node": "wheel_RR",
+      "width": 0.23
+    }
+  ]
+}

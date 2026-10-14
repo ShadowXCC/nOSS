@@ -40,6 +40,23 @@ var reset_count := 0
 var remote_contacts: Array = []
 ## A package without a model shows as a box in this colour (an online car still arriving).
 var placeholder_color := Color(0.6, 0.6, 0.62)
+## A highway traffic car turned into a physics car (D110): its lane-sim index; -1 otherwise.
+var traffic_id := -1
+## Contact impulse this tick with traffic (traffic cars, their stand-in boxes), N·s.
+var traffic_impulse := 0.0
+## Indicators (1 left, 2 right, 3 hazards), head lights (0 off, 1 on), a flash of the head
+## lights, the horn, and a police car's siren and light bar. Shown here; sent online (D119).
+var indicators := 0
+var head_lights := 0
+var head_flash := false
+var horn := false
+var siren := false
+var light_bar := false
+## Update wheels and lights once a frame instead of every physics tick (traffic, D120).
+var visual_every_frame := false
+## Indicators blink at 1.5 Hz (on half the time).
+const BLINK_HZ := 1.5
+var _blink := 0.0
 
 ## Another game drives this car (D84): a kinematic body moved to its states; no sim here, and the
 ## wheels, lights and sound follow the states.
@@ -144,16 +161,20 @@ func ground_reference() -> Transform3D:
 	return Transform3D(b, global_position + b.y * (fitted.ground_y if fitted else 0.0))
 
 
-## Puts the car at rest with its wheels on the ground at `xform` (ground point, +Z forward).
-func reset_to(xform: Transform3D) -> void:
+## Puts the car with its wheels on the ground at `xform` (ground point, +Z forward): at rest, or
+## going at `velocity` with its wheels already rolling (a car placed into moving traffic).
+func reset_to(xform: Transform3D, velocity := Vector3.ZERO) -> void:
 	var t := Transform3D(xform.basis.orthonormalized(), xform.origin - xform.basis.orthonormalized().y * fitted.ground_y)
 	PhysicsServer3D.body_set_state(get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM, t)
-	PhysicsServer3D.body_set_state(get_rid(), PhysicsServer3D.BODY_STATE_LINEAR_VELOCITY, Vector3.ZERO)
+	PhysicsServer3D.body_set_state(get_rid(), PhysicsServer3D.BODY_STATE_LINEAR_VELOCITY, velocity)
 	PhysicsServer3D.body_set_state(get_rid(), PhysicsServer3D.BODY_STATE_ANGULAR_VELOCITY, Vector3.ZERO)
 	global_transform = t
-	linear_velocity = Vector3.ZERO
+	linear_velocity = velocity
 	angular_velocity = Vector3.ZERO
-	sim.reset()
+	if velocity == Vector3.ZERO:
+		sim.reset()
+	else:
+		sim.roll_at(velocity.dot(t.basis.z))
 	reset_physics_interpolation()
 	reset_count += 1
 
@@ -185,10 +206,25 @@ func move_remote(ground: Transform3D, velocity: Vector3, angular: Vector3, snap 
 
 func _physics_process(delta: float) -> void:
 	if remote:
-		_update_remote_visual(delta)
+		if not visual_every_frame:
+			_update_remote_visual(delta)
 		return
 	sim.set_controls(steer, throttle, brake, handbrake, clutch)
-	_update_visual()
+	if not visual_every_frame:
+		_update_visual()
+
+
+func _process(delta: float) -> void:
+	_blink = fmod(_blink + delta * BLINK_HZ, 1.0)
+	if visual_every_frame:
+		if remote:
+			_update_remote_visual(delta)
+		else:
+			_update_visual()
+	if visual:
+		var on := _blink < 0.5
+		visual.set_indicators(on and indicators & 1 != 0, on and indicators & 2 != 0)
+		visual.set_light("head", 2.0 if head_flash else float(head_lights))
 
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
@@ -197,6 +233,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	sim.integrate(state)
 	car_impulse = 0.0
 	wall_impulse = 0.0
+	traffic_impulse = 0.0
 	remote_contacts.clear()
 	for i in state.get_contact_count():
 		var j := state.get_contact_impulse(i)
@@ -205,6 +242,8 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		if other is Vehicle:
 			car_impulse += impulse
 			last_hit = other
+			if (other as Vehicle).traffic_id >= 0:
+				traffic_impulse += impulse
 			if (other as Vehicle).remote and impulse > 0.0:
 				# A remote car is kinematic, as heavy as a wall: this car took the whole knock. Two
 				# cars share it by mass; its owner's game takes the other side (D86).
@@ -212,6 +251,9 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 				var keep: float = other.mass / (mass + other.mass)
 				state.apply_impulse(-j * (1.0 - keep), point - state.transform.origin)
 				remote_contacts.append([other, j * keep, point])
+		elif other is Node and (other as Node).has_meta(&"noss_traffic"):
+			traffic_impulse += impulse
+			car_impulse += impulse
 		else:
 			wall_impulse += impulse
 

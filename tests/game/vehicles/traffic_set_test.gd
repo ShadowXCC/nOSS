@@ -1,0 +1,66 @@
+extends GdUnitTestSuite
+## The traffic set (D117): every type's package loads and fits its platform without scaling, none
+## shows in the car pickers; light groups switch; a car placed at speed keeps rolling (D120).
+
+var _ground: StaticBody3D
+
+
+func before() -> void:
+	_ground = StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(400, 1, 2000)
+	shape.shape = box
+	shape.position = Vector3(0, -0.5, 900)
+	_ground.add_child(shape)
+	add_child(_ground)
+
+
+func test_every_type_loads_and_fits_its_platform() -> void:
+	for t: Dictionary in TrafficTypes.list():
+		var pkg := PackageLoader.load_package("res://content/traffic/" + String(t.model))
+		assert_bool(pkg.ok()).override_failure_message("%s: %s" % [t.id, pkg.error]).is_true()
+		var platform := PlatformLoader.load_official(String(t.platform))
+		assert_bool(platform.ok()).override_failure_message(String(t.platform)).is_true()
+		assert_bool(Fitting.compatible(platform.platform, String(pkg.manifest.family))).override_failure_message(t.id).is_true()
+		var fit := Fitting.fit(platform.platform, pkg.fit)
+		assert_float(fit.scale).override_failure_message(t.id).is_equal_approx(1.0, 0.001)
+		# The lane sim's size for it is the model's.
+		assert_float(fit.envelope.size.z).override_failure_message(t.id).is_equal_approx(float(t.length_m), 0.25)
+		pkg.free_scenes()
+
+
+func test_traffic_never_shows_in_the_car_pickers() -> void:
+	for path in PackageLoader.list_available():
+		assert_str(path).not_contains("content/traffic")
+
+
+func test_light_groups_switch() -> void:
+	var pkg := PackageLoader.load_package("res://content/traffic/saloon")
+	var v := Vehicle.create(PlatformLoader.load_official("official.traffic.car"), pkg)
+	add_child(v)
+	var ind: Array = v.visual._light_materials.get("indicator_L", [])
+	assert_int(ind.size()).is_greater(0)
+	assert_float((ind[0] as BaseMaterial3D).emission_energy_multiplier).is_equal(0.0)
+	v.visual.set_indicators(true, false)
+	assert_float((ind[0] as BaseMaterial3D).emission_energy_multiplier).is_greater(1.0)
+	assert_float(v.visual.light_level("indicator_R")).is_equal(0.0)
+	v.visual.set_light("head", 2.0)
+	assert_float(v.visual.light_level("head")).is_equal(2.0)
+	v.queue_free()
+
+
+func test_a_car_placed_at_speed_keeps_rolling() -> void:
+	var pkg := PackageLoader.load_package("res://content/traffic/hatch")
+	var v := Vehicle.create(PlatformLoader.load_official("official.traffic.car"), pkg)
+	add_child(v)
+	v.visual_every_frame = true
+	v.reset_to(Transform3D(Basis(), Vector3(0, 0, 10)), Vector3(0, 0, 25))
+	v.throttle = 0.4
+	for i in 60:
+		await get_tree().physics_frame
+	# Half a second on it's still going about 25 m/s and in a sensible gear; no skid off the line.
+	assert_float(v.linear_velocity.z).is_between(22.0, 28.0)
+	assert_int(v.sim.get_gear()).is_greater(1)
+	assert_float(v.sim.get_rpm()).is_greater(1200.0)
+	v.queue_free()

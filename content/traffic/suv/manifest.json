@@ -1,0 +1,23 @@
+{
+  "author": "nOSS contributors",
+  "created": "2026-10-14",
+  "family": "car",
+  "files": {
+    "fit.json": "sha256:4a49a6aa365c2f753ba1f35aa37e3654d3cc650e2cfadd939e7f9f13eff5f7e1",
+    "model/body.glb": "sha256:0c6926da6da6527ced43059a3f36cb00cbca3f88094db26c3b989b10500389fd",
+    "model/lod1.glb": "sha256:c13f6442f0beb8a1ccfd483bd5cb6fc7e42b976203abfec5d92f87b9134622d2",
+    "paint.json": "sha256:29d84a79f6e57b6d9bd71a03c40758af009a48cfcdc173f7a62ecace012ec5d8",
+    "sound/profile.json": "sha256:d37a829849de714722f752002b19d04f0ca66b57cb99cec2c690c0c026e5a79b"
+  },
+  "game_min_version": "0.7.0",
+  "id": "c2e7a4f6-8b33-4d80-9c5e-3a4b5c6d7e83",
+  "license": "CC-BY-SA-4.0",
+  "name": "nOSS SUV",
+  "schema": "noss.package/1",
+  "source": "tools/make_traffic_set.gd",
+  "tags": [
+    "traffic",
+    "original"
+  ],
+  "version": 1
+}

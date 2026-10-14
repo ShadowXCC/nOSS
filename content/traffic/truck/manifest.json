@@ -1,0 +1,23 @@
+{
+  "author": "nOSS contributors",
+  "created": "2026-10-14",
+  "family": "truck",
+  "files": {
+    "fit.json": "sha256:98d29e87131e37da2c3f83b7ac996b75db6b39590b217f5673fb1cebe7168920",
+    "model/body.glb": "sha256:749def0f9210dfa1dd153e4446d8c7c2930391041273336c12f235a58431a0ec",
+    "model/lod1.glb": "sha256:5807bedf99198027d84652558ab0f546c61f5a02c7b39c4f18faf4297ebd9263",
+    "paint.json": "sha256:fab1ec98ae76a1965006625f53d6061b29bb5a1be3a1b518a4d04353eaf0efdc",
+    "sound/profile.json": "sha256:ee56c05773958c9b373f20a8debeb9de39ed94df6987d32f0ba7bf25840d2c2f"
+  },
+  "game_min_version": "0.7.0",
+  "id": "e4a9c6b8-ad55-4fa2-9e70-5c6d7e8f9a05",
+  "license": "CC-BY-SA-4.0",
+  "name": "nOSS Box truck",
+  "schema": "noss.package/1",
+  "source": "tools/make_traffic_set.gd",
+  "tags": [
+    "traffic",
+    "original"
+  ],
+  "version": 1
+}

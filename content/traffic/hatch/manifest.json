@@ -1,0 +1,23 @@
+{
+  "author": "nOSS contributors",
+  "created": "2026-10-14",
+  "family": "car",
+  "files": {
+    "fit.json": "sha256:2b278477ec8e8360bb99710b6a83ea98c3bb37dfdfe1787a2d36b77b64343bf8",
+    "model/body.glb": "sha256:22fd12427f44ec7bb9302ac9ea3c0fb8b06f95aa2a5d8557d9a08cb0e5ed2f86",
+    "model/lod1.glb": "sha256:bfe16e509f30b93c6ce2a4ff7c10bd56859d220158fad47fedec45a1b400f344",
+    "paint.json": "sha256:0616d0e3b619ffdce292b3295d1a12df4799f6b686a862bed3228bd8d268f67a",
+    "sound/profile.json": "sha256:d37a829849de714722f752002b19d04f0ca66b57cb99cec2c690c0c026e5a79b"
+  },
+  "game_min_version": "0.7.0",
+  "id": "a0c5e2d4-6f11-4b6e-9a3c-1e2f3a4b5c61",
+  "license": "CC-BY-SA-4.0",
+  "name": "nOSS Hatchback",
+  "schema": "noss.package/1",
+  "source": "tools/make_traffic_set.gd",
+  "tags": [
+    "traffic",
+    "original"
+  ],
+  "version": 1
+}

@@ -224,6 +224,29 @@ void VehicleModel::reset() {
 	_has_last_velocity = false;
 }
 
+void VehicleModel::roll_at(double p_speed) {
+	reset();
+	double omega = std::max(p_speed, 0.0) / std::max(_config.r_ref, 0.05);
+	for (WheelState &w : wheels) {
+		w.omega = omega;
+	}
+	// The highest gear that keeps the engine above 1.6 x idle, below 0.85 x redline if it can.
+	const EngineSpec &e = _config.spec.engine;
+	int best = 1;
+	for (int g = 1; g <= gearbox.top_gear(); g++) {
+		double rpm = omega * gearbox.ratio(g) / RPM_TO_RAD;
+		if (rpm <= e.redline_rpm * 0.85) {
+			best = g;
+			if (rpm < e.idle_rpm * 1.6) {
+				best = std::max(1, g - 1);
+			}
+			break;
+		}
+	}
+	gearbox.gear = gearbox.target = best;
+	engine_omega = std::max(omega * gearbox.ratio(best), e.idle_rpm * RPM_TO_RAD);
+}
+
 void VehicleModel::take_state(const VehicleModel &p_other) {
 	controls = p_other.controls;
 	assists = p_other.assists;

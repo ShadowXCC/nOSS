@@ -1,0 +1,5 @@
+{
+  "base": "i4",
+  "name": "Traffic",
+  "schema": "noss.sound/1"
+}

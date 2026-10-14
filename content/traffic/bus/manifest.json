@@ -1,0 +1,23 @@
+{
+  "author": "nOSS contributors",
+  "created": "2026-10-14",
+  "family": "truck",
+  "files": {
+    "fit.json": "sha256:390df53dcb6f85b9d0046ddbada4ca14c6f7661f24e20979a17c9be78e8e85f0",
+    "model/body.glb": "sha256:b3c703aaa49bac27dd96e2caccc5f0ba9c689342bcadc40d9e50ae484b96041b",
+    "model/lod1.glb": "sha256:c856a174cea9d57044c5ec28e042a16923038b1835427ca7033678d691d578d1",
+    "paint.json": "sha256:25d298dc235e6ad426888a7e9b6d31472b2920ecd3ede42790ec820588976e5a",
+    "sound/profile.json": "sha256:ee56c05773958c9b373f20a8debeb9de39ed94df6987d32f0ba7bf25840d2c2f"
+  },
+  "game_min_version": "0.7.0",
+  "id": "f5bad7c9-be66-40b3-8f81-6d7e8f9a0b16",
+  "license": "CC-BY-SA-4.0",
+  "name": "nOSS Bus",
+  "schema": "noss.package/1",
+  "source": "tools/make_traffic_set.gd",
+  "tags": [
+    "traffic",
+    "original"
+  ],
+  "version": 1
+}
