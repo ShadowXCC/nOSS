@@ -1,7 +1,7 @@
 extends SceneTree
 ## Writes tests/fixtures/tracks/highway_ring_small.json: a small highway loop for tests (D106,
 ## D107). A rounded rectangle about 4.4 km round on flat ground, 3 lanes each way; an interchange
-## on each carriageway (an exit and an entry sharing a portal, both on the south straight: direction
+## on each carriageway (an exit and an entry, each with its tunnel mouth, both on the south straight: direction
 ## 1 drives eastwards there on the loop's inside, -1 westwards on its outside), a crossover each way
 ## on the north straight, a tunnel on the east straight, a run and a speed trap each way.
 ##   tools/godot.sh --headless -s res://tools/make_highway_fixture.gd
@@ -45,11 +45,11 @@ func _run() -> int:
 	var west := _s_at(t, Vector3(-HALF_X, 0, 0))
 	var ramps := []
 	var portals := []
-	# An interchange each way on the south straight (920 m of road each).
-	for x: Array in [[1, south - 460.0, "harbour", "Harbour"], [-1, south + 460.0, "park", "Park"]]:
+	# An interchange each way on the south straight (about 980 m of road each).
+	for x: Array in [[1, south - 490.0, "harbour", "Harbour"], [-1, south + 490.0, "park", "Park"]]:
 		var e := RampTemplates.interchange(t, hs, x[0], x[1], x[2], x[3])
 		ramps.append_array(e.ramps)
-		portals.append(e.portal)
+		portals.append_array(e.portals)
 	# Crossovers on the north straight (direction 1 drives westwards there, s growing).
 	ramps.append(RampTemplates.crossover(t, hs, 1, north - 520.0, "mill", "Mill Flyover").ramp)
 	ramps.append(RampTemplates.crossover(t, hs, -1, north + 520.0, "canal", "Canal Flyover").ramp)

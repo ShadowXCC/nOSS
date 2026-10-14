@@ -383,22 +383,22 @@
         "kind": "exit",
         "from": {
           "dir": 1,
-          "at_m": 3962.0
+          "at_m": 3932.0
         },
         "to": {
-          "portal": "harbour"
+          "portal": "harbour_out"
         },
         "points": [
           {
             "p": [
-              -200.0,
+              -230.0,
               0.0,
               -377.8
             ]
           },
           {
             "p": [
-              -120.0,
+              -150.0,
               0.0,
               -363.8
             ]
@@ -410,23 +410,23 @@
         "name": "Harbour",
         "kind": "entry",
         "from": {
-          "portal": "harbour"
+          "portal": "harbour_in"
         },
         "to": {
           "dir": 1,
-          "at_m": 460.0
+          "at_m": 490.0
         },
         "points": [
           {
             "p": [
-              120.0,
+              150.0,
               0.0,
               -363.8
             ]
           },
           {
             "p": [
-              200.0,
+              230.0,
               0.0,
               -377.8
             ]
@@ -439,22 +439,22 @@
         "kind": "exit",
         "from": {
           "dir": -1,
-          "at_m": 460.0
+          "at_m": 490.0
         },
         "to": {
-          "portal": "park"
+          "portal": "park_out"
         },
         "points": [
           {
             "p": [
-              200.0,
+              230.0,
               0.0,
               -422.2
             ]
           },
           {
             "p": [
-              120.0,
+              150.0,
               0.0,
               -436.2
             ]
@@ -466,23 +466,23 @@
         "name": "Park",
         "kind": "entry",
         "from": {
-          "portal": "park"
+          "portal": "park_in"
         },
         "to": {
           "dir": -1,
-          "at_m": 3962.0
+          "at_m": 3932.0
         },
         "points": [
           {
             "p": [
-              -120.0,
+              -150.0,
               0.0,
               -436.2
             ]
           },
           {
             "p": [
-              -200.0,
+              -230.0,
               0.0,
               -422.2
             ]
@@ -700,20 +700,40 @@
     ],
     "portals": [
       {
-        "id": "harbour",
+        "id": "harbour_out",
         "name": "Harbour",
         "p": [
+          -30.0,
           0.0,
+          -326.8
+        ],
+        "yaw_deg": -107.1
+      },
+      {
+        "id": "harbour_in",
+        "name": "Harbour",
+        "p": [
+          30.0,
           0.0,
           -326.8
         ],
         "yaw_deg": 107.1
       },
       {
-        "id": "park",
+        "id": "park_out",
         "name": "Park",
         "p": [
+          30.0,
           0.0,
+          -473.2
+        ],
+        "yaw_deg": 72.9
+      },
+      {
+        "id": "park_in",
+        "name": "Park",
+        "p": [
+          -30.0,
           0.0,
           -473.2
         ],
