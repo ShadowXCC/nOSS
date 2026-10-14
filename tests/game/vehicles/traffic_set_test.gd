@@ -64,3 +64,26 @@ func test_a_car_placed_at_speed_keeps_rolling() -> void:
 	assert_int(v.sim.get_gear()).is_greater(1)
 	assert_float(v.sim.get_rpm()).is_greater(1200.0)
 	v.queue_free()
+
+
+func test_distant_traffic_has_a_merged_mesh_per_type() -> void:
+	for i in TrafficTypes.list().size():
+		var t: Dictionary = TrafficTypes.list()[i]
+		var mesh := TrafficModels.far_mesh(i)
+		assert_object(mesh).override_failure_message(t.id).is_not_null()
+		assert_int(mesh.get_surface_count()).is_greater(2)
+		var size := mesh.get_aabb().size
+		assert_float(size.z).override_failure_message(t.id).is_equal_approx(float(t.length_m), 0.3)
+		assert_float(size.x).override_failure_message(t.id).is_equal_approx(float(t.width_m), 0.3)
+		# Paint takes the instance's colour; tail lights glow on the brake bit.
+		var kinds := []
+		for s in mesh.get_surface_count():
+			var m := mesh.surface_get_material(s) as ShaderMaterial
+			kinds.append(int(m.get_shader_parameter("kind")))
+		assert_array(kinds).contains([0, 2])
+
+
+func test_sirens_and_horns_render() -> void:
+	assert_int(NossAudio.render_siren("wail").size()).is_equal(4 * 44100 * 2)
+	assert_int(NossAudio.render_siren("yelp").size()).is_greater(44100)
+	assert_int(NossAudio.render_horn(420.0, 500.0).size()).is_equal(22050 * 2)

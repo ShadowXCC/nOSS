@@ -7,6 +7,7 @@
 #include <algorithm>
 
 #include "audio/engine_synth.h"
+#include "audio/siren_synth.h"
 #include "audio/tire_synth.h"
 
 using namespace godot;
@@ -57,6 +58,29 @@ EngineProfile read_profile(const Dictionary &p) {
 void NossAudio::_bind_methods() {
 	ClassDB::bind_static_method("NossAudio", D_METHOD("render_loop", "profile", "rpm", "load", "emitter", "length_s"), &NossAudio::render_loop, DEFVAL(0.5));
 	ClassDB::bind_static_method("NossAudio", D_METHOD("render_tire_loop", "params", "length_s"), &NossAudio::render_tire_loop, DEFVAL(2.5));
+	ClassDB::bind_static_method("NossAudio", D_METHOD("render_siren", "kind"), &NossAudio::render_siren);
+	ClassDB::bind_static_method("NossAudio", D_METHOD("render_horn", "f1", "f2"), &NossAudio::render_horn);
+}
+
+namespace {
+
+PackedByteArray pcm_bytes(const std::vector<int16_t> &p_samples) {
+	PackedByteArray data;
+	data.resize(int64_t(p_samples.size() * 2));
+	for (size_t i = 0; i < p_samples.size(); i++) {
+		data.encode_s16(int64_t(i * 2), p_samples[i]);
+	}
+	return data;
+}
+
+} // namespace
+
+PackedByteArray NossAudio::render_siren(const String &p_kind) {
+	return pcm_bytes(audio::render_siren(p_kind == "yelp" ? audio::SirenKind::YELP : audio::SirenKind::WAIL));
+}
+
+PackedByteArray NossAudio::render_horn(double p_f1, double p_f2) {
+	return pcm_bytes(audio::render_horn(std::clamp(p_f1, 50.0, 4000.0), std::clamp(p_f2, 50.0, 4000.0)));
 }
 
 PackedByteArray NossAudio::render_tire_loop(const Dictionary &p_params, double p_length_s) {

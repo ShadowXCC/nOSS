@@ -20,6 +20,9 @@ public:
 	// p_params: a data/tire_sounds/<id>.json synth block ({bands: [[hz, q, gain]...], tone, tone_hz,
 	// drift, drift_hz, flutter, flutter_hz, seed}). Returns 16-bit mono PCM at 44.1 kHz.
 	static godot::PackedByteArray render_tire_loop(const godot::Dictionary &p_params, double p_length_s);
+	// A siren loop ("wail" or "yelp") or a horn chord (two tones, Hz): 16-bit mono PCM at 44.1 kHz.
+	static godot::PackedByteArray render_siren(const godot::String &p_kind);
+	static godot::PackedByteArray render_horn(double p_f1, double p_f2);
 };
 
 } // namespace noss
