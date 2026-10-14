@@ -6,7 +6,9 @@ extends RefCounted
 ## (a grandstand's length, a skidpad's radii).
 
 ## id: name, category, collide (simple shapes), scatter (offered by the scatter brush),
-## slope (steepest ground it scatters on, rise over run), spacing (m between scattered ones).
+## slope (steepest ground it scatters on, rise over run), spacing (m between scattered ones),
+## clear_m (scattered ones keep this much further off the road: their footprint), over (it
+## stands over the road by design: a bridge or a gantry; the checks don't count it as blocking).
 const TYPES := {
 	"tree_pine": { "name": "Pine", "category": "nature", "collide": true, "scatter": true, "slope": 0.7, "spacing": 4.0 },
 	"tree_round": { "name": "Tree", "category": "nature", "collide": true, "scatter": true, "slope": 0.6, "spacing": 5.0 },
@@ -23,8 +25,19 @@ const TYPES := {
 	"cone": { "name": "Cone", "category": "trackside", "collide": false, "scatter": true, "slope": 0.3, "spacing": 2.0 },
 	"tyre_stack": { "name": "Tyre stack", "category": "trackside", "collide": true },
 	"skidpad": { "name": "Skidpad", "category": "ground", "collide": true, "size": [72.0, 0.0, 60.0] },
+	# The city round a highway (EDT-10).
+	"tower_slim": { "name": "Slim tower", "category": "city", "collide": true, "scatter": true, "slope": 0.15, "spacing": 30.0, "clear_m": 12.0 },
+	"tower_block": { "name": "Office block", "category": "city", "collide": true, "scatter": true, "slope": 0.15, "spacing": 45.0, "clear_m": 22.0 },
+	"tower_wide": { "name": "Low block", "category": "city", "collide": true, "scatter": true, "slope": 0.15, "spacing": 55.0, "clear_m": 28.0 },
+	"tower_tall": { "name": "High tower", "category": "city", "collide": true, "scatter": true, "slope": 0.15, "spacing": 45.0, "clear_m": 16.0 },
+	"landmark_tower": { "name": "Landmark tower", "category": "city", "collide": true },
+	"overpass": { "name": "Overpass", "category": "city", "collide": true, "over": true, "size": [60.0, 7.5, 12.0] },
+	"sign_gantry": { "name": "Sign gantry", "category": "trackside", "collide": true, "over": true, "size": [36.0, 6.8, 0.0] },
+	"crash_cushion": { "name": "Crash cushion", "category": "trackside", "collide": true },
+	"lamp_double": { "name": "Double lamp", "category": "trackside", "collide": true },
+	"layby": { "name": "Layby", "category": "ground", "collide": true, "size": [6.0, 0.0, 40.0] },
 }
-const CATEGORIES := ["nature", "buildings", "trackside", "ground"]
+const CATEGORIES := ["nature", "buildings", "city", "trackside", "ground"]
 
 static var _meshes := {}
 
@@ -110,6 +123,39 @@ static func parts(id: String, size := Vector3.ZERO) -> Array:
 			var b := MeshBatch.new()
 			_cylinder(b, Vector3(0, 0.45, 0), 0.38, 0.9, 10)
 			return [_part("", "tyre", b, VehicleSim.SURFACE_CONCRETE)]
+		"tower_slim":
+			return _tower([[Vector3(14, 58, 14), "tower_cool"]], true)
+		"tower_block":
+			return _tower([[Vector3(32, 34, 24), "building"]], true)
+		"tower_wide":
+			return _tower([[Vector3(48, 22, 30), "tower_warm"]], true)
+		"tower_tall":
+			return _tower([[Vector3(24, 70, 24), "glass"], [Vector3(18, 42, 18), "glass"]], false)
+		"landmark_tower":
+			return _landmark()
+		"overpass":
+			return _overpass(s.x, s.y, s.z)
+		"sign_gantry":
+			return _sign_gantry(s.x, s.y)
+		"crash_cushion":
+			var b := MeshBatch.new()
+			b.box(Vector3(0, 0.45, 0), Basis(), Vector3(0.9, 0.9, 4.0), Vector2(1, 1))
+			return [_part("", "cushion", b, VehicleSim.SURFACE_CONCRETE)]
+		"lamp_double":
+			var pole := MeshBatch.new()
+			_cylinder(pole, Vector3(0, 6.0, 0), 0.16, 12.0, 6)
+			for side: float in [-1.0, 1.0]:
+				pole.box(Vector3(side * 1.4, 11.8, 0), Basis(), Vector3(2.8, 0.18, 0.18))
+				pole.box(Vector3(side * 2.6, 11.6, 0), Basis(), Vector3(1.0, 0.22, 0.5))
+			return [_part("", "metal", pole, VehicleSim.SURFACE_CONCRETE)]
+		"layby":
+			var pad := MeshBatch.new()
+			pad.quad([Vector3(-s.x / 2, 0.02, -s.z / 2), Vector3(-s.x / 2, 0.02, s.z / 2), Vector3(s.x / 2, 0.02, s.z / 2), Vector3(s.x / 2, 0.02, -s.z / 2)],
+				[Vector2(0, 0), Vector2(0, s.z / 6.0), Vector2(s.x / 6.0, s.z / 6.0), Vector2(s.x / 6.0, 0)])
+			var line := MeshBatch.new()
+			line.quad([Vector3(-s.x / 2 + 0.2, 0.03, -s.z / 2), Vector3(-s.x / 2 + 0.2, 0.03, s.z / 2), Vector3(-s.x / 2 + 0.4, 0.03, s.z / 2), Vector3(-s.x / 2 + 0.4, 0.03, -s.z / 2)],
+				[Vector2(0, 0), Vector2(0, 1), Vector2(1, 1), Vector2(1, 0)])
+			return [_part("", "concrete", pad, VehicleSim.SURFACE_CONCRETE), _part("Line", "paint", line, -1)]
 	return []
 
 
@@ -137,6 +183,14 @@ static func scatter_shape(id: String) -> Dictionary:
 			c.radius = 0.35
 			c.height = 4.0
 			return { "shape": c, "offset": Vector3(0, 2.0, 0) }
+		"tower_slim", "tower_block", "tower_wide", "tower_tall":
+			var box := AABB()
+			for part: Dictionary in parts(id):
+				for v in (part.batch as MeshBatch).verts:
+					box = box.expand(v)
+			var b := BoxShape3D.new()
+			b.size = box.size
+			return { "shape": b, "offset": box.get_center() }
 		"rock":
 			var b := BoxShape3D.new()
 			b.size = Vector3(1.9, 1.2, 1.5)
@@ -197,6 +251,16 @@ static func material(key: String) -> Material:
 			return WorldMaterials.get_material("cone", null, 0.6, 0.3, false, Vector2.ONE, Color(0.98, 0.45, 0.1))
 		"tyre":
 			return WorldMaterials.get_material("tyre_wall", RetroTextures.tyre_wall(), 0.9, 0.1)
+		"tower_cool":
+			return WorldMaterials.get_material("tower_cool", RetroTextures.building(), 0.7, 0.3, false, Vector2.ONE, Color(0.78, 0.84, 0.92))
+		"tower_warm":
+			return WorldMaterials.get_material("tower_warm", RetroTextures.building(), 0.8, 0.2, false, Vector2.ONE, Color(0.95, 0.85, 0.72))
+		"glass":
+			return WorldMaterials.get_material("glass_tower", RetroTextures.building(), 0.25, 0.7, false, Vector2.ONE, Color(0.45, 0.62, 0.8))
+		"sign":
+			return WorldMaterials.get_material("sign_green", null, 0.6, 0.2, false, Vector2.ONE, Color(0.1, 0.42, 0.24))
+		"cushion":
+			return WorldMaterials.get_material("cushion", RetroTextures.checker(), 0.6, 0.2, false, Vector2(1, 4), Color(1.0, 0.85, 0.1))
 	return WorldMaterials.get_material("concrete_world", RetroTextures.concrete(), 0.8, 0.25, true, Vector2.ONE / 6.0)
 
 
@@ -216,6 +280,71 @@ static func _grandstand(length: float) -> Array:
 	var roof := MeshBatch.new()
 	roof.box(Vector3(6.0, 9.5, 0), Basis(), Vector3(13.0, 0.4, length + 4.0))
 	return [_part("", "crowd", rows, VehicleSim.SURFACE_CONCRETE), _part("Roof", "roof", roof, VehicleSim.SURFACE_CONCRETE)]
+
+
+## Stacked blocks (`blocks`: [[size, material]], each on the last) with a roof cap and, if
+## `plant`, a plant room on top. Windows run round every side, a floor every 3.5 m.
+static func _tower(blocks: Array, plant: bool) -> Array:
+	var out := []
+	var y := 0.0
+	var top := Vector3.ZERO
+	for k in blocks.size():
+		var size: Vector3 = blocks[k][0]
+		var b := MeshBatch.new()
+		b.box(Vector3(0, y + size.y / 2.0, 0), Basis(), size, Vector2(maxf(size.x, size.z) / 12.0, size.y / 7.0))
+		out.append(_part("" if k == 0 else "Upper%d" % k, String(blocks[k][1]), b, VehicleSim.SURFACE_CONCRETE))
+		y += size.y
+		top = size
+	var roof := MeshBatch.new()
+	roof.box(Vector3(0, y + 0.4, 0), Basis(), Vector3(top.x + 0.6, 0.8, top.z + 0.6))
+	if plant:
+		roof.box(Vector3(top.x * 0.15, y + 2.8, -top.z * 0.1), Basis(), Vector3(top.x * 0.4, 4.0, top.z * 0.35))
+	else:
+		_cylinder(roof, Vector3(0, y + 9.0, 0), 0.35, 18.0, 6) # a mast
+	out.append(_part("Roof", "roof", roof, VehicleSim.SURFACE_CONCRETE))
+	return out
+
+
+## A tall concrete shaft on a podium, a glass pod near the top and a spire: seen from all round
+## the loop.
+static func _landmark() -> Array:
+	var base := MeshBatch.new()
+	base.box(Vector3(0, 10, 0), Basis(), Vector3(34, 20, 34), Vector2(3, 3))
+	var shaft := MeshBatch.new()
+	_cylinder(shaft, Vector3(0, 100, 0), 6.5, 180.0, 12)
+	_cone(shaft, Vector3(0, 202, 0), 3.0, 46.0, 10)
+	var pod := MeshBatch.new()
+	_cylinder(pod, Vector3(0, 168, 0), 15.0, 14.0, 16)
+	_cylinder(pod, Vector3(0, 182, 0), 11.0, 10.0, 16)
+	return [_part("", "building", base, VehicleSim.SURFACE_CONCRETE), _part("Shaft", "concrete", shaft, VehicleSim.SURFACE_CONCRETE),
+		_part("Pod", "glass", pod, VehicleSim.SURFACE_CONCRETE)]
+
+
+## A street bridge over the road: a deck `span` long across (x) and `width` wide, its top
+## `height` up, on piers clear of the road and abutments at its ends.
+static func _overpass(span: float, height: float, width: float) -> Array:
+	var deck := MeshBatch.new()
+	deck.box(Vector3(0, height - 0.6, 0), Basis(), Vector3(span, 1.2, width), Vector2(span / 6.0, 1))
+	for side: float in [-1.0, 1.0]:
+		deck.box(Vector3(0, height + 0.5, side * (width / 2.0 - 0.15)), Basis(), Vector3(span, 1.0, 0.3), Vector2(span / 6.0, 1))
+	var piers := MeshBatch.new()
+	for x: float in [-span / 2.0 + 8.0, span / 2.0 - 8.0]:
+		for z: float in [-width / 2.0 + 2.0, width / 2.0 - 2.0]:
+			piers.box(Vector3(x, (height - 1.2) / 2.0, z), Basis(), Vector3(1.4, height - 1.2, 1.4))
+	for x: float in [-span / 2.0 + 1.5, span / 2.0 - 1.5]:
+		piers.box(Vector3(x, (height - 1.2) / 2.0, 0), Basis(), Vector3(3.0, height - 1.2, width))
+	return [_part("", "concrete", deck, VehicleSim.SURFACE_CONCRETE), _part("Piers", "concrete", piers, VehicleSim.SURFACE_CONCRETE)]
+
+
+## Two posts `span` apart across the road, a beam `height` up and a blank green board.
+static func _sign_gantry(span: float, height: float) -> Array:
+	var frame := MeshBatch.new()
+	for x: float in [-span / 2.0, span / 2.0]:
+		frame.box(Vector3(x, height / 2.0, 0), Basis(), Vector3(0.5, height, 0.5))
+	frame.box(Vector3(0, height, 0), Basis(), Vector3(span, 0.6, 0.6))
+	var board := MeshBatch.new()
+	board.box(Vector3(span * 0.2, height + 0.2, -0.45), Basis(), Vector3(8.5, 2.8, 0.2))
+	return [_part("", "metal", frame, VehicleSim.SURFACE_CONCRETE), _part("Board", "sign", board, -1)]
 
 
 ## A concrete disc and its painted driving circle.

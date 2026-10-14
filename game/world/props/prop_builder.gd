@@ -166,32 +166,32 @@ func scatter_points(id: String, center: Vector2, radius: float, density_per_100m
 		var a := rng.randf() * TAU
 		var r := radius * sqrt(rng.randf())
 		var p := center + Vector2(cos(a), sin(a)) * r
-		if _near_road(p) or _too_steep(p, slope) or _crowded(grid, p, spacing, cell):
+		if _near_road(p, float(t.get("clear_m", 0.0))) or _too_steep(p, slope) or _crowded(grid, p, spacing, cell):
 			continue
 		add.call(p)
 		out.append_array([p.x, p.y, rng.randf() * TAU, rng.randf_range(scale_range.x, scale_range.y)])
 	return out
 
 
-func _near_road(p: Vector2) -> bool:
+func _near_road(p: Vector2, extra := 0.0) -> bool:
 	if track.samples.size() < 2:
 		return false
 	if track.highway:
 		for r in track.highway.ramps:
 			var rp := r.track.project(Vector3(p.x, ground_at(p.x, p.y), p.y))
 			var ri: int = rp.index
-			if absf(float(rp.lateral)) < r.track.half_l[ri] + RampData.RUNOFF_M + 3.0 and (Vector3(p.x, 0, p.y) - Vector3(rp.point.x, 0, rp.point.z)).length() < r.width + 4.0:
+			if absf(float(rp.lateral)) < r.track.half_l[ri] + RampData.RUNOFF_M + 3.0 + extra and (Vector3(p.x, 0, p.y) - Vector3(rp.point.x, 0, rp.point.z)).length() < r.width + 4.0 + extra:
 				return true
 	if _reach_max < 0.0:
 		for i in track.samples.size():
 			_reach_max = maxf(_reach_max, maxf(track.half_l[i] + track.runoff_l_m[i], track.half_r[i] + track.runoff_r_m[i]))
 		_reach_max += TrackData.CURB_WIDTH + 3.0
-	if not track.is_near_centreline(Vector3(p.x, 0.0, p.y), _reach_max):
+	if not track.is_near_centreline(Vector3(p.x, 0.0, p.y), _reach_max + extra):
 		return false # the coarse grid first: most points are far from the road
 	var proj := track.project(Vector3(p.x, ground_at(p.x, p.y), p.y))
 	var side := signf(proj.lateral)
 	var i: int = proj.index
-	var reach: float = (track.half_l[i] if side >= 0.0 else track.half_r[i]) + TrackData.CURB_WIDTH + (track.runoff_l_m[i] if side >= 0.0 else track.runoff_r_m[i]) + 2.0
+	var reach: float = (track.half_l[i] if side >= 0.0 else track.half_r[i]) + TrackData.CURB_WIDTH + (track.runoff_l_m[i] if side >= 0.0 else track.runoff_r_m[i]) + 2.0 + extra
 	return absf(proj.lateral) < reach and (Vector3(p.x, 0, p.y) - Vector3(proj.point.x, 0, proj.point.z)).length() < reach + 1.0
 
 

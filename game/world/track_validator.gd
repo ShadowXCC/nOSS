@@ -248,7 +248,7 @@ func _props() -> void:
 	var props: Dictionary = _in.props
 	for item: Dictionary in props.get("items", []):
 		var type: Dictionary = PropLibrary.TYPES.get(item.get("prop", ""), {})
-		if not type.get("collide", false) or type.get("category") == "ground":
+		if not type.get("collide", false) or type.get("category") == "ground" or type.get("over", false):
 			continue
 		var p: Array = item.p
 		var pos := Vector3(p[0], p[1], p[2])

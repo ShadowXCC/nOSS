@@ -78,3 +78,24 @@ func test_only_solid_props_collide() -> void:
 	assert_object(edit.get_node_or_null("Item_0/Tent")).is_not_null()
 	assert_object(edit.get_node_or_null("Item_1/Cone")).is_not_null()
 	edit.free()
+
+
+func test_city_props_keep_their_footprint_off_the_road_and_bridges_stand_over_it() -> void:
+	var t := _square()
+	var b := PropBuilder.new(t)
+	var towers := b.scatter_points("tower_block", Vector2(200, 150), 300.0, 0.05, 7)
+	assert_int(towers.size() / 4).is_greater(10)
+	var shape: Dictionary = PropLibrary.scatter_shape("tower_block")
+	assert_float((shape.shape as BoxShape3D).size.y).is_greater(30.0)
+	for k in range(0, towers.size(), 4):
+		var p := Vector3(towers[k], 0, towers[k + 1])
+		var proj := t.project(p)
+		# The block's half diagonal (about 20 m at most scale) stays off the road and its run-off.
+		assert_bool(absf(proj.lateral) >= 6.0 + 16.0 + 1.1 + 2.0 + 20.0 or p.distance_to(Vector3(proj.point.x, 0, proj.point.z)) >= 45.0).is_true()
+	# An overpass across the road is not a blockage; an office block on it is.
+	var d := TrackTemplates.make("highway")
+	var on := d.track().transform_at(400.0)
+	d.add_prop({ "prop": "overpass", "p": TrackDraft._vec(on.origin), "yaw_deg": rad_to_deg(atan2(on.basis.x.x, on.basis.x.z)) - 90.0, "scale": 1.0 })
+	assert_array(TrackValidator.errors(TrackValidator.check(d))).is_empty()
+	d.add_prop({ "prop": "tower_block", "p": TrackDraft._vec(on.origin), "yaw_deg": 0.0, "scale": 1.0 })
+	assert_bool(TrackValidator.errors(TrackValidator.check(d)).any(func(e: String) -> bool: return e.begins_with("Road blocked"))).is_true()
