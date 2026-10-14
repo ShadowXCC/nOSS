@@ -4,7 +4,8 @@ extends RefCounted
 ## its undo history. Every change goes through a command here, so the editor's tools, undo and
 ## the headless checks share one path. `changed` tells the preview what to rebuild:
 ##   road (info.segments: the control segments touched; none: all), race, props, scatter,
-##   terrain (info.rect, samples), paint (info.rect), scene (its tags), info, all.
+##   terrain (info.rect, samples), paint (info.rect), scene (its tags), info, all, and highway
+##   (info.ramps: the ramps' ids touched; none: all).
 
 signal changed(what: StringName, info: Dictionary)
 
@@ -241,7 +242,9 @@ func flip_direction() -> void:
 			pin.at_m = mirror.call(float(pin.at_m))
 			pin.offset_m = -float(pin.offset_m)
 		var grid: Dictionary = race.get("grid", {})
-		grid.pole = "right" if grid.get("pole", "left") == "left" else "left", &"all")
+		grid.pole = "right" if grid.get("pole", "left") == "left" else "left"
+		if layout.has("highway"):
+			_flip_highway(layout.highway, mirror), &"all")
 
 
 ## Race setup: `key` in layout.race (a "/"-separated path for nested ones, like "grid/slots").
@@ -385,6 +388,262 @@ func set_point_attrs(changes: Dictionary, name: String) -> void:
 
 func set_env(key: String, value: Variant) -> void:
 	_edit("Set " + key.replace("_", " "), "environment", func() -> void: layout.environment[key] = value, &"all")
+
+
+# --- highways (EDT-10) ----------------------------------------------------------------------
+
+
+## A highway (D106): a carriageway each way either side of the road's line, with ramps.
+func is_highway() -> bool:
+	return layout.get("type", "circuit") == "highway"
+
+
+## The highway's settings, every default filled in ({} on a circuit).
+func highway() -> Dictionary:
+	return TrackFormat.highway_settings(layout)
+
+
+## Makes the track a highway, or a circuit again. A highway's road takes its widths, lines and
+## barriers from its lanes; a circuit loses its ramps, portals and runs.
+func set_type(type: String) -> void:
+	if type == layout.get("type", "circuit") or type not in TrackFormat.TYPES:
+		return
+	_edit("Make a " + type, "highway", func() -> void:
+		layout.type = type
+		if type == "highway":
+			layout.highway = TrackFormat.HIGHWAY_DEFAULTS.duplicate(true)
+			layout.road.defaults = TrackFormat.highway_road_defaults(highway(), layout.road.defaults)
+		else:
+			layout.erase("highway")
+			layout.road.defaults = TrackFormat.DEFAULTS.duplicate(), &"road")
+
+
+## A highway setting: lanes, lane_m, median_m, shoulder_in_m, shoulder_out_m, median_barrier,
+## speed_kmh, "traffic/count" or "traffic/exit_share". The road's widths follow the lanes.
+func set_highway(key: String, value: Variant, name := "") -> void:
+	if not is_highway():
+		return
+	var shape := key in ["lanes", "lane_m", "median_m", "shoulder_in_m", "shoulder_out_m", "median_barrier"]
+	_edit(name if name else "Set " + key.get_file().replace("_", " "), "highway", func() -> void:
+		var at: Dictionary = layout.highway
+		for k in key.split("/").slice(0, -1):
+			if not at.has(k):
+				at[k] = {}
+			at = at[k]
+		at[key.get_file()] = value
+		if shape:
+			layout.road.defaults = TrackFormat.highway_road_defaults(highway(), layout.road.defaults), &"road" if shape else &"highway")
+
+
+## The ramps' templates (RampTemplates) as [[id, name]], for menus.
+const RAMP_TEMPLATES := [["interchange", "Exit and entry"], ["exit", "Exit"], ["entry", "Entry"], ["crossover", "Crossover"]]
+const _RAMP_WORDS := { "interchange": "Junction", "exit": "Exit", "entry": "Entry", "crossover": "Flyover" }
+
+
+## Ramps from `template` (RAMP_TEMPLATES) on direction `dir`'s carriageway at main-road distance
+## `at_m`, with the portals they need. Returns the new ramps' ids.
+func add_ramp(template: String, dir: int, at_m: float, ramp_name := "") -> PackedStringArray:
+	var t := track()
+	if not is_highway() or t.samples.size() < 3 or not _RAMP_WORDS.has(template):
+		return PackedStringArray()
+	var h := highway()
+	var n := _free_ramp_number(template)
+	var base := "%s_%d" % [template, n]
+	var label := ramp_name if ramp_name else "%s %d" % [_RAMP_WORDS[template], n]
+	var made := { "ramps": [], "portals": [] }
+	match template:
+		"interchange":
+			made = RampTemplates.interchange(t, h, dir, at_m, base, label)
+		"exit":
+			var e := RampTemplates.exit(t, h, dir, at_m, base, base + "_out", label)
+			made = { "ramps": [e.ramp], "portals": [e.portal] }
+		"entry":
+			var e := RampTemplates.entry(t, h, dir, at_m, base, base + "_in", label)
+			made = { "ramps": [e.ramp], "portals": [e.portal] }
+		"crossover":
+			made.ramps = [RampTemplates.crossover(t, h, dir, at_m, base, label).ramp]
+	var ids := PackedStringArray()
+	for r: Dictionary in made.ramps:
+		ids.append(String(r.id))
+	_edit("Add " + String(_RAMP_WORDS[template]).to_lower(), "highway", func() -> void:
+		var hw: Dictionary = layout.highway
+		hw.ramps = hw.get("ramps", []) + made.ramps
+		hw.portals = hw.get("portals", []) + made.portals, &"highway", { "ramps": ids })
+	return ids
+
+
+## The ramp `id` as stored (null if none).
+func ramp(id: String) -> Variant:
+	for r: Dictionary in layout.get("highway", {}).get("ramps", []):
+		if r.id == id:
+			return r
+	return null
+
+
+## Sets `key` of ramp `id`: name, lanes, lane_m, speed_kmh, taper_m or traffic.
+func set_ramp(id: String, key: String, value: Variant) -> void:
+	if ramp(id) == null:
+		return
+	_edit("Set ramp " + key.replace("_", " "), "highway", func() -> void: ramp(id)[key] = value, &"highway", { "ramps": [id] })
+
+
+## Moves ramp `id`'s point `i` without recording (while dragging); end_ramp_move() records it.
+func drag_ramp_point(id: String, i: int, p: Vector3) -> void:
+	var r: Variant = ramp(id)
+	if r == null or i < 0 or i >= (r.points as Array).size():
+		return
+	if not _dragging.has("highway"):
+		_dragging.highway = _section("highway")
+	_dragging.ramp = id
+	r.points[i] = _ramp_point(p)
+	_changed(&"highway", { "ramps": [id], "live": true })
+
+
+## Records a ramp point's drag (drag_ramp_point) as one move.
+func end_ramp_move(name := "Move ramp point") -> void:
+	if not _dragging.has("highway"):
+		return
+	var before: Dictionary = _dragging.highway
+	var info := { "ramps": [String(_dragging.get("ramp", ""))] }
+	_dragging.erase("highway")
+	_dragging.erase("ramp")
+	history.act(name, _set_section.bind("highway", _section("highway"), &"highway", info), _set_section.bind("highway", before, &"highway", info), false)
+	_changed(&"highway", info)
+
+
+## Puts a point at `index` of ramp `id` (it becomes that point; the rest move up).
+func add_ramp_point(id: String, index: int, p: Vector3) -> void:
+	if ramp(id) == null:
+		return
+	_edit("Add ramp point", "highway", func() -> void:
+		var pts: Array = ramp(id).points
+		pts.insert(clampi(index, 0, pts.size()), _ramp_point(p)), &"highway", { "ramps": [id] })
+
+
+## Removes point `i` of ramp `id` (a ramp keeps one at least).
+func delete_ramp_point(id: String, i: int) -> void:
+	var r: Variant = ramp(id)
+	if r == null or i < 0 or i >= (r.points as Array).size() or (r.points as Array).size() <= 1:
+		return
+	_edit("Delete ramp point", "highway", func() -> void: (ramp(id).points as Array).remove_at(i), &"highway", { "ramps": [id] })
+
+
+## Moves ramp `id` `by_m` along the road (the way its carriageway drives): its ends, its points
+## (each keeps its place across the road and its height over it) and its portal.
+func move_ramp(id: String, by_m: float) -> void:
+	var r: Variant = ramp(id)
+	var t := track()
+	if r == null or t.samples.size() < 3:
+		return
+	var dir := int(r.from.get("dir", r.to.get("dir", 1)))
+	var shift := dir * by_m
+	# What moves a spot `by_m` on: from the road's frame at its nearest place to the frame there.
+	var move := func(p: Vector3) -> Transform3D:
+		var proj := t.project(p)
+		var from := t.transform_at(float(proj.distance), float(proj.lateral))
+		return t.transform_at(float(proj.distance) + shift, float(proj.lateral)) * from.affine_inverse()
+	_edit("Move ramp", "highway", func() -> void:
+		var rr: Dictionary = ramp(id)
+		for end: Dictionary in [rr.from, rr.to]:
+			if end.has("at_m"):
+				end.at_m = snappedf(fposmod(float(end.at_m) + shift, t.length), 0.1)
+				continue
+			for portal: Dictionary in layout.highway.get("portals", []):
+				if portal.id == end.get("portal"):
+					var at := Vector3(portal.p[0], portal.p[1], portal.p[2])
+					var m: Transform3D = move.call(at)
+					var yaw := deg_to_rad(float(portal.yaw_deg))
+					var facing := m.basis * Vector3(sin(yaw), 0.0, cos(yaw))
+					portal.p = _vec(Vector3((m * at).x, at.y, (m * at).z))
+					portal.yaw_deg = snappedf(rad_to_deg(atan2(facing.x, facing.z)), 0.1)
+		for pt: Dictionary in rr.points:
+			var q := Vector3(pt.p[0], pt.p[1], pt.p[2])
+			pt.p = _vec((move.call(q) as Transform3D) * q), &"highway", { "ramps": [id] })
+
+
+## Removes ramp `id` and the portal it has.
+func delete_ramp(id: String) -> void:
+	var r: Variant = ramp(id)
+	if r == null:
+		return
+	var portals := []
+	for end: Dictionary in [r.from, r.to]:
+		if end.has("portal"):
+			portals.append(end.portal)
+	_edit("Delete ramp", "highway", func() -> void:
+		var hw: Dictionary = layout.highway
+		hw.ramps = (hw.ramps as Array).filter(func(x: Dictionary) -> bool: return x.id != id)
+		hw.portals = (hw.get("portals", []) as Array).filter(func(x: Dictionary) -> bool: return x.id not in portals), &"highway", { "ramps": [id] })
+
+
+## Sets `key` of portal `id`: name, p ([x, y, z]) or yaw_deg.
+func set_portal(id: String, key: String, value: Variant) -> void:
+	var ids := []
+	for r: Dictionary in layout.get("highway", {}).get("ramps", []):
+		if r.from.get("portal") == id or r.to.get("portal") == id:
+			ids.append(r.id)
+	_edit("Set portal " + key.replace("_", " "), "highway", func() -> void:
+		for portal: Dictionary in layout.highway.get("portals", []):
+			if portal.id == id:
+				portal[key] = value, &"highway", { "ramps": ids })
+
+
+## The runs (stretches raced from a rolling start): [{id, name, dir, from_m, to_m}].
+func set_runs(runs: Array, name := "Change runs") -> void:
+	_edit(name, "highway", func() -> void: layout.highway.runs = runs.duplicate(true), &"highway", { "ramps": [] })
+
+
+## The speed traps: [{dir, at_m}].
+func set_traps(traps: Array, name := "Change speed traps") -> void:
+	_edit(name, "highway", func() -> void: layout.highway.traps = traps.duplicate(true), &"highway", { "ramps": [] })
+
+
+## Speed limits and tunnels: [{dir (0: both), from_m, to_m, speed_kmh, tunnel, name}]. Tunnels
+## are built, so the road comes again.
+func set_zones(zones: Array, name := "Change zones") -> void:
+	_edit(name, "highway", func() -> void: layout.highway.zones = zones.duplicate(true), &"road")
+
+
+func _free_ramp_number(template: String) -> int:
+	var used := {}
+	var hw: Dictionary = layout.get("highway", {})
+	for list: Array in [hw.get("ramps", []), hw.get("portals", [])]:
+		for x: Dictionary in list:
+			used[String(x.id)] = true
+	var n := 1
+	while used.keys().any(func(k: String) -> bool: return k == "%s_%d" % [template, n] or k.begins_with("%s_%d_" % [template, n])):
+		n += 1
+	return n
+
+
+static func _ramp_point(p: Vector3) -> Dictionary:
+	var out := { "p": _vec(p) }
+	if absf(p.y) > 0.01:
+		out.height = "set"
+	return out
+
+
+## A highway turned round with its road: each carriageway is the other direction now, at the
+## mirrored distance (`mirror`); ramps and portals stay where they are.
+static func _flip_highway(h: Dictionary, mirror: Callable) -> void:
+	var m := func(d: Variant) -> float: return snappedf(float(mirror.call(float(d))), 0.1)
+	for r: Dictionary in h.get("ramps", []):
+		for end: Dictionary in [r.from, r.to]:
+			if end.has("dir"):
+				end.dir = -int(end.dir)
+				end.at_m = m.call(end.at_m)
+	for run: Dictionary in h.get("runs", []):
+		run.dir = -int(run.dir)
+		run.from_m = m.call(run.from_m)
+		run.to_m = m.call(run.to_m)
+	for trap: Dictionary in h.get("traps", []):
+		trap.dir = -int(trap.dir)
+		trap.at_m = m.call(trap.at_m)
+	for z: Dictionary in h.get("zones", []):
+		var from: float = m.call(z.to_m)
+		z.to_m = m.call(z.from_m)
+		z.from_m = from
+		z.dir = -int(z.get("dir", 0))
 
 
 func undo() -> String:
@@ -547,24 +806,40 @@ var _dragging := {}
 
 
 ## Runs `change` on layout[section] and records it (the whole section before and after).
+## "highway" is the highway section, the track's type and the road (its widths follow the lanes).
 func _edit(name: String, section: String, change: Callable, what: StringName, change_info := {}) -> void:
 	var before := _section(section)
 	change.call()
 	var after := _section(section)
-	history.act(name, _set_section.bind(section, after, what), _set_section.bind(section, before, what), false)
+	# Undo and redo tell the preview what the change did (which ramps), never that it's live.
+	var info := change_info.duplicate()
+	info.erase("live")
+	history.act(name, _set_section.bind(section, after, what, info), _set_section.bind(section, before, what, info), false)
 	_changed(what, change_info)
 
 
 func _section(section: String) -> Dictionary:
-	if section == "all":
-		return { "road": layout.road.duplicate(true), "race": layout.race.duplicate(true) }
+	match section:
+		"all":
+			var out := { "road": layout.road.duplicate(true), "race": layout.race.duplicate(true) }
+			if layout.has("highway"):
+				out.highway = (layout.highway as Dictionary).duplicate(true)
+			return out
+		"highway":
+			return { "type": layout.get("type", "circuit"), "road": layout.road.duplicate(true),
+				"highway": (layout.highway as Dictionary).duplicate(true) if layout.has("highway") else null }
 	return { section: (layout[section] as Dictionary).duplicate(true) }
 
 
-func _set_section(section: String, value: Dictionary, what: StringName) -> void:
+## Puts a section back (null: the key goes).
+func _set_section(section: String, value: Dictionary, what: StringName, change_info := {}) -> void:
 	for key: String in value:
-		layout[key] = (value[key] as Dictionary).duplicate(true)
-	_changed(what, {})
+		var v: Variant = value[key]
+		if v == null:
+			layout.erase(key)
+		else:
+			layout[key] = v.duplicate(true) if v is Dictionary or v is Array else v
+	_changed(what, change_info)
 
 
 func _set_info(value: Dictionary) -> void:
@@ -599,7 +874,7 @@ func _set_scatter(prop: String, xf: Array, notify := true) -> void:
 
 
 func _changed(what: StringName, change_info: Dictionary) -> void:
-	if what == &"race" and _track:
+	if what in [&"race", &"highway"] and _track:
 		_track = _track.with_race(layout) # the road is the same: no resampling
 	elif what in [&"road", &"race", &"terrain", &"all"]:
 		_track = null

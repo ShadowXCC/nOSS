@@ -120,9 +120,11 @@ func test_templates_build() -> void:
 			assert_int(track.samples.size()).is_equal(0)
 			continue
 		assert_float(track.length).override_failure_message(String(t[0])).is_greater(800.0)
+		assert_bool(d.dirty()).is_false()
+		if d.is_highway():
+			continue # flat ground, no sectors (highway_draft_test)
 		assert_int(track.sectors_m.size()).is_equal(2)
 		assert_bool(d.terrain.area().encloses(Rect2(track.samples[0].x - 1, track.samples[0].z - 1, 2, 2))).is_true()
-		assert_bool(d.dirty()).is_false()
 	var eight := TrackTemplates.make("figure8")
 	var t8 := eight.track()
 	eight.terrain.conform(t8)

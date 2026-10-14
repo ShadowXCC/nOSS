@@ -36,6 +36,8 @@ var type := "circuit"
 var closed := true
 ## A highway's carriageways, ramps and runs (D106); null on circuits.
 var highway: HighwayLayout
+## The ground it was laid on (for rebuilding a highway's ramps without resampling the road).
+var _ground := Callable()
 ## Built in (res://): records are keyed by id alone.
 var builtin := false
 ## Centreline samples every ~2 m, with their along-track distance from the first point.
@@ -128,6 +130,7 @@ static func from_dict(data: Dictionary, ground_height := Callable()) -> TrackDat
 	t.type = String(data.get("type", "circuit"))
 	# A highway on flat ground still knows the ground (at 0), so its viaducts stand on supports.
 	var ground := ground_height if ground_height.is_valid() or t.type != "highway" else func(_x: float, _z: float) -> float: return 0.0
+	t._ground = ground
 	if (road.get("points", []) as Array).size() >= 3: # fewer make no loop
 		t._sample(road, ground)
 	t._read_race(data.get("race", {}))
@@ -136,8 +139,9 @@ static func from_dict(data: Dictionary, ground_height := Callable()) -> TrackDat
 	return t
 
 
-## The same road with `data`'s race setup (start, sectors, grid, AI): no resampling. The road's
-## arrays are shared, so neither copy may change them.
+## The same road with `data`'s race setup (start, sectors, grid, AI) and a highway's ramps,
+## portals, zones and runs: no resampling. The road's arrays are shared, so neither copy may
+## change them.
 func with_race(data: Dictionary) -> TrackData:
 	var t := TrackData.new()
 	for prop in get_property_list():
@@ -146,6 +150,8 @@ func with_race(data: Dictionary) -> TrackData:
 	t.raw = data
 	t.layout_hash = TrackFormat.layout_hash(data)
 	t._read_race(data.get("race", {}))
+	if highway:
+		t.highway = HighwayLayout.build(t, TrackFormat.highway_settings(data), _ground)
 	return t
 
 

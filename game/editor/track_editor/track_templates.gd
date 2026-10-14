@@ -1,11 +1,13 @@
 class_name TrackTemplates
 extends RefCounted
 ## Tracks to start from (docs/TRACK_EDITOR.md §2): an empty field, or a road ready to change,
-## each on terrain sized round it, with its start, grid and sectors set.
+## each on terrain sized round it, with its start, grid and sectors set; or a highway loop on
+## flat ground with its ramps (EDT-10).
 
 ## [[id, name]] for menus.
 static func list() -> Array:
-	return [["empty", "Empty"], ["oval", "Oval (1.2 km)"], ["circuit", "Circuit (2.5 km)"], ["figure8", "Figure 8 with a bridge"]]
+	return [["empty", "Empty"], ["oval", "Oval (1.2 km)"], ["circuit", "Circuit (2.5 km)"], ["figure8", "Figure 8 with a bridge"],
+		["highway", "Highway loop (4 km)"]]
 
 
 static func make(id: String) -> TrackDraft:
@@ -31,7 +33,58 @@ static func make(id: String) -> TrackDraft:
 				d.points()[i].height = "set"
 			d.saved_version = d.history.version() # nothing to save yet
 			return d
+		"highway":
+			return highway_loop()
 	return TrackDraft.blank()
+
+
+## A highway loop about 4.4 km round on flat concrete, 3 lanes each way (D106, D122): an exit and
+## an entry each way on the south straight, a crossover each way on the north one, the lap line
+## on the east straight. Made with the editor's own commands, then nothing to undo.
+static func highway_loop() -> TrackDraft:
+	var d := TrackDraft.blank("Highway loop")
+	d.terrain = null
+	d.layout.erase("ground")
+	d.layout.ground = { "flat_y": -0.03, "surface": "concrete" }
+	d.set_type("highway")
+	d.layout.road.points = rounded_rect(800.0, 400.0, 220.0).map(func(p: Vector3) -> Dictionary: return { "p": TrackDraft._vec(p) })
+	d._track = null
+	var t := d.track()
+	var at := func(p: Vector3) -> float: return float(t.project(p).distance)
+	var south: float = at.call(Vector3(0, 0, -400))
+	var north: float = at.call(Vector3(0, 0, 400))
+	d.add_ramp("interchange", 1, south - 490.0, "Harbour")
+	d.add_ramp("interchange", -1, south + 490.0, "Park")
+	d.add_ramp("crossover", 1, north - 520.0, "Mill Flyover")
+	d.add_ramp("crossover", -1, north + 520.0, "Canal Flyover")
+	d.set_race("start_m", snappedf(at.call(Vector3(800, 0, 0)), 0.1))
+	d.history = EditHistory.new()
+	d.saved_version = d.history.version()
+	return d
+
+
+## A rectangle `half_x` by `half_z` with corners of radius `r`, anticlockwise seen from above:
+## points every ~`step` m on the straights and every 15° round the corners, from the middle of
+## the south side heading +x.
+static func rounded_rect(half_x: float, half_z: float, r: float, step := 150.0, corner_deg := 15.0) -> Array:
+	var pts: Array[Vector2] = [Vector2(0, -half_z)]
+	var corners := [Vector2(half_x - r, -half_z + r), Vector2(half_x - r, half_z - r), Vector2(-half_x + r, half_z - r), Vector2(-half_x + r, -half_z + r)]
+	var corner_steps := maxi(roundi(90.0 / corner_deg), 1)
+	for c in 4:
+		var a0 := -PI / 2.0 + c * PI / 2.0
+		_straight(pts, pts[pts.size() - 1], corners[c] + Vector2(cos(a0), sin(a0)) * r, step)
+		for k in range(1, corner_steps + 1):
+			var a := a0 + PI / 2.0 * k / corner_steps
+			pts.append(corners[c] + Vector2(cos(a), sin(a)) * r)
+	_straight(pts, pts[pts.size() - 1], Vector2(0, -half_z), step)
+	pts.pop_back() # the last point is the first
+	return pts.map(func(p: Vector2) -> Vector3: return Vector3(snappedf(p.x, 0.01), 0.0, snappedf(p.y, 0.01)))
+
+
+static func _straight(pts: Array[Vector2], from: Vector2, to: Vector2, step: float) -> void:
+	var steps := maxi(1, roundi(from.distance_to(to) / step))
+	for k in range(1, steps + 1):
+		pts.append(from.lerp(to, float(k) / steps))
 
 
 ## A draft with `points` (ground-following), its terrain round them, start at `start_m` and
