@@ -27,7 +27,7 @@ extends Node
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
 ##   --track=<ref>        the track for --drive, --race and --time-trial: an id, a path or a hash
 ##   --highway            a highway session right away (the first highway, or --track): --sub=cruise|score|run|loop,
-##                        --traffic=<cars>, --traffic-seed=<n>, --police, --direction=-1, --run=<id>
+##                        --traffic=<cars>, --traffic-seed=<n>, --police, --direction=-1, --run=<id>, --players=<n>
 ##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5; a list like 5,30,90 takes several), one per window
 ##   --quit-at=<s>        quit after this many seconds
 ##   --bay                open the Fitting Bay
@@ -250,6 +250,8 @@ func start_event(event: RaceEvent, platform_id: String, track := "") -> void:
 	session.solo = event.kind == "time_trial"
 	session.platform_id = platform_id
 	session.autodrive = dev.has("autodrive")
+	if event.kind == "highway":
+		session.ai_players = maxi(int(dev.get("players", "1")) - maxi(Players.count(), 1), 0)
 	if dev.has("camera"):
 		Settings.profile.camera = dev.camera
 	open_session(session)
