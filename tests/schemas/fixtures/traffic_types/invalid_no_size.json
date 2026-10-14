@@ -1,0 +1,1 @@
+{ "schema": "noss.traffic_types/1", "types": [ { "id": "hatch", "model": "hatch", "platform": "official.traffic.car" } ] }

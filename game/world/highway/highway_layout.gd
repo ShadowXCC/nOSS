@@ -213,18 +213,23 @@ func spawn_spot(dir: int, d: float, lane: int) -> Transform3D:
 	return t
 
 
-## The lanes traffic drives, for the native lane sim (D108): each lane's points in driving order,
-## and how they connect. Main-road lanes are the road's samples offset sideways (vertex k of every
-## lane of a direction is the same sample, so lanes map onto each other by vertex), driven
-## backwards for direction -1. Ramps that carry traffic add one lane each.
-##   lanes: [{dir, road (-1 or the ramp's index), index, closed, points, speed (m/s)}]
-##   branches: [lane, vertex, ramp lane]  a ramp leaves lane `lane` at its vertex
-##   merges: [ramp lane, lane, vertex]    a ramp's last vertex joins lane `lane` at its vertex
-##   portals: {id: {in: [ramp lanes ending there], out: [ramp lanes starting there]}}
+## The lanes traffic drives, for the native lane sim (NossTraffic, D108): each lane's points in
+## driving order, and how they connect. Main-road lanes are the road's samples offset sideways
+## (vertex k of every lane of a direction is the same sample, so lanes map onto each other by
+## vertex), driven backwards for direction -1. Ramps that carry traffic add one lane each.
+##   lanes: [{dir, road (-1 or the ramp's index), index, closed, points, speed (m/s), limits (mm/s per vertex)}]
+##   adjacent: [outer, inner]*    branches: [lane, vertex, ramp lane]*    merges: [ramp lane, lane, vertex]*
+##   attaches: [ramp lane, ramp vertex, lane, lane vertex, count]*  (where a ramp runs beside a lane)
+##   portal_in / portal_out: [lane, portal]*  (portal: its index in portal_ids)
 func lane_graph() -> Dictionary:
 	var n := main.samples.size()
-	var out := { "lanes": [], "branches": [], "merges": [], "portals": {} }
+	var out := { "lanes": [], "adjacent": PackedInt32Array(), "branches": PackedInt32Array(), "merges": PackedInt32Array(),
+		"attaches": PackedInt32Array(), "portal_in": PackedInt32Array(), "portal_out": PackedInt32Array(), "portal_ids": [] }
 	for dir: int in [1, -1]:
+		var limits := PackedInt32Array()
+		limits.resize(n)
+		for v in n:
+			limits[v] = roundi(speed_at(dir, main.distances[_vertex_sample(dir, v)]) * 1000.0)
 		for lane in lanes:
 			var pts := PackedVector3Array()
 			pts.resize(n)
@@ -232,9 +237,12 @@ func lane_graph() -> Dictionary:
 			for v in n:
 				var k := _vertex_sample(dir, v)
 				pts[v] = main.samples[k] + main.lefts[k] * lat
-			out.lanes.append({ "dir": dir, "road": -1, "index": lane, "closed": true, "points": pts, "speed": speed })
-	for p: String in portals:
-		out.portals[p] = { "in": [], "out": [] }
+			out.lanes.append({ "dir": dir, "road": -1, "index": lane, "closed": true, "points": pts, "speed": speed, "limits": limits })
+			if lane + 1 < lanes:
+				out.adjacent.append_array([main_lane(dir, lane), main_lane(dir, lane + 1)])
+	var ids := portals.keys()
+	ids.sort()
+	out.portal_ids = ids
 	for i in ramps.size():
 		var r := ramps[i]
 		if not r.traffic:
@@ -242,13 +250,16 @@ func lane_graph() -> Dictionary:
 		var id: int = out.lanes.size()
 		out.lanes.append({ "dir": 0, "road": i, "index": 0, "closed": false, "points": r.lane_path, "speed": r.speed })
 		if r.from.has("portal"):
-			out.portals[r.from.portal].out.append(id)
+			out.portal_out.append_array([id, ids.find(r.from.portal)])
 		else:
-			out.branches.append([main_lane(int(r.from.dir), 0), _sample_vertex(int(r.from.dir), r.head_main[0]), id])
+			out.branches.append_array([main_lane(int(r.from.dir), 0), _sample_vertex(int(r.from.dir), r.head_main[0]), id])
 		if r.to.has("portal"):
-			out.portals[r.to.portal].in.append(id)
+			out.portal_in.append_array([id, ids.find(r.to.portal)])
 		else:
-			out.merges.append([id, main_lane(int(r.to.dir), 0), _sample_vertex(int(r.to.dir), r.tail_main[r.tail_main.size() - 1])])
+			var dir := int(r.to.dir)
+			var into := main_lane(dir, 0)
+			out.merges.append_array([id, into, _sample_vertex(dir, r.tail_main[r.tail_main.size() - 1])])
+			out.attaches.append_array([id, r.tail_start, into, _sample_vertex(dir, r.tail_main[0]), r.tail_main.size()])
 	return out
 
 

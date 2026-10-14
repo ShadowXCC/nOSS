@@ -54,6 +54,8 @@ extends Node
 ##   --share-personal     server: send personal-use cars too (only to this PC's bots: net_check --fresh)
 ##   --auto-ready         lobby: ready once the cars are picked
 ##   --auto-start=<n>     hosting: start once n players are in and everyone's ready
+##   --traffic-selftest[=<track>]  step a highway's traffic 1000 s, print its checksum and quit
+##                        (compare builds: tools/traffic_determinism.sh)
 
 const TITLE := "res://game/ui/title/title_screen.tscn"
 
@@ -102,6 +104,10 @@ func _ready() -> void:
 		Settings.use_folder("user://tests/bots") # never this machine's player's profile or car
 		Net.use_identity(NetIdentity.throwaway())
 		add_child(NetBot.new())
+	if dev.has("traffic-selftest"):
+		print(TrafficTypes.selftest(String(dev["traffic-selftest"])))
+		get_tree().quit.call_deferred()
+		return
 	PlayerProfile.read_only = dev.has("no-save")
 	# Dev: --p1-profile='{"assists": {"racing_line": true}}' sets P1's options for this run (use
 	# with --no-save to keep them out of the profile).

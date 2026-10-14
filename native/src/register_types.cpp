@@ -9,6 +9,7 @@
 #include "input/gd_input.h"
 #include "mesh/gd_mesh.h"
 #include "package/gd_package.h"
+#include "traffic/gd_traffic.h"
 #include "vehicle/gd_conformance.h"
 #include "vehicle/gd_vehicle_sim.h"
 #include "world/gd_terrain.h"
@@ -28,6 +29,7 @@ static void initialize_noss_core(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(noss::NossAudio);
 	GDREGISTER_CLASS(noss::NossSurfaceMap);
 	GDREGISTER_CLASS(noss::NossTerrain);
+	GDREGISTER_CLASS(noss::NossTraffic);
 }
 
 static void uninitialize_noss_core(ModuleInitializationLevel p_level) {

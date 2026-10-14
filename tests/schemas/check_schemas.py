@@ -50,7 +50,7 @@ def main() -> int:
             failures.append(f"{path.relative_to(ROOT)}: rejected: {errors[0].message}")
 
     for schema_name, pattern in [("mode", "modes/*.mode.json"), ("input_preset", "input_presets/*.json"), ("server", "server.example.json"),
-                                 ("tire_profile", "tire_sounds/*.json")]:
+                                 ("tire_profile", "tire_sounds/*.json"), ("traffic_types", "traffic/types.json")]:
         validator = Draft202012Validator(json.loads((SCHEMAS / f"{schema_name}.schema.json").read_text()))
         for path in sorted((ROOT / "data").glob(pattern)):
             errors = list(validator.iter_errors(json.loads(path.read_text())))

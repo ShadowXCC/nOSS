@@ -130,21 +130,57 @@ func test_lane_graph_connects_ramps_to_the_outer_lanes() -> void:
 	var traffic_ramps := h.ramps.filter(func(r: RampData) -> bool: return r.traffic).size()
 	assert_int(traffic_ramps).is_equal(4)
 	assert_int(g.lanes.size()).is_equal(6 + traffic_ramps)
-	assert_int(g.branches.size()).is_equal(2)
-	assert_int(g.merges.size()).is_equal(2)
-	for b: Array in g.branches:
-		var from_pts: PackedVector3Array = g.lanes[b[0]].points
-		var ramp_pts: PackedVector3Array = g.lanes[b[2]].points
-		assert_float(from_pts[b[1]].distance_to(ramp_pts[0])).is_less(0.01)
-	for m: Array in g.merges:
-		var ramp_pts: PackedVector3Array = g.lanes[m[0]].points
-		var into_pts: PackedVector3Array = g.lanes[m[1]].points
-		assert_float(ramp_pts[ramp_pts.size() - 1].distance_to(into_pts[m[2]])).is_less(0.01)
+	assert_int(g.adjacent.size()).is_equal(2 * 4)
+	assert_int(g.branches.size()).is_equal(3 * 2)
+	assert_int(g.merges.size()).is_equal(3 * 2)
+	assert_int(g.attaches.size()).is_equal(5 * 2)
+	for k in range(0, g.branches.size(), 3):
+		var from_pts: PackedVector3Array = g.lanes[g.branches[k]].points
+		var ramp_pts: PackedVector3Array = g.lanes[g.branches[k + 2]].points
+		assert_float(from_pts[g.branches[k + 1]].distance_to(ramp_pts[0])).is_less(0.01)
+	for k in range(0, g.merges.size(), 3):
+		var ramp_pts: PackedVector3Array = g.lanes[g.merges[k]].points
+		var into_pts: PackedVector3Array = g.lanes[g.merges[k + 1]].points
+		assert_float(ramp_pts[ramp_pts.size() - 1].distance_to(into_pts[g.merges[k + 2]])).is_less(0.01)
 	# Direction -1's lanes run against the road: their first step goes the other way.
 	var lane: PackedVector3Array = g.lanes[h.main_lane(-1, 0)].points
 	assert_float((lane[1] - lane[0]).dot(_t.tangents[0])).is_less(0.0)
-	assert_int((g.portals.harbour_out.in as Array).size()).is_equal(1)
-	assert_int((g.portals.harbour_in.out as Array).size()).is_equal(1)
+	assert_int(g.portal_in.size()).is_equal(2 * 2)
+	assert_int(g.portal_out.size()).is_equal(2 * 2)
+	# The tunnel's 80 km/h shows in the limits.
+	var limits: PackedInt32Array = g.lanes[0].limits
+	assert_int(Array(limits).min()).is_equal(roundi(80.0 / 3.6 * 1000.0))
+
+
+func test_native_traffic_runs_on_the_lane_graph() -> void:
+	var traffic := NossTraffic.new()
+	var types := [{ "length_m": 4.5, "width_m": 1.8, "speed_factor": [0.9, 1.1], "weight": 8 },
+		{ "length_m": 9.0, "width_m": 2.5, "speed_factor": [0.8, 0.88], "accel": 0.7, "lanes_max": 2, "weight": 2 }]
+	assert_str(traffic.setup(_t.highway.lane_graph(), types, 5, 150, 0.15)).is_empty()
+	assert_int(traffic.get_count()).is_equal(150)
+	traffic.step_to(20 * 60)
+	assert_int(traffic.get_tick()).is_equal(1200)
+	assert_int(traffic.active_count() + traffic.away_count()).is_equal(150)
+	var poses := traffic.poses(0.5)
+	assert_int(poses.size()).is_equal(150 * 8)
+	# A car is on the road it's said to be on.
+	for i in 150:
+		if int(poses[i * 8 + 5]) & 1:
+			var at := Vector3(poses[i * 8], poses[i * 8 + 1] + 0.5, poses[i * 8 + 2])
+			assert_bool(_t.highway.locate(at).on_road).override_failure_message("car %d at %s" % [i, at]).is_true()
+	# Same seed, same graph: same traffic.
+	var again := NossTraffic.new()
+	again.setup(_t.highway.lane_graph(), types, 5, 150, 0.15)
+	again.step_to(1200)
+	assert_int(again.checksum()).is_equal(traffic.checksum())
+	assert_int(again.graph_hash()).is_equal(traffic.graph_hash())
+	# Events round-trip through bytes.
+	var e := NossTraffic.pack_event(1, 7, 1300, 12, 3, 2, 1234.5, 25.0, -1, 0, 0, 0)
+	assert_int(e.size()).is_equal(24)
+	var back: Dictionary = NossTraffic.unpack_events(e)[0]
+	assert_int(back.car).is_equal(12)
+	assert_float(back.s).is_equal_approx(1234.5, 0.001)
+	assert_float(back.v).is_equal_approx(25.0, 0.01)
 
 
 func test_speed_limits_and_tunnels_come_from_zones() -> void:
