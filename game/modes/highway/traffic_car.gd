@@ -21,6 +21,10 @@ var blocked := false
 var gap := INF
 var wrecked := false
 var stuck_time := 0.0
+## Seconds nobody has been near it (TrafficManager).
+var alone := 0.0
+## Counts as a wreck at the next decision (wreck()).
+var _wreck_now := false
 var _off_time := 0.0
 var _wheelbase := 2.7
 var _max_steer := 0.55
@@ -71,7 +75,12 @@ func lane_ok() -> bool:
 
 ## On its side or roof, or stopped where nothing holds it up: a wreck.
 func crashed() -> bool:
-	return vehicle.global_basis.y.y < 0.5 or stuck_time > STUCK_S
+	return _wreck_now or vehicle.global_basis.y.y < 0.5 or stuck_time > STUCK_S
+
+
+## Makes it a wreck at the next decision (police stops; tests).
+func wreck() -> void:
+	_wreck_now = true
 
 
 ## Far enough from its shadow that the lane sim should be told where it really is (RESHADOW).

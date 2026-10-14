@@ -17,6 +17,47 @@ func _ready() -> void:
 	process_physics_priority = -56
 
 
+func _physics_process(_delta: float) -> void:
+	for r in session.racers:
+		if r.vehicle == null or r.waiting or not is_instance_valid(r.vehicle) or r.vehicle.remote:
+			continue
+		var at: Dictionary = session.highway_field.at(r)
+		if at.is_empty() or not at.on_road or int(at.road) < 0:
+			continue
+		var ramp := layout.ramps[int(at.road)]
+		var d := float(at.distance)
+		# Into a portal: out of the next entry on that carriageway, at the same speed.
+		if ramp.to.has("portal") and d > ramp.track.length - 6.0:
+			_through_portal(r, ramp)
+
+
+## `r` drove into `exit`'s portal: it comes out of the first entry ramp ahead of where it left,
+## on the same carriageway, at its speed.
+func _through_portal(r: Racer, exit: RampData) -> void:
+	var dir := int(exit.from.get("dir", r.direction))
+	var left := float(exit.from.get("at_m", 0.0))
+	var best: RampData = null
+	var best_d := INF
+	for ramp in layout.ramps:
+		if not ramp.from.has("portal") or not ramp.to.has("dir") or int(ramp.to.dir) != dir:
+			continue
+		var ahead := layout.along(dir, float(ramp.to.at_m)) - layout.along(dir, left)
+		ahead = fposmod(ahead, layout.main.length)
+		if ahead < best_d:
+			best_d = ahead
+			best = ramp
+	if best == null:
+		reset(r)
+		return
+	var t := best.track
+	var k := mini(6, t.samples.size() - 1)
+	var at := Transform3D(Basis(t.lefts[k], t.ups[k], t.tangents[k]), t.samples[k])
+	var speed := maxf(r.vehicle.speed(), 8.0)
+	r.vehicle.reset_to(at, t.tangents[k] * speed)
+	r.timer.invalidate("Off the road")
+	r.notify(String(layout.portals[best.from.portal].name), 1.5)
+
+
 ## Player `i`'s start: on the shoulder of direction `dir`'s carriageway behind the lap line.
 func spawn_for(i: int, dir: int) -> Transform3D:
 	var d := layout.main.start_m - dir * (START_BACK_M + i * START_GAP_M)

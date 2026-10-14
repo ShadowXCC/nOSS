@@ -260,6 +260,19 @@ func _update_spotter() -> void:
 			left = true # +X is the car's left
 		else:
 			right = true
+	# Highways: traffic alongside too (physics cars near the player, going the same way).
+	if session.traffic:
+		for tc: TrafficCar in session.traffic.cars.values():
+			var v := tc.vehicle
+			if v.global_basis.z.dot(vehicle.global_basis.z) < 0.5:
+				continue
+			var rel := inv * (v.global_position - vehicle.global_position)
+			if absf(rel.z) > RacingAI.CAR_LENGTH + 1.0 or absf(rel.x) > SPOTTER_RANGE_M or absf(rel.x) < 1.0:
+				continue
+			if rel.x > 0.0:
+				left = true
+			else:
+				right = true
 	hud.set_spotter(left, right)
 	var state := "three" if left and right else ("left" if left else ("right" if right else ""))
 	if state == _spot_state:

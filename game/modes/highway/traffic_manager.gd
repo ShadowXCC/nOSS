@@ -9,11 +9,12 @@ extends Node
 ## Offline this game decides everything (authority); online the server does (NetHighway, D109).
 
 ## Lane cars this close to a player (or police) become physics cars; physics cars this far from
-## everyone go back to the lane sim.
+## everyone go back to the lane sim. A wreck stays until nobody is within R_OUT, then it's towed.
 const R_IN := 150.0
 const R_OUT := 200.0
-## A wreck nobody is this close to is towed away.
-const TOW_M := 80.0
+## A physics car nobody has been near for this long goes back even off its lane's line (where its
+## shadow is).
+const FORCE_BACK_S := 3.0
 ## Physics cars at most: in this game, and near one player.
 const CAP_GAME := 24
 const CAP_PLAYER := 12
@@ -40,6 +41,7 @@ const RESHADOW := 8
 const ACTIVE := 1
 const AWAY := 2
 const SHADOW := 4
+const WRECK_FLAG := 8
 
 var session: TrackSession
 var sim: NossTraffic
@@ -101,6 +103,10 @@ func _ready() -> void:
 			_packages[t] = pkg
 	if draws:
 		_make_views()
+		var sound := TrafficSound.new()
+		sound.name = "TrafficSound"
+		sound.manager = self
+		add_child(sound)
 	for i in BOXES:
 		var body := AnimatableBody3D.new()
 		body.name = "TrafficBox%d" % i
@@ -195,7 +201,7 @@ func _promotions() -> void:
 		var tc: TrafficCar = cars[car]
 		var near := _nearest(promoters, tc.vehicle.global_position)
 		if tc.wrecked:
-			if near > TOW_M:
+			if near > R_OUT:
 				_event(TOW, car)
 				tows += 1
 				_release(car)
@@ -205,8 +211,12 @@ func _promotions() -> void:
 			wrecks += 1
 			_event(WRECK, car, maxi(tc.lane, 0), tc.s, 0.0)
 			continue
-		if near > R_OUT and tc.lane_ok():
-			_event(DEMOTE, car, tc.lane, tc.s, maxf(tc.vehicle.speed(), 0.0))
+		tc.alone = tc.alone + DECIDE_S if near > R_OUT else 0.0
+		if near > R_OUT and (tc.lane_ok() or tc.alone > FORCE_BACK_S):
+			if tc.lane_ok():
+				_event(DEMOTE, car, tc.lane, tc.s, maxf(tc.vehicle.speed(), 0.0))
+			else:
+				_event(DEMOTE, car) # back where its shadow is
 			demotions += 1
 			_release(car)
 			continue
@@ -268,6 +278,7 @@ func _promote(car: int, poses: PackedFloat32Array) -> bool:
 	tc.manager = self
 	tc.car = car
 	tc.vehicle = v
+	tc.wrecked = int(info.flags) & WRECK_FLAG != 0 # a wreck in the lane sim stays one
 	add_child(tc)
 	cars[car] = tc
 	_event(PROMOTE, car)

@@ -22,15 +22,19 @@ const PORTAL_DEPTH_M := 30.0
 ## Median barrier [height, thickness] by type.
 const MEDIAN := { "concrete": [1.0, 0.6], "armco": [0.75, 0.3], "fence": [2.0, 0.12] }
 
-var road: RoadBuilder
+## Held weakly: the road builder holds this one.
+var road: RoadBuilder:
+	get:
+		return _road.get_ref() as RoadBuilder
 var track: TrackData
 var highway: HighwayLayout
 ## Building one of the highway's ramps (null: the main road).
 var ramp: RampData
+var _road: WeakRef
 
 
 func _init(rb: RoadBuilder, layout: HighwayLayout, r: RampData = null) -> void:
-	road = rb
+	_road = weakref(rb)
 	track = rb.track
 	highway = layout
 	ramp = r
