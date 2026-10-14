@@ -109,7 +109,7 @@ func _tick() -> void:
 		_loop_tick()
 		if session.players[0].timer.lap > int(opts.laps) + 1:
 			_report()
-		elif time > 1200.0:
+		elif time > (int(opts.laps) + 2) * session.track.length / 12.0: # laps + 1 at 12 m/s at least
 			_report()
 	elif time >= float(opts.seconds):
 		_report()
