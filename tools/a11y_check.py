@@ -3,7 +3,8 @@
 
 Runs the game with accessibility on and walks title -> Race -> class -> event -> Players -> a
 1-lap race -> results -> title, then Online -> Host -> the lobby -> Leave (M5), then the track
-editor: every tool, a new oval, its race setup and checks, and out (M6), through AT-SPI,
+editor: every tool, a new oval, its race setup and checks, a new highway loop and its ramps, and
+out (M6, M7), through AT-SPI,
 the interface screen readers (Orca) use: it finds controls by their accessible names, presses
 them with their accessibility actions, and checks that every focusable control on each screen
 has a name and that something has focus.
@@ -198,7 +199,19 @@ def editor_walk():
     step("New track", "Oval", prefix=True)
     for tool in ["Road", "Race", "Check"]:
         step(f"Oval: {tool}", tool, role="toggle button", prefix=(tool == "Check"))
-    step("Oval: leave", "Exit")
+    # A highway (M7): its Road settings, the Ramps tool (pick a ramp), the Race tool's runs, the checks.
+    step("Oval: File", "File", role="toggle button")
+    step("Oval: new track", "New track")
+    if find("Don't save", "button", timeout=3.0) is not None:
+        step("Unsaved prompt", "Don't save")
+    step("New track", "Highway loop", prefix=True)
+    for tool in ["Road", "Ramps"]:
+        step(f"Highway: {tool}", tool, role="toggle button")
+    step("Highway: pick a ramp", "Harbour", prefix=True)
+    step("Highway: ramp", "Deselect")
+    for tool in ["Race", "Check"]:
+        step(f"Highway: {tool}", tool, role="toggle button", prefix=(tool == "Check"))
+    step("Highway: leave", "Exit")
     if find("Don't save", "button", timeout=3.0) is not None:
         step("Unsaved prompt", "Don't save")
     if find("Race", "button", timeout=20.0) is None:
