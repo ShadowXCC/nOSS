@@ -101,6 +101,20 @@ func gap(k: int, side: float) -> bool:
 	return (gap_l if side > 0.0 else gap_r)[k] != 0
 
 
+## True if direction `dir` goes round clockwise on the map (north is -z), from the loop's signed
+## area: menus say "Clockwise" and "Anticlockwise", not +1 and -1.
+func clockwise(dir: int) -> bool:
+	var t := main
+	var area := 0.0
+	var n := t.samples.size()
+	for k in n:
+		var a := t.samples[k]
+		var b := t.samples[(k + 1) % n]
+		area += a.x * b.z - b.x * a.z
+	# With x east and z south, a positive area goes round clockwise.
+	return (area > 0.0) == (dir > 0)
+
+
 ## The speed limit on direction `dir` at main-road distance `d`, m/s.
 func speed_at(dir: int, d: float) -> float:
 	for z: Dictionary in zones:

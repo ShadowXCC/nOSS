@@ -85,6 +85,28 @@ func rebuild_highway(root: Node3D) -> void:
 	root.add_child(_hw.extras())
 
 
+## Replaces ramp `id`'s node under `root` (none if the ramp is gone or doesn't build).
+func rebuild_ramp(root: Node3D, id: String) -> void:
+	var old := root.get_node_or_null(NodePath("Ramp_" + id))
+	if old:
+		root.remove_child(old)
+		old.queue_free()
+	var r := track.highway.ramp(id) if _hw else null
+	if r:
+		root.add_child(build_ramp(r))
+
+
+## Replaces the highway's signs, portals and cushions under `root`.
+func rebuild_extras(root: Node3D) -> void:
+	if not _hw:
+		return
+	var old := root.get_node_or_null(^"Highway")
+	if old:
+		root.remove_child(old)
+		old.queue_free()
+	root.add_child(_hw.extras())
+
+
 ## Segment `s`'s pieces as one node, "Seg_<s>".
 func build_segment(s: int) -> Node3D:
 	var node := Node3D.new()

@@ -409,6 +409,11 @@ func test_drive_session(draft: TrackDraft, at: Variant = null) -> TrackSession:
 	session.start_at = at
 	session.solo = true
 	session.platform_id = String(Settings.profile.get("last_platform", "")) if Settings.profile.get("last_platform", "") else TrackSession.DEFAULT_PLATFORM
+	if draft.is_highway():
+		# A highway drives as Cruise with its traffic, in a highway class.
+		session.event = RaceEvent.highway("cruise", false, -1)
+		if GameModes.mode_for(session.platform_id).get("id", "") != "highway":
+			session.platform_id = "official.highway.street"
 	session.autodrive = dev.has("autodrive")
 	return session
 

@@ -4,9 +4,15 @@ extends EditorTool
 ## drawn on the road; drag it sideways to pin it there, and it bends through the pin.
 ## Mouse: click the road to put the chosen thing there; drag a pin. Keys and controller: the
 ## crosshair places, or grabs a pin and drops it; [ ] (LB/RB) step through the pins; Delete (X)
-## removes one.
+## removes one. On a highway (EDT-10): the lap line, runs, speed traps, speed limit and tunnel
+## zones, and the traffic; no grid or AI line (traffic keeps to its lanes).
 
 const CLICKS := [["start", "Start line"], ["sector", "Sector line"], ["pin", "AI line pin"]]
+const HIGHWAY_CLICKS := [["start", "Lap line"], ["run_start", "Run start"], ["run_end", "Run end"], ["trap", "Speed trap"],
+	["zone_start", "Zone start"], ["zone_end", "Zone end"]]
+## A new run or zone reaches this far until its end is set.
+const NEW_RUN_M := 1500.0
+const NEW_ZONE_M := 500.0
 ## A click this close (along the road) to a pin takes that pin.
 const PIN_NEAR_M := 15.0
 ## Clicks further than this past the road's edge aren't on it.
@@ -15,6 +21,9 @@ const OFF_ROAD_M := 8.0
 var click := "start"
 var selected_pin := -1
 var _dragging := false
+## The run and zone the end clicks set (highways).
+var _run := -1
+var _zone := -1
 
 
 func title() -> String:
@@ -27,7 +36,15 @@ func hint() -> String:
 			return "Click the road to add a sector line"
 		"pin":
 			return "Drag the AI line sideways to pin it · [ ] step · Del removes"
-	return "Click the road to put the start line there · F5 drives"
+		"run_start":
+			return "Click a carriageway where a run starts"
+		"run_end", "zone_end":
+			return "Click the road where it ends"
+		"trap":
+			return "Click a carriageway to put a speed trap there"
+		"zone_start":
+			return "Click the road where a speed limit or tunnel starts"
+	return "Click the road to put the %s there · F5 drives" % ("lap line" if draft.is_highway() else "start line")
 
 
 func selection_state() -> Dictionary:
@@ -62,6 +79,9 @@ func pointer(e: Dictionary) -> void:
 					_add_sector(d)
 				"pin":
 					_press_pin(d, float(on.lateral), e.crosshair)
+				_:
+					view.grabbing = false
+					_highway_click(click, d, HighwayLayout.carriageway_at(float(on.lateral)))
 		"drag":
 			if _dragging and selected_pin >= 0 and e.hit.hit:
 				var on := _on_road(e.hit, true)
@@ -112,7 +132,7 @@ func analysed() -> void:
 func refresh_gizmos() -> void:
 	super()
 	var t := draft.track()
-	if t.samples.size() < 3:
+	if t.samples.size() < 3 or t.highway:
 		return
 	var line: RacingLine = editor.analysis.get("line")
 	var at := PackedVector3Array()
@@ -129,11 +149,17 @@ func refresh_gizmos() -> void:
 
 func panel() -> Array:
 	var t := draft.track()
-	var out := [UiKit.spinner("Click sets", CLICKS, click, func(v: String) -> void:
+	var clicks := HIGHWAY_CLICKS if draft.is_highway() else CLICKS
+	if not clicks.any(func(c: Array) -> bool: return c[0] == click):
+		click = "start"
+	var out := [UiKit.spinner("Click sets", clicks, click, func(v: String) -> void:
 		click = v
 		editor._hint.text = hint(), "What a click on the road puts there")]
 	if t.samples.size() < 3:
 		out.append(UiKit.label("Add the road first.", 22))
+		return out
+	if t.highway:
+		out.append_array(_highway_rows(t))
 		return out
 	var race: Dictionary = draft.layout.race
 	var length := t.length
@@ -334,6 +360,177 @@ func _select_pin(k: int, look: bool) -> void:
 		editor.say("Pin %d of %d" % [k + 1, pins.size()])
 	editor.refresh_panel()
 	refresh_gizmos()
+
+
+# --- highways -----------------------------------------------------------------------------
+
+
+func _highway_rows(t: TrackData) -> Array:
+	var h := draft.highway()
+	var out := [UiKit.label("Lap", 26)]
+	out.append(UiKit.number("Lap line", t.start_m, 0.0, t.length, 1.0, "%.0f m", func(v: float) -> void: draft.set_race("start_m", v, "Move lap line"),
+		"From point 1, along the road"))
+	out.append(UiKit.button("Lap line at cursor", _start_at_cursor, "Put the lap line where the cursor is"))
+	out.append(UiKit.button("Reverse direction", func() -> void:
+		draft.flip_direction()
+		editor.say("Direction reversed"), "Each carriageway becomes the other way"))
+	out.append(UiKit.label("Runs", 26))
+	var runs: Array = h.runs
+	if runs.is_empty():
+		out.append(_note("Choose \"Run start\" and click a carriageway."))
+	for k in runs.size():
+		var run: Dictionary = runs[k]
+		var length := fposmod(int(run.dir) * (float(run.to_m) - float(run.from_m)), t.length)
+		out.append(UiKit.button("%s%s · %s · %.1f km" % ["▶ " if k == _run else "", run.name, _from_lap(t, float(run.from_m)), length / 1000.0],
+			func() -> void: _pick_run(k, true), "Select it and look at its start"))
+	if _run >= 0 and _run < runs.size():
+		var run: Dictionary = runs[_run]
+		var k := _run
+		out.append(UiKit.text_field("Run name", String(run.name), func(_v: String) -> void: pass, 32, "Enter to rename",
+			func(v: String) -> void: _set_item("runs", k, "name", v.strip_edges().left(32) if v.strip_edges() else String(run.name), "Rename run")))
+		out.append(UiKit.number("Starts at", float(run.from_m), 0.0, t.length, 5.0, "%.0f m", func(v: float) -> void: _set_item("runs", k, "from_m", v, "Move run start")))
+		out.append(UiKit.number("Ends at", float(run.to_m), 0.0, t.length, 5.0, "%.0f m", func(v: float) -> void: _set_item("runs", k, "to_m", v, "Move run end")))
+		out.append(UiKit.button("Delete run", func() -> void: _delete_item("runs", k, "Delete run"), "Remove it"))
+	out.append(UiKit.label("Speed traps", 26))
+	var traps: Array = h.traps
+	for k in traps.size():
+		var trap: Dictionary = traps[k]
+		out.append(UiKit.button("Delete trap %d · %s · %s" % [k + 1, _way(int(trap.dir)), _from_lap(t, float(trap.at_m))], func() -> void: _delete_item("traps", k, "Delete speed trap"),
+			"Remove it"))
+	if traps.is_empty():
+		out.append(_note("Choose \"Speed trap\" and click a carriageway."))
+	out.append(UiKit.label("Speed limits and tunnels", 26))
+	out.append(UiKit.number("Speed limit", float(h.speed_kmh), 60.0, 160.0, 10.0, "%.0f km/h", func(v: float) -> void: draft.set_highway("speed_kmh", v), "Everywhere else"))
+	var zones: Array = h.zones
+	for k in zones.size():
+		var z: Dictionary = zones[k]
+		var what := ("Tunnel, " if z.get("tunnel", false) else "") + "%d km/h" % roundi(float(z.get("speed_kmh", h.speed_kmh)))
+		out.append(UiKit.button("%sZone %d · %s · %s" % ["▶ " if k == _zone else "", k + 1, what, _from_lap(t, float(z.from_m))], func() -> void: _pick_zone(k, true),
+			"Select it and look at it"))
+	if _zone >= 0 and _zone < zones.size():
+		var z: Dictionary = zones[_zone]
+		var k := _zone
+		out.append(UiKit.number("Zone speed", float(z.get("speed_kmh", h.speed_kmh)), 30.0, 160.0, 10.0, "%.0f km/h", func(v: float) -> void: _set_item("zones", k, "speed_kmh", v, "Zone speed")))
+		out.append(UiKit.spinner("Tunnel", [[true, "Yes"], [false, "No"]], bool(z.get("tunnel", false)), func(v: bool) -> void: _set_item("zones", k, "tunnel", v, "Zone tunnel")))
+		out.append(UiKit.spinner("Which way", [[0, "Both"], [1, _way(1)], [-1, _way(-1)]], int(z.get("dir", 0)), func(v: int) -> void: _set_item("zones", k, "dir", v, "Zone direction")))
+		out.append(UiKit.number("Zone from", float(z.from_m), 0.0, t.length, 5.0, "%.0f m", func(v: float) -> void: _set_item("zones", k, "from_m", v, "Move zone")))
+		out.append(UiKit.number("Zone to", float(z.to_m), 0.0, t.length, 5.0, "%.0f m", func(v: float) -> void: _set_item("zones", k, "to_m", v, "Move zone")))
+		out.append(UiKit.button("Delete zone", func() -> void: _delete_item("zones", k, "Delete zone"), "Remove it"))
+	out.append(UiKit.label("Traffic", 26))
+	var counts := []
+	for n in [0, 50, 75, 100, 150, 200, 250, 300, 400]:
+		counts.append([n, "Off" if n == 0 else str(n)])
+	out.append(UiKit.spinner("Cars", counts, int(h.traffic.count), func(v: int) -> void: draft.set_highway("traffic/count", v, "Traffic cars"), "The track's own; events can change it"))
+	out.append(UiKit.number("Taking exits", float(h.traffic.exit_share) * 100.0, 0.0, 40.0, 5.0, "%.0f%%", func(v: float) -> void: draft.set_highway("traffic/exit_share", v / 100.0, "Traffic exits"),
+		"Cars leaving at each exit"))
+	return out
+
+
+## A click with a highway item chosen: at main-road distance `d`, on direction `dir`'s side.
+func _highway_click(kind: String, d: float, dir: int) -> void:
+	var h := draft.highway()
+	var t := draft.track()
+	match kind:
+		"run_start":
+			var runs: Array = h.runs.duplicate(true)
+			var n := runs.size() + 1
+			var ids := runs.map(func(r: Dictionary) -> String: return r.id)
+			while "run_%d" % n in ids:
+				n += 1
+			runs.append({ "id": "run_%d" % n, "name": "Run %d" % n, "dir": dir, "from_m": d, "to_m": snappedf(fposmod(d + dir * NEW_RUN_M, t.length), 0.1) })
+			draft.set_runs(runs, "Add run")
+			_run = runs.size() - 1
+			click = "run_end"
+			editor.say("Run %d starts here, %s. Now click where it ends" % [n, _way(dir)])
+		"run_end":
+			if _run < 0 or _run >= h.runs.size():
+				editor.say("Start a run first")
+				return
+			_set_item("runs", _run, "to_m", d, "Move run end")
+			editor.say("Run ends here")
+		"trap":
+			var traps: Array = h.traps.duplicate(true)
+			traps.append({ "dir": dir, "at_m": d })
+			draft.set_traps(traps, "Add speed trap")
+			editor.say("Speed trap, " + _way(dir))
+		"zone_start":
+			var zones: Array = h.zones.duplicate(true)
+			zones.append({ "dir": 0, "from_m": d, "to_m": snappedf(fposmod(d + NEW_ZONE_M, t.length), 0.1), "speed_kmh": 80.0, "tunnel": false })
+			draft.set_zones(zones, "Add zone")
+			_zone = zones.size() - 1
+			click = "zone_end"
+			editor.say("Zone starts here. Now click where it ends")
+		"zone_end":
+			if _zone < 0 or _zone >= h.zones.size():
+				editor.say("Start a zone first")
+				return
+			_set_item("zones", _zone, "to_m", d, "Move zone")
+			editor.say("Zone ends here")
+	editor._hint.text = hint()
+	editor.refresh_panel()
+
+
+## Sets `key` of item `k` of the highway's `list` (runs, traps, zones).
+func _set_item(list: String, k: int, key: String, value: Variant, name: String) -> void:
+	var items: Array = draft.highway()[list].duplicate(true)
+	if k < 0 or k >= items.size():
+		return
+	items[k][key] = snappedf(value, 0.1) if value is float else value
+	_set_list(list, items, name)
+
+
+func _delete_item(list: String, k: int, name: String) -> void:
+	var items: Array = draft.highway()[list].duplicate(true)
+	if k < 0 or k >= items.size():
+		return
+	items.remove_at(k)
+	_run = -1
+	_zone = -1
+	_set_list(list, items, name)
+	editor.say(name.trim_prefix("Delete ").capitalize() + " deleted")
+
+
+func _set_list(list: String, items: Array, name: String) -> void:
+	match list:
+		"runs":
+			draft.set_runs(items, name)
+		"traps":
+			draft.set_traps(items, name)
+		"zones":
+			draft.set_zones(items, name)
+
+
+func _pick_run(k: int, look: bool) -> void:
+	_run = k
+	var runs: Array = draft.highway().runs
+	if look and k < runs.size():
+		view.camera.focus(draft.track().point_at(float(runs[k].from_m)))
+		editor.say("%s, %s" % [runs[k].name, _way(int(runs[k].dir))])
+	editor.refresh_panel()
+
+
+func _pick_zone(k: int, look: bool) -> void:
+	_zone = k
+	var zones: Array = draft.highway().zones
+	if look and k < zones.size():
+		view.camera.focus(draft.track().point_at(float(zones[k].from_m)))
+		editor.say("Zone %d" % (k + 1))
+	editor.refresh_panel()
+
+
+## "Clockwise" or "Anticlockwise": the way direction `dir` goes round.
+func _way(dir: int) -> String:
+	return "Clockwise" if draft.track().highway.clockwise(dir) else "Anticlockwise"
+
+
+static func _from_lap(t: TrackData, d: float) -> String:
+	return _where(t, d)
+
+
+static func _note(text: String) -> Label:
+	var l := UiKit.label(text, 20)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return l
 
 
 static func _where(t: TrackData, d: float) -> String:

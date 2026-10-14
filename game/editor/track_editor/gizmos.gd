@@ -2,8 +2,10 @@ class_name Gizmos
 extends Node3D
 ## What the track editor draws over the track (D95): control points (the selected one bigger,
 ## ringed), the centreline and road edges, arrows showing the driving direction, the start line,
-## the grid, the sector lines, the AI line's pins, the brush ring and the cursor. Drawn on top,
-## in the player's palette, and never by colour alone (sizes, rings, shapes and labels too).
+## the grid, the sector lines, the AI line's pins, the brush ring and the cursor. On a highway
+## (EDT-10): arrows down each carriageway, the ramps and their names, portals, runs, speed traps
+## and zones. Drawn on top, in the player's palette, and never by colour alone (sizes, rings,
+## shapes and labels too).
 
 const LIFT := 0.35
 const ARROW_EVERY_M := 100.0
@@ -21,6 +23,8 @@ var _selected := MeshInstance3D.new()
 var _labels := Node3D.new()
 var _ai := ImmediateMesh.new()
 var _ai_mi := MeshInstance3D.new()
+## The highway ramp drawn brighter, with its points (the Ramps tool).
+var selected_ramp := ""
 
 
 func _init() -> void:
@@ -114,16 +118,16 @@ func show_track(t: TrackData, points: Array, selected := -1, hover := -1, show_g
 			var i := k % n
 			_lines.surface_add_vertex(t.samples[i] + t.lefts[i] * side * (t.half_l[i] if side > 0.0 else t.half_r[i]) + Vector3.UP * LIFT)
 		_lines.surface_end()
-	# Driving direction: chevrons along the centreline.
+	# Driving direction: chevrons along the centreline (a highway: down each carriageway).
 	var d := ARROW_EVERY_M / 2.0
 	while d < t.length:
 		var x := t.transform_at(d)
-		var tip := x.origin + x.basis.z * 3.0 + Vector3.UP * LIFT
-		_begin(Color(1, 1, 1, 0.9))
-		_lines.surface_add_vertex(tip - x.basis.z * 3.0 + x.basis.x * 2.0)
-		_lines.surface_add_vertex(tip)
-		_lines.surface_add_vertex(tip - x.basis.z * 3.0 - x.basis.x * 2.0)
-		_lines.surface_end()
+		if t.highway:
+			for dir: int in [1, -1]:
+				var at := t.transform_at(d, t.highway.lane_lateral(dir, t.highway.lanes / 2))
+				_chevron(at.origin, at.basis.z * dir, at.basis.x)
+		else:
+			_chevron(x.origin, x.basis.z, x.basis.x)
 		d += ARROW_EVERY_M
 	# Start line, a chequered flag mark, then the grid and the sector lines.
 	var s := t.transform_at(t.start_m)
@@ -134,8 +138,10 @@ func show_track(t: TrackData, points: Array, selected := -1, hover := -1, show_g
 		_lines.surface_add_vertex(s.origin + s.basis.x * t.half_l[i0] + off)
 		_lines.surface_add_vertex(s.origin - s.basis.x * t.half_r[i0] + off)
 	_lines.surface_end()
-	_label("Start", s.origin + Vector3.UP * 4.0)
-	if show_grid:
+	_label("Lap line" if t.highway else "Start", s.origin + Vector3.UP * 4.0)
+	if t.highway:
+		_highway(t)
+	elif show_grid:
 		var slots := int(t.grid.slots)
 		for slot in slots:
 			var x := t.grid_slot(slot)
@@ -150,6 +156,78 @@ func show_track(t: TrackData, points: Array, selected := -1, hover := -1, show_g
 		_lines.surface_add_vertex(at.origin - at.basis.x * t.half_r[ik] + Vector3.UP * LIFT)
 		_lines.surface_end()
 		_label("S%d" % (k + 1), at.origin + Vector3.UP * 3.0)
+
+
+## Markers at `points` (a highway ramp's points) in place of the road's: `selected` bigger and
+## ringed, `hover` brighter.
+func show_points(points: PackedVector3Array, selected := -1, hover := -1) -> void:
+	var mm := _points.multimesh
+	mm.instance_count = points.size()
+	_selected.visible = false
+	for i in points.size():
+		var size := (1.6 if i == selected else 1.2 if i == hover else 0.8) * point_scale
+		mm.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3.ONE * size), points[i] + Vector3.UP * (LIFT + 0.6)))
+		mm.set_instance_color(i, colors.p1 if i == selected else Color(1, 1, 1, 1) if i == hover else Color(0.85, 0.85, 0.85))
+		if i == selected:
+			_selected.visible = true
+			_selected.position = points[i] + Vector3.UP * LIFT
+			_selected.scale = Vector3.ONE * point_scale
+		if i == selected or points.size() < 12:
+			_label(str(i + 1), points[i] + Vector3.UP * (2.5 * point_scale + 1.0))
+
+
+## A highway's ramps (centreline and edges; the selected one brighter, with its name), portals,
+## runs (start and finish across their carriageway), speed traps and zones.
+func _highway(t: TrackData) -> void:
+	var h := t.highway
+	for r in h.ramps:
+		var rt := r.track
+		var on := r.id == selected_ramp
+		_begin(Color(colors.p2, 0.95) if on else Color(1, 1, 1, 0.6))
+		for k in rt.samples.size():
+			_lines.surface_add_vertex(rt.samples[k] + Vector3.UP * LIFT)
+		_lines.surface_end()
+		for side: float in [1.0, -1.0]:
+			_begin(Color(0.7, 0.7, 0.7, 0.6 if on else 0.35))
+			for k in rt.samples.size():
+				_lines.surface_add_vertex(rt.samples[k] + rt.lefts[k] * side * (rt.half_l[k] if side > 0.0 else rt.half_r[k]) + Vector3.UP * LIFT)
+			_lines.surface_end()
+		var mid := rt.samples[rt.samples.size() / 2]
+		_label(("▶ " if on else "") + (r.name if r.name else r.id), mid + Vector3.UP * 5.0)
+	for p: Dictionary in h.portals.values():
+		var x := Transform3D(Basis(Vector3.UP, float(p.yaw)), p.p)
+		_box(x, Vector3(9.0, 0.0, 4.0), Color(1, 1, 1, 0.8))
+		_label("Portal: " + String(p.name), (p.p as Vector3) + Vector3.UP * 6.0)
+	for run: Dictionary in h.runs:
+		_across(t, h, int(run.dir), float(run.from_m), colors.good, "Run: " + String(run.name))
+		_across(t, h, int(run.dir), float(run.to_m), colors.warn, "Finish: " + String(run.name))
+	for trap: Dictionary in h.traps:
+		_across(t, h, int(trap.dir), float(trap.at_m), colors.warn, "Speed trap")
+	for z: Dictionary in h.zones:
+		var what := String(z.name) if z.name else ("Tunnel" if z.tunnel else "%d km/h" % roundi(float(z.speed) * 3.6))
+		_label(what, t.point_at(float(z.from_m)) + Vector3.UP * 8.0)
+		_label("End: " + what, t.point_at(float(z.to_m)) + Vector3.UP * 8.0)
+
+
+## A line across direction `dir`'s carriageway at `d`, labelled.
+func _across(t: TrackData, h: HighwayLayout, dir: int, d: float, c: Color, text: String) -> void:
+	var a := t.transform_at(d, -dir * h.inner).origin
+	var b := t.transform_at(d, -dir * h.half).origin
+	_begin(c)
+	_lines.surface_add_vertex(a + Vector3.UP * LIFT)
+	_lines.surface_add_vertex(b + Vector3.UP * LIFT)
+	_lines.surface_end()
+	_label(text, (a + b) / 2.0 + Vector3.UP * 4.0)
+
+
+## An arrowhead at `at` pointing along `forward` (`across`: its width's way).
+func _chevron(at: Vector3, forward: Vector3, across: Vector3) -> void:
+	var tip := at + forward * 3.0 + Vector3.UP * LIFT
+	_begin(Color(1, 1, 1, 0.9))
+	_lines.surface_add_vertex(tip - forward * 3.0 + across * 2.0)
+	_lines.surface_add_vertex(tip)
+	_lines.surface_add_vertex(tip - forward * 3.0 - across * 2.0)
+	_lines.surface_end()
 
 
 ## The AI's line as a ribbon (`points` and the road's `lefts`, one per sample) and its pins

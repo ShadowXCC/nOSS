@@ -3,7 +3,8 @@ extends Node3D
 ## The track as the editor shows it (EDT-06): ground, road (a node per control segment), start
 ## gantry and props (a node per item), kept up with the draft in parts. Changes are gathered and
 ## applied once a frame; while a drag goes on, at most every LIVE_S, and only the segments it
-## moves (the ground's bed under them included).
+## moves (the ground's bed under them included). A highway's ramps come again one by one, with
+## the stretches of road where they leave and join it (EDT-10).
 
 const LIVE_S := 1.0 / 30.0
 
@@ -73,6 +74,22 @@ func _part(part_name: String) -> Node3D:
 
 func _on_changed(what: StringName, info: Dictionary) -> void:
 	var p: Dictionary = _pending.get(what, {})
+	if what == &"highway":
+		# Ramps by id; none named: all of them.
+		if info.has("ramps") and not p.has("all"):
+			var ids: Array = p.get("ramps", [])
+			for id: String in info.ramps:
+				if id not in ids:
+					ids.append(id)
+			p.ramps = ids
+		elif not info.has("ramps"):
+			p.erase("ramps")
+			p.all = true
+		p.live = bool(info.get("live", false))
+		_pending[what] = p
+		if not p.live:
+			_flush()
+		return
 	if info.has("segments") and (p.is_empty() or p.has("segments")):
 		var segs: PackedInt32Array = p.get("segments", PackedInt32Array())
 		for s in info.segments:
@@ -119,6 +136,8 @@ func _flush_parts() -> void:
 	elif pending.has(&"road"):
 		_rebuild_road(t, pending.road.get("segments", PackedInt32Array()) if not pending.road.has("all") else PackedInt32Array(), Rect2i(),
 			bool(pending.road.get("live", false)))
+	elif pending.has(&"highway"):
+		_rebuild_ramps(t, pending.highway)
 	if pending.has(&"race") or pending.has(&"road") or pending.has(&"terrain"):
 		_clear(_start)
 		TrackBuilder.add_gantry(_start, t)
@@ -129,8 +148,9 @@ func _flush_parts() -> void:
 		var rect: Rect2i = pending.paint.get("rect", Rect2i())
 		terrain_view().update_paint(rect)
 		terrain_collision().update_surfaces()
-	var live_road := pending.has(&"road") and bool(pending.road.get("live", false)) and pending.size() == 1
-	if (pending.has(&"props") or pending.has(&"scatter") or pending.has(&"road") or pending.has(&"terrain")) and not live_road:
+	var live_road := (pending.has(&"road") and bool(pending.road.get("live", false)) or pending.has(&"highway") and bool(pending.highway.get("live", false))) \
+			and pending.size() == 1
+	if (pending.has(&"props") or pending.has(&"scatter") or pending.has(&"road") or pending.has(&"terrain") or pending.has(&"highway")) and not live_road:
 		_clear(_props)
 		PropBuilder.new(t, draft.terrain).build(_props, true)
 	_built = t
@@ -159,9 +179,46 @@ func _rebuild_road(t: TrackData, segments: PackedInt32Array, ground_rect: Rect2i
 			terrain_collision().update_rect(changed)
 	if partial:
 		builder.rebuild_segments(_road, segments)
+		builder.rebuild_highway(_road) # ramps share the road's samples where they leave and join it
 	else:
 		_clear(_road)
 		builder.build_all(_road, true)
+
+
+## A highway's ramps again (`p.ramps`: those; else all), with the road's segments where they
+## leave and join it, before and after (its barriers open there), and the signs and portals.
+## While dragging, the ramps alone. On terrain the ground is cut round them again: all of it.
+func _rebuild_ramps(t: TrackData, p: Dictionary) -> void:
+	var live := bool(p.get("live", false))
+	if draft.terrain and not live or _built == null or _built.samples.size() != t.samples.size():
+		_rebuild_road(t, PackedInt32Array(), Rect2i())
+		return
+	var builder := RoadBuilder.new(t, draft.terrain)
+	var ids: Array = p.get("ramps", [])
+	if p.has("all"):
+		ids = []
+		for layout: HighwayLayout in [_built.highway, t.highway]:
+			for r in layout.ramps if layout else []:
+				if r.id not in ids:
+					ids.append(r.id)
+		for e in t.highway.errors + (_built.highway.errors if _built.highway else PackedStringArray()):
+			var id := e.get_slice(":", 0)
+			if id not in ids:
+				ids.append(id)
+	var segments := PackedInt32Array()
+	for id: String in ids:
+		builder.rebuild_ramp(_road, id)
+		for layout: HighwayLayout in [_built.highway, t.highway]:
+			var r := layout.ramp(id) if layout else null
+			if r == null:
+				continue
+			for k in r.head_main + r.tail_main:
+				var s := t.sample_seg[k]
+				if s not in segments:
+					segments.append(s)
+	if not live:
+		builder.rebuild_segments(_road, segments)
+		builder.rebuild_extras(_road)
 
 
 ## The terrain samples the road's bed reaches along `segments` of `t`.

@@ -5,7 +5,11 @@ extends EditorTool
 ## height. Keys and controller: the crosshair grabs and drops; [ and ] (LB/RB) step through the
 ## points; Delete (X) removes one. Every view action is also a button. On a fitted scene (Track
 ## Fitting) the points are the road's centreline: they go only on surfaces tagged to drive on,
-## at the scene's height, and nothing is built from them.
+## at the scene's height, and nothing is built from them. On a highway (EDT-10) the points are
+## the median's line, and the widths come from the lanes, median and shoulders set here.
+
+const BARRIERS := [["auto", "Auto"], ["none", "None"], ["tyres", "Tyres"], ["armco", "Armco"], ["concrete", "Concrete"], ["fence", "Fence"], ["sound_wall", "Sound wall"]]
+const HIGHWAY_BARRIERS := [["concrete", "Concrete"], ["armco", "Armco"], ["sound_wall", "Sound wall"], ["fence", "Fence"], ["none", "None"]]
 
 ## A point is under the cursor within this many pixels.
 const PICK_PX := 22.0
@@ -274,9 +278,15 @@ func panel() -> Array:
 	if height_mode == "set":
 		out.append(UiKit.number("Height above 0", p.y, -500.0, 500.0, 0.5, "%.1f m", func(v: float) -> void: draft.move_point(i, Vector3(p.x, v, p.z)),
 			"Over 3 m above the ground it stands on supports"))
-	out.append_array(_attr_rows(idx, i, true))
-	out.append(UiKit.label("Segment to the next point", 24))
-	out.append_array(_attr_rows(idx, i, false))
+	if draft.is_highway():
+		out.append(UiKit.number("Banking", float(TrackFormat.attr(road, i, "bank_deg")), -10.0, 10.0, 0.5, "%.1f°", func(v: float) -> void: draft.set_attr(idx, "bank_deg", v),
+			"Positive raises the left edge"))
+		out.append(UiKit.label("Segment to the next point", 24))
+		out.append_array(_highway_segment_rows(idx, i))
+	else:
+		out.append_array(_attr_rows(idx, i, true))
+		out.append(UiKit.label("Segment to the next point", 24))
+		out.append_array(_attr_rows(idx, i, false))
 	out.append(UiKit.button("Use these everywhere", func() -> void: _use_everywhere(i), "Every point takes this point's settings"))
 	out.append(UiKit.button("Insert point after", func() -> void:
 		var q := _point_pos((i + 1) % n)
@@ -313,16 +323,60 @@ func _attr_rows(idx: PackedInt32Array, i: int, point: bool, widths_only := false
 		var s: String = side[0]
 		var word: String = side[1]
 		out.append(UiKit.spinner("Curb %s" % word, [["auto", "Auto"], ["on", "On"], ["off", "Off"]], String(TrackFormat.attr(road, i, "curb_" + s)), set_attr.bind("curb_" + s)))
-		out.append(UiKit.spinner("Barrier %s" % word, [["auto", "Auto"], ["none", "None"], ["tyres", "Tyres"], ["armco", "Armco"], ["concrete", "Concrete"], ["fence", "Fence"]],
-			String(TrackFormat.attr(road, i, "barrier_" + s)), set_attr.bind("barrier_" + s)))
+		out.append(UiKit.spinner("Barrier %s" % word, BARRIERS, String(TrackFormat.attr(road, i, "barrier_" + s)), set_attr.bind("barrier_" + s)))
 		out.append(UiKit.spinner("Run-off %s" % word, _surfaces(["grass", "gravel", "asphalt", "concrete", "sand", "dirt"]), String(TrackFormat.attr(road, i, "runoff_" + s)), set_attr.bind("runoff_" + s)))
 		out.append(UiKit.number("Run-off %s width" % word, float(TrackFormat.attr(road, i, "runoff_%s_m" % s)), 0.0, 60.0, 1.0, "%.0f m", set_attr.bind("runoff_%s_m" % s)))
+	return out
+
+
+## A highway segment's own settings: its surface and the barrier on each outer edge.
+func _highway_segment_rows(idx: PackedInt32Array, i: int) -> Array:
+	var road: Dictionary = draft.layout.road
+	var set_attr := func(v: Variant, key: String) -> void: draft.set_attr(idx, key, v)
+	var out := []
+	out.append(UiKit.spinner("Surface", _surfaces(["asphalt", "concrete"]), String(TrackFormat.attr(road, i, "surface")), set_attr.bind("surface")))
+	# Left of the line is direction -1's outer edge, right is direction 1's.
+	for side: Array in [["l", "Barrier left"], ["r", "Barrier right"]]:
+		out.append(UiKit.spinner(side[1], HIGHWAY_BARRIERS, String(TrackFormat.attr(road, i, "barrier_" + side[0])), set_attr.bind("barrier_" + side[0]),
+			"The outer edge's barrier"))
+	return out
+
+
+## A highway's lanes, median, shoulders and speed limit (the road's widths follow), and its outer
+## barriers.
+func _highway_defaults() -> Array:
+	var h := draft.highway()
+	var set_hw := func(v: Variant, key: String) -> void: draft.set_highway(key, v)
+	var out := [UiKit.label("Highway", 26)]
+	var lanes := []
+	for k in range(2, 5):
+		lanes.append([k, str(k)])
+	out.append(UiKit.spinner("Lanes each way", lanes, int(h.lanes), set_hw.bind("lanes")))
+	out.append(UiKit.number("Lane width", float(h.lane_m), 3.0, 4.0, 0.1, "%.1f m", set_hw.bind("lane_m")))
+	out.append(UiKit.number("Median width", float(h.median_m), 0.6, 6.0, 0.2, "%.1f m", set_hw.bind("median_m"), "Between the carriageways"))
+	out.append(UiKit.spinner("Median barrier", [["concrete", "Concrete"], ["armco", "Armco"], ["fence", "Fence"]], String(h.median_barrier), set_hw.bind("median_barrier")))
+	out.append(UiKit.number("Inner shoulder", float(h.shoulder_in_m), 0.0, 2.5, 0.1, "%.1f m", set_hw.bind("shoulder_in_m"), "Beside the median"))
+	out.append(UiKit.number("Outer shoulder", float(h.shoulder_out_m), 0.0, 4.0, 0.1, "%.1f m", set_hw.bind("shoulder_out_m"), "Hard shoulder on the outside"))
+	out.append(UiKit.number("Speed limit", float(h.speed_kmh), 60.0, 160.0, 10.0, "%.0f km/h", set_hw.bind("speed_kmh"), "Traffic's speed"))
+	var d: Dictionary = draft.layout.road.defaults
+	out.append(UiKit.spinner("Surface", _surfaces(["asphalt", "concrete"]), String(d.get("surface", "asphalt")), func(v: String) -> void: draft.set_default("surface", v)))
+	out.append(UiKit.spinner("Outer barriers", HIGHWAY_BARRIERS, String(d.get("barrier_l", "concrete")), func(v: String) -> void:
+		draft.set_default("barrier_l", v)
+		draft.set_default("barrier_r", v)))
 	return out
 
 
 ## The whole road's settings (no point selected); `widths_only`: just the widths (a fitted scene).
 func _defaults(widths_only := false) -> Array:
 	var out := []
+	if not widths_only:
+		out.append(UiKit.spinner("Track type", [["circuit", "Circuit"], ["highway", "Highway"]], String(draft.layout.get("type", "circuit")),
+			func(v: String) -> void:
+				draft.set_type(v)
+				editor.say("Now a " + v), "A highway has a carriageway each way and ramps"))
+	if draft.is_highway():
+		out.append_array(_highway_defaults())
+		return out
 	var d: Dictionary = draft.layout.road.defaults
 	var set_default := func(v: Variant, key: String) -> void: draft.set_default(key, v)
 	out.append(UiKit.number("Width left", float(d.get("width_l", 6.0)), 2.0, 30.0, 0.5, "%.1f m", set_default.bind("width_l")))
@@ -333,7 +387,7 @@ func _defaults(widths_only := false) -> Array:
 	out.append(UiKit.spinner("Run-off", _surfaces(["grass", "gravel", "asphalt", "concrete", "sand", "dirt"]), String(d.get("runoff_l", "grass")), func(v: String) -> void:
 		draft.set_default("runoff_l", v)
 		draft.set_default("runoff_r", v)))
-	out.append(UiKit.spinner("Barriers", [["auto", "Auto"], ["none", "None"], ["tyres", "Tyres"], ["armco", "Armco"], ["concrete", "Concrete"], ["fence", "Fence"]], String(d.get("barrier_l", "auto")), func(v: String) -> void:
+	out.append(UiKit.spinner("Barriers", BARRIERS, String(d.get("barrier_l", "auto")), func(v: String) -> void:
 		draft.set_default("barrier_l", v)
 		draft.set_default("barrier_r", v)))
 	return out
