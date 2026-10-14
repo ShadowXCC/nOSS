@@ -16,6 +16,15 @@ struct Seen {
 
 } // namespace
 
+namespace {
+
+// Follows `p_lane` (moving over from `p_from` at progress `p_u` while p_from >= 0) at up to `p_v0`
+// m/s, minding what's ahead: the shared part of drive() and follow().
+DriveOut drive_on(const TrafficSim &p_sim, int p_lane, int p_from, double p_u, LanePos p_here, double p_v0, const TypeSpec &p_spec,
+		const DriveIn &p_in, const std::vector<Member> &p_members);
+
+} // namespace
+
 DriveOut drive(const TrafficSim &p_sim, const DriveIn &p_in, const std::vector<Member> &p_members) {
 	DriveOut out;
 	const LaneGraph &g = p_sim.graph;
@@ -29,7 +38,6 @@ DriveOut drive(const TrafficSim &p_sim, const DriveIn &p_in, const std::vector<M
 		return out;
 	}
 	const TypeSpec &t = p_sim.types[shadow.type];
-	double v = std::max(p_in.speed, 0.0);
 	// Which lane to follow: the shadow's; while it moves over, from where to where.
 	int lane = shadow.lane;
 	int from = shadow.lc_from;
@@ -44,11 +52,50 @@ DriveOut drive(const TrafficSim &p_sim, const DriveIn &p_in, const std::vector<M
 		lane = here.lane;
 		from = -1;
 	}
+	out = drive_on(p_sim, lane, from, std::clamp(double(shadow.lc) / LC_TICKS, 0.0, 1.0), here, double(p_sim.desired(p_in.car)) / 1000.0, t, p_in, p_members);
+	out.signal = shadow.signal;
+	return out;
+}
+
+DriveOut follow(const TrafficSim &p_sim, int p_lane, int64_t p_s_hint, double p_v0, const DriveIn &p_in, const std::vector<Member> &p_members) {
+	DriveOut out;
+	if (p_lane < 0 || p_lane >= int(p_sim.graph.lanes.size())) {
+		out.brake = 1.0;
+		return out;
+	}
+	LanePos here = p_s_hint >= 0 ? p_sim.graph.project_near(p_lane, p_s_hint, 120000, p_in.x, p_in.z) : LanePos();
+	if (here.lane < 0 || here.dist > 12.0) {
+		LanePos any = p_sim.graph.locate(p_in.x, p_in.y, p_in.z);
+		if (any.lane == p_lane) {
+			here = any;
+		} else if (here.lane < 0) {
+			out.brake = 1.0;
+			return out;
+		}
+	}
+	TypeSpec spec;
+	spec.accel_mmps2 = 2500;
+	spec.decel_mmps2 = 3500;
+	spec.headway_ms = 1200;
+	spec.gap_mm = 3000;
+	return drive_on(p_sim, p_lane, -1, 1.0, here, p_v0, spec, p_in, p_members);
+}
+
+namespace {
+
+DriveOut drive_on(const TrafficSim &p_sim, int p_lane, int p_from, double p_u, LanePos p_here, double p_v0, const TypeSpec &p_spec,
+		const DriveIn &p_in, const std::vector<Member> &p_members) {
+	DriveOut out;
+	const LaneGraph &g = p_sim.graph;
+	const TypeSpec &t = p_spec;
+	double v = std::max(p_in.speed, 0.0);
+	int lane = p_lane;
+	int from = p_from;
+	LanePos here = p_here;
 	double s = double(here.s) / 1000.0;
 	out.lane = lane;
 	out.s = here.s + int64_t(p_in.half_len * 1000.0);
 	out.lateral = here.lateral;
-	out.signal = shadow.signal;
 	// What's in a lane near here: members, then lane-sim cars (not shadows: they're drawn as
 	// physics cars, and not itself).
 	auto occupants = [&](int p_lane, double p_s, std::vector<Seen> &r_seen) {
@@ -95,7 +142,7 @@ DriveOut drive(const TrafficSim &p_sim, const DriveIn &p_in, const std::vector<M
 	// Moving over while something is beside it in the new lane: hold the old lane.
 	double u = 1.0;
 	if (from >= 0) {
-		u = std::clamp(double(shadow.lc) / LC_TICKS, 0.0, 1.0);
+		u = p_u;
 		std::vector<Seen> beside;
 		occupants(lane, s, beside);
 		for (const Seen &o : beside) {
@@ -164,7 +211,7 @@ DriveOut drive(const TrafficSim &p_sim, const DriveIn &p_in, const std::vector<M
 		}
 	}
 	out.gap = gap;
-	double v0 = std::max(double(p_sim.desired(p_in.car)) / 1000.0, 1.0);
+	double v0 = std::max(p_v0, 1.0);
 	double a = t.accel_mmps2 / 1000.0;
 	double b = t.decel_mmps2 / 1000.0;
 	double r = v / v0;
@@ -189,7 +236,10 @@ DriveOut drive(const TrafficSim &p_sim, const DriveIn &p_in, const std::vector<M
 		out.brake = 0.0;
 		out.handbrake = 1.0;
 	}
+	out.lead_v = lead_v;
 	return out;
 }
+
+} // namespace
 
 } // namespace noss::traffic

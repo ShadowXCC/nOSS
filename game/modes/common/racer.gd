@@ -49,6 +49,12 @@ var track_index := -1
 ## Signed speed along the car's heading, m/s.
 var speed := 0.0
 var on_track := true
+## Highways (D113): the carriageway driven (1: along the road, -1: against it; laps count along
+## it), driving against the traffic, and whether track limits and the wrong-way respawn apply.
+var direction := 1
+var wrong_way := false
+var limits := true
+var wrong_way_respawn := true
 
 ## Held on the grid: AI brakes, players' throttle is cut (race starts).
 var held := false
@@ -108,7 +114,7 @@ func new_session() -> void:
 	pace_limit = 0.0
 	_wrong_way_time = 0.0
 	if vehicle:
-		timer.teleported(track.from_start(distance))
+		timer.teleported(lap_pos(distance))
 
 
 func _new_timer() -> void:
@@ -186,7 +192,7 @@ func _spawn(pkg: VehiclePackage) -> void:
 	distance = proj.distance
 	lateral = proj.lateral
 	track_index = -1
-	timer.teleported(track.from_start(last_valid))
+	timer.teleported(lap_pos(last_valid))
 	if session.ghosted:
 		set_ghost(true)
 	driver = _make_driver()
@@ -203,12 +209,15 @@ func _spawn(pkg: VehiclePackage) -> void:
 	_spawned()
 
 
-## The node that drives the car.
+## The node that drives the car: the session's (a RacingAI on circuits, a HighwayDriver on highways).
 func _make_driver() -> Node:
-	var ai := RacingAI.new()
-	ai.racer = self
-	ai.skill = session.ai_skill
-	return ai
+	return session.make_driver(self)
+
+
+## Lap distance for the lap timer: from the start line along the way this car drives (on a
+## highway's other carriageway, against the road's direction).
+func lap_pos(d: float) -> float:
+	return track.from_start(d) if direction > 0 else fposmod(track.start_m - d, track.length)
 
 
 ## The car is on the track and has its driver and sound.
@@ -259,18 +268,21 @@ func update_track(delta: float) -> void:
 	distance = proj.distance
 	lateral = proj.lateral
 	speed = vehicle.speed()
-	timer.update(track.from_start(distance), delta, vehicle.linear_velocity.length())
+	timer.update(lap_pos(distance), delta, vehicle.linear_velocity.length())
+	if session.highway == null:
+		wrong_way = timer.wrong_way
 	_clock += delta
 	# Last valid spot for resets: on the road, upright.
 	on_track = absf(lateral) < track.half_width(distance, lateral) + 1.0 and vehicle.global_basis.y.y > 0.8
 	if on_track:
 		last_valid = distance
-	_check_track_limits()
+	if limits:
+		_check_track_limits()
 	# Fallen off the world (off a bridge, into water): back on the road.
 	if com.y < track.kill_y and not waiting:
 		reset_car()
 	# Wrong way: a warning (the HUD shows it), then a respawn facing the right way.
-	if timer.wrong_way and not waiting:
+	if wrong_way and wrong_way_respawn and not waiting:
 		_wrong_way_time += delta
 		if _wrong_way_time >= WRONG_WAY_RESPAWN_S:
 			_wrong_way_time = 0.0
@@ -311,6 +323,9 @@ func _check_track_limits() -> void:
 ## another car is in the way.
 func reset_car() -> void:
 	if vehicle == null or waiting:
+		return
+	if session.highway:
+		session.highway.reset(self)
 		return
 	timer.invalidate("Reset")
 	if session.safe_rejoin:

@@ -123,8 +123,11 @@ void NossTraffic::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("lane_point", "lane", "s"), &NossTraffic::lane_point);
 	ClassDB::bind_method(D_METHOD("drive", "car", "member", "at", "forward", "speed", "wheelbase", "max_steer", "half", "members"), &NossTraffic::drive);
 	ClassDB::bind_method(D_METHOD("desired", "car"), &NossTraffic::desired);
+	ClassDB::bind_method(D_METHOD("follow", "lane", "s_hint", "speed_max", "member", "at", "forward", "speed", "wheelbase", "max_steer", "half", "members"), &NossTraffic::follow);
+	ClassDB::bind_method(D_METHOD("lane_limit", "lane", "s"), &NossTraffic::lane_limit);
 	ClassDB::bind_method(D_METHOD("place", "car", "lane", "s", "v"), &NossTraffic::place);
-	BIND_CONSTANT(traffic::TICK_HZ);
+	ClassDB::bind_method(D_METHOD("set_palettes", "palettes"), &NossTraffic::set_palettes);
+	ClassDB::bind_method(D_METHOD("buffers", "alpha", "cameras", "range", "blink"), &NossTraffic::buffers);
 }
 
 String NossTraffic::setup(const Dictionary &p_graph, const Array &p_types, int64_t p_seed, int64_t p_count, double p_exit_share) {
@@ -400,8 +403,9 @@ PackedFloat32Array NossTraffic::lane_point(int64_t p_lane, double p_s) const {
 	return out;
 }
 
-PackedFloat32Array NossTraffic::drive(int64_t p_car, int64_t p_member, const Vector3 &p_at, const Vector3 &p_forward, double p_speed, double p_wheelbase,
-		double p_max_steer, const Vector2 &p_half, const PackedFloat32Array &p_members) const {
+namespace {
+
+std::vector<traffic::Member> members_of(const PackedFloat32Array &p_members) {
 	std::vector<traffic::Member> members;
 	const float *m = p_members.ptr();
 	for (int64_t i = 0; i + 9 <= p_members.size(); i += 9) {
@@ -412,6 +416,10 @@ PackedFloat32Array NossTraffic::drive(int64_t p_car, int64_t p_member, const Vec
 		mb.v = m[i + 6];
 		members.push_back(mb);
 	}
+	return members;
+}
+
+traffic::DriveIn drive_in(int64_t p_car, int64_t p_member, const Vector3 &p_at, const Vector3 &p_forward, double p_speed, double p_wheelbase, double p_max_steer, const Vector2 &p_half) {
 	traffic::DriveIn in;
 	in.car = int(p_car);
 	in.member = int(p_member);
@@ -426,16 +434,118 @@ PackedFloat32Array NossTraffic::drive(int64_t p_car, int64_t p_member, const Vec
 	in.max_steer = p_max_steer;
 	in.half_len = p_half.x;
 	in.half_wid = p_half.y;
-	traffic::DriveOut o = _ready ? traffic::drive(_sim, in, members) : traffic::DriveOut();
+	return in;
+}
+
+PackedFloat32Array controls(const traffic::DriveOut &o) {
 	PackedFloat32Array out;
-	for (double v : { o.steer, o.throttle, o.brake, o.handbrake, double(o.lane), double(o.s) / 1000.0, o.lateral, o.heading_error, o.blocked ? 1.0 : 0.0, double(o.signal), o.gap }) {
+	for (double v : { o.steer, o.throttle, o.brake, o.handbrake, double(o.lane), double(o.s) / 1000.0, o.lateral, o.heading_error, o.blocked ? 1.0 : 0.0, double(o.signal), o.gap, o.lead_v }) {
 		out.append(float(v));
 	}
 	return out;
 }
 
+} // namespace
+
+PackedFloat32Array NossTraffic::drive(int64_t p_car, int64_t p_member, const Vector3 &p_at, const Vector3 &p_forward, double p_speed, double p_wheelbase,
+		double p_max_steer, const Vector2 &p_half, const PackedFloat32Array &p_members) const {
+	if (!_ready) {
+		return controls(traffic::DriveOut());
+	}
+	return controls(traffic::drive(_sim, drive_in(p_car, p_member, p_at, p_forward, p_speed, p_wheelbase, p_max_steer, p_half), members_of(p_members)));
+}
+
+PackedFloat32Array NossTraffic::follow(int64_t p_lane, double p_s_hint, double p_speed_max, int64_t p_member, const Vector3 &p_at, const Vector3 &p_forward,
+		double p_speed, double p_wheelbase, double p_max_steer, const Vector2 &p_half, const PackedFloat32Array &p_members) const {
+	if (!_ready) {
+		return controls(traffic::DriveOut());
+	}
+	double v0 = std::min(p_speed_max, lane_limit(p_lane, p_s_hint >= 0.0 ? p_s_hint : 0.0));
+	return controls(traffic::follow(_sim, int(p_lane), p_s_hint >= 0.0 ? int64_t(std::llround(p_s_hint * 1000.0)) : -1, v0,
+			drive_in(-1, p_member, p_at, p_forward, p_speed, p_wheelbase, p_max_steer, p_half), members_of(p_members)));
+}
+
+double NossTraffic::lane_limit(int64_t p_lane, double p_s) const {
+	if (!_ready || p_lane < 0 || p_lane >= int64_t(_sim.graph.lanes.size())) {
+		return 0.0;
+	}
+	return _sim.graph.limit_at(int(p_lane), int64_t(std::llround(p_s * 1000.0))) / 1000.0;
+}
+
 double NossTraffic::desired(int64_t p_car) const {
 	return (p_car >= 0 && p_car < _sim.count()) ? double(_sim.desired(int(p_car))) / 1000.0 : 0.0;
+}
+
+void NossTraffic::set_palettes(const Array &p_palettes) {
+	_palettes.clear();
+	for (int64_t i = 0; i < p_palettes.size(); i++) {
+		PackedColorArray colors = p_palettes[i];
+		std::vector<float> rgb;
+		for (int64_t k = 0; k < colors.size(); k++) {
+			rgb.push_back(colors[k].r);
+			rgb.push_back(colors[k].g);
+			rgb.push_back(colors[k].b);
+		}
+		_palettes.push_back(rgb);
+	}
+}
+
+Array NossTraffic::buffers(double p_alpha, const PackedVector3Array &p_cameras, double p_range, bool p_blink) const {
+	size_t types = _sim.types.size();
+	std::vector<std::vector<float>> bufs(types);
+	double r2 = p_range * p_range;
+	for (int i = 0; i < _sim.count(); i++) {
+		const traffic::Car &c = _sim.st.cars[size_t(i)];
+		if (!(c.flags & traffic::ACTIVE) || (c.flags & traffic::SHADOW) || c.type >= types) {
+			continue;
+		}
+		traffic::CarPose p = _sim.pose(i, p_alpha);
+		const traffic::TypeSpec &t = _sim.types[c.type];
+		double half = t.length_mm / 2000.0;
+		double cx = p.x - p.dx * half, cz = p.z - p.dz * half;
+		bool seen = p_cameras.is_empty();
+		for (int64_t k = 0; k < p_cameras.size() && !seen; k++) {
+			double dx = cx - p_cameras[k].x, dz = cz - p_cameras[k].z;
+			seen = dx * dx + dz * dz <= r2;
+		}
+		if (!seen) {
+			continue;
+		}
+		std::vector<float> &b = bufs[c.type];
+		// Rows of [x y z | origin] with x = up x forward (the car's left), y = up, z = forward.
+		float row[12] = { float(p.dz), 0.0f, float(p.dx), float(cx), 0.0f, 1.0f, 0.0f, float(p.y), float(-p.dx), 0.0f, float(p.dz), float(cz) };
+		b.insert(b.end(), row, row + 12);
+		const std::vector<float> &pal = c.type < _palettes.size() ? _palettes[c.type] : std::vector<float>();
+		size_t n = pal.size() / 3;
+		if (n > 0) {
+			size_t k = (c.color % n) * 3;
+			b.insert(b.end(), { pal[k], pal[k + 1], pal[k + 2], 1.0f });
+		} else {
+			b.insert(b.end(), { 0.7f, 0.7f, 0.7f, 1.0f });
+		}
+		int bits = (c.flags & traffic::BRAKING) ? 1 : 0;
+		bool hazards = (c.flags & traffic::WRECK) != 0;
+		if (p_blink && (c.signal > 0 || hazards)) {
+			bits |= 2;
+		}
+		if (p_blink && (c.signal < 0 || hazards)) {
+			bits |= 4;
+		}
+		b.insert(b.end(), { float(bits), 0.0f, 0.0f, 0.0f });
+	}
+	Array out;
+	for (size_t t = 0; t < types; t++) {
+		PackedFloat32Array buf;
+		buf.resize(int64_t(bufs[t].size()));
+		if (!bufs[t].empty()) {
+			std::memcpy(buf.ptrw(), bufs[t].data(), bufs[t].size() * sizeof(float));
+		}
+		Array pair;
+		pair.append(buf);
+		pair.append(int64_t(bufs[t].size() / 20));
+		out.append(pair);
+	}
+	return out;
 }
 
 void NossTraffic::place(int64_t p_car, int64_t p_lane, double p_s, double p_v) {

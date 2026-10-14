@@ -26,6 +26,8 @@ extends Node
 ##                        (--join=<n>: n devices join)
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
 ##   --track=<ref>        the track for --drive, --race and --time-trial: an id, a path or a hash
+##   --highway            a highway session right away (the first highway, or --track): --sub=cruise|score|run|loop,
+##                        --traffic=<cars>, --traffic-seed=<n>, --police, --direction=-1, --run=<id>
 ##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5; a list like 5,30,90 takes several), one per window
 ##   --quit-at=<s>        quit after this many seconds
 ##   --bay                open the Fitting Bay
@@ -151,12 +153,18 @@ static func parse_args(engine_args: PackedStringArray, user_args: PackedStringAr
 
 ## First scene after boot.
 func first_scene() -> String:
-	return "" if dedicated or dev.has("drive") or dev.has("bay") or dev.has("garage") or dev.has("race") or dev.has("time-trial") or dev.has("editor") else TITLE
+	return "" if dedicated or dev.has("drive") or dev.has("bay") or dev.has("garage") or dev.has("race") or dev.has("time-trial") or dev.has("highway") or dev.has("editor") else TITLE
 
 
 ## Dev: --race starts the last race set up, with --race-laps, --race-ai, --race-practice,
 ## --race-quali (minutes), --race-start=rolling and --race-grid overrides; --time-trial a time trial.
 func start_dev_event() -> void:
+	if dev.has("highway"):
+		var h := RaceEvent.highway(String(dev.get("sub", "cruise")), dev.has("police"), int(dev.get("traffic", "-1")))
+		h.direction = -1 if int(dev.get("direction", "1")) < 0 else 1
+		h.run = String(dev.get("run", ""))
+		start_event(h, String(dev.get("platform", "official.highway.street")))
+		return
 	var e := Settings.last_event() if dev.has("race") else RaceEvent.time_trial()
 	start_event(e, String(dev.get("platform", Settings.profile.get("last_platform", "official.track.gt"))))
 
@@ -183,12 +191,12 @@ func apply_dev_event(e: RaceEvent) -> void:
 func selected_track(type := "") -> String:
 	if dev.has("track"):
 		var t := TrackLibrary.resolve(String(dev.track))
-		if t and (type.is_empty() or TrackLibrary.entry(t).get("type", "circuit") == type):
+		if t and (type.is_empty() or TrackLibrary.type_of(t) == type):
 			return t
 		push_warning("No track " + String(dev.track))
 	var last := String(Settings.profile.get("last_track", ""))
 	var found := TrackLibrary.resolve(last) if last else ""
-	if found and (type.is_empty() or TrackLibrary.entry(found).get("type", "circuit") == type):
+	if found and (type.is_empty() or TrackLibrary.type_of(found) == type):
 		return found
 	if type == "highway":
 		var highways := TrackLibrary.list(true, true, "highway")
@@ -237,7 +245,7 @@ func start_event(event: RaceEvent, platform_id: String, track := "") -> void:
 		return
 	get_tree().paused = false
 	var session := TrackSession.new()
-	session.track_path = track if track else selected_track("circuit")
+	session.track_path = track if track else selected_track("highway" if event.kind == "highway" else "circuit")
 	session.event = event
 	session.solo = event.kind == "time_trial"
 	session.platform_id = platform_id

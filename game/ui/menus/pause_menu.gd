@@ -40,6 +40,9 @@ var ghost_items: Array = []
 var ghost_current := ""
 var leaderboard: Array = []
 var leaderboard_title := ""
+## The mode's own items, after Reset car: [[text, callable, description]] (highways: Change
+## direction).
+var extra_items: Array = []
 ## Online (D85): chat is offered, quitting leaves the game; `is_host` can send everyone to the lobby.
 var online := false
 var is_host := false
@@ -55,6 +58,8 @@ func _ready() -> void:
 		UiKit.button("Resume", func() -> void: resumed.emit()),
 		UiKit.button("Reset car", func() -> void: reset_car.emit()),
 	]
+	for item: Array in extra_items:
+		_buttons.append(UiKit.button(String(item[0]), item[1], String(item[2]) if item.size() > 2 else ""))
 	if can_change_car:
 		_buttons.append(UiKit.button("Change car", func() -> void: change_car.emit()))
 	if can_setup:

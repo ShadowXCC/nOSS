@@ -94,6 +94,15 @@ var online := {}
 var dedicated := false
 ## Online play in this session, or null offline.
 var net: NetSession
+## A highway event (docs/GAMEMODES.md §3, D113): its rules, where cars are on it, and its
+## traffic; null otherwise.
+var highway: HighwayControl
+var highway_field: HighwayField
+var traffic: TrafficManager
+## Dev and tests: the traffic's seed (-1: the track's).
+var traffic_seed := -1
+## Highways: each player's starting direction by player order ([] or missing: the event's).
+var directions: Array = []
 
 var _default_car := ""
 var _show_fps := false
@@ -144,6 +153,8 @@ func _ready() -> void:
 	field.track = track
 	field.racers = racers
 	add_child(field)
+	if event.kind == "highway" and track.highway:
+		_ready_highway()
 
 	add_child(views)
 	var map := TrackMap.new()
@@ -241,6 +252,8 @@ func _add_player(slot: PlayerSlot, at: Variant = null) -> SessionPlayer:
 	var i := racers.size()
 	if at is Transform3D:
 		p.spawn_at = at
+	elif highway:
+		p.spawn_at = highway.spawn_for(i, direction_for(i))
 	else:
 		p.spawn_at = track.transform_at(_grid_distance(i), _grid_lateral(i)) if _spot_clear(_grid_distance(i), _grid_lateral(i)) else _free_grid_spot()
 	p.view = views.add(slot)
@@ -288,6 +301,65 @@ func _apply_server_rules(rules: Dictionary) -> void:
 	if rules.get("fitting") == "strict":
 		fitting_mode = "strict"
 	hotswap_rule = String(rules.get("hotswap", "practice"))
+
+
+## A highway event: no grid or AI racers; where cars are on the highway, its rules, its traffic.
+func _ready_highway() -> void:
+	ai_racers = 0
+	safe_rejoin = false
+	highway_field = HighwayField.new()
+	highway_field.name = "HighwayField"
+	highway_field.session = self
+	highway_field.layout = track.highway
+	add_child(highway_field)
+	highway = HighwayControl.new()
+	highway.name = "HighwayControl"
+	highway.session = self
+	highway.layout = track.highway
+	highway.event = event
+	add_child(highway)
+	var settings: Dictionary = track.highway.settings.traffic
+	var count := event.traffic if event.traffic >= 0 else int(settings.count)
+	if count > 0:
+		traffic = TrafficManager.new()
+		traffic.name = "Traffic"
+		traffic.session = self
+		var seed := traffic_seed if traffic_seed >= 0 else int(Game.dev.get("traffic-seed", settings.get("seed", 1)))
+		if traffic.setup(track, seed, count):
+			add_child(traffic)
+		else:
+			traffic = null
+
+
+## Highways: racer `i`'s starting direction.
+func direction_for(i: int) -> int:
+	return int(directions[i]) if i < directions.size() else event.direction
+
+
+## The node that drives `r` (an AI racer, a dev player): the racing AI on circuits, the lane
+## driver on highways.
+func make_driver(r: Racer) -> Node:
+	if highway:
+		var d := HighwayDriver.new()
+		d.racer = r
+		return d
+	var ai := RacingAI.new()
+	ai.racer = r
+	ai.skill = ai_skill
+	return ai
+
+
+## What a player's access assists follow (ACC-07): the racing line, or a highway's lanes.
+func make_guide(r: Racer) -> Node:
+	if highway:
+		var d := HighwayDriver.new()
+		d.racer = r
+		d.as_guide = true
+		return d
+	var ai := RacingAI.new()
+	ai.racer = r
+	ai.as_guide = true
+	return ai
 
 
 ## An online session's cars (D84): this game's players drive their own (their ids are Net.my_ids,
@@ -414,6 +486,10 @@ func _add_racer(r: Racer) -> void:
 	r.track = track
 	r.platform = platform
 	r.default_car = _default_car
+	if highway:
+		r.limits = false
+		r.wrong_way_respawn = false
+		r.direction = direction_for(racers.size())
 	racers.append(r)
 	add_child(r)
 	r.setup()
@@ -749,6 +825,11 @@ func _open_pause(p: SessionPlayer) -> void:
 		if is_online():
 			Net.leave()
 		Game.go_title())
+	if highway:
+		menu.extra_items = highway.pause_items(p).map(func(item: Array) -> Array:
+			return [item[0], func() -> void:
+				_resume(p)
+				item[1].call(), item[2]])
 	menu.back_to_bay.connect(func() -> void: Game.open_fitting_bay())
 	menu.back_to_editor.connect(func() -> void: Game.return_to_editor())
 	p.show_overlay(menu, not is_online())

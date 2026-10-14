@@ -45,8 +45,13 @@ struct DriveOut {
 	bool blocked = false; // its shadow is moving over but something is beside it
 	int signal = 0; // indicators: 1 left, -1 right
 	double gap = 1e9; // m to what's ahead
+	double lead_v = 0.0; // its speed, m/s
 };
 
+// Drives traffic car p_in.car (a physics car) along its shadow's lane.
 DriveOut drive(const TrafficSim &p_sim, const DriveIn &p_in, const std::vector<Member> &p_members);
+// Drives any car along lane `p_lane` at up to `p_v0` m/s (players' autodrive and lane assists on a
+// highway, bots, police patrols); `p_s_hint`: its last s on that lane (mm), or -1.
+DriveOut follow(const TrafficSim &p_sim, int p_lane, int64_t p_s_hint, double p_v0, const DriveIn &p_in, const std::vector<Member> &p_members);
 
 } // namespace noss::traffic

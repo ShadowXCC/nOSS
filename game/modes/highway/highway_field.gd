@@ -1,0 +1,49 @@
+class_name HighwayField
+extends Node
+## Where every car is on a highway (D113), once per physics tick, after the RaceField: which road
+## (the main road or a ramp), carriageway, lane and distance. Sets each racer's direction (laps
+## count along it; changing carriageway at a crossover starts the lap again) and whether it's
+## driving against the traffic.
+
+## Against the traffic faster than this for this long: wrong way.
+const WRONG_WAY_SPEED := 4.0
+const WRONG_WAY_S := 1.5
+
+var session: TrackSession
+var layout: HighwayLayout
+## Racer -> HighwayLayout.locate() result, last tick.
+var where := {}
+var _against := {}
+
+
+func _ready() -> void:
+	process_physics_priority = -59 # after the RaceField (-60), before drivers (-50)
+
+
+func _physics_process(delta: float) -> void:
+	for r in session.racers:
+		if r.vehicle == null or not is_instance_valid(r.vehicle):
+			continue
+		update(r, delta)
+
+
+func update(r: Racer, delta: float) -> void:
+	var at := layout.locate(r.vehicle.global_position + Vector3.UP * 0.5, where.get(r, {}))
+	where[r] = at
+	var vel := r.vehicle.remote_velocity if r.vehicle.remote else r.vehicle.linear_velocity
+	var along := 0.0
+	if at.on_road and at.road < 0:
+		if int(at.dir) != r.direction:
+			r.direction = int(at.dir)
+			r.timer.invalidate("Direction changed")
+			r.timer.teleported(r.lap_pos(r.distance))
+		along = vel.dot(layout.main.tangents[at.index] * float(at.dir))
+	elif at.on_road:
+		along = vel.dot(layout.ramps[at.road].track.tangents[at.index])
+	_against[r] = float(_against.get(r, 0.0)) + delta if along < -WRONG_WAY_SPEED else 0.0
+	r.wrong_way = float(_against[r]) > WRONG_WAY_S
+
+
+## The racer's spot: {road, index, distance, lateral, dir, lane, on_road}.
+func at(r: Racer) -> Dictionary:
+	return where.get(r, {})

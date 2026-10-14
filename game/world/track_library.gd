@@ -86,6 +86,16 @@ static func manifest_hash(path: String) -> String:
 	return h
 
 
+## A track's type ("circuit", "highway") by its manifest, or a bare track.json's own; "" if it's
+## not a track.
+static func type_of(path: String) -> String:
+	if path.ends_with(".json"):
+		var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+		return String(d.get("type", "circuit")) if d is Dictionary else ""
+	var m := TrackLoader.read_manifest(path)
+	return String(m.get("type", "circuit")) if not m.is_empty() else ""
+
+
 ## "Name · 2.5 km · author" (lists).
 static func label(e: Dictionary) -> String:
 	var km := float(e.get("length_m", 0.0)) / 1000.0

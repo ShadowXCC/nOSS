@@ -5,7 +5,9 @@
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/packed_byte_array.hpp>
 #include <godot_cpp/variant/packed_float32_array.hpp>
+#include <godot_cpp/variant/packed_color_array.hpp>
 #include <godot_cpp/variant/packed_int32_array.hpp>
+#include <godot_cpp/variant/packed_vector3_array.hpp>
 #include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/variant/vector3.hpp>
 
@@ -22,6 +24,7 @@ class NossTraffic : public godot::RefCounted {
 
 	traffic::TrafficSim _sim;
 	bool _ready = false;
+	std::vector<std::vector<float>> _palettes; // per type, RGB triples
 
 protected:
 	static void _bind_methods();
@@ -65,8 +68,21 @@ public:
 	// speed, half length, half width.
 	godot::PackedFloat32Array drive(int64_t p_car, int64_t p_member, const godot::Vector3 &p_at, const godot::Vector3 &p_forward, double p_speed,
 			double p_wheelbase, double p_max_steer, const godot::Vector2 &p_half, const godot::PackedFloat32Array &p_members) const;
+	// Controls for any car following lane `p_lane` at up to `p_speed_max` m/s (autodrive, bots,
+	// police patrols); same layout as drive(), plus the speed of what's ahead.
+	godot::PackedFloat32Array follow(int64_t p_lane, double p_s_hint, double p_speed_max, int64_t p_member, const godot::Vector3 &p_at, const godot::Vector3 &p_forward,
+			double p_speed, double p_wheelbase, double p_max_steer, const godot::Vector2 &p_half, const godot::PackedFloat32Array &p_members) const;
+	// The speed limit on a lane at s (its zones and bends, braking for what's ahead), m/s.
+	double lane_limit(int64_t p_lane, double p_s) const;
 	// The speed the car wants where it is, m/s.
 	double desired(int64_t p_car) const;
+	// Each type's paint colours (TrafficTypes.colors), for buffers().
+	void set_palettes(const godot::Array &p_palettes);
+	// MultiMesh buffers for distant traffic, one per type: [buffer, count] with 20 floats a car
+	// (3x4 transform rows, colour, custom: x = light bits 1 brake, 2 left, 4 right). Cars `alpha`
+	// of the way to the next tick, within `p_range` of a camera; shadows and cars in the city
+	// left out. `p_blink`: indicators lit this frame.
+	godot::Array buffers(double p_alpha, const godot::PackedVector3Array &p_cameras, double p_range, bool p_blink) const;
 	// Test hook: puts a car on a lane (lab placements; never online).
 	void place(int64_t p_car, int64_t p_lane, double p_s, double p_v);
 };

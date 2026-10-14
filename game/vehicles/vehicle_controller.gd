@@ -23,8 +23,9 @@ var racer: Racer
 var mode := {}
 ## What's on now (AssistRules.effective).
 var assists := {}
-## Follows the AI line for the access assists (ACC-07); null when none is on.
-var _guide: RacingAI
+## Follows the AI line (a highway's lanes) for the access assists (ACC-07); null when none is
+## on. Anything with controls(delta) -> {steer, throttle, brake}: a RacingAI or a HighwayDriver.
+var _guide: Node
 ## Which device steered last: "keyboard", "gamepad" or "wheel". Picks the filters and assists.
 var active_device := "keyboard"
 
@@ -148,9 +149,7 @@ func apply_assists() -> void:
 		racer.note_assists(assists.duplicate())
 	var guided: bool = assists.auto_throttle or assists.autodrive or assists.brake_assist > 0.0 or assists.steering_assist > 0.0
 	if guided and _guide == null and racer:
-		_guide = RacingAI.new()
-		_guide.racer = racer
-		_guide.as_guide = true
+		_guide = racer.session.make_guide(racer)
 		add_child(_guide)
 	elif not guided and _guide:
 		_guide.queue_free()
@@ -161,7 +160,7 @@ func apply_assists() -> void:
 ## player's. Auto-throttle holds the line's speed (the brake still wins); brake assist brakes for
 ## corners and traffic; steering assist steers toward the line; autodrive does all of it.
 func _apply_access_assists(delta: float) -> void:
-	var g := _guide.controls(delta)
+	var g: Dictionary = _guide.controls(delta)
 	if g.is_empty():
 		return
 	if assists.autodrive:
