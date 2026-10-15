@@ -304,7 +304,8 @@ def main(argv=None):
             fails.append("the server reported no traffic")
         if args.dirs == "opposite":  # acceptance 3 online: they meet every lap, the traffic comes round
             if not loop or not loop["rows"]:
-                fails.append("no whole lap of the loop (%s)" % ("on lap %d" % loop["lap"] if loop else "nobody each way round"))
+                fails.append("no whole lap of the loop (%s)" % (
+                    "on lap %d, +1 player at %s m and %s km/h" % (loop["lap"], *loop.get("a_at", ["?", "?"])) if loop else "nobody each way round"))
             else:
                 print("loop: %s (+1) on lap %d and %s (-1) on lap %d" % (loop["a"], loop["lap"], loop["b"], loop["b_lap"]))
                 if loop["b_lap"] < loop["lap"] - 1:  # the server counts laps the other way round too

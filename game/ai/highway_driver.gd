@@ -5,7 +5,8 @@ extends Node
 ## on patrol. It keeps its lane at up to the lane's limit, following what's ahead; the native lane
 ## driver (NossTraffic.follow) works out steering and pedals. Held up behind something slower it
 ## moves to a lane beside with room (the inner one first), and after a while with a clear road it
-## moves back out: it keeps to the outside.
+## moves back out: it keeps to the outside. Stuck (wanting to go but not moving, or lost off the
+## lanes) or on its side or roof for a while, it resets (to the shoulder).
 
 ## Held up this long: over a lane; not again for this long; back out after this long clear.
 const OVERTAKE_AFTER_S := 1.5
@@ -16,6 +17,9 @@ const HELD_GAP_M := 120.0
 ## Room a lane beside needs: this far ahead, this far behind (m).
 const ROOM_AHEAD_M := 40.0
 const ROOM_BEHIND_M := 15.0
+## Stuck this long, or on its side or roof this long (s): reset.
+const STUCK_S := 6.0
+const UPSET_S := 3.0
 
 var racer: Racer
 ## Changes lanes to get by (autodrive, bots, police); a guide never does (the player steers).
@@ -33,6 +37,8 @@ var _held := 0.0
 var _clear := 0.0
 var _clock := 0.0
 var _changed_at := -INF
+var _stuck := 0.0
+var _upset := 0.0
 
 
 func _ready() -> void:
@@ -55,6 +61,10 @@ func _physics_process(delta: float) -> void:
 		return
 	var c := controls(delta)
 	if c.is_empty():
+		return
+	if _trouble(c, delta):
+		racer.reset_car()
+		lane = -1
 		return
 	var v := racer.vehicle
 	v.steer = c.steer
@@ -98,6 +108,24 @@ func controls(delta: float) -> Dictionary:
 	else:
 		_lost = 0.0
 	return { "steer": out[0], "throttle": out[1], "brake": out[2], "handbrake": out[3] }
+
+
+## True once it has wanted to go but not moved (against a barrier or a wreck; a queue isn't
+## stuck: it isn't asking to go), been lost off the lanes, or been on its side or roof for long
+## enough.
+func _trouble(c: Dictionary, delta: float) -> bool:
+	var v := racer.vehicle
+	if racer.held or racer.waiting:
+		_stuck = 0.0
+		_upset = 0.0
+		return false
+	_upset = _upset + delta if v.global_basis.y.y < 0.3 else 0.0
+	_stuck = _stuck + delta if absf(v.speed()) < 1.0 and (float(c.throttle) > 0.3 or lane < 0) else 0.0
+	if _upset > UPSET_S or _stuck > STUCK_S:
+		_upset = 0.0
+		_stuck = 0.0
+		return true
+	return false
 
 
 ## Held up (`gap` m to what's ahead, going `lead_v`): over a lane with room; clear for a while:

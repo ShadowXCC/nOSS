@@ -2,7 +2,8 @@ extends GdUnitTestSuite
 ## Highway sessions (docs/GAMEMODES.md §3, D110, D113): players start on the shoulder facing the
 ## traffic's way; lane cars near them become physics cars where the lane sim had them and go back
 ## when nobody is near; wrecks stay until towed; the cap holds, with stand-in boxes beyond it; a
-## car going against the traffic is told so; a portal leads out of the next entry; turning round.
+## car going against the traffic is told so; a portal leads out of the next entry; turning round;
+## an autodriven car on its roof is put back.
 
 const FIXTURE := "res://tests/fixtures/tracks/highway_ring_small.json"
 
@@ -218,6 +219,23 @@ func test_the_lane_driver_holds_its_lane_and_stops_for_a_wreck() -> void:
 	assert_bool(contact).is_false()
 	var past := wreck_at != Vector3.INF and (p.vehicle.global_position - wreck_at).dot(p.vehicle.global_basis.z) > 5.0
 	assert_bool(absf(p.speed) < 1.0 or past).override_failure_message("neither stopped nor past it").is_true()
+	s.queue_free()
+	await get_tree().process_frame
+
+
+func test_an_autodriven_car_on_its_roof_is_put_back() -> void:
+	var s := _session(1, 0)
+	await _wait_for_car(s)
+	var p := s.players[0]
+	await _ticks(30)
+	var at := s.track.transform_at(600.0, s.track.highway.lane_lateral(1, 1))
+	p.vehicle.reset_to(Transform3D(at.basis.rotated(at.basis.z, PI), at.origin + Vector3.UP * 1.5))
+	await _ticks(int(120 * (HighwayDriver.UPSET_S + 1.5)))
+	# Back on its wheels on the shoulder, and driving on.
+	assert_float(p.vehicle.global_basis.y.y).is_greater(0.9)
+	assert_float(-float(s.track.project(p.vehicle.global_position).lateral)).is_greater(s.track.highway.inner + 3 * 3.6 - 1.0)
+	await _ticks(120 * 3)
+	assert_float(p.vehicle.speed()).is_greater(5.0)
 	s.queue_free()
 	await get_tree().process_frame
 

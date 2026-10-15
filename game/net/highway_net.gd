@@ -129,7 +129,8 @@ func _server_tick(delta: float) -> void:
 			"pursuits": session.police.pursuits if session.police else 0, "busts": session.police.busts if session.police else 0,
 			"evades": session.police.evades if session.police else 0, "roadblocks": session.police.roadblocks if session.police else 0 }))
 		if loop:
-			print("NETCHECK_LOOP " + JSON.stringify({ "a": loop.a.display_name, "b": loop.b.display_name, "lap": loop.a.timer.lap, "b_lap": loop.b.timer.lap, "rows": loop.rows() }))
+			print("NETCHECK_LOOP " + JSON.stringify({ "a": loop.a.display_name, "b": loop.b.display_name, "lap": loop.a.timer.lap, "b_lap": loop.b.timer.lap, "rows": loop.rows(),
+				"a_at": [roundi(loop.a.distance), roundi(loop.a.speed * 3.6)], "b_at": [roundi(loop.b.distance), roundi(loop.b.speed * 3.6)] }))
 	_lead_time += delta
 	if _lead_time >= 1.0:
 		_lead_time = 0.0
