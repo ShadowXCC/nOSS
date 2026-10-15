@@ -1,9 +1,10 @@
 extends SceneTree
 ## Builds the original low-poly default cars as unpacked packages (docs/ART_AUDIO.md §3):
-## "nOSS Box" (family car) in content/cars/noss_box/, and with --open "nOSS Open" (an
-## open-wheeler, family open) in content/cars/noss_open/. They follow the package conventions
-## (docs/VEHICLE_PACKAGE.md §3) so they exercise the same loader as player cars.
-##   tools/godot.sh --headless -s res://tools/make_noss_box.gd [-- --open]
+## "nOSS Box" (family car) in content/cars/noss_box/, with --open "nOSS Open" (an
+## open-wheeler, family open) in content/cars/noss_open/, and with --kart "nOSS Kart" (family
+## open, the kart classes' default car, D134) in content/cars/noss_kart/. They follow the package
+## conventions (docs/VEHICLE_PACKAGE.md §3) so they exercise the same loader as player cars.
+##   tools/godot.sh --headless -s res://tools/make_noss_box.gd [-- --open | --kart]
 
 const BOX := {
 	"out": "res://content/cars/noss_box/", "id": "6e0c6a51-5d0f-4a2b-9a52-3b1f0d7c2e11", "name": "nOSS Box",
@@ -12,6 +13,10 @@ const BOX := {
 const OPEN := {
 	"out": "res://content/cars/noss_open/", "id": "3f6c2b8e-91d4-4f0a-b7e2-5c8a1d9e4f20", "name": "nOSS Open",
 	"family": "open", "wheelbase": 2.90, "track": 1.60, "wheel_r": 0.33, "wheel_w": 0.32, "sound": "flat6",
+}
+const KART := {
+	"out": "res://content/cars/noss_kart/", "id": "8a1d4f3c-2b6e-4c19-9e07-71d5b0c3a9f4", "name": "nOSS Kart",
+	"family": "open", "wheelbase": 1.25, "track": 1.15, "wheel_r": 0.14, "wheel_w": 0.20, "sound": "two_stroke",
 }
 const HALF_W := 0.86
 const ARCH_R := 0.40
@@ -24,12 +29,14 @@ var WHEEL_R := 0.0
 var WHEEL_W := 0.0
 var _car := {}
 var _open := false
+var _kart := false
 var _materials := {}
 
 
 func _init() -> void:
 	_open = "--open" in OS.get_cmdline_user_args()
-	_car = OPEN if _open else BOX
+	_kart = "--kart" in OS.get_cmdline_user_args()
+	_car = KART if _kart else OPEN if _open else BOX
 	OUT = _car.out
 	WHEELBASE = _car.wheelbase
 	TRACK = _car.track
@@ -37,7 +44,9 @@ func _init() -> void:
 	WHEEL_W = _car.wheel_w
 	var root := Node3D.new()
 	root.name = OUT.trim_suffix("/").get_file()
-	if _open:
+	if _kart:
+		_build_kart(root)
+	elif _open:
 		_build_open(root)
 	else:
 		_build(root)
@@ -57,8 +66,8 @@ func _init() -> void:
 		return
 
 	var files := {
-		"fit.json": _json(_fit_open() if _open else _fit()),
-		"paint.json": _json(_paint_open() if _open else _paint()),
+		"fit.json": _json(_fit_kart() if _kart else _fit_open() if _open else _fit()),
+		"paint.json": _json(_paint_kart() if _kart else _paint_open() if _open else _paint()),
 		"sound/profile.json": _json({ "schema": "noss.sound/1", "name": "Default", "base": _car.sound }),
 	}
 	for rel: String in files:
@@ -147,6 +156,87 @@ func _build_open(root: Node3D) -> void:
 			var mid := (a + inner) / 2.0
 			_box_into(arms, mid, Vector3(absf(inner.x), 0.025, 0.04))
 		_mesh_node("arms_" + id, hub, arms.commit())
+
+
+## nOSS Kart: a tray chassis with a nose fairing, side pods, a 2-stroke on the right and a
+## driver in a seat; wide rear tyres.
+func _build_kart(root: Node3D) -> void:
+	var body := _node("body", root)
+	var tray := _begin("black_trim")
+	_box_into(tray, Vector3(0, 0.10, -0.02), Vector3(0.86, 0.04, 1.78)) # floor tray
+	_box_into(tray, Vector3(0, 0.12, 1.00), Vector3(0.96, 0.06, 0.06)) # front bumper
+	_box_into(tray, Vector3(0, 0.17, -0.99), Vector3(1.24, 0.08, 0.06)) # rear bumper
+	for side in [1.0, -1.0]:
+		_box_into(tray, Vector3(0.36 * side, 0.30, 0.62), Vector3(0.03, 0.03, 0.30), Basis(Vector3.RIGHT, deg_to_rad(-30.0))) # nose struts
+	_mesh_node("tray", body, tray.commit())
+	var nose := _begin("Paint_Primary")
+	_extrude(nose, PackedVector2Array([Vector2(0.50, 0.12), Vector2(0.98, 0.12), Vector2(0.98, 0.24), Vector2(0.78, 0.31), Vector2(0.50, 0.38)]), 0.33, 0.33)
+	for side in [1.0, -1.0]:
+		_box_into(nose, Vector3(0.49 * side, 0.18, -0.06), Vector3(0.20, 0.14, 0.80)) # side pods
+	_mesh_node("fairing", body, nose.commit())
+	_mesh_node("engine", body, _box(Vector3(-0.30, 0.24, -0.52), Vector3(0.20, 0.24, 0.26), "engine"))
+	_mesh_node("exhaust", body, _box(Vector3(-0.30, 0.30, -0.78), Vector3(0.08, 0.08, 0.30), "rim"))
+	_mesh_node("taillight_C", body, _box(Vector3(0, 0.20, -1.025), Vector3(0.20, 0.05, 0.02), "tail_light"))
+	# The driver: a suit in the second paint colour, a white helmet.
+	var suit := _begin("Paint_Secondary")
+	_box_into(suit, Vector3(0, 0.50, -0.34), Vector3(0.36, 0.40, 0.24), Basis(Vector3.RIGHT, deg_to_rad(-12.0))) # torso
+	_box_into(suit, Vector3(0, 0.26, 0.16), Vector3(0.30, 0.12, 0.62)) # legs
+	for side in [1.0, -1.0]:
+		_box_into(suit, Vector3(0.17 * side, 0.55, -0.06), Vector3(0.08, 0.08, 0.40), Basis(Vector3.RIGHT, deg_to_rad(20.0))) # arms
+	_mesh_node("driver", body, suit.commit())
+	_mesh_node("helmet", body, _box(Vector3(0, 0.84, -0.36), Vector3(0.26, 0.27, 0.30), "helmet"))
+	_mesh_node("visor", body, _box(Vector3(0, 0.86, -0.205), Vector3(0.20, 0.08, 0.02), "Glass"))
+
+	var interior := _node("interior", root)
+	var seat := _begin("seat")
+	_box_into(seat, Vector3(0, 0.20, -0.32), Vector3(0.40, 0.10, 0.36))
+	_box_into(seat, Vector3(0, 0.40, -0.54), Vector3(0.40, 0.38, 0.06), Basis(Vector3.RIGHT, deg_to_rad(-15.0)))
+	_mesh_node("seatC", interior, seat.commit())
+	var wheel := _mesh_node("steering_wheel", interior, _steering_wheel_mesh())
+	wheel.position = Vector3(0, 0.50, 0.14)
+	wheel.scale = Vector3.ONE * 0.62
+
+	for id in ["LF", "RF", "LR", "RR"]:
+		var side := 1.0 if id[0] == "L" else -1.0
+		var z := WHEELBASE / 2.0 if id[1] == "F" else -WHEELBASE / 2.0
+		var hub := _node("hub_" + id, root)
+		hub.position = Vector3(TRACK / 2.0 * side, WHEEL_R, z)
+		WHEEL_W = 0.13 if id[1] == "F" else 0.20
+		_mesh_node("wheel_" + id, hub, _wheel_mesh(side))
+	WHEEL_W = _car.wheel_w
+
+
+func _fit_kart() -> Dictionary:
+	var fit := _fit()
+	for w: Dictionary in fit.wheels:
+		w.fixed_nodes = []
+		w.width = 0.13 if w.axle == 1 else 0.20
+	fit.steering_wheel = { "node": "steering_wheel", "visual_lock_deg": 180 }
+	fit.eye_point = [0.0, 0.88, -0.24]
+	fit.envelope = { "min": [-0.68, 0.0, -1.03], "max": [0.68, 0.99, 1.03] }
+	fit.lights = { "head": [], "brake": ["tail_light"], "reverse": [], "indicator_L": [], "indicator_R": [] }
+	fit.exhaust_points = [[-0.30, 0.30, -0.93]]
+	return fit
+
+
+func _paint_kart() -> Dictionary:
+	return {
+		"schema": "noss.paint/1",
+		"slots": {
+			"primary": { "materials": ["Paint_Primary"], "color": "#E03A1E", "finish": "solid" },
+			"secondary": { "materials": ["Paint_Secondary"], "color": "#1B1D22", "finish": "solid" },
+		},
+		"presets": [
+			{ "name": "Kart Red", "primary": "#E03A1E", "secondary": "#1B1D22", "finish": "solid" },
+			{ "name": "Kart Blue", "primary": "#1F4FB5", "secondary": "#F2F2F2", "finish": "pearl" },
+			{ "name": "Kart Yellow", "primary": "#E8B71A", "secondary": "#1B1D22", "finish": "metallic" },
+			{ "name": "Kart Green", "primary": "#2E9E4A", "secondary": "#F2F2F2", "finish": "solid" },
+			{ "name": "Kart Orange", "primary": "#F07A16", "secondary": "#1F4FB5", "finish": "solid" },
+			{ "name": "Kart Purple", "primary": "#6A3FB5", "secondary": "#E8B71A", "finish": "pearl" },
+			{ "name": "Kart White", "primary": "#F2F2F2", "secondary": "#C2261D", "finish": "solid" },
+			{ "name": "Kart Black", "primary": "#1B1D22", "secondary": "#2EC4D6", "finish": "metallic" },
+		],
+	}
 
 
 ## Side silhouette of the tub (z, y): low nose, cockpit, airbox, tapering tail.
@@ -454,6 +544,10 @@ func _material(material_name: String) -> StandardMaterial3D:
 		"helmet":
 			m.albedo_color = Color(0.92, 0.92, 0.94)
 			m.roughness = 0.25
+		"engine":
+			m.albedo_color = Color(0.45, 0.46, 0.48)
+			m.metallic = 0.7
+			m.roughness = 0.45
 		"seat", "dash_plastic", "wheel_leather":
 			m.albedo_color = Color(0.12, 0.12, 0.13)
 			m.roughness = 0.8

@@ -1,0 +1,5 @@
+{
+  "base": "two_stroke",
+  "name": "Default",
+  "schema": "noss.sound/1"
+}

@@ -69,7 +69,7 @@
     "temperature": false
   },
 
-  "assists_allowed": ["abs", "tcs", "auto_gearbox", "auto_clutch", "steer_aid", "auto_throttle", "brake_assist", "steering_assist", "autodrive"],
+  "assists_allowed": ["abs", "tcs", "auto_gearbox", "auto_clutch", "steer_aid", "auto_throttle", "brake_assist", "steering_assist", "autodrive", "item_assist"],
   "damage": { "cosmetic": true, "mechanical": [] },
   "tunable": {},
   "ffb": { "reference_rack_nm": 5.0 }

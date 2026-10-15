@@ -1,0 +1,43 @@
+{
+  "schema": "noss.sound_profile/1",
+  "id": "two_stroke",
+  "name": "2-stroke single",
+  "rpm_idle": 1800,
+  "rpm_max": 11000,
+  "rpm_points": [
+    1900,
+    3500,
+    5500,
+    7500,
+    9500,
+    11000
+  ],
+  "mix": {
+    "engine": 0.7,
+    "exhaust": 1.0,
+    "intake": 0.5
+  },
+  "synth": {
+    "fire_deg": [
+      0,
+      360
+    ],
+    "bank": [
+      0,
+      0
+    ],
+    "pulse_ms": 1.2,
+    "exhaust_hz": [
+      310
+    ],
+    "exhaust_q": 4.0,
+    "muffler_hz": 2400,
+    "intake_hz": 700,
+    "intake_q": 2.5,
+    "intake_noise": 0.45,
+    "mechanical": 0.3,
+    "harshness": 0.6,
+    "jitter": 0.12,
+    "seed": 9
+  }
+}

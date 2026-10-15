@@ -1,0 +1,22 @@
+{
+  "author": "nOSS contributors",
+  "created": "2026-10-10",
+  "family": "open",
+  "files": {
+    "fit.json": "sha256:31ccb0b52df285bfd0e7fbc3ec68a83f056bba9b9ff16cdb1f701feb33cd6d37",
+    "model/body.glb": "sha256:101eb63f9a1f87af0db4ad909be0f83b631bc9ab3fd1d03d8509de288f893e35",
+    "paint.json": "sha256:12926584c35a3c464345fa498f5e60db98ee31508f1293f21c8846d6ecbf5d9b",
+    "sound/profile.json": "sha256:1f2b366cce3722cc9d4d2a54061bd699fe1ba561ad7f0289274bf4d3e80cbe53"
+  },
+  "game_min_version": "0.1.0",
+  "id": "8a1d4f3c-2b6e-4c19-9e07-71d5b0c3a9f4",
+  "license": "CC-BY-SA-4.0",
+  "name": "nOSS Kart",
+  "schema": "noss.package/1",
+  "source": "tools/make_noss_box.gd",
+  "tags": [
+    "default",
+    "original"
+  ],
+  "version": 1
+}

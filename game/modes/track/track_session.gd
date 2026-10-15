@@ -584,6 +584,10 @@ func _add_ai(index: int, pool: PackedStringArray, skill: float) -> AiRacer:
 ## Cars the AI can drive in this class: the garage's and the built-ins, or only the built-ins.
 func ai_car_pool() -> PackedStringArray:
 	var out := PackedStringArray()
+	# A mode with its own default car (kart: the nOSS Kart, D134) fields only that from the built-ins.
+	if ai_builtin_cars and String(mode.get("default_car", "")) in PackageLoader.list_available():
+		out.append(mode.default_car)
+		return out
 	for path in PackageLoader.list_available():
 		if ai_builtin_cars and not path.begins_with("res://"):
 			continue

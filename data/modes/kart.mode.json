@@ -3,9 +3,11 @@
   "id": "kart",
   "name": "Kart",
   "classes": [
-    "official.kart.medium"
+    "official.kart.light",
+    "official.kart.medium",
+    "official.kart.heavy"
   ],
-  "default_car": "res://content/cars/noss_box",
+  "default_car": "res://content/cars/noss_kart",
   "tuning": {
     "allow": []
   },

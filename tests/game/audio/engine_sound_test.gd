@@ -4,7 +4,7 @@ extends GdUnitTestSuite
 
 func test_four_built_in_profiles() -> void:
 	var ids := EngineSound.profiles().map(func(p: Array) -> String: return p[0])
-	assert_array(ids).contains_exactly_in_any_order(["i4", "v8_crossplane", "flat6", "ev"])
+	assert_array(ids).contains_exactly_in_any_order(["i4", "v8_crossplane", "flat6", "ev", "two_stroke"])
 	for id: String in ids:
 		var entry := EngineSound._load_profile(id)
 		for emitter in EngineSound.EMITTERS:

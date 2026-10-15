@@ -1,0 +1,69 @@
+{
+  "presets": [
+    {
+      "finish": "solid",
+      "name": "Kart Red",
+      "primary": "#E03A1E",
+      "secondary": "#1B1D22"
+    },
+    {
+      "finish": "pearl",
+      "name": "Kart Blue",
+      "primary": "#1F4FB5",
+      "secondary": "#F2F2F2"
+    },
+    {
+      "finish": "metallic",
+      "name": "Kart Yellow",
+      "primary": "#E8B71A",
+      "secondary": "#1B1D22"
+    },
+    {
+      "finish": "solid",
+      "name": "Kart Green",
+      "primary": "#2E9E4A",
+      "secondary": "#F2F2F2"
+    },
+    {
+      "finish": "solid",
+      "name": "Kart Orange",
+      "primary": "#F07A16",
+      "secondary": "#1F4FB5"
+    },
+    {
+      "finish": "pearl",
+      "name": "Kart Purple",
+      "primary": "#6A3FB5",
+      "secondary": "#E8B71A"
+    },
+    {
+      "finish": "solid",
+      "name": "Kart White",
+      "primary": "#F2F2F2",
+      "secondary": "#C2261D"
+    },
+    {
+      "finish": "metallic",
+      "name": "Kart Black",
+      "primary": "#1B1D22",
+      "secondary": "#2EC4D6"
+    }
+  ],
+  "schema": "noss.paint/1",
+  "slots": {
+    "primary": {
+      "color": "#E03A1E",
+      "finish": "solid",
+      "materials": [
+        "Paint_Primary"
+      ]
+    },
+    "secondary": {
+      "color": "#1B1D22",
+      "finish": "solid",
+      "materials": [
+        "Paint_Secondary"
+      ]
+    }
+  }
+}

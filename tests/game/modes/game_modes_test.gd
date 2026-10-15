@@ -65,3 +65,17 @@ func test_the_layer_drives_a_vehicle_sim() -> void:
 	assert_float(float(sim.get_kart_state().boost)).is_equal(1.0)
 	sim.set_layer({})
 	assert_bool(sim.has_layer()).is_false()
+
+
+func test_kart_classes_default_to_the_noss_kart() -> void:
+	var pkg := PackageLoader.load_package("res://content/cars/noss_kart")
+	for id in ["official.kart.light", "official.kart.medium", "official.kart.heavy"]:
+		var platform := PlatformLoader.load_official(id).platform
+		assert_str(GameModes.default_car(platform)).override_failure_message(id).is_equal("res://content/cars/noss_kart")
+		var fitted := Fitting.fit(platform, pkg.fit)
+		assert_array(fitted.notes).override_failure_message("%s: %s" % [id, fitted.notes]).is_empty()
+		assert_float(fitted.scale).is_equal(1.0)
+	assert_str(pkg.sound.base).is_equal("two_stroke")
+	pkg.free_scenes()
+	var formula := PlatformLoader.load_official("official.track.formula").platform
+	assert_str(GameModes.default_car(formula)).is_equal("res://content/cars/noss_open")
