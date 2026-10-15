@@ -30,6 +30,8 @@ var rotation_index := 0
 var state := "lobby"
 ## peer -> true when that connection's players are ready.
 var ready_peers := {}
+## A session's start (D127): how many of its cars each game has here and loaded, peer -> [have, of].
+var synced := {}
 
 var discovery: NetDiscovery.Responder
 var upnp: UpnpMapper
@@ -214,6 +216,9 @@ func handle(peer: int, type: int, data: Dictionary) -> void:
 					if key is String and (key in ResultsMenu.ASSIST_NAMES) and data.used[key] is bool:
 						used[key] = data.used[key]
 				assists_reported.emit(data.id, used)
+		NetProtocol.Msg.SYNCED:
+			if state == "session" and NetProtocol.has_fields(data, { "have": TYPE_INT, "of": TYPE_INT }):
+				synced[peer] = [clampi(data.have, 0, 255), clampi(data.of, 0, 255)]
 		NetProtocol.Msg.RESYNC:
 			if peer != 1 and state == "session":
 				resync_requested.emit(peer)
@@ -289,6 +294,7 @@ func start_session() -> void:
 	for id: int in server.players:
 		_in_session[id] = true
 	_ai = []
+	synced.clear()
 	state = "session"
 	_highway = {}
 	if event().kind == "highway":
@@ -305,6 +311,7 @@ func end_session() -> void:
 		return
 	state = "lobby"
 	_ai = []
+	synced.clear()
 	ready_peers.clear()
 	_to_all(NetProtocol.Msg.SESSION_END, {})
 	_dirty = true
@@ -404,6 +411,21 @@ func say(text: String) -> void:
 	_say(text)
 
 
+## The games in the session that have all its cars, and the games in it (D127): (2, 3) while one
+## is still loading. A game that hasn't said yet isn't done.
+func sync_state() -> Vector2i:
+	var done := 0
+	var games := 0
+	for peer: int in server.peers:
+		if not Array(server.peers[peer].players).any(func(id: int) -> bool: return _in_session.has(id)):
+			continue
+		games += 1
+		var s: Array = synced.get(peer, [])
+		if not s.is_empty() and s[0] >= s[1]:
+			done += 1
+	return Vector2i(done, games)
+
+
 ## Everyone's players are ready (and there's someone to race).
 func all_ready() -> bool:
 	if server.player_count() == 0:
@@ -483,6 +505,7 @@ func _roster_changed(except := 0) -> void:
 
 func _on_left(peer: int, reason: String, names: String) -> void:
 	ready_peers.erase(peer)
+	synced.erase(peer)
 	_chat.forget(peer)
 	if reason in ["Left", "Kicked", "Banned"]:
 		_say("%s left" % names)

@@ -106,6 +106,50 @@ func test_race_state_round_trip() -> void:
 	await get_tree().process_frame
 
 
+## Online, a client holds its cars while the server waits for every game's cars (D127), sees
+## how many are in, and lets go when the server's state says the session runs (a late joiner).
+func test_a_client_holds_for_the_start_and_follows_the_server() -> void:
+	var s := _session()
+	for i in 600:
+		await get_tree().process_frame
+		if s.racers.all(func(r: Racer) -> bool: return r.vehicle != null):
+			break
+	var ids := []
+	for i in s.racers.size():
+		s.racers[i].net_id = 70 + i
+		ids.append(70 + i)
+	s.online = { "track": "t" } # online, as far as the race control can tell
+	s.net = NetSession.new()
+	for r in s.racers:
+		s.net.racers[r.net_id] = r
+	var nr := NetRace.new()
+	nr.session = s
+	nr.race = s.race
+	nr.net = s.net
+	s.race.mirror = true
+	s.race.begin_mirror("free", 0, ids)
+	assert_int(s.race.phase).is_equal(RaceControl.Phase.LOADING)
+	assert_bool(s.racers.all(func(r: Racer) -> bool: return r.held)).is_true()
+	# The server's state: running, nobody held, 2 of 3 games had their cars.
+	s.race.phase = RaceControl.Phase.RUNNING
+	s.race.synced = Vector2i(2, 3)
+	for r in s.racers:
+		r.held = false
+	var bytes := nr.pack_state()
+	s.race.phase = RaceControl.Phase.LOADING
+	s.race.synced = Vector2i.ZERO
+	for r in s.racers:
+		r.held = true
+	nr._on_raw(bytes)
+	assert_int(s.race.phase).is_equal(RaceControl.Phase.RUNNING)
+	assert_object(s.race.synced).is_equal(Vector2i(2, 3))
+	assert_bool(s.racers.all(func(r: Racer) -> bool: return not r.held)).is_true()
+	s.net.free()
+	nr.free()
+	s.queue_free()
+	await get_tree().process_frame
+
+
 func test_a_client_follows_the_servers_grid_and_results() -> void:
 	var s := _session()
 	for i in 600:

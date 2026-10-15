@@ -194,3 +194,75 @@ func test_live_delta_compares_with_the_best_lap() -> void:
 		pos += 50.0 * dt
 		t.update(pos, dt, 50.0)
 	assert_float(t.live_delta()).is_between(-2.6, -2.4)
+
+
+func _step(seconds: float) -> void:
+	for i in roundi(seconds / 0.05):
+		_race._physics_process(0.05)
+
+
+## Online, an event's first session holds every car until each game has the session's cars, at
+## least SYNC_MIN_S and at most LOADING_MAX_S, then three lights (Changes.md, D127).
+func test_online_start_waits_for_every_games_cars() -> void:
+	_session.online = { "track": "t" } # online, as far as the race control can tell
+	var a := _racer(1)
+	a.vehicle = auto_free(Vehicle.new())
+	var state := [Vector2i(1, 2)]
+	_race.sync_state = func() -> Vector2i: return state[0]
+	_race.event.kind = "free"
+	_race.begin("free")
+	assert_int(_race.phase).is_equal(RaceControl.Phase.LOADING)
+	assert_bool(a.held).is_true()
+	_step(10.0)
+	assert_int(_race.phase).is_equal(RaceControl.Phase.LOADING)
+	assert_str(_race.sync_text()).is_equal("Syncing 1/2")
+	state[0] = Vector2i(2, 2)
+	_step(0.05)
+	assert_int(_race.phase).is_equal(RaceControl.Phase.COUNTDOWN)
+	assert_int(_race.light_count).is_equal(RaceControl.SHORT_LIGHTS)
+	var lit := []
+	while _race.phase == RaceControl.Phase.COUNTDOWN and lit.size() < 200:
+		if _race.lights > 0 and (lit.is_empty() or lit[-1] != _race.lights):
+			lit.append(_race.lights)
+		_step(0.05)
+	assert_array(lit).is_equal([1, 2, 3])
+	assert_int(_race.phase).is_equal(RaceControl.Phase.RUNNING)
+	assert_bool(a.held).is_false()
+	assert_str(_race.sync_text()).is_empty()
+	# Everything's here at once: still SYNC_MIN_S on the grid.
+	_race.begin("free")
+	_step(RaceControl.SYNC_MIN_S - 0.5)
+	assert_int(_race.phase).is_equal(RaceControl.Phase.LOADING)
+	_step(0.6)
+	assert_int(_race.phase).is_equal(RaceControl.Phase.COUNTDOWN)
+	# A game that never gets there holds nobody past LOADING_MAX_S.
+	state[0] = Vector2i(0, 1)
+	_race.begin("free")
+	_step(RaceControl.LOADING_MAX_S - 0.5)
+	assert_int(_race.phase).is_equal(RaceControl.Phase.LOADING)
+	_step(0.6)
+	assert_int(_race.phase).is_equal(RaceControl.Phase.COUNTDOWN)
+
+
+## Offline, free drive starts at once (no hold, no lights).
+func test_offline_free_drive_goes_at_once() -> void:
+	var a := _racer(1)
+	a.vehicle = auto_free(Vehicle.new())
+	_race.event.kind = "free"
+	_race.begin("free")
+	assert_int(_race.phase).is_equal(RaceControl.Phase.RUNNING)
+	assert_bool(a.held).is_false()
+
+
+## A race online waits the same way, then forms its grid and counts down five lights.
+func test_online_race_waits_then_five_lights() -> void:
+	_session.online = { "track": "t" }
+	_race.sync_state = func() -> Vector2i: return Vector2i(1, 1)
+	_race.begin("race")
+	_step(RaceControl.SYNC_MIN_S - 0.5)
+	assert_int(_race.phase).is_equal(RaceControl.Phase.LOADING)
+	_step(2.0)
+	assert_int(_race.phase).is_equal(RaceControl.Phase.COUNTDOWN)
+	assert_int(_race.light_count).is_equal(RaceControl.LIGHTS)
+	_step(RaceControl.LIGHTS * RaceControl.LIGHT_S + 1.5)
+	assert_int(_race.phase).is_equal(RaceControl.Phase.RUNNING)

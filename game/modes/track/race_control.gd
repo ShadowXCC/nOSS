@@ -4,7 +4,8 @@ extends Node
 ## practice, qualifying and the race. For a race it forms the grid (from qualifying, reversed or
 ## random), counts down with five lights or leads a rolling start, keeps the race clock and the
 ## standings, shows flags, rules on track limits, and brings everyone home after the checkered
-## flag. When a session ends it hands its results to the session to show.
+## flag. When a session ends it hands its results to the session to show. Online, an event's
+## first session holds every car until each game has the session's cars (D127), then counts down.
 
 signal session_started(kind: String)
 signal session_ended(kind: String, results: Array)
@@ -13,6 +14,8 @@ enum Phase { LOADING, GRID, COUNTDOWN, FORMATION, RUNNING, CHECKERED, DONE }
 
 const LIGHTS := 5
 const LIGHT_S := 1.0
+## Online, a session other than a race starts after the hold with this many lights, no wait.
+const SHORT_LIGHTS := 3
 ## The race grid (pole distance, rows, stagger) and how much further back a rolling start forms
 ## come from the track (TrackData.grid, rolling_back_m). The rolling grid runs at PACE_SPEED,
 ## and the green comes when the leader is this close to the line.
@@ -20,8 +23,10 @@ const PACE_SPEED := 22.0
 const GREEN_BEFORE_LINE_M := 60.0
 ## After the leader finishes, the others have this long to finish their lap.
 const FINISH_GRACE_S := 60.0
-## Online: the grid waits this long at most for every remote car's first state.
-const LOADING_MAX_S := 20.0
+## Online: the start waits this long at most for every remote car's first state and every game's
+## cars (D127); an event's first session holds at least SYNC_MIN_S.
+const LOADING_MAX_S := 30.0
+const SYNC_MIN_S := 3.0
 ## Practice and qualifying: after time's up, the longest a lap in progress may take.
 const LAP_IN_S := 180.0
 ## Flags: a stopped or slow car within YELLOW_M ahead; a car a lap up within BLUE_M behind.
@@ -41,8 +46,14 @@ var index := 0
 var phase := Phase.LOADING
 ## Practice and qualifying: time since the start; race: time since the green.
 var clock := 0.0
-## Countdown lights lit, 0-5.
+## Countdown lights lit, 0 to light_count.
 var lights := 0
+## Lights in this session's countdown: LIGHTS for a race, SHORT_LIGHTS otherwise.
+var light_count := LIGHTS
+## Online server: the games that have the session's cars, and the games (NetHost.sync_state); the
+## start waits for them all (D127). Clients get `synced` with the race state.
+var sync_state := Callable()
+var synced := Vector2i.ZERO
 ## Results of the last session that ended: [{racer, position, time, gap, best, laps, penalty, dnf}].
 var results: Array[Dictionary] = []
 ## The grid from the last qualifying, fastest first.
@@ -140,6 +151,7 @@ func begin_mirror(session_kind: String, session_index: int, grid_ids: Array) -> 
 func begin(session_kind: String) -> void:
 	kind = session_kind
 	go_at = -1.0
+	light_count = LIGHTS if kind == "race" else SHORT_LIGHTS
 	_loading_time = 0.0
 	clock = 0.0
 	lights = 0
@@ -173,7 +185,18 @@ func begin(session_kind: String) -> void:
 					order[i].held = true
 		_:
 			phase = Phase.RUNNING
+	if _syncs():
+		# Online, an event's first session: everyone waits for the cars, then a countdown (D127).
+		phase = Phase.LOADING
+		for r in racers:
+			r.held = true
 	session_started.emit(kind)
+
+
+## This session starts with the online hold (D127): an event's first, online. (A race always
+## waits for its grid; this adds the cars to it.)
+func _syncs() -> bool:
+	return session.is_online() and index == 0
 
 
 ## Cars in grid order: from qualifying if it ran (players who didn't set a time behind), its
@@ -249,9 +272,17 @@ func _physics_process(delta: float) -> void:
 	match phase:
 		Phase.LOADING:
 			_loading_time += delta
-			if session.racers.all(_ready_to_start) or _loading_time >= LOADING_MAX_S:
-				phase = Phase.GRID
-				_countdown = 0.0
+			if sync_state.is_valid():
+				synced = sync_state.call()
+			var all_in := session.racers.all(_ready_to_start) and synced.x >= synced.y
+			if (all_in and _loading_time >= (SYNC_MIN_S if _syncs() else 0.0)) or _loading_time >= LOADING_MAX_S:
+				if session.is_online():
+					print("Start: %d/%d games had their cars after %.1f s" % [synced.x, synced.y, _loading_time])
+				if kind == "race":
+					phase = Phase.GRID
+					_countdown = 0.0
+				else:
+					_count_down(0.0)
 		Phase.GRID:
 			_countdown += delta
 			if _countdown >= 1.0:
@@ -261,15 +292,11 @@ func _physics_process(delta: float) -> void:
 						r.held = false
 						r.pace_limit = PACE_SPEED
 				else:
-					phase = Phase.COUNTDOWN
-					_countdown = 0.0
-					_out_delay = _rng.randf_range(0.4, 1.4)
-					if clock_source.is_valid():
-						go_at = now() + LIGHTS * LIGHT_S + _out_delay
+					_count_down(_rng.randf_range(0.4, 1.4))
 		Phase.COUNTDOWN:
 			_countdown += delta
-			lights = mini(int(_countdown / LIGHT_S) + 1, LIGHTS)
-			if _countdown >= LIGHTS * LIGHT_S + _out_delay:
+			lights = mini(int(_countdown / LIGHT_S) + 1, light_count)
+			if _countdown >= light_count * LIGHT_S + _out_delay:
 				_go()
 		Phase.FORMATION:
 			var leader := standings()[0] if not session.racers.is_empty() else null
@@ -286,6 +313,22 @@ func _physics_process(delta: float) -> void:
 	if _flag_time <= 0.0:
 		_flag_time = FLAG_UPDATE_S
 		_update_flags()
+
+
+## Lights on, one a second, then out `wait` seconds after the last (online at a server time).
+func _count_down(wait: float) -> void:
+	phase = Phase.COUNTDOWN
+	_countdown = 0.0
+	_out_delay = wait
+	if clock_source.is_valid():
+		go_at = now() + light_count * LIGHT_S + _out_delay
+
+
+## "Syncing 2/3" while an online start waits for the games' cars (D127), else "".
+func sync_text() -> String:
+	if phase != Phase.LOADING or not session.is_online():
+		return ""
+	return "Syncing %d/%d" % [synced.x, synced.y] if synced.y > 0 else "Syncing"
 
 
 ## A car is in place and (online) its owner is sending its states.

@@ -41,6 +41,21 @@ func setup() -> void:
 	process_physics_priority = -70 # after the network is polled, before the RaceField
 
 
+## Its car is as whole here as this game will have it (D127): every tier this game fetches is
+## in and mounted, or nothing better is coming (no car picked, or refused).
+func settled() -> bool:
+	if vehicle == null or not _loading_tier.is_empty():
+		return false
+	if car_hash.is_empty() or Net.content == null:
+		return true
+	var at := Net.content.car(car_hash)
+	if at.has("refused"):
+		return true
+	var tier := String(at.get("tier", ""))
+	var enough := NetContent.TIER_ORDER.find(tier) >= NetContent.TIER_ORDER.find(Net.content.max_tier)
+	return enough and (_tier == tier or _tier == "data") # bots and the server mount data only
+
+
 ## Loads (or upgrades) the car from whatever is here.
 func load_net_car() -> void:
 	var at: Dictionary = Net.content.car(car_hash) if Net.content and car_hash else {}

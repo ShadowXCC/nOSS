@@ -208,6 +208,8 @@ func _ready() -> void:
 	if is_online():
 		race.mirror = Net.is_client() # the server runs the event (D85)
 		race.clock_source = net.now
+		if Net.host_logic:
+			race.sync_state = Net.host_logic.sync_state
 		var net_race := NetRace.new()
 		net_race.name = "NetRace"
 		net_race.session = self

@@ -6,7 +6,7 @@ extends RefCounted
 ## before decoding, its fields after. Car states and content chunks have their own packed formats.
 
 ## Bumped whenever messages change: a client and server must match.
-const VERSION := 3
+const VERSION := 4
 const DEFAULT_PORT := 47800
 ## Channels beyond Godot's channel 0 (which carries reliable control messages).
 const EXTRA_CHANNELS := 3
@@ -71,6 +71,7 @@ enum Msg {
 	ASSISTS = 46, ## client: {id, used}: the assists a car has used this session (results)
 	TRAFFIC_FULL = 47, ## server: {tick, state (zstd), size, events, owners}: a highway's traffic as it is (joining, or out of step)
 	RESYNC = 48, ## client: {}: send me the traffic as it is
+	SYNCED = 49, ## client: {have, of}: how many of the session's cars are here and loaded (the start waits, D127)
 	HW_EVENT = 50, ## server: {id, kind, level, evading, text}: a player's police heat, or busted, evaded (D115)
 	BOARD_REQUEST = 51, ## client: {board}: this session's track's board on the server (D118)
 	BOARD = 52, ## server: {board, entries}: it

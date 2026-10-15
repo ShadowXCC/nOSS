@@ -27,7 +27,8 @@ func _physics_process(_delta: float) -> void:
 	if Engine.get_physics_frames() % 60 == 0:
 		_ready_plates() # players join; their HUDs come with them
 	if session.run and session.run.state.is_empty() and not session.players.is_empty() \
-			and session.players.all(func(p: SessionPlayer) -> bool: return p.vehicle != null):
+			and session.players.all(func(p: SessionPlayer) -> bool: return p.vehicle != null) \
+			and session.race.phase == RaceControl.Phase.RUNNING: # online, after the start's hold (D127)
 		session.run.begin() # everyone's here: line up
 	for r in session.racers:
 		var timed_here := r is SessionPlayer or (Net.is_server() and r is NetRacer and r.is_human)

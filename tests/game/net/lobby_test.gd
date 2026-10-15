@@ -294,3 +294,28 @@ func test_ai_cars_bring_their_paint() -> void:
 		assert_dict(CarVisual.clean_paint(d.paint)).is_equal(d.paint)
 		looks[JSON.stringify(d.paint)] = true
 	assert_int(looks.size()).is_greater(1)
+
+
+## A session's start waits for every game's cars (D127): each game says how many it has, the
+## server counts the games that have them all; one that leaves isn't waited for.
+func test_the_start_counts_games_with_their_cars() -> void:
+	_start()
+	var a := _client(["Ann"])
+	assert_bool(_pump(func() -> bool: return a.state == NetClient.State.JOINED)).is_true()
+	host.start_session()
+	assert_object(host.sync_state()).is_equal(Vector2i(0, 2))
+	host.handle(1, NetProtocol.Msg.SYNCED, { "have": 3, "of": 3 })
+	assert_object(host.sync_state()).is_equal(Vector2i(1, 2))
+	a.send(NetProtocol.Msg.SYNCED, { "have": 2, "of": 3 })
+	a.send(NetProtocol.Msg.SYNCED, { "have": "all" }) # junk is ignored
+	assert_bool(_pump(func() -> bool: return host.synced.size() == 2)).is_true()
+	assert_object(host.sync_state()).is_equal(Vector2i(1, 2))
+	a.send(NetProtocol.Msg.SYNCED, { "have": 3, "of": 3 })
+	assert_bool(_pump(func() -> bool: return host.sync_state() == Vector2i(2, 2))).is_true()
+	# A new session starts the count again; a game that leaves isn't waited for.
+	host.end_session()
+	host.start_session()
+	assert_object(host.sync_state()).is_equal(Vector2i(0, 2))
+	host.handle(1, NetProtocol.Msg.SYNCED, { "have": 1, "of": 1 })
+	a.leave()
+	assert_bool(_pump(func() -> bool: return host.sync_state() == Vector2i(1, 1))).is_true()

@@ -289,8 +289,12 @@ func _update_race() -> void:
 	_gaps.visible = racing and race.kind == "race" and shows("position")
 	_standings.visible = racing and shows("standings")
 	_flag.flag = racer.flag if racer and shows("flags") else ""
-	_lights.lit = race.lights if race and race.kind == "race" and race.phase == RaceControl.Phase.COUNTDOWN else 0
+	_lights.count = race.light_count if race else RaceControl.LIGHTS
+	_lights.lit = race.lights if race and race.phase == RaceControl.Phase.COUNTDOWN else 0
 	_lights.visible = _lights.lit > 0
+	var syncing := race.sync_text() if race else ""
+	if syncing:
+		show_message(syncing, 0.2)
 	var live := timer.live_delta() if timer else NAN
 	_delta_bar.visible = not is_nan(live) and shows("delta")
 	if not is_nan(live):
@@ -443,15 +447,20 @@ class FlagPanel:
 		draw_string(font, Vector2(icon.end.x + 16, size.y * 0.5 + fs * 0.35), WORDS.get(flag, ""), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
 
 
-## Five start lights, lit one per second. They never flash; with Reduce flashing they're also
-## dimmer against the plate.
+## Start lights (five for a race, three for an online start), lit one per second. They never
+## flash; with Reduce flashing they're also dimmer against the plate.
 class Lights:
 	extends Control
 	var lit := 0:
 		set(value):
 			if value != lit:
 				lit = value
-				accessibility_name = "%d of 5" % lit
+				accessibility_name = "%d of %d" % [lit, count]
+				queue_redraw()
+	var count := 5:
+		set(value):
+			if value != count:
+				count = value
 				queue_redraw()
 	var reduce_flashing := false
 
@@ -461,8 +470,8 @@ class Lights:
 	func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.75))
 		var r := size.y * 0.36
-		for i in 5:
-			var center := Vector2(size.x * (i + 0.5) / 5.0, size.y * 0.5)
+		for i in count:
+			var center := Vector2(size.x * (i + 0.5) / float(count), size.y * 0.5)
 			var on := i < lit
 			var col := Color(0.95, 0.12, 0.1) if on else Color(0.2, 0.2, 0.22)
 			if on and reduce_flashing:

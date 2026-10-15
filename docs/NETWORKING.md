@@ -56,6 +56,7 @@ connect ─► join checks (versions, key, password, bans, room)
         ─► start (host, admin /start, or the dedicated server once all are ready)
         ─► SESSION: track (hash, id, name, size), class (and its hash), event, rules, roster in grid order
         ─► each game builds its session: its own players drive, every other car is remote
+        ─► the start waits until every game has the session's cars ("Syncing 2/3"; 3–30 s, D127)
         ─► races: the server runs the event, clients follow (§6); results; next session
         ─► back to the lobby (host, last session over, or everyone gone)
 ```
@@ -97,7 +98,8 @@ connect ─► join checks (versions, key, password, bans, room)
 
 ### Race state (D85)
 
-- The server's `RaceControl` decides everything; `NetRace` sends what clients need: the grid when a session begins (each game puts its own cars there), the race state 10 times a second (21 bytes a car, a 16-bit id then: held, flag, laps, best, last, penalty, warnings, finish, position; the phase, clock and the scheduled lights-out), the results, and notes for one driver ("Track limits: warning").
+- The server's `RaceControl` decides everything; `NetRace` sends what clients need: the grid when a session begins (each game puts its own cars there), the race state 10 times a second (21 bytes a car, a 16-bit id then: held, flag, laps, best, last, penalty, warnings, finish, position; the phase, clock, the scheduled lights-out, and how many games have the session's cars), the results, and notes for one driver ("Track limits: warning").
+- **The start waits for the files** (D127): an event's first session holds every car while each game reports `SYNCED {have, of}` (its own cars spawned, everyone else's as whole as it fetches them, refused ones counted as here), at least 3 s and at most 30 s. Then a race forms its grid and shows five lights; any other session shows three, one a second, and goes. Players joining later aren't held.
 - **Fair timing:** the server times every car from where it shows it now; remote cars are extrapolated to the present, so a laggy player isn't timed late. **Lights-out** is a server time; each game releases its own cars when its clock reaches it.
 - Clients mirror the state; a player's own lap timer still drives their HUD.
 

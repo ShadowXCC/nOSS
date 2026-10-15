@@ -10,13 +10,15 @@ const MSG_STATE := 103
 const STATE_HZ := 10.0
 const KINDS := ["free", "time_trial", "practice", "qualifying", "race"]
 const FLAGS := ["", "green", "yellow", "blue", "checkered"]
-const HEADER := 30
+const HEADER := 32
 const CAR_SIZE := 21
 ## A link this bad for BAD_LINK_S ghosts its cars (rules.ghost_bad_links).
 const BAD_RTT_MS := 250.0
 const BAD_LOSS := 0.05
 const BAD_LINK_S := 3.0
 const ENET_LOSS_SCALE := 65536.0
+## While the start waits (D127), each game says how many of the session's cars it has this often.
+const SYNC_EVERY_S := 0.5
 
 var session: TrackSession
 var race: RaceControl
@@ -28,6 +30,8 @@ var _assists_sent := {} # car id -> what was sent last (JSON)
 var _link_time := 0.0
 var _bad_since := {} # peer -> seconds its link has been bad
 var _bad_peers := {} # peer -> true while ghosted
+var _sync_time := 0.0
+var _sync_sent := Vector2i(-1, -1)
 
 
 func _ready() -> void:
@@ -57,6 +61,11 @@ func _exit_tree() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if not Game.dedicated and race.phase == RaceControl.Phase.LOADING:
+		_sync_time += delta
+		if _sync_time >= SYNC_EVERY_S:
+			_sync_time = 0.0
+			report_sync()
 	if Net.server:
 		_link_time += delta
 		if _link_time >= 1.0:
@@ -96,6 +105,20 @@ func _on_end(kind: String, results: Array) -> void:
 	Net.server.broadcast(NetProtocol.Msg.RESULTS, { "kind": kind, "index": race.index, "rows": rows })
 
 
+## This game's part of the start (D127): how many of the session's cars are here and loaded
+## (own cars spawned, others' whole as this game fetches them), sent when it changes.
+func report_sync() -> void:
+	var have := 0
+	for r in session.racers:
+		var here := (r as NetRacer).settled() if r is NetRacer else r.vehicle != null
+		if here:
+			have += 1
+	var now := Vector2i(have, session.racers.size())
+	if now != _sync_sent:
+		_sync_sent = now
+		Net.request(NetProtocol.Msg.SYNCED, { "have": now.x, "of": now.y })
+
+
 ## Server: which clients' links are bad now (their cars race ghosted).
 func _check_links() -> void:
 	if Net.host_logic == null or not bool(Net.host_logic.config.rules.get("ghost_bad_links", true)):
@@ -131,7 +154,7 @@ func _on_assists(id: int, used: Dictionary) -> void:
 
 
 ## The race state: [103][time f64][kind][index][phase][lights][clock f32][go_at f64]
-## [leader finished f32][n] then per car [id u16][bits][pace][lap u16][best f32][last f32][penalty]
+## [leader finished f32][n][games synced][games] then per car [id u16][bits][pace][lap u16][best f32][last f32][penalty]
 ## [warnings][finish f32][position]. bits: held 1, finished 2, dnf 4, flag << 3.
 func pack_state() -> PackedByteArray:
 	var cars: Array[Racer] = []
@@ -150,6 +173,8 @@ func pack_state() -> PackedByteArray:
 	p.encode_double(17, race.go_at)
 	p.encode_float(25, race.leader_finished_at)
 	p[29] = cars.size()
+	p[30] = clampi(race.synced.x, 0, 255)
+	p[31] = clampi(race.synced.y, 0, 255)
 	var at := HEADER
 	for r in cars:
 		p.encode_u16(at, r.net_id)
@@ -189,6 +214,7 @@ func _on_raw(bytes: PackedByteArray) -> void:
 	race.go_at = go_at if is_finite(go_at) else -1.0
 	var leader := bytes.decode_float(25)
 	race.leader_finished_at = leader if is_finite(leader) else -1.0
+	race.synced = Vector2i(bytes[30], bytes[31])
 	var at := HEADER
 	for k in n:
 		var r: Racer = net.racers.get(bytes.decode_u16(at))
