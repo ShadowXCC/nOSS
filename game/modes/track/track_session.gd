@@ -108,6 +108,8 @@ var server_boards := {}
 var police: PoliceControl
 ## Kart sessions (D129): tow, slipstream, items. Null otherwise.
 var kart: KartControl
+## Battles (D144): lives and hits. Null otherwise.
+var battle: BattleControl
 var traffic: TrafficManager
 ## Dev and tests: the traffic's seed (-1: the track's).
 var traffic_seed := -1

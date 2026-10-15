@@ -98,6 +98,8 @@ func _physics_process(delta: float) -> void:
 		vehicle.handbrake = 0.0
 		if input.just_pressed("use_item"):
 			item_requested.emit(input.held("throw_back"))
+			if racer and racer.session.kart:
+				racer.session.kart.use(racer, input.held("throw_back"))
 	else:
 		_h_shifter()
 	if racer and racer.held:

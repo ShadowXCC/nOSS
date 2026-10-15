@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noss:schema:item_odds:1",
+  "title": "nOSS kart item odds",
+  "description": "data/items/odds.json: which items a kart's box gives, by place in a race (0 the leader, 1 last) or lives lost in a battle (D140). Odds are the only catch-up (AI-05). See docs/GAMEMODES.md §2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "race", "battle"],
+  "properties": {
+    "schema": { "const": "noss.item_odds/1" },
+    "race": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by", "bands", "leader_hunter"],
+      "properties": {
+        "by": { "const": "place" },
+        "bands": { "type": "array", "minItems": 1, "maxItems": 8, "items": { "$ref": "#/$defs/band" } },
+        "leader_hunter": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from_place", "min_karts", "max_active", "cooldown_s"],
+          "properties": {
+            "from_place": { "type": "number", "minimum": 0, "maximum": 1 },
+            "min_karts": { "type": "integer", "minimum": 2, "maximum": 16 },
+            "max_active": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "cooldown_s": { "type": "number", "minimum": 0, "maximum": 120 }
+          }
+        }
+      }
+    },
+    "battle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by", "bands"],
+      "properties": {
+        "by": { "const": "lives_lost" },
+        "bands": { "type": "array", "minItems": 1, "maxItems": 8, "items": { "$ref": "#/$defs/band" } }
+      }
+    }
+  },
+  "$defs": {
+    "band": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["upto", "odds"],
+      "properties": {
+        "upto": { "type": "number", "minimum": 0, "maximum": 10 },
+        "odds": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "nitro": { "$ref": "#/$defs/weight" },
+            "nitro_x3": { "$ref": "#/$defs/weight" },
+            "oil_slick": { "$ref": "#/$defs/weight" },
+            "bolt": { "$ref": "#/$defs/weight" },
+            "seeker": { "$ref": "#/$defs/weight" },
+            "leader_hunter": { "$ref": "#/$defs/weight" },
+            "shield": { "$ref": "#/$defs/weight" },
+            "emp": { "$ref": "#/$defs/weight" },
+            "magnet": { "$ref": "#/$defs/weight" }
+          }
+        }
+      }
+    },
+    "weight": { "type": "number", "minimum": 0, "maximum": 1000 }
+  }
+}

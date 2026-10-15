@@ -79,6 +79,8 @@ var _laps := {} # racer -> timer.lap seen last tick
 var _rng := RandomNumberGenerator.new()
 var _standings: Array[Racer] = []
 var _standings_frame := -1
+var _order: Array[Racer] = []
+var _order_frame := -1
 var _mirror_grid: Array = []
 var _loading_time := 0.0
 
@@ -526,6 +528,23 @@ func position_of(r: Racer) -> int:
 		_standings = standings()
 		_standings_frame = Engine.get_physics_frames()
 	return _standings.find(r) + 1
+
+
+## Order on the road (laps, then the way round), whatever the session: what kart items go by
+## (D140), in free drive and practice too.
+func race_order() -> Array[Racer]:
+	if mirror and not net_positions.is_empty():
+		return standings()
+	if Engine.get_physics_frames() != _order_frame:
+		_order = session.racers.duplicate()
+		_order.sort_custom(_race_before)
+		_order_frame = Engine.get_physics_frames()
+	return _order
+
+
+## 1-based place on the road (race_order).
+func race_place(r: Racer) -> int:
+	return race_order().find(r) + 1
 
 
 ## Laps completed this session.

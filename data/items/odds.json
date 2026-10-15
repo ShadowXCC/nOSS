@@ -1,0 +1,21 @@
+{
+  "schema": "noss.item_odds/1",
+  "race": {
+    "by": "place",
+    "bands": [
+      { "upto": 0.0, "odds": { "nitro": 20, "oil_slick": 35, "bolt": 30, "shield": 15 } },
+      { "upto": 0.35, "odds": { "nitro": 20, "nitro_x3": 5, "oil_slick": 20, "bolt": 25, "seeker": 10, "shield": 15, "magnet": 5 } },
+      { "upto": 0.7, "odds": { "nitro": 10, "nitro_x3": 20, "oil_slick": 5, "bolt": 15, "seeker": 20, "shield": 10, "emp": 10, "magnet": 10 } },
+      { "upto": 1.0, "odds": { "nitro_x3": 30, "seeker": 20, "shield": 5, "emp": 15, "magnet": 24, "leader_hunter": 6 } }
+    ],
+    "leader_hunter": { "from_place": 0.6, "min_karts": 4, "max_active": 1, "cooldown_s": 20 }
+  },
+  "battle": {
+    "by": "lives_lost",
+    "bands": [
+      { "upto": 0, "odds": { "bolt": 35, "oil_slick": 25, "seeker": 10, "shield": 15, "nitro": 15 } },
+      { "upto": 1, "odds": { "bolt": 30, "oil_slick": 15, "seeker": 20, "shield": 15, "emp": 10, "nitro": 10 } },
+      { "upto": 2, "odds": { "bolt": 20, "seeker": 30, "shield": 20, "emp": 15, "magnet": 15 } }
+    ]
+  }
+}

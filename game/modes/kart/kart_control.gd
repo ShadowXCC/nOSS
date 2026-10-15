@@ -1,7 +1,8 @@
 class_name KartControl
 extends Node
 ## Kart sessions (D129): added next to an ordinary session when the class's mode has the
-## kart_arcade layer. Here: the tow drone (D132) and slipstream; items and boxes join it.
+## kart_arcade layer. Here: the tow drone (D132), slipstream, and the items (KartItems) with
+## their boxes (KartBoxes) and what's out on the track (KartEntities).
 
 const SLIP_HZ := 30.0
 const SLIP_MIN_SPEED := 10.0 # m/s: the car ahead must be going
@@ -15,10 +16,42 @@ var _tows := {}
 var _slip_time := 0.0
 ## Magnet (items): racer -> how many times stronger its slipstream is (D139).
 var slip_boost := {}
+var layout: KartLayout
+var items: KartItems
+var boxes: KartBoxes
+var entities: KartEntities
 
 
 func _ready() -> void:
 	process_physics_priority = -57 # after the race field, before the drivers (-50)
+	var visual := not Game.dedicated and not Game.dev.has("bot")
+	# A track's own pieces and rows, or automatic rows on any other track (D136).
+	layout = session.track.kart if session.track.kart else KartLayout.build(session.track, {})
+	boxes = KartBoxes.new()
+	boxes.name = "ItemBoxes"
+	add_child(boxes)
+	boxes.setup(layout.box_points(), visual)
+	entities = KartEntities.new()
+	entities.name = "ItemsOut"
+	entities.session = session
+	entities.visual = visual
+	add_child(entities)
+	items = KartItems.new()
+	items.name = "Items"
+	items.control = self
+	items.session = session
+	items.boxes = boxes
+	items.entities = entities
+	items.odds = ItemOdds.load_default()
+	items.odds.cycle = Game.dev.get("odds", "") == "cycle"
+	if Game.dev.has("seed"):
+		items.rng.seed = int(Game.dev.seed)
+	add_child(items)
+
+
+## `r` uses its item (its player's button, the AI or the item assist).
+func use(r: Racer, back := false) -> void:
+	items.use(r, back)
 
 
 ## A drone lifts the kart and carries it back to the last valid spot on the road, then puts it
