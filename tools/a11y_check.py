@@ -2,9 +2,11 @@
 """Screen-reader check (ACC-03; M4 acceptance: boot -> race -> results with a screen reader).
 
 Runs the game with accessibility on and walks title -> Race -> class -> event -> Players -> a
-1-lap race -> results -> title, then Online -> Host -> the lobby -> Leave (M5), then the track
-editor: every tool, a new oval, its race setup and checks, a new highway loop and its ramps, and
-out (M6, M7), through AT-SPI,
+1-lap race -> results -> title, then Online -> Host -> the lobby -> Leave (M5), then Highway ->
+a highway -> its menu -> the class -> Players and back out (M7), then the track editor: every
+tool, a new oval, its race setup and checks, a new highway loop and its ramps, and out (M6, M7);
+then, in a second run, a highway session's pause menu (opened with --pause-at: keys can't be
+sent on Wayland) and joining a friend from it (M7), through AT-SPI,
 the interface screen readers (Orca) use: it finds controls by their accessible names, presses
 them with their accessibility actions, and checks that every focusable control on each screen
 has a name and that something has focus.
@@ -15,6 +17,7 @@ display. Writes no settings or profiles (--no-save).
 
     tools/a11y_check.py                # exit code 0 = pass
     tools/a11y_check.py --editor-only  # just the track editor
+    tools/a11y_check.py --highway-only # just the highway menus and a highway session's pause
 """
 import os
 import subprocess
@@ -39,7 +42,7 @@ warnings.simplefilter("ignore", DeprecationWarning)
 import gi  # noqa: E402
 
 gi.require_version("Atspi", "2.0")
-from gi.repository import Atspi  # noqa: E402
+from gi.repository import Atspi, GLib  # noqa: E402
 
 problems = []
 
@@ -64,9 +67,12 @@ def walk(node, depth=0):
 def app():
     desk = Atspi.get_desktop(0)
     for i in range(desk.get_child_count()):
-        a = desk.get_child_at_index(i)
-        if a is not None and "godot" in (a.get_name() or "").lower():
-            return a
+        try:
+            a = desk.get_child_at_index(i)
+            if a is not None and "godot" in (a.get_name() or "").lower():
+                return a
+        except GLib.GError:  # a game that has just quit
+            continue
     return None
 
 
@@ -82,31 +88,42 @@ def showing(node):
     return s is not None and s.contains(Atspi.StateType.SHOWING)
 
 
-def find(name, role=None, timeout=20.0, prefix=False):
-    """The first showing element with this accessible name (or name prefix)."""
+def find(name, role=None, timeout=20.0, prefix=False, last=False):
+    """The first showing element with this accessible name (or name prefix); the last one with
+    `last` (the newest screen's: Godot shows a menu hidden behind the next one as still on screen)."""
     end = time.time() + timeout
     while time.time() < end:
         a = app()
         if a is not None:
+            try:
+                a.clear_cache()  # states are cached: a menu hidden since would still look showing
+            except Exception:
+                pass
+            found = None
             for n in walk(a):
                 try:
                     nm = n.get_name() or ""
                     if (nm.startswith(name) if prefix else nm == name) and showing(n) and (role is None or n.get_role_name() == role):
-                        return n
+                        found = n
+                        if not last:
+                            break
                 except Exception:
                     continue
+            if found is not None:
+                return found
         time.sleep(0.3)
     return None
 
 
-def press(node):
+def press(node, report=True):
     try:
         for i in range(node.get_n_actions()):
             if node.get_action_name(i).lower() in ("click", "press", "activate"):
                 return node.do_action(i)
         return node.do_action(0)
     except Exception as e:
-        problems.append(f"can't press '{node.get_name()}': {e}")
+        if report:
+            problems.append(f"can't press '{node.get_name()}': {e}")
         return False
 
 
@@ -127,7 +144,17 @@ def focused_now():
 
 
 def check_screen(label, settle=8.0):
-    """Every focusable, showing control has a name; something has focus."""
+    """Every focusable, showing control has a name; something has focus. A control freed while
+    it's read (the screen still changing) means a second look."""
+    for attempt in range(3):
+        try:
+            return _check_screen(label, settle)
+        except GLib.GError:
+            time.sleep(1.0)
+    problems.append(f"{label}: the screen kept changing while it was read")
+
+
+def _check_screen(label, settle):
     end = time.time() + settle
     while time.time() < end and focused_now() is None:  # focus is often set a frame after a screen opens
         time.sleep(0.3)
@@ -137,10 +164,11 @@ def check_screen(label, settle=8.0):
         return
     focused = None
     unnamed = []
+    seen_names = []
     count = 0
     for n in walk(a):
         s = states(n)
-        if s is None or not s.contains(Atspi.StateType.SHOWING):
+        if s is None or not showing(n):
             continue
         try:
             role = n.get_role_name()
@@ -154,35 +182,122 @@ def check_screen(label, settle=8.0):
                 name = n.get_name() or ""
             except Exception:
                 continue
+            seen_names.append(name)
             if not name.strip():
-                unnamed.append(role)
-    if unnamed:
-        problems.append(f"{label}: {len(unnamed)} unnamed control(s): {', '.join(sorted(set(unnamed)))}")
+                try:
+                    parent = n.get_parent()
+                    where = parent.get_name() or parent.get_role_name()
+                except Exception:
+                    continue  # its panel is being freed (a tool rebuilding): not really there
+                unnamed.append(f"{role} in '{where}'")
     if focused is None and os.environ.get("NOSS_A11Y_DEBUG"):
         for n in walk(a):
             st = states(n)
             if st is not None and st.contains(Atspi.StateType.FOCUSED):
                 log(f"    focused but not showing: {n.get_role_name()} '{n.get_name()}' states {[s.value_nick for s in st.get_states()]}")
     focus_text = f"'{focused.get_name()}' ({focused.get_role_name()})" if focused is not None else "nothing"
+    if focused is not None and os.environ.get("NOSS_A11Y_DEBUG"):
+        chain, n = [], focused
+        for _ in range(8):
+            n = n.get_parent()
+            if n is None:
+                break
+            chain.append(f"{n.get_role_name()} '{n.get_name()}'")
+        log(f"    focus in: {' < '.join(chain)}")
+        log("    focusable: " + ", ".join(seen_names[:30]))
     if focused is None and not any(states(n) is not None and states(n).contains(Atspi.StateType.ACTIVE)
                                    for n in walk(a) if n.get_role_name() == "frame"):
         focus_text += " (the game's window isn't active: another window has the keyboard)"
-    if focused is None or focused.get_role_name() in ("frame", "section"):
+    bad_focus = focused is None or focused.get_role_name() in ("frame", "section")
+    # Reported only now: a control freed while read (GLib.GError above) means a second look.
+    if unnamed:
+        problems.append(f"{label}: {len(unnamed)} unnamed control(s): {', '.join(sorted(set(unnamed)))}")
+    if bad_focus:
         problems.append(f"{label}: focus is on {focus_text}")
     log(f"  {label}: {count} focusable controls, focus on {focus_text}")
 
 
-def step(label, name, role="button", prefix=False, timeout=20.0):
-    node = find(name, role, timeout, prefix)
+def step(label, name, role="button", prefix=False, timeout=20.0, last=False):
+    last = last or name == "Back"  # the newest screen's Back, not one hidden behind it
+    node = find(name, role, timeout, prefix, last)
     if node is None:
         problems.append(f"{label}: no '{name}' {role}")
         names = sorted({f"{n.get_role_name()} '{n.get_name()}'" for n in walk(app()) if showing(n) and (n.get_name() or "")})
         log(f"  showing: {', '.join(names[:40])}")
         return False
     check_screen(label)
-    press(node)
-    log(f"  pressed '{node.get_name()}'")
-    return True
+    # A control from the screen before can linger a moment as it's freed: look again.
+    for attempt in range(3):
+        try:
+            shown = node.get_name()
+        except Exception:
+            shown = None
+        if shown is not None and press(node, report=False):
+            log(f"  pressed '{shown}'")
+            return True
+        time.sleep(1.0)
+        node = find(name, role, timeout, prefix, last)
+        if node is None:
+            break
+    problems.append(f"{label}: couldn't press '{name}'")
+    return False
+
+
+def highway_menus():
+    """Title -> Highway -> a highway -> its menu -> its class -> Players, and back out (M7)."""
+    log("Highway menus")
+    ok = step("Title (highway)", "Highway")
+    ok = ok and step("Highway: tracks", "Lumen Ring", prefix=True)
+    ok = ok and step("Highway: menu", "Next")
+    ok = ok and step("Highway: class", "Highway Street", prefix=True)
+    # Back out a screen at a time, each one known by something only it has.
+    for label, anchor in (("Highway: players", "Ready"), ("Highway: class again", "Highway Street"),
+                          ("Highway: menu again", "Next"), ("Highway: tracks again", "Lumen Ring")):
+        ok = ok and back_from(label, anchor)
+    return ok
+
+
+def back_from(label, anchor):
+    """Waits for the screen with `anchor` (a name prefix), checks it, and presses its Back."""
+    if find(anchor, "button", timeout=30.0, prefix=True) is None:
+        problems.append(f"{label}: no '{anchor}' button")
+        return False
+    time.sleep(1.5)  # the screen before is freed meanwhile
+    return step(label, "Back", last=True)
+
+
+def highway_pause_walk():
+    """A highway session with two players (one autodriven), the last one's pause menu open: its
+    controls, then joining the other player from it (M7)."""
+    log("Highway session: pause")
+    game, _ = start_game(["--highway", "--players=2", "--pause-at=12"], "noss_a11y_highway.log")
+    try:
+        if find("Change direction", "button", timeout=120.0) is None:
+            problems.append("Highway pause: no 'Change direction' button")
+            return
+        step("Highway pause", "Join ", prefix=True)
+        time.sleep(2.0)
+        if find("Change direction", "button", timeout=2.0) is not None:
+            problems.append("Highway pause: still open after joining a friend")
+    finally:
+        stop_game(game)
+
+
+def start_game(extra, log_name):
+    log_path = os.path.join(os.environ.get("TMPDIR", "/tmp"), log_name)
+    log_file = open(log_path, "w")
+    game = subprocess.Popen([os.path.join(ROOT, "tools/godot.sh"), "--accessibility", "always", "--"] + GAME_ARGS + extra,
+                            cwd=ROOT, stdout=log_file, stderr=subprocess.STDOUT)
+    log(f"Game log: {log_path}")
+    return game, log_path
+
+
+def stop_game(game):
+    game.terminate()
+    try:
+        game.wait(10)
+    except subprocess.TimeoutExpired:
+        game.kill()
 
 
 def editor_walk():
@@ -221,16 +336,17 @@ def editor_walk():
 def main():
     subprocess.run(["busctl", "--user", "set-property", "org.a11y.Bus", "/org/a11y/bus", "org.a11y.Status", "IsEnabled", "b", "true"],
                    check=False, capture_output=True)
-    log_path = os.path.join(os.environ.get("TMPDIR", "/tmp"), "noss_a11y_check.log")
-    log_file = open(log_path, "w")
-    game = subprocess.Popen([os.path.join(ROOT, "tools/godot.sh"), "--accessibility", "always", "--"] + GAME_ARGS,
-                            cwd=ROOT, stdout=log_file, stderr=subprocess.STDOUT)
-    log(f"Game log: {log_path}")
+    game, _ = start_game([], "noss_a11y_check.log")
     try:
         if "--editor-only" in sys.argv:
             if find("Track Editor", "button", timeout=60.0) is not None:
                 editor_walk()
             raise SystemExit(report())
+        if "--highway-only" in sys.argv:
+            if find("Highway", "button", timeout=60.0) is not None:
+                highway_menus()
+            stop_game(game)  # before the second run starts
+            return finish()
         log("Title")
         ok = step("Title", "Race")
         ok = ok and step("Class", "Track GT", prefix=True)
@@ -259,16 +375,22 @@ def main():
                         step("Online again", "Back")
                     elif ok:
                         problems.append("Lobby: no Leave button")
+                if find("Highway", "button", timeout=20.0) is not None:
+                    highway_menus()
+                else:
+                    problems.append("Back at the title: no Highway button")
                 if find("Track Editor", "button", timeout=20.0) is not None:
                     editor_walk()
                 else:
                     problems.append("Back at the title: no Track Editor button")
     finally:
-        game.terminate()
-        try:
-            game.wait(10)
-        except subprocess.TimeoutExpired:
-            game.kill()
+        stop_game(game)
+    return finish()
+
+
+def finish():
+    if "--editor-only" not in sys.argv:
+        highway_pause_walk()
     return report()
 
 

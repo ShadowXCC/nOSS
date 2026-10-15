@@ -26,6 +26,7 @@ func after() -> void:
 func before_test() -> void:
 	Players.clear()
 	_requested.clear()
+	Settings.profile.last_platform = "official.track.gt" # the class lists focus the last one used
 
 
 func _on_event(e: RaceEvent, platform_id: String) -> void:
@@ -200,3 +201,47 @@ func test_keyboard_only_boot_to_a_highway() -> void:
 	assert_str(e.sub).is_equal("score")
 	assert_int(e.direction).is_equal(0)
 	assert_str(String(_requested[0][1])).starts_with("official.highway.")
+
+
+## Highway back out by keys: Players -> the class -> the highway menu -> the tracks -> the title,
+## focus landing on each screen in turn.
+func test_keyboard_back_out_of_the_highway_menus() -> void:
+	var runner := scene_runner(TITLE_SCENE)
+	await _frames(4)
+	await _key(KEY_DOWN)
+	await _key(KEY_DOWN)
+	await _key(KEY_ENTER)
+	await _frames(4)
+	await _key(KEY_ENTER) # the Lumen Ring
+	await _frames(4)
+	while _focused(runner) != "Next":
+		await _key(KEY_DOWN)
+	await _key(KEY_ENTER)
+	await _frames(4)
+	assert_str(_focused(runner)).starts_with("Highway")
+	await _key(KEY_ENTER) # the class: Players, nobody joined yet
+	await _frames(6)
+	assert_object(_find(runner.scene(), "PlayersMenu")).is_not_null()
+	await _key(KEY_ESCAPE)
+	await _frames(6)
+	assert_str(_focused(runner)).starts_with("Highway Street")
+	# Again with a player joined, back by the Players screen's Back (the mouse's way).
+	await _key(KEY_ENTER)
+	await _frames(6)
+	await _key(KEY_ENTER) # joins
+	await _frames(6)
+	var players: PlayersMenu = _find(runner.scene(), "PlayersMenu")
+	var back: Button = players.find_children("*", "Button", true, false).filter(func(b: Button) -> bool: return b.text == "Back")[0]
+	back.pressed.emit()
+	await _frames(6)
+	assert_str(_focused(runner)).starts_with("Highway Street")
+	Players.clear()
+	await _key(KEY_ESCAPE)
+	await _frames(4)
+	assert_str(_focused(runner)).starts_with("Mode: ")
+	await _key(KEY_ESCAPE)
+	await _frames(4)
+	assert_str(_focused(runner)).starts_with("Lumen Ring")
+	await _key(KEY_ESCAPE)
+	await _frames(4)
+	assert_str(_focused(runner)).is_equal("Highway")

@@ -181,7 +181,7 @@ func _open_highway() -> void:
 		_open_highway_menu(path))
 	_tracks.closed.connect(func() -> void:
 		_tracks.queue_free()
-		_drive_button.grab_focus())
+		_drive_button.get_parent().get_node(^"HighwayButton").grab_focus()) # back where it was
 	add_child(_tracks)
 
 
