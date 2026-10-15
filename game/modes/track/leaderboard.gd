@@ -11,15 +11,17 @@ const SCHEMA := "noss.leaderboard/1"
 const KEEP := 20
 
 static var dir := "user://leaderboards/"
+## A server's own boards (online scores and laps it timed itself), apart from its player's.
+static var server_dir := "user://leaderboards/server/"
 
 
-static func path_for(track_id: String) -> String:
-	return dir.path_join(track_id + ".json")
+static func path_for(track_id: String, server := false) -> String:
+	return (server_dir if server else dir).path_join(track_id + ".json")
 
 
 ## Best first (fastest, or the most points on a score board).
-static func entries(track_id: String, board: String) -> Array:
-	var data := _load(track_id)
+static func entries(track_id: String, board: String, server := false) -> Array:
+	var data := _load(track_id, server)
 	var list: Variant = data.boards.get(board, [])
 	return list if list is Array else []
 
@@ -50,10 +52,10 @@ static func counts(entry: Dictionary) -> bool:
 
 ## Adds a lap (or a run's time, or a score) to `board` (the entry's platform if empty); returns
 ## its place (1 = best), or 0 if it isn't listed.
-static func submit(track_id: String, entry: Dictionary, board := "") -> int:
+static func submit(track_id: String, entry: Dictionary, board := "", server := false) -> int:
 	if not counts(entry):
 		return 0
-	var data := _load(track_id)
+	var data := _load(track_id, server)
 	var key := board if board else String(entry.platform)
 	var list: Array = data.boards.get(key, [])
 	list.append(entry)
@@ -63,20 +65,20 @@ static func submit(track_id: String, entry: Dictionary, board := "") -> int:
 		list.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a.time) < float(b.time))
 	var place := list.find(entry) + 1
 	data.boards[key] = list.slice(0, KEEP)
-	_save(track_id, data)
+	_save(track_id, data, server)
 	return place if place <= KEEP else 0
 
 
-static func _load(track_id: String) -> Dictionary:
-	var path := path_for(track_id)
+static func _load(track_id: String, server := false) -> Dictionary:
+	var path := path_for(track_id, server)
 	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
 	if data is Dictionary and data.get("schema") == SCHEMA and data.get("boards") is Dictionary:
 		return data
 	return { "schema": SCHEMA, "track": track_id, "boards": {} }
 
 
-static func _save(track_id: String, data: Dictionary) -> void:
-	DirAccess.make_dir_recursive_absolute(dir)
-	var f := FileAccess.open(path_for(track_id), FileAccess.WRITE)
+static func _save(track_id: String, data: Dictionary, server := false) -> void:
+	DirAccess.make_dir_recursive_absolute(server_dir if server else dir)
+	var f := FileAccess.open(path_for(track_id, server), FileAccess.WRITE)
 	if f:
 		f.store_string(JSON.stringify(data, "  "))

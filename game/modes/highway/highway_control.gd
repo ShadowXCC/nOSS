@@ -28,7 +28,8 @@ func _physics_process(_delta: float) -> void:
 			and session.players.all(func(p: SessionPlayer) -> bool: return p.vehicle != null):
 		session.run.begin() # everyone's here: line up
 	for r in session.racers:
-		if event.sub == "loop" and r is SessionPlayer and r.timer and not _timed.has(r):
+		var timed_here := r is SessionPlayer or (Net.is_server() and r is NetRacer and r.is_human)
+		if event.sub == "loop" and timed_here and r.timer and not _timed.has(r):
 			_timed[r] = true
 			r.timer.lap_completed.connect(_on_lap.bind(r))
 		if r.vehicle == null or r.waiting or not is_instance_valid(r.vehicle) or r.vehicle.remote:
@@ -70,19 +71,19 @@ func _through_portal(r: Racer, exit: RampData) -> void:
 	r.notify(String(layout.portals[best.from.portal].name), 1.5)
 
 
-## A loop lap done: on its direction's board (local games; a lap with a direction change, a
-## reset or a portal is no lap).
+## A loop lap done: on its direction's board (offline the local one, online the server's; a lap
+## with a direction change, a reset or a portal is no lap).
 func _on_lap(time: float, valid: bool, _best: bool, r: Racer) -> void:
-	if not valid or session.is_online() or not (r is SessionPlayer):
-		return
-	var place := Leaderboard.submit(session.track.record_key(), Leaderboard.entry_of(r, { "time": time }), board(r as SessionPlayer))
+	if not valid or (session.is_online() and not Net.is_server()):
+		return # online laps are the server's, which times every car itself
+	var place := Leaderboard.submit(session.track.record_key(), Leaderboard.entry_of(r, { "time": time }), board(r), session.is_online())
 	if place == 1:
 		r.notify("Best lap %s" % _way(r.direction).to_lower(), 2.5)
 
 
 ## Player `p`'s leaderboard in this event ("" if none): score attack's, the run's, or the loop's
 ## for the way they're going.
-func board(p: SessionPlayer) -> String:
+func board(p: Racer) -> String:
 	match event.sub:
 		"score":
 			return session.platform_id + "|score"
@@ -94,7 +95,7 @@ func board(p: SessionPlayer) -> String:
 
 
 ## What `board(p)` is, in words.
-func board_name(p: SessionPlayer) -> String:
+func board_name(p: Racer) -> String:
 	match event.sub:
 		"score":
 			return "Score attack"

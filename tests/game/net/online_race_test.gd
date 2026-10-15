@@ -173,3 +173,29 @@ func test_results_menu_by_role() -> void:
 				assert_bool(names.has("Restart")).is_false()
 		assert_str(menu.row_text(0)).contains("assists: ABS TCS")
 		menu.queue_free()
+
+
+func test_a_servers_boards_stay_apart_and_reach_players_clean() -> void:
+	DirAccess.remove_absolute(Leaderboard.path_for("ring", true))
+	DirAccess.remove_absolute(Leaderboard.path_for("ring"))
+	var entry := { "score": 900, "platform": "official.highway.street", "name": "Ann", "car": "Hatch", "game_speed": 1.0 }
+	assert_int(Leaderboard.submit("ring", entry, "official.highway.street|score", true)).is_equal(1)
+	assert_int(Leaderboard.entries("ring", "official.highway.street|score", true).size()).is_equal(1)
+	assert_array(Leaderboard.entries("ring", "official.highway.street|score")).is_empty()
+	# Most points first.
+	var more := entry.duplicate()
+	more.score = 1200
+	assert_int(Leaderboard.submit("ring", more, "official.highway.street|score", true)).is_equal(1)
+	# A board from a server: names cleaned, numbers only, nothing else kept.
+	var got := []
+	var take := func(board: String, entries: Array) -> void: got.append([board, entries])
+	Net.board_received.connect(take)
+	Net._handle(NetProtocol.Msg.BOARD, { "board": "official.highway.street|score", "entries": [
+		{ "name": "Bob\u0007    ", "car": "Van", "score": 1500, "evil": "x" }, "junk"] })
+	Net.board_received.disconnect(take)
+	assert_int(got.size()).is_equal(1)
+	var e: Dictionary = got[0][1][0]
+	assert_str(String(e.name)).is_equal("Bob")
+	assert_int(int(e.score)).is_equal(1500)
+	assert_bool(e.has("evil")).is_false()
+	assert_int((got[0][1] as Array).size()).is_equal(1)

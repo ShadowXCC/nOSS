@@ -99,6 +99,7 @@ def main(argv=None):
     p.add_argument("--event", choices=["free", "race", "highway"], default="free")
     p.add_argument("--traffic", type=int, default=150, help="highway: traffic cars")
     p.add_argument("--dirs", choices=["same", "opposite"], default="same", help="highway: players start one way, or turn about")
+    p.add_argument("--sub", choices=["cruise", "score", "loop"], default="cruise", help="highway: the sub-mode")
     p.add_argument("--desync", action="store_true", help="highway: the first bot's traffic goes out of step once (it must resync)")
     p.add_argument("--laps", type=int, default=3)
     p.add_argument("--ai", type=int, default=0, help="AI cars the server adds (races)")
@@ -133,7 +134,7 @@ def main(argv=None):
     builtin_track = (ROOT / "content" / "tracks" / args.track).is_dir()
     event = {"kind": args.event}
     if highway:
-        event.update({"sub": "cruise", "traffic": args.traffic, "direction": 0 if args.dirs == "opposite" else 1})
+        event.update({"sub": args.sub, "traffic": args.traffic, "direction": 0 if args.dirs == "opposite" else 1})
     if args.event == "race":
         event.update({"practice_min": 5 if args.fresh else 0, "qualifying_min": 0, "race_laps": args.laps,
                       "ai_count": args.ai, "grid": "random", "start": "standing",
@@ -168,7 +169,8 @@ def main(argv=None):
     debug = ["--net-debug"] if args.verbose else []
     # --fresh: the garage's personal-use cars (FM4) go to this PC's own bot only (Requirements §6).
     personal = ["--share-personal"] if args.fresh else []
-    server = start("server", ["--server", f"--config={config_path}", f"--min-players={players}", "--net-stats"] + debug + personal)
+    # Its own folder (instances/90): its boards and keys never mix with this PC's player's.
+    server = start("server", ["--server", f"--config={config_path}", f"--min-players={players}", "--net-stats", "--instance=90"] + debug + personal)
     time.sleep(2.0)
     port = args.port
     sim = None

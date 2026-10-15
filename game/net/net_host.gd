@@ -15,6 +15,8 @@ signal assists_reported(id: int, used: Dictionary)
 signal port_checked(ok: bool, message: String)
 ## A client's highway traffic is out of step (or it just joined): it wants the server's (D109).
 signal resync_requested(peer: int)
+## A client wants one of this server's boards for the session's track (D118).
+signal board_requested(peer: int, board: String)
 
 var server: NetServer
 var config: ServerConfig
@@ -215,6 +217,9 @@ func handle(peer: int, type: int, data: Dictionary) -> void:
 		NetProtocol.Msg.RESYNC:
 			if peer != 1 and state == "session":
 				resync_requested.emit(peer)
+		NetProtocol.Msg.BOARD_REQUEST:
+			if state == "session" and NetProtocol.has_fields(data, { "board": [TYPE_STRING, 160] }):
+				board_requested.emit(peer, String(data.board))
 		NetProtocol.Msg.REMOVE_LOCAL:
 			if NetProtocol.has_fields(data, { "player": TYPE_INT }) and _owns(peer, data.player) and server.players_of(peer).size() > 1:
 				var name: String = server.players[data.player].name

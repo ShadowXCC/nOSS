@@ -71,6 +71,8 @@ enum Msg {
 	ASSISTS = 46, ## client: {id, used}: the assists a car has used this session (results)
 	TRAFFIC_FULL = 47, ## server: {tick, state (zstd), size, events, owners}: a highway's traffic as it is (joining, or out of step)
 	RESYNC = 48, ## client: {}: send me the traffic as it is
+	BOARD_REQUEST = 51, ## client: {board}: this session's track's board on the server (D118)
+	BOARD = 52, ## server: {board, entries}: it
 }
 
 

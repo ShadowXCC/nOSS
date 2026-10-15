@@ -100,6 +100,8 @@ var highway: HighwayControl
 var highway_field: HighwayField
 ## A highway run's start, checkpoints and finish (event.sub == "run").
 var run: RunControl
+## Online: the server's boards for this track, as last sent ({board: entries}).
+var server_boards := {}
 var traffic: TrafficManager
 ## Dev and tests: the traffic's seed (-1: the track's).
 var traffic_seed := -1
@@ -221,6 +223,10 @@ func _exit_tree() -> void:
 		Net.chat_line.disconnect(_on_chat)
 	if Net.content and Net.content.car_changed.is_connected(_on_net_car):
 		Net.content.car_changed.disconnect(_on_net_car)
+	if Net.board_received.is_connected(_on_board_received):
+		Net.board_received.disconnect(_on_board_received)
+	if Net.host_logic and Net.host_logic.board_requested.is_connected(_on_board_requested):
+		Net.host_logic.board_requested.disconnect(_on_board_requested)
 	Engine.time_scale = 1.0
 	Engine.physics_ticks_per_second = PHYSICS_HZ
 	CarVisual.lod_scale = 1.0
@@ -399,6 +405,10 @@ func _ready_online() -> void:
 	net.name = "NetSession"
 	net.session = self
 	add_child(net)
+	if highway:
+		if Net.host_logic:
+			Net.host_logic.board_requested.connect(_on_board_requested)
+		Net.board_received.connect(_on_board_received)
 	if traffic:
 		var hn := HighwayNet.new()
 		hn.name = "HighwayNet"
@@ -698,6 +708,20 @@ func close_results() -> void:
 	_close_results()
 
 
+func _on_board_received(board: String, entries: Array) -> void:
+	server_boards[board] = entries
+
+
+## Server: a client asked for one of this server's boards for this track.
+func _on_board_requested(peer: int, board: String) -> void:
+	var entries := Leaderboard.entries(track.record_key(), board, true).map(func(e: Dictionary) -> Dictionary:
+		return { "name": e.get("name", ""), "car": e.get("car", ""), "time": e.get("time", 0.0), "score": e.get("score", 0) })
+	if peer == 1:
+		server_boards[board] = entries # the host's own players
+	else:
+		Net.server.send(peer, NetProtocol.Msg.BOARD, { "board": board, "entries": entries })
+
+
 ## A highway run is done: its results on the main window; Restart lines everyone up again.
 func _on_run_done(rows: Array) -> void:
 	if dedicated or Game.dev.has("quit-after-results"):
@@ -867,8 +891,13 @@ func _open_pause(p: SessionPlayer) -> void:
 		menu.leaderboard_title = "%s · %s" % [track.display_name, platform.platform.name]
 	elif highway and highway.board(p):
 		var board := highway.board(p)
-		menu.leaderboard = Leaderboard.entries(track.record_key(), board)
-		menu.leaderboard_title = "%s · %s · %s" % [track.display_name, platform.platform.name, highway.board_name(p)]
+		if is_online():
+			# The server's board, as it last sent it; asked again for next time.
+			menu.leaderboard = server_boards.get(board, [])
+			Net.request(NetProtocol.Msg.BOARD_REQUEST, { "board": board })
+		else:
+			menu.leaderboard = Leaderboard.entries(track.record_key(), board)
+		menu.leaderboard_title = "%s · %s · %s%s" % [track.display_name, platform.platform.name, highway.board_name(p), " · this server" if is_online() else ""]
 		menu.leaderboard_scores = Leaderboard.by_score(board)
 	menu.end_session.connect(func() -> void:
 		_resume(p)
