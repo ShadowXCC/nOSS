@@ -8,7 +8,8 @@ extends RefCounted
 ## "free" (free drive), "race" (a race weekend), "time_trial" or "highway".
 var kind := "free"
 ## Highway: "cruise", "score" (score attack), "run" or "loop"; police on; traffic cars (-1: the
-## track's own count); the run's id; the direction players start in (1 or -1).
+## track's own count); the run's id; the direction players start in (1 or -1; 0: both ways,
+## turn about).
 var sub := "cruise"
 var police := false
 var traffic := -1
@@ -108,7 +109,7 @@ static func from_dict(d: Dictionary) -> RaceEvent:
 	e.qualifying_min = clampi(e.qualifying_min, 0, 120)
 	e.race_min = clampi(e.race_min, 0, 240)
 	e.traffic = clampi(e.traffic, -1, TRAFFIC_MAX)
-	e.direction = -1 if e.direction < 0 else 1
+	e.direction = clampi(e.direction, -1, 1)
 	e.run = e.run.left(32)
 	# Text fields only take their known values (events also come from servers).
 	for key: String in CHOICES:

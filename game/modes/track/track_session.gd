@@ -341,7 +341,11 @@ func _ready_highway() -> void:
 
 ## Highways: racer `i`'s starting direction.
 func direction_for(i: int) -> int:
-	return int(directions[i]) if i < directions.size() else event.direction
+	if i < directions.size():
+		return int(directions[i])
+	if event.direction == 0: # both ways: turn about
+		return 1 if i % 2 == 0 else -1
+	return event.direction
 
 
 ## The node that drives `r` (an AI racer, a dev player): the racing AI on circuits, the lane

@@ -48,6 +48,7 @@ PILEUP_M = 30.0
 PILEUP_CARS = 3
 MAX_DOWN_KB = 64.0
 MAX_TRAFFIC_ERR_M = 1.0
+HIGHWAY_MISSES = 3  # HighwayNet.MISSES: checksums that disagree before a game asks again
 
 
 def rss_mb(pid):
@@ -97,6 +98,8 @@ def main(argv=None):
     p.add_argument("--duration", type=float, default=60.0, help="seconds of driving (free drive)")
     p.add_argument("--event", choices=["free", "race", "highway"], default="free")
     p.add_argument("--traffic", type=int, default=150, help="highway: traffic cars")
+    p.add_argument("--dirs", choices=["same", "opposite"], default="same", help="highway: players start one way, or turn about")
+    p.add_argument("--desync", action="store_true", help="highway: the first bot's traffic goes out of step once (it must resync)")
     p.add_argument("--laps", type=int, default=3)
     p.add_argument("--ai", type=int, default=0, help="AI cars the server adds (races)")
     p.add_argument("--class", dest="klass", default="")
@@ -130,7 +133,7 @@ def main(argv=None):
     builtin_track = (ROOT / "content" / "tracks" / args.track).is_dir()
     event = {"kind": args.event}
     if highway:
-        event.update({"sub": "cruise", "traffic": args.traffic})
+        event.update({"sub": "cruise", "traffic": args.traffic, "direction": 0 if args.dirs == "opposite" else 1})
     if args.event == "race":
         event.update({"practice_min": 5 if args.fresh else 0, "qualifying_min": 0, "race_laps": args.laps,
                       "ai_count": args.ai, "grid": "random", "start": "standing",
@@ -185,6 +188,7 @@ def main(argv=None):
     for i in range(args.clients + args.quad):
         n = 4 if i >= args.clients else 1
         cheat = [f"--cheat={args.cheat}"] if args.cheat and i == 0 else []
+        cheat += ["--traffic-desync"] if args.desync and i == 0 else []
         bots.append(start(f"bot{i:02d}", ["--bot", f"--connect=127.0.0.1:{port}", f"--players={n}",
                                           f"--bot-fps={args.bot_fps}"] + quit_flag + cheat))
         time.sleep(0.2)
@@ -264,9 +268,13 @@ def main(argv=None):
                   t["tick_rate_min"], t.get("err_p95", 0.0)))
             if t.get("err_p95", 0.0) > MAX_TRAFFIC_ERR_M:
                 fails.append(f"{name}: traffic shown {t['err_p95']:.2f} m off (p95)")
-            if t["mismatches"] > 0:
+            desynced = args.desync and name == "bot00"
+            if desynced:  # it must notice and come back: out of step, then the server's again
+                if t["mismatches"] < HIGHWAY_MISSES or t["resyncs"] < 2:
+                    fails.append(f"{name}: put out of step, it didn't resync ({t['mismatches']} mismatches, {t['resyncs']} full states)")
+            elif t["mismatches"] > 0:
                 fails.append(f"{name}: {t['mismatches']} traffic checksums disagreed")
-            if t["resyncs"] > 1:
+            if t["resyncs"] > 1 and not desynced:
                 fails.append(f"{name}: took the server's traffic {t['resyncs']} times")
             if t["beats"] < 5:
                 fails.append(f"{name}: only {t['beats']} traffic checksums compared")

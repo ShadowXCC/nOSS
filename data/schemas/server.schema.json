@@ -108,7 +108,7 @@
         "police": { "type": "boolean" },
         "traffic": { "description": "Highway events: traffic cars (-1: the track's own count).", "type": "integer", "minimum": -1, "maximum": 400 },
         "run": { "description": "Highway events: the run's id (\"\": the first).", "type": "string", "maxLength": 32 },
-        "direction": { "enum": [-1, 1] }
+        "direction": { "description": "Highway events: the way players start (0: both ways, turn about).", "enum": [-1, 0, 1] }
       }
     }
   }

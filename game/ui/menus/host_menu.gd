@@ -2,17 +2,22 @@ class_name HostMenu
 extends Control
 ## Hosting a game (MP-01, MP-06): the server's name, password and size, the class, track and
 ## event, LAN discovery and the router port. This game runs the server and plays at the same
-## time; players who don't have the track get it from here (EDT-08). The last settings are
-## remembered (the password isn't).
+## time; players who don't have the track get it from here (EDT-08). A highway cruise (M7)
+## takes a highway track, a highway class and its traffic. The last settings are remembered
+## (the password isn't).
 
 signal closed
+
+const TRAFFIC := [[0, "Off"], [75, "75"], [150, "150"], [250, "250"], [400, "400"]]
 
 var config := ServerConfig.defaults()
 var _kind := "free"
 var _track := TrackLibrary.DEFAULT
+var _traffic := 150
 var _rows: Array = []
 var _status: Label
 var _race_settings: Button
+var _list: VBoxContainer
 
 
 func _ready() -> void:
@@ -29,13 +34,32 @@ func _ready() -> void:
 	if Game.dev.has("port"):
 		config.port = int(Game.dev.port)
 	_kind = config.event(0).kind
-	var tracks := TrackLibrary.list(true, false, "circuit") # personal-use tracks stay offline
-	var last := TrackLibrary.resolve(String(config.rotation[0].get("track", "")))
-	if tracks.any(func(e: Dictionary) -> bool: return e.path == last):
-		_track = last
-	var list := UiKit.panel(self, "Host", 860)
+	if _kind == "highway" and config.event(0).traffic >= 0:
+		_traffic = config.event(0).traffic
+	_track = TrackLibrary.resolve(String(config.rotation[0].get("track", "")))
+	_list = UiKit.panel(self, "Host", 860)
+	_build()
+
+
+## The rows again (the event changed what the track and class lists offer); the focus stays on
+## the control named `focus`.
+func _build(focus := "") -> void:
+	var fitted := Vector2(0, 600)
+	for child in _list.get_children():
+		if child is ScrollContainer:
+			fitted = (child as ScrollContainer).custom_minimum_size # the panel fitted it to the screen
+		if child is ScrollContainer or child is Button or child == _status:
+			_list.remove_child(child)
+			child.queue_free()
+	_rows.clear()
+	var type := "highway" if _kind == "highway" else "circuit"
+	var tracks := TrackLibrary.list(true, false, type) # personal-use tracks stay offline
+	if not tracks.any(func(e: Dictionary) -> bool: return e.path == _track):
+		_track = tracks[0].path if not tracks.is_empty() else TrackLibrary.DEFAULT
+	var list := _list
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0, 600)
+	scroll.custom_minimum_size = fitted
+	scroll.set_meta(&"max_height", 600.0)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.follow_focus = true
 	list.add_child(scroll)
@@ -51,16 +75,27 @@ func _ready() -> void:
 	_add(rows, UiKit.spinner("Players", sizes, clampi(config.max_players, 2, 16), func(n: int) -> void: config.max_players = n, "Most players, splitscreen included"))
 	var classes := []
 	for mode in GameModes.list():
+		if (mode.id == "highway") != (_kind == "highway"):
+			continue
 		for r: PlatformLoader.Result in GameModes.classes(mode):
 			classes.append([r.platform.id, "%s %s" % [mode.name, r.platform.name]])
+	if not classes.any(func(c: Array) -> bool: return c[0] == config.rotation[0].get("class", "")) and not classes.is_empty():
+		config.rotation[0]["class"] = classes[0][0]
+	_add(rows, UiKit.spinner("Event", [["free", "Free drive"], ["race", "Race weekend"], ["highway", "Highway cruise"]], _kind,
+		func(k: String) -> void:
+			var was_highway := _kind == "highway"
+			_kind = k
+			if (k == "highway") != was_highway:
+				_build.call_deferred("Event"), "A highway has its own tracks and classes"))
 	_add(rows, UiKit.spinner("Class", classes, config.rotation[0].get("class", "official.track.gt"),
 		func(id: String) -> void: config.rotation[0]["class"] = id, "How every car drives"))
 	_add(rows, UiKit.spinner("Track", tracks.map(func(e: Dictionary) -> Array: return [e.path, TrackLibrary.label(e)]), _track,
 		func(path: String) -> void: _track = path, "Players without it get it from you"))
-	_add(rows, UiKit.spinner("Event", [["free", "Free drive"], ["race", "Race weekend"]], _kind,
-		func(k: String) -> void: _kind = k))
-	_race_settings = UiKit.button("Race settings", _open_event, "Sessions, laps, AI and rules")
-	_add(rows, _race_settings)
+	if _kind == "highway":
+		_add(rows, UiKit.spinner("Traffic", TRAFFIC, _traffic, func(n: int) -> void: _traffic = n, "Cars on the road"))
+	else:
+		_race_settings = UiKit.button("Race settings", _open_event, "Sessions, laps, AI and rules")
+		_add(rows, _race_settings)
 	var ports := []
 	for i in NetDiscovery.PORTS:
 		ports.append([NetProtocol.DEFAULT_PORT + i, "UDP %d" % (NetProtocol.DEFAULT_PORT + i)])
@@ -76,7 +111,10 @@ func _ready() -> void:
 	var back := UiKit.button("Back", func() -> void: closed.emit())
 	list.add_child(back)
 	_rows.append(back)
-	UiKit.chain_focus(_rows)
+	UiKit.chain_focus(_rows, focus.is_empty())
+	for c: Control in _rows:
+		if focus and String(c.accessibility_name).get_slice(":", 0) == focus: # a spinner's is "Event: Free drive"
+			UiKit.focus_later(c)
 
 
 func _add(parent: Control, c: Control) -> void:
@@ -93,7 +131,7 @@ func _open_event() -> void:
 
 
 func _host() -> void:
-	var e := Settings.last_event() if _kind == "race" else RaceEvent.free_drive()
+	var e := Settings.last_event() if _kind == "race" else RaceEvent.highway("cruise", false, _traffic) if _kind == "highway" else RaceEvent.free_drive()
 	config.rotation[0]["track"] = _track
 	config.rotation[0]["event"] = e.to_dict()
 	var saved := config.to_dict()

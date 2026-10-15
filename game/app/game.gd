@@ -27,7 +27,7 @@ extends Node
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
 ##   --track=<ref>        the track for --drive, --race and --time-trial: an id, a path or a hash
 ##   --highway            a highway session right away (the first highway, or --track): --sub=cruise|score|run|loop,
-##                        --traffic=<cars>, --traffic-seed=<n>, --police, --direction=-1, --run=<id>, --players=<n>
+##                        --traffic=<cars>, --traffic-seed=<n>, --police, --direction=-1|both, --run=<id>, --players=<n>
 ##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5; a list like 5,30,90 takes several), one per window
 ##   --quit-at=<s>        quit after this many seconds
 ##   --bay                open the Fitting Bay
@@ -161,7 +161,7 @@ func first_scene() -> String:
 func start_dev_event() -> void:
 	if dev.has("highway"):
 		var h := RaceEvent.highway(String(dev.get("sub", "cruise")), dev.has("police"), int(dev.get("traffic", "-1")))
-		h.direction = -1 if int(dev.get("direction", "1")) < 0 else 1
+		h.direction = 0 if dev.get("direction") == "both" else -1 if int(dev.get("direction", "1")) < 0 else 1
 		h.run = String(dev.get("run", ""))
 		start_event(h, String(dev.get("platform", "official.highway.street")))
 		return

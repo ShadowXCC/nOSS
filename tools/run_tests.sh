@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Runs every test suite: native (doctest), JSON schemas, tools (unittest), GDScript (gdUnit4, headless),
-# platform conformance, a short AI race check, a short highway check, a short online check, the
-# track editor's 3 km acceptance build (raced and sent online), boot smoke test.
+# platform conformance, a short AI race check, a short highway check, short online checks (a race,
+# a highway with traffic), the track editor's 3 km acceptance build (raced and sent online), boot
+# smoke test.
 # Exits non-zero if any fails. Run tools/setup_dev.sh once first.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -45,6 +46,9 @@ tools/highway_check.sh --players=2 --traffic=400 --seconds=60 | grep -E "^(Highw
 
 step "Online check (3 bots and an AI car race a lap, 150 ms)"
 .venv/bin/python tools/net_check.py --clients 3 --event race --laps 1 --ai 1 --rtt 150 --jitter 10 --loss 1 | grep -E "^(net_check|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("net check")
+
+step "Online highway check (3 bots, 60 traffic cars, 150 ms, one put out of step)"
+.venv/bin/python tools/net_check.py --event highway --clients 3 --traffic 60 --duration 40 --rtt 150 --jitter 10 --loss 1 --desync | grep -E "^(net_check|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("highway net check")
 
 step "Track check (3 km track: built in the editor, raced, sent online)"
 tools/track_check.sh | grep -E "^(track_check|Race|Time|net_check|bot00 got|fresh|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("track check")

@@ -47,6 +47,7 @@ var _ask_time := -INF
 var _early := PackedByteArray() # client: events that came before the server's traffic
 var _stats_time := 0.0
 var _events_sent := 0
+var _desync_at := -1
 
 
 func _ready() -> void:
@@ -179,6 +180,14 @@ func _on_server_raw(_peer: int, _bytes: PackedByteArray) -> void:
 
 
 func _client_tick() -> void:
+	if Game.dev.has("traffic-desync") and traffic.synced and _desync_at < 0 and traffic.sim.get_tick() > 400:
+		# Dev (net_check --desync): this game's traffic goes out of step once; it must come back.
+		_desync_at = traffic.sim.get_tick()
+		for car in traffic.sim.get_count():
+			var c := traffic.sim.car(car)
+			if int(c.lane) >= 0 and not traffic.owners.has(car):
+				traffic.sim.place(car, int(c.lane), float(c.s) + 50.0, 5.0)
+				break
 	if not traffic.synced:
 		if session.net.clock.synced and Time.get_ticks_msec() / 1000.0 - _ask_time > ASK_AGAIN_S:
 			_ask()

@@ -120,3 +120,40 @@ func test_bad_address_and_no_server() -> void:
 	while Time.get_ticks_msec() < until and menu._status.text.begins_with("Joining"):
 		await _frames(1)
 	assert_str(menu._status.text).is_equal("Server not found")
+
+
+func _control(root: Node, accessible: String) -> Control:
+	for c: Control in root.find_children("*", "Control", true, false):
+		if String(c.accessibility_name).get_slice(":", 0) == accessible and c.is_inside_tree() and not c.is_queued_for_deletion():
+			return c
+	return null
+
+
+func test_hosting_a_highway_cruise() -> void:
+	var host := HostMenu.new()
+	add_child(host)
+	await _frames(2)
+	assert_object(_control(host, "Traffic")).is_null()
+	for i in 3:
+		var event := _control(host, "Event") as Button
+		if UiKit.text_of(event).contains("Highway"):
+			break
+		event.pressed.emit()
+		await _frames(2)
+	# A highway's tracks and classes, and its traffic; the focus stays on Event.
+	assert_str(UiKit.text_of(_control(host, "Track") as Button)).contains("Lumen Ring")
+	assert_str(UiKit.text_of(_control(host, "Class") as Button)).contains("Highway")
+	assert_object(_control(host, "Traffic")).is_not_null()
+	assert_object(_control(host, "Race settings")).is_null()
+	assert_str(String(get_viewport().gui_get_focus_owner().accessibility_name)).is_equal("Event: Highway cruise")
+	_assert_named(host)
+	host._host()
+	await _frames(2)
+	assert_bool(Net.is_server()).is_true()
+	var e := Net.host_logic.event()
+	assert_str(e.kind).is_equal("highway")
+	assert_int(e.traffic).is_equal(150)
+	assert_str(Net.host_logic.platform_id()).starts_with("official.highway.")
+	Net.leave()
+	host.queue_free()
+	await _frames(2)
