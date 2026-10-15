@@ -145,8 +145,8 @@ func _spawned() -> void:
 
 func _physics_process(delta: float) -> void:
 	super(delta)
-	# Police light bars as this player wants them (D116): settings may change mid-drive.
-	cameras.camera.cull_mask = LightBar.cull_mask_for(bool(slot.profile.data.get("reduce_flashing", false)), cameras.camera.cull_mask)
+	# Light bars and item effects as this player wants them (D116, D146): settings may change mid-drive.
+	cameras.camera.cull_mask = Flash.cull_mask_for(bool(slot.profile.data.get("reduce_flashing", false)), cameras.camera.cull_mask)
 	if vehicle == null:
 		return
 	_spot_time -= delta

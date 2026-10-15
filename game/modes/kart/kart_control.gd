@@ -47,6 +47,19 @@ func _ready() -> void:
 	if Game.dev.has("seed"):
 		items.rng.seed = int(Game.dev.seed)
 	add_child(items)
+	if visual:
+		var effects := KartEffects.new()
+		effects.name = "Effects"
+		effects.session = session
+		add_child(effects)
+		var hud := KartHud.new()
+		hud.name = "Hud"
+		hud.session = session
+		add_child(hud)
+		var sounds := KartSounds.new()
+		sounds.name = "Sounds"
+		sounds.session = session
+		add_child(sounds)
 
 
 ## `r` uses its item (its player's button, the AI or the item assist).

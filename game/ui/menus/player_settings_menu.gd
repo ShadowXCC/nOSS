@@ -60,6 +60,7 @@ func _build() -> void:
 	_add(rows, _assist(UiKit.number("Brake assist", float(d.assists.brake_assist) * 100.0, 0, 100, 10, "%d%%", func(v: float) -> void: profile.set_assist("brake_assist", v / 100.0), "Brakes for corners and cars ahead"), "brake_assist"))
 	_add(rows, _assist(UiKit.number("Steering assist", float(d.assists.steering_assist) * 100.0, 0, 100, 10, "%d%%", func(v: float) -> void: profile.set_assist("steering_assist", v / 100.0), "Steers toward the line"), "steering_assist"))
 	_add(rows, _assist(UiKit.check("Autodrive", bool(d.assists.autodrive), func(on: bool) -> void: profile.set_assist("autodrive", on), "The car drives itself"), "autodrive"))
+	_add(rows, _assist(UiKit.check("Item assist", bool(d.assists.get("item_assist", false)), func(on: bool) -> void: profile.set_assist("item_assist", on), "Kart: uses your item at a good moment"), "item_assist"))
 
 	_section(rows, "Comfort")
 	_add(rows, UiKit.slider("Camera shake", d.camera_shake, func(v: float) -> void: profile.set_value("camera_shake", v)))

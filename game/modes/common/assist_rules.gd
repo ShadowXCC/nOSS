@@ -7,7 +7,7 @@ extends RefCounted
 
 ## Every assist, in menu order.
 const ALL := ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid", "racing_line",
-	"auto_throttle", "brake_assist", "steering_assist", "autodrive"]
+	"auto_throttle", "brake_assist", "steering_assist", "autodrive", "item_assist"]
 ## Assists that follow the AI line (access assists, ACC-07).
 const ACCESS := ["auto_throttle", "brake_assist", "steering_assist", "autodrive"]
 ## Settings that can be Auto (by device), On or Off.
@@ -29,7 +29,7 @@ static func effective(profile: PlayerProfile, platform: Dictionary, mode: Dictio
 	var ok := allowed(platform, mode)
 	var a: Dictionary = profile.data.assists if profile else PlayerProfile.DEFAULTS.assists
 	var on := {}
-	for key: String in ["abs", "tcs", "stability", "racing_line", "auto_throttle", "autodrive"]:
+	for key: String in ["abs", "tcs", "stability", "racing_line", "auto_throttle", "autodrive", "item_assist"]:
 		on[key] = bool(a.get(key, false)) and key in ok
 	on.auto_gearbox = _by_device(a.get("auto_gearbox", "auto"), not wheel) and "auto_gearbox" in ok
 	# Without a clutch pedal (or a button for it) the car can't be driven any other way.

@@ -30,6 +30,8 @@ var assists := {}
 var _guide: Node
 ## Which device steered last: "keyboard", "gamepad" or "wheel". Picks the filters and assists.
 var active_device := "keyboard"
+## Kart: the item assist's choices (ACC-07); null while it's off.
+var item_policy: ItemPolicy
 
 var _key_steer := 0.0
 var _had_wheel := false
@@ -100,6 +102,11 @@ func _physics_process(delta: float) -> void:
 			item_requested.emit(input.held("throw_back"))
 			if racer and racer.session.kart:
 				racer.session.kart.use(racer, input.held("throw_back"))
+		elif item_policy and racer and racer.session.kart:
+			var back: Variant = item_policy.think(delta)
+			if back != null:
+				item_requested.emit(bool(back))
+				racer.session.kart.use(racer, bool(back))
 	else:
 		_h_shifter()
 	if racer and racer.held:
@@ -167,6 +174,12 @@ func apply_assists() -> void:
 	vehicle.sim.set_assists(assists)
 	if racer:
 		racer.note_assists(assists.duplicate())
+	if assists.get("item_assist", false) and item_policy == null and racer:
+		item_policy = ItemPolicy.new()
+		item_policy.racer = racer
+		item_policy.skill = 90.0
+	elif not assists.get("item_assist", false):
+		item_policy = null
 	var guided: bool = assists.auto_throttle or assists.autodrive or assists.brake_assist > 0.0 or assists.steering_assist > 0.0
 	if guided and _guide == null and racer:
 		_guide = racer.session.make_guide(racer)

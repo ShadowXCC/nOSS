@@ -5,8 +5,8 @@ extends Node
 ## players with Reduce flashing on: halves taking slow turns, never off, at most CALM_HZ
 ## flashes a second in all. Each player's camera sees one (cull_mask_for). No light is cast.
 
-const LAYER_NORMAL := 15
-const LAYER_CALM := 16
+const LAYER_NORMAL := Flash.LAYER_NORMAL
+const LAYER_CALM := Flash.LAYER_CALM
 ## Reduce flashing: the halves take turns this many times a second each, so the bar flashes at
 ## most 2 × CALM_HZ a second (WCAG: no more than three).
 const CALM_HZ := 1.5
@@ -27,9 +27,7 @@ var _calm_nodes: Array[MeshInstance3D] = []
 
 ## A camera mask that shows the bars for `reduce_flashing` (and not the others).
 static func cull_mask_for(reduce_flashing: bool, mask: int) -> int:
-	var normal := 1 << (LAYER_NORMAL - 1)
-	var calm := 1 << (LAYER_CALM - 1)
-	return (mask | calm) & ~normal if reduce_flashing else (mask | normal) & ~calm
+	return Flash.cull_mask_for(reduce_flashing, mask)
 
 
 ## The halves' brightness (0..1) at time `t`: {red, blue}.

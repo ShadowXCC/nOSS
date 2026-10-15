@@ -7,6 +7,7 @@
 #include <algorithm>
 
 #include "audio/engine_synth.h"
+#include "audio/fx_synth.h"
 #include "audio/siren_synth.h"
 #include "audio/tire_synth.h"
 
@@ -60,6 +61,7 @@ void NossAudio::_bind_methods() {
 	ClassDB::bind_static_method("NossAudio", D_METHOD("render_tire_loop", "params", "length_s"), &NossAudio::render_tire_loop, DEFVAL(2.5));
 	ClassDB::bind_static_method("NossAudio", D_METHOD("render_siren", "kind"), &NossAudio::render_siren);
 	ClassDB::bind_static_method("NossAudio", D_METHOD("render_horn", "f1", "f2"), &NossAudio::render_horn);
+	ClassDB::bind_static_method("NossAudio", D_METHOD("render_fx", "kind"), &NossAudio::render_fx);
 }
 
 namespace {
@@ -77,6 +79,10 @@ PackedByteArray pcm_bytes(const std::vector<int16_t> &p_samples) {
 
 PackedByteArray NossAudio::render_siren(const String &p_kind) {
 	return pcm_bytes(audio::render_siren(p_kind == "yelp" ? audio::SirenKind::YELP : audio::SirenKind::WAIL));
+}
+
+PackedByteArray NossAudio::render_fx(const String &p_kind) {
+	return pcm_bytes(audio::render_fx(audio::fx_kind(p_kind.utf8().get_data())));
 }
 
 PackedByteArray NossAudio::render_horn(double p_f1, double p_f2) {

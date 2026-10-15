@@ -10,7 +10,8 @@ const PRESET_NAMES := [["default", "Default"], ["deuteranopia", "Deuteranopia"],
 	["tritanopia", "Tritanopia"], ["custom", "Custom"]]
 
 ## Roles: good/bad (delta, lap valid), warn, the flags, the racing line by target speed
-## (fast, lift, brake), slip, and the four player colours.
+## (fast, lift, brake), slip, the four player colours, and kart items by what they do (attack,
+## defend, speed: D146).
 const PRESETS := {
 	"default": {
 		"good": Color("#5be673"), "bad": Color("#ff6659"), "warn": Color("#ffcc4d"),
@@ -18,6 +19,7 @@ const PRESETS := {
 		"line_fast": Color("#40d966"), "line_lift": Color("#ffd633"), "line_brake": Color("#ff4033"),
 		"slip": Color("#ffb21a"),
 		"p1": Color("#E8B71A"), "p2": Color("#4FA3FF"), "p3": Color("#FF6B5E"), "p4": Color("#5FD08A"),
+		"item_attack": Color("#ff5a4d"), "item_defend": Color("#4fa3ff"), "item_speed": Color("#ffc21a"),
 	},
 	# Red-green (green-blind): blue for good, orange and vermilion for bad (Okabe-Ito).
 	"deuteranopia": {
@@ -26,6 +28,7 @@ const PRESETS := {
 		"line_fast": Color("#56b4e9"), "line_lift": Color("#f0e442"), "line_brake": Color("#d55e00"),
 		"slip": Color("#e69f00"),
 		"p1": Color("#f0e442"), "p2": Color("#56b4e9"), "p3": Color("#d55e00"), "p4": Color("#cc79a7"),
+		"item_attack": Color("#d55e00"), "item_defend": Color("#56b4e9"), "item_speed": Color("#f0e442"),
 	},
 	# Red-green (red-blind): like deuteranopia, with a brighter vermilion (reds look dark).
 	"protanopia": {
@@ -34,6 +37,7 @@ const PRESETS := {
 		"line_fast": Color("#56b4e9"), "line_lift": Color("#f0e442"), "line_brake": Color("#ff7a1a"),
 		"slip": Color("#ffb000"),
 		"p1": Color("#f0e442"), "p2": Color("#56b4e9"), "p3": Color("#ff7a1a"), "p4": Color("#cc79a7"),
+		"item_attack": Color("#ff7a1a"), "item_defend": Color("#56b4e9"), "item_speed": Color("#f0e442"),
 	},
 	# Blue-yellow: red against teal, no blue-yellow pairs.
 	"tritanopia": {
@@ -42,12 +46,14 @@ const PRESETS := {
 		"line_fast": Color("#00c2b8"), "line_lift": Color("#f2f2f2"), "line_brake": Color("#ff3d5a"),
 		"slip": Color("#ff3d5a"),
 		"p1": Color("#ffffff"), "p2": Color("#00c2b8"), "p3": Color("#ff3d5a"), "p4": Color("#8c5aa8"),
+		"item_attack": Color("#ff3d5a"), "item_defend": Color("#00c2b8"), "item_speed": Color("#ffffff"),
 	},
 }
 ## Pairs that must stay apart (CIE76 ΔE) for each palette's own kind of colour vision.
 const MUST_DIFFER := [["good", "bad"], ["flag_green", "flag_yellow"], ["flag_yellow", "flag_blue"],
 	["line_fast", "line_brake"], ["line_lift", "line_brake"], ["line_fast", "line_lift"],
-	["p1", "p2"], ["p1", "p3"], ["p1", "p4"], ["p2", "p3"], ["p2", "p4"], ["p3", "p4"]]
+	["p1", "p2"], ["p1", "p3"], ["p1", "p4"], ["p2", "p3"], ["p2", "p4"], ["p3", "p4"],
+	["item_attack", "item_defend"], ["item_attack", "item_speed"], ["item_defend", "item_speed"]]
 const MIN_DIFFERENCE := 20.0
 
 ## Machado 2009 simulation matrices at full severity, linear RGB.

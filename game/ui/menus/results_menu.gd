@@ -26,7 +26,7 @@ var _rows: Array = []
 ## Short names for results, in this order.
 const ASSIST_NAMES := { "abs": "ABS", "tcs": "TCS", "stability": "SC", "auto_gearbox": "Auto",
 	"steer_aid": "Aid", "auto_throttle": "AT", "brake_assist": "BA", "steering_assist": "SA", "autodrive": "Auto drive",
-	"setup": "Setup", "game_speed": "Slow" }
+	"item_assist": "IA", "setup": "Setup", "game_speed": "Slow" }
 
 
 func _ready() -> void:

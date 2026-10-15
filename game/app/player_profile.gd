@@ -27,6 +27,7 @@ const DEFAULTS := {
 		"abs": true, "tcs": true, "stability": false,
 		"auto_gearbox": "auto", "auto_clutch": "auto", "steer_aid": "auto",
 		"racing_line": false, "auto_throttle": false, "brake_assist": 0.0, "steering_assist": 0.0, "autodrive": false,
+		"item_assist": false,
 	},
 	"camera": "chase_near",
 	"camera_shake": 0.5,

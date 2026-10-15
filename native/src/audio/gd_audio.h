@@ -23,6 +23,9 @@ public:
 	// A siren loop ("wail" or "yelp") or a horn chord (two tones, Hz): 16-bit mono PCM at 44.1 kHz.
 	static godot::PackedByteArray render_siren(const godot::String &p_kind);
 	static godot::PackedByteArray render_horn(double p_f1, double p_f2);
+	// A kart item sound ("pickup", "roulette", "fire", "hit", "shield", "emp", "boost", "tier",
+	// "slick"): 16-bit mono PCM at 44.1 kHz.
+	static godot::PackedByteArray render_fx(const godot::String &p_kind);
 };
 
 } // namespace noss
