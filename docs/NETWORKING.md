@@ -18,7 +18,7 @@ Both run identical server code (`NetServer` for connections, `NetHost` for the l
 ## 2. Transport
 
 - **ENet** (UDP) through Godot's `ENetMultiplayerPeer`, polled by our own `SceneMultiplayer`. Default port **UDP 47800**, configurable (D83).
-- **Protocol version 2** (M6: the track travels by hash, D98). A client and server must match it and the game version ("Version mismatch").
+- **Protocol version 3** (M7: 16-bit car ids, a second flags byte, highway traffic, D112; version 2 brought the track by hash, D98). A client and server must match it and the game version ("Version mismatch").
 - **No RPCs** (D78). Every message is raw bytes (`send_bytes`): one type byte, then either a `var_to_bytes` Dictionary (control messages; never objects; size-checked before decoding, field-checked after) or a packed binary layout (car states, race state, content).
 - **Channels:**
 
@@ -27,6 +27,7 @@ Both run identical server code (`NetServer` for connections, `NetHost` for the l
 | 0 | Reliable, ordered | Control: join, lobby, chat, sessions, results, notes, content requests |
 | 1 | Unreliable, sequenced | Car states, race state, clock pings, contact relay |
 | 2 | Unreliable, sequenced | Content chunks and their acks |
+| 3 | Reliable, ordered | Highway traffic events and heartbeats (D109) |
 
 - **ENet settings** (D79): unreliable packets are always sequenced (unsequenced ones from client to server were lost even on a perfect link). Every peer gets `throttle_configure(100, 32, 0)` as soon as ENet connects, so ENet's own throttle never drops car states. A connection gives up after about 3.5 s ("Server not found"), or 15 s once joined ("Connection lost").
 - **Encryption:** DTLS is **deferred** (D82). The password never travels (§4).
@@ -73,21 +74,30 @@ connect ─► join checks (versions, key, password, bans, room)
 | AI cars | Server | The server's AI drives them; sent like player cars (D88) |
 | Session state, timing, results | Server | `RaceControl` on the server; clients mirror its state (below) |
 | Kart items | Server | (M8) The server spawns item entities. The victim's client reports a hit; the server validates it. |
-| Police | Server | (M7) The server runs police AI cars, sent like player cars |
-| Traffic | Server (seed + events) | (M7) A seed plus spawn/despawn events; every client advances traffic deterministically |
+| Police | Server | The server runs the police units (ids from 300), sent like player cars; clients know them by their first state. Heat, busts and evades go to each player's game (HW_EVENT, D115). |
+| Traffic | Server (seed + events) | Every game runs the same lane sim from the session's seed by the server's clock; the server's events change it (below, D109). Cars near players are physics cars driven by their owner's game (D110). |
 | Weather, time | Server | (M9) Broadcast every few seconds |
 
 ### Car states
 
-- **Rate:** each game sends its own cars 30 times a second (60 when its round trip is under 30 ms); the server sends every client every other car's freshest state 60 times a second.
-- **Contents:** 44 bytes (`CarState`): id, server time (ms), position (millimetres), rotation (smallest three, 32 bits), linear and angular velocity (half floats), front steer, wheel lift, throttle, brake, gear, rpm and flags (brake lights, ghosted, waiting, placed). The pose is the car's ground reference, so a placeholder and the real car line up. Measured: about 40 KB/s down per client with 16 cars.
+- **Rate:** each game sends its own cars 30 times a second (60 when its round trip is under 30 ms), and the traffic cars it drives 20 times a second. The server relays each car to each client by priority (D111): up to 60 a second within 150 m of that client's players, 30 within 400 m, 15 within 800 m, else 5; traffic past 600 m isn't sent (the client shows its lane-sim shadow); at most 56 KB/s, the most overdue (time since last sent × rate) and placed cars first, so in a crowd every car keeps its share.
+- **Contents:** 46 bytes (`CarState`, D112): a 16-bit id, server time (ms), position (millimetres), rotation (smallest three, 32 bits), linear and angular velocity (half floats), front steer, wheel lift, throttle, brake, gear, rpm, flags (brake lights, ghosted, waiting, placed, handbrake, knocked) and flags2 (horn, light flash, indicators, siren, light bar; a traffic car's wrecked and on-the-line). Ids: players 1–199, the server's AI 200–299, police 300–399, traffic 1000 + its lane-sim index. The pose is the car's ground reference, so a placeholder and the real car line up.
 - **Remote cars are shown at the present time** (D84, `MotionBuffer`): extrapolated from their newest state to now (velocity, acceleration from the last two states, turn rate, at most 0.5 s ahead). A correction fades out over 0.15 s; a placed car (a reset, the grid) snaps. Locally they're **kinematic** bodies. Clients keep the server's clock with pings (the fastest recent round trip wins).
 - **Car-to-car contact** (D86): a remote car is kinematic, as heavy as a wall, so after a knock the local car gets back the share an equal-mass collision wouldn't have given it. The knock also goes through the server (checked: owner, distance, at most 10 a second per pair, at most 3 m/s of speed) to the other car's game, which uses it only if it didn't feel that knock itself.
 - **Ghosting:** the event can turn car-to-car contact off; online races are ghosted until the lights go out; with the server's `ghost_bad_links` rule (on by default), a car whose link is over 250 ms or 5% loss for 3 s races ghosted.
 
+### Highway traffic (D109, D110)
+
+- **The lane sim:** every game runs `NossTraffic` from SESSION's `highway` (seed, count, t0), stepped to tick (server time − t0) × 20. It's integers throughout, so every build gives the same result (Linux and Windows agree, `tools/traffic_determinism.sh`).
+- **Events** (24 bytes each, raw message 110 on channel 3): promote, demote, wreck, tow, reshadow, close, open, and handover. Only the server makes them, `lead` ticks ahead (half the worst round trip plus 0.15 s, 0.25–0.6 s); every game applies them at that tick, rolling back and replaying (up to 64 ticks) if one comes late.
+- **Heartbeat** (raw 105, once a second): a tick and the server's checksum of the lane sim then. Three disagreements running, joining, or an event too old to replay: the client asks (RESYNC) and gets TRAFFIC_FULL: the state (zstd), the events still to land, and who owns each physics car.
+- **Physics cars:** a lane car near a player becomes a physics car on the nearest player's game (its owner), which sends its states; other games show a kinematic proxy, which follows its shadow until states come. The owner's flags (wrecked, on the line) let the server rule on it like its own. Handover after a second of another player being clearly nearer; an owner leaving hands over at once. Knocks with a traffic car go to its owner like any car's (D86).
+- **Measured** (one PC, `net_check.py --event highway`): 0 checksum disagreements with 16 players and 150 cars, and at 150 ms RTT with 1% loss; a game put out of step on purpose resyncs once and stays in step.
+- **Not yet:** a game whose lane graph differs from the server's (a different build of the track code) keeps its own traffic and warns; fetching the server's graph (TRAFFIC_GRAPH), clients reporting how many physics cars they can take (HW_CAP), and a touch promoting a lane car on the spot (TOUCH) are left for later.
+
 ### Race state (D85)
 
-- The server's `RaceControl` decides everything; `NetRace` sends what clients need: the grid when a session begins (each game puts its own cars there), the race state 10 times a second (20 bytes a car: held, flag, laps, best, last, penalty, warnings, finish, position; the phase, clock and the scheduled lights-out), the results, and notes for one driver ("Track limits: warning").
+- The server's `RaceControl` decides everything; `NetRace` sends what clients need: the grid when a session begins (each game puts its own cars there), the race state 10 times a second (21 bytes a car, a 16-bit id then: held, flag, laps, best, last, penalty, warnings, finish, position; the phase, clock and the scheduled lights-out), the results, and notes for one driver ("Track limits: warning").
 - **Fair timing:** the server times every car from where it shows it now; remote cars are extrapolated to the present, so a laggy player isn't timed late. **Lights-out** is a server time; each game releases its own cars when its clock reaches it.
 - Clients mirror the state; a player's own lap timer still drives their HUD.
 
@@ -140,7 +150,12 @@ connect ─► join checks (versions, key, password, bans, room)
 | Latency | Playable at ≤150 ms RTT | At 150 ms with 10 ms jitter and 1% loss: remote cars within 2 cm (median), 12 cm (95%); 11 cars raced 2 laps, all classified, no contacts |
 | Steady bandwidth | ≤64 KB/s per client | About 43 KB/s down, 3.4 KB/s up per player, with 16 cars |
 | New player with an empty cache | Sees every real car within 60 s on a 50 Mbit link | 11 real cars whole in 22.7 s (20 ms), 25.0 s (150 ms) |
+| Highway, 16 players and 150 traffic cars (M7) | In step, ≤64 KB/s | 0 checksum disagreements; 26–44 KB/s down; remote players within 0.03 m, traffic within 0.06 m (95%); lane sims at 19–20 ticks a second |
+| Highway at 150 ms, 1% loss (M7) | In step | 4 bots, 150 cars: 0 disagreements, late events rolled back (up to 9 a minute), traffic within 0.1 m (95%) |
+| Highway, 10 minutes with police (M7) | In step, ≤64 KB/s, the server on time | 16 players, 150 cars: 0 disagreements in about 600 checks each; 22–39 KB/s down (54 KB/s for 4 players on one connection); remote players within 0.06 m, traffic within 0.13 m (95%); no plausibility flags; the server's scripts about 340 ms a second (D125) |
+| Loop online (M7) | Players each way meet every lap; the traffic comes round | 2 players each way at 1.6 × the limit: 2–3 meetings a lap, 91% of the traffic met one lap met again the next |
+| Exported builds (M7) | Linux and Windows in step | The Linux dedicated server, an exported Linux bot and the Windows export under Wine: 0 disagreements |
 
-- **Tools:** `tools/net_sim.py` (a UDP proxy adding delay, jitter, loss and a bandwidth cap, no root needed) and `tools/net_check.py` (a dedicated server, headless bot clients, optionally `net_sim`; reports bandwidth, remote-car error, contacts and pile-ups, memory, race results, and a fresh client's download times). `tools/run_tests.sh` runs a one-lap race with 3 bots and an AI car at 150 ms.
+- **Tools:** `tools/net_sim.py` (a UDP proxy adding delay, jitter, loss and a bandwidth cap, no root needed) and `tools/net_check.py` (a dedicated server, headless bot clients, optionally `net_sim`; reports bandwidth, remote-car error, contacts and pile-ups, memory, race results, and a fresh client's download times). `tools/run_tests.sh` runs a one-lap race with 3 bots and an AI car at 150 ms, and a highway with 3 bots and 60 traffic cars at 150 ms, one put out of step on purpose. Highway options: `--event highway --traffic N --dirs same|opposite --sub cruise|score|loop --police --speed-factor X --desync --open`. With `--dirs opposite` the server watches the first player each way round (the same `LoopWatch` as `highway_check --scenario=loop`): they must pass every lap, at least 60% of the traffic met one lap must come round the next, and the server must count the other player's laps too.
 
 **Replays and ghosts** can reuse the same car-state format (AV-08).

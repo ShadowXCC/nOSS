@@ -10,27 +10,28 @@ An in-game editor, built with Godot's UI (not the Godot editor), for building, i
 |---|---|---|
 | `circuit` | Track, Kart | Closed loop |
 | `p2p` | Track, Highway runs, Kart | Point to point |
-| `highway` | Highway | Multi-lane network with ramps (EDT-10, M7). The main road can close into a two-way loop for the Loop sub-mode. |
+| `highway` | Highway | A carriageway each way either side of a median, with ramps to portals and flyovers between the carriageways (EDT-10, M7, D106). In M7 the main road is always a closed loop, so one map serves every sub-mode; open highways come with Endless (M9). |
 | `arena` | Kart battle | Open area, no lap logic |
 
 Endless mode generates its roads procedurally and doesn't use editor tracks. It shares the same road and terrain mesh code.
 
 ## 2. Editor tools
 
-**Track Editor** on the title screen. A panel of tools on the left, the track in a 3D view on the right, and Test drive, Undo, Redo, Save and Exit under the panel. Status lines are read out (polite live region). In M6 the editor builds circuits; the other track types come with their milestones.
+**Track Editor** on the title screen. A panel of tools on the left, the track in a 3D view on the right, and Test drive, Undo, Redo, Save and Exit under the panel. Status lines are read out (polite live region). It builds circuits and (M7) highways: the "Highway loop (4 km)" template, or "Track type: Highway" in the Road tool.
 
 | Tool | What it does |
 |---|---|
-| **Road** | Click to add control points (on the road: into it), drag to move, Alt+drag for height. Per point: widths left and right, banking, height (on the ground or set). Per segment (to the next point): surface, lanes, lines, curbs, barriers and run-off each side. "Use these everywhere", Flip direction. On a fitted scene: the centreline only (§7.1). |
+| **Road** | Click to add control points (on the road: into it), drag to move, Alt+drag for height. Per point: widths left and right, banking, height (on the ground or set). Per segment (to the next point): surface, lanes, lines, curbs, barriers (sound walls too) and run-off each side. "Use these everywhere", Flip direction, Track type. On a highway the points are the median's line, and instead of widths: lanes each way (2–4), lane width, median width and barrier, shoulders, speed limit and the outer barriers (the widths follow). On a fitted scene: the centreline only (§7.1). |
+| **Ramps** | Highways only (D122). Add at the cursor, on the carriageway it's on: an exit and an entry (an interchange), an exit, an entry, or a crossover (a flyover to the other carriageway). Click a ramp to pick it; drag its points (Alt+drag: height) or set them by field; insert and delete points; move it along the road; name, lanes (1–2), speed limit, whether traffic uses it, its portal's name; delete it (and its portal). A drag rebuilds only that ramp. |
 | **Surfaces** | Fitted scenes only (§7.1): what each material is to a car, rules by name, style, Measure widths. |
 | **Terrain** | Raise, lower, smooth, flatten (with "Pick height") and noise brushes; size, strength, falloff. "Fit terrain to track". |
 | **Paint** | Eight layers: grass, dirt, sand, gravel, rock, snow, concrete, asphalt. Wheels drive on what's painted. |
 | **Props** | Place (by kind: nature, buildings, trackside, ground), move, turn, scale, size; scatter and erase with a brush (kept off the road, spaced, random turns and sizes). |
-| **Race** | Start line, sectors, checkpoints, grid, rolling start, gantry, AI caution, and the AI line: drag it sideways to pin it (§4). |
+| **Race** | Start line, sectors, checkpoints, grid, rolling start, gantry, AI caution, and the AI line: drag it sideways to pin it (§4). On a highway: the lap line, runs (click where one starts, then where it ends), speed traps, zones (speed limit, tunnel, which way) and the traffic (cars, share taking exits); no grid or AI line. |
 | **Check** | What the checks found (§6), errors first; each one shows where it is. |
 | **File** | Name, author, license; Save, Save as a copy, New track (from a template), Open track, Import scene, Show track files. |
 
-Templates: Empty, Oval (1.2 km), Circuit (2.5 km), Figure 8 with a bridge. Each comes on terrain sized round it, with its start, grid and sectors set.
+Templates: Empty, Oval (1.2 km), Circuit (2.5 km), Figure 8 with a bridge, each on terrain sized round it with its start, grid and sectors set; and Highway loop (4 km): flat concrete, 3 lanes each way, an exit and an entry each way and a flyover each way. A highway's test drive is Cruise with its traffic.
 
 **Controls** (D95). Every view action is also a panel button, and every value has a field:
 
@@ -140,8 +141,25 @@ my_track.nosstrack
   "environment": {}, "scene": null }   // a fitted scene: { "glb":"scene/scene.glb", "tags":"scene/tags.json" }
 ```
 
+- A highway (`"type":"highway"`, D106) adds a `highway` section; its road's defaults come from it (widths, no curbs, concrete run-off and barriers):
+
+```jsonc
+"highway": { "drive":"right", "lanes":3, "lane_m":3.6, "median_m":2.4, "shoulder_in_m":0.8, "shoulder_out_m":3.0,
+  "median_barrier":"concrete", "speed_kmh":110,
+  "zones":  [{ "dir":0, "from_m":2580, "to_m":3240, "speed_kmh":80, "tunnel":true, "name":"Cathedral Tunnel" }],
+  "ramps":  [{ "id":"interchange_1_off", "name":"Harbour Gate", "kind":"exit",          // exit, entry or link
+               "from":{ "dir":1, "at_m":1010 }, "to":{ "portal":"interchange_1_out" },  // or { "dir":-1, "at_m":… }
+               "lanes":1, "lane_m":3.6, "taper_m":200, "speed_kmh":70, "traffic":true,
+               "points":[{ "p":[x,y,z], "height":"set" }] }],                           // the points between its ends
+  "portals":[{ "id":"interchange_1_out", "name":"Harbour Gate", "p":[x,y,z], "yaw_deg":90 }],  // one per ramp
+  "runs":   [{ "id":"harbour_sprint", "name":"Harbour sprint", "dir":1, "from_m":7280, "to_m":1000 }],
+  "traps":  [{ "dir":-1, "at_m":2072 }],
+  "traffic":{ "count":150, "exit_share":0.15, "seed":7 } }
+```
+
+  Direction 1 drives along the road's line on its right side, −1 the other way on its left; lanes count from the outside; `race.start_m` is the lap line. Flip direction swaps the directions and mirrors the distances; the ramps stay where they are.
 - **Content hash** = SHA-256 of `manifest.json`, the same scheme as cars ([VEHICLE_PACKAGE.md §2](VEHICLE_PACKAGE.md#2-manifestjson)).
-- **Layout hash** = SHA-256 of the road and race setup (AI pins left out). Records for a track you made are kept under its id and layout, so changing the layout starts them afresh; built-in tracks keep theirs under the id (D97).
+- **Layout hash** = SHA-256 of the road and race setup (AI pins left out), and a highway's section (its traffic settings left out). Records for a track you made are kept under its id and layout, so changing the layout starts them afresh; built-in tracks keep theirs under the id (D97).
 - **Limits:** 100 MB zipped, 250 MB unpacked, 512 files; scenes up to 2 M triangles, 20 000 nodes and 4096² textures. Servers can lower them.
 - **Safety:** the same rules as car packages ([VEHICLE_PACKAGE.md §9](VEHICLE_PACKAGE.md#9-limits-and-safety)): every file is checked against the manifest's hash before any is used, sizes before anything is decompressed or decoded. Never Godot resource files or scripts.
 - **Where:** your tracks are `user://tracks/*.nosstrack` (File → Show track files); built-in tracks are folders in `content/tracks/`.
@@ -171,6 +189,14 @@ my_track.nosstrack
 | The AI line out of the road, kinked, or slower than a walk | AI line error at 2.1 km | error |
 | A fitted scene: nothing drivable tagged; the road under the line untagged; no ground under the grid or a checkpoint | No surfaces tagged / Road surface not tagged / Grid off the road / Checkpoint blocked | error |
 | "Personal use only" license | Personal-use tracks stay offline | note |
+| A highway: a ramp that doesn't build (too short, no portal) | exit_1: Ramp too short | error |
+| A highway ramp tighter than it is wide; on the road it doesn't join without 4.5 m between them | Ramp too tight: Exit 1 / Ramp overlaps road: Exit 1 | error |
+| Two highway ramps leaving or joining at the same place, or on each other | Ramps too close: A, B / Ramps overlap: A, B | error |
+| A highway ramp steeper than 8% | Ramp too steep: Exit 1 | warning |
+| Exits off a carriageway but no entry back onto it | Exit with no entry back | warning |
+| No crossover, or one way only | No crossover / Crossover one way only | warning |
+| A run under 500 m | Run too short: Dash | error |
+| Traffic can't use the road (its lane graph won't build) | Traffic can't drive it: … | error |
 
 ## 7. Map import
 

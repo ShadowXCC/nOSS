@@ -31,10 +31,11 @@ Each local player has their own set of actions:
 | Change car | Tab | Tab | [ | D-pad up |
 | Pause | Esc | Esc | Backspace | Start |
 | Back to editor (test drives) | F5 | F5 | F8 | D-pad down |
+| Horn, flash lights (M7) | H, L | V, T | M, L | L3, X |
 | Menu confirm, back | Enter or Space, Esc or Backspace | Space or F, Esc or G | Enter, Backspace | A, B |
 | Frame rate | F3 (any keyboard) | | | — |
 
-One-handed controller layouts (`pad_left_hand`, `pad_right_hand`) put driving on one half of the pad; reset, change car and back to editor are then in the pause menu.
+One-handed controller layouts (`pad_left_hand`, `pad_right_hand`) put driving on one half of the pad; reset, change car and back to editor are then in the pause menu, and the horn and lights are unbound (D119). No two driving actions share an input on any preset (a test checks it).
 
 The **track editor** has its own controls for its view (mouse, keyboard or controller with a crosshair; [TRACK_EDITOR.md §2](TRACK_EDITOR.md#2-editor-tools)). They can't be rebound yet (D103).
 

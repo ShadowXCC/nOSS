@@ -153,6 +153,7 @@ Vehicle (RigidBody3D, Jolt)       mass, inertia, CoG from platform (never from t
 - **Racer** (`game/modes/common/`, M4): one car in a session: car loading and hotswap, lap timer, reset spot and safe rejoin, race state (held, finished, penalties, flag). **SessionPlayer** adds a player's controller, camera rig, HUD and menus; **AiRacer** is a computer driver (RacingAI) with no view. The **TrackSession** keeps the shared parts (track, platform, views, grid, pause) and handles drop-in and drop-out.
 - **RaceField** projects every car onto the track once per tick before anyone drives; drivers, the spotter, flags and standings read it. **RaceControl** runs the event's sessions (practice, qualifying, race, time trial, free drive): grid, countdown, standings, flags, track limits, finish and results (D63, D67).
 - **Physics order per tick:** player input (−90) → RaceField (−60) → RaceControl (−55) → drivers (−50) → vehicles (0).
+- **Highways** (`game/modes/highway/`, M7, D113): a highway event adds **HighwayField** (where each car is: road or ramp, carriageway, lane; wrong way), **TrafficManager** (the native lane sim `NossTraffic` in `native/src/traffic/`: stepping it, drawing distant traffic with one MultiMesh per type, turning cars near players into physics **TrafficCar**s and back, wrecks and tows, solid boxes past the cap), **HighwayControl** (starts, portals, resets, turning round, Join, loop boards, name plates) and, by sub-mode, **HighwayScore** (ScoreAttack rules and NearMiss), **RunControl** and **PoliceControl** (Heat; PoliceRacer units driven by PoliceAI, which drives the lanes like the autodrive's **HighwayDriver**). Order: HighwayField (−59) → TrafficManager (−58) → HighwayControl (−56) → drivers and traffic cars (−50) → RunControl (−45) → PoliceControl (−44) → HighwayScore (−40).
 
 ## 6b. Online
 
@@ -162,7 +163,8 @@ Vehicle (RigidBody3D, Jolt)       mass, inertia, CoG from platform (never from t
 - **NetContent** (per role) decides who fetches which car, track and platform; one **NetTransfer** per link moves files by hash (zstd, unreliable chunks, own acks and rate control); **ContentStore** is the hash-addressed cache and **ContentIndex** what this game may send.
 - **In a session**, the TrackSession gets a **NetSession** (car states out and in, clock sync, contact relay, plausibility on the server) and a **NetRace** (the server's race state, grid, results and notes to clients, whose RaceControl only follows). Every car not driven here is a **NetRacer**: a kinematic Vehicle moved by its **MotionBuffer** to where its states put it now.
 - **The dedicated server** (`ServerMain`) runs the same code with no players of its own, no views, no sound and no car models.
-- **Physics order per tick** online: devices (−100) → network poll (−95) → lobby (−94) → content (−93) → player input (−90) → car states (−80) → remote cars (−70) → RaceField (−60) → RaceControl (−55) → NetRace (−54) → drivers (−50) → vehicles (0).
+- **Highways online:** a **HighwayNet** (−59) keeps every game's lane sim on the server's ticks: the server's events and heartbeats out, and on clients the full state when they join or fall out of step (D109); traffic cars a game drives go out with its car states, and other games' show as proxies (D110). **RelayScheduler** picks which states each client gets, nearest first within a byte budget (D111).
+- **Physics order per tick** online: devices (−100) → network poll (−95) → lobby (−94) → content (−93) → player input (−90) → car states (−80) → remote cars (−70) → RaceField (−60) → highway traffic sync (−59) → RaceControl (−55) → NetRace (−54) → drivers (−50) → vehicles (0).
 
 ## 7. Render style profiles
 
@@ -215,7 +217,8 @@ user://
 ├─ platforms/                  custom and downloaded platforms
 ├─ setups/<platform>/<track>.json
 ├─ ghosts/<track>/<platform>/   best.json and ghosts from friends
-├─ leaderboards/<track>.json    local time-trial leaderboards
+├─ leaderboards/<track>.json    local boards: time-trial laps, highway scores, runs and loop laps;
+│                              server/ (a server's own boards of what it measured, M7)
 ├─ replays/
 ├─ identity/key.pem            this install's online key (fingerprint = SHA-256 of its public key)
 ├─ cache/content/              downloaded cars and tracks (unpacked), platforms, by hash; hosted/ (a
@@ -228,7 +231,8 @@ user://
 
 ## 11. Testing
 
-- **Run everything:** `tools/run_tests.sh` (native build, doctest, schemas, gdUnit4 headless, conformance, an AI race, an online race, the track editor's 3 km acceptance build, boot smoke test).
+- **Run everything:** `tools/run_tests.sh` (native build, doctest, schemas, gdUnit4 headless, conformance, an AI race, a highway with 400 traffic cars, an online race, an online highway, the track editor's 3 km acceptance build, boot smoke test).
+- **Highways:** `tools/highway_check.sh` runs a highway session headless (`--scenario=cruise`: nothing stuck, a constant population; `--scenario=loop`: players going opposite ways meet every lap and the traffic comes round again). `tools/traffic_determinism.sh` compares the Linux and Windows builds' lane sims. `--traffic-selftest` prints a lane sim's checksum.
 - **Track editor:** `tools/track_check.sh` builds a 3 km track headless with the editor's own commands, checks, saves and reloads it, races 8 AI cars on it and sends it to a fresh bot online. The Proving Ground has a golden test (samples, curbs, AI line, lap time, grid, pieces) that every change to the track code must keep.
 - **GDScript:** gdUnit4, run headless (`godot --headless`).
 - **Native:** doctest unit tests for tire, suspension and drivetrain math.

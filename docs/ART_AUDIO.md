@@ -105,6 +105,10 @@ Every car carries its own engine sound inside its `.noss` (`sound/`, format in [
 
 **Tire sounds (D90):** each car picks a built-in tire sound in the Fitting Bay's Sound step (`data/tire_sounds/<id>.json`, schema `tire_profile`), or brings its own loop over it. **Squeal** (the default) is synthesized by `NossAudio.render_tire_loop`: noise through narrow band-passes at non-harmonic centres (about 1.05, 1.73 and 2.6 kHz), a faint tone that wanders at random, and a random flutter of the level, in a seamless 2.5 s loop. Its level follows the fastest-slipping wheel on a paved surface (1.5 m/s starts it, 7.5 m/s is loudest), comes in fast (30 ms) and fades slowly (160 ms), and a broad scrub layer joins in for locked or spinning wheels. **Classic** is the first nOSS tire tone, kept as it was. A new built-in is a new JSON file. The Sound step's **Skid** button plays the tires in the bay.
 
+**Highway sounds (M7):** sirens are synthesized by `NossAudio.render_siren` (a 4 s wail, a faster yelp within 80 m of the listener, with Doppler as they pass); the horn by `NossAudio.render_horn` (two tones, a seamless half-second loop) for every car, remote ones from their states; traffic near players shares six engine loops (a light I4 and a heavy V8 made by the engine synth) instead of a sound per car (D120).
+
+**Traffic and police models (M7, D117):** seven original low-poly vehicles made in code by `tools/make_traffic_set.gd` (hatchback, saloon, SUV, van, box truck, bus, police), each with a far LOD merged into one mesh per type (drawn with one MultiMesh, paint from each car's colour, brake and indicator lights from bits) and light groups (head, brake, indicators; the police car's light bar halves). The city round the Lumen Ring is props made in code too: four tower types, a landmark tower, overpasses, sign gantries, crash cushions, double lamps and laybys.
+
 **Splitscreen mix:** see [ARCHITECTURE.md §6](ARCHITECTURE.md#6-local-players-splitscreen-and-multi-monitor).
 
 ## 8. Later extras

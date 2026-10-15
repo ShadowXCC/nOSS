@@ -6,7 +6,8 @@ Everyone should be able to drive. This doc covers options for vision, hearing, m
 - M1: comfort options, accessible names and focus order.
 - M3: every setting per player in their profile (ACC-01). From ACC-02: HUD size 50–200% and menu text 100–200%, high-contrast HUD, the Clear font (Atkinson Hyperlegible), brightness per view. From ACC-06: hold or toggle, one-handed layouts (`pad_left_hand`, `pad_right_hand`; `kb_left` and `kb_right` for one hand on the keyboard), two devices driving one car, menus with directions + confirm + cancel only (choices step with left and right), adjustable menu repeat.
 - M4: colourblind palettes (Default, Deuteranopia, Protanopia, Tritanopia, Custom) checked by simulation; narration through the OS text-to-speech for menus and race events; spotter with markers or voice; captions for every spoken line; volume groups and mono; shift light under 3 flashes a second, slip indicator, close-car arrows; HUD presets and per-element hiding; Reduce flashing; access assists (auto-throttle, brake assist, steering assist, autodrive); game speed; the first-boot screen; screen readers follow menus inside players' views; boot → race → results checked over AT-SPI (`tools/a11y_check.py`) and keyboard-only and controller-only by tests.
-- Not yet: rewind, haptic cue patterns, audio-only racing (§10); flashing police lights and kart items (M7, M8).
+- M7: police light bars drawn twice, so each player sees the full pattern or, with Reduce flashing, at most three flashes a second at lower contrast (D116; a test samples it at 1 kHz); sirens on the sound arrows; the heat meter in pips and words; banked and lost points, heat, busted and evaded read out and captioned; name plates over other players' cars; the highway menus and the Ramps tool named and in the focus order.
+- Not yet: rewind, haptic cue patterns, audio-only racing (§10); flashing kart items (M8).
 
 ---
 

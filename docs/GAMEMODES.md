@@ -74,61 +74,62 @@ Original names and effects. Each racer holds one item, and triple items count as
 
 ## 3. Highway
 
-*MODE-03, MODE-04, AI-03, AI-04, EDT-10. Milestone M7.*
+*MODE-03, MODE-04, AI-03, AI-04, EDT-10. Milestone M7 (D106–D124).*
 
-High-speed driving through traffic on long multi-lane highways with on/off ramps, either open-ended or a closed loop. The first map is built with the editor; a procedural highway generator comes later.
+High-speed driving through traffic on a multi-lane highway that closes into a loop, with on and off ramps. The first map, the **Lumen Ring** (8.3 km, D121), is made with the track editor; open-ended highways and a generator come with Endless (M9).
+
+**Start:** title → Highway → the track → what to do (mode, traffic Off/75/150/250/400, police, which way round: clockwise, anticlockwise or both ways in turn; the run for Runs) → the class (Street or Super) → players. Players start in single file on the hard shoulder behind the lap line. Online, the host picks "Highway cruise" in the host menu.
 
 ### Traffic
 
-- Spawned by the server from a seed and density settings ([NETWORKING.md §6](NETWORKING.md#6-server-owned-simulation)).
-- Lane-following AI that signals before changing lanes, with a speed spread per lane.
-- Vehicle types: cars, vans, trucks, buses (original low-poly set).
-- Density follows time of day: rush hour, quiet nights.
+- Every game runs the same traffic from the session's seed (D108, D109): hatchbacks, saloons, SUVs, vans, trucks and buses (an original low-poly set, D117), each with its own speed spread.
+- Cars keep to lanes, signal for 1.5 s before changing lanes, keep right unless overtaking (trucks and buses stay in their lanes), slow for corners and the tunnel's limit, take exits and join from entries. The same cars come round again: a car that leaves at an exit comes back later out of a portal.
+- Near a player a car becomes a full physics car (D110): it can be hit, spun and wrecked. A wreck stays where it stopped until nobody is near, then it's towed. Further away cars are drawn from the lane sim.
+- Not yet: density by time of day (with the day–night cycle, M9).
 
 ### Sub-modes
 
 | Sub-mode | Description |
 |---|---|
-| **Cruise** | Free roam. No score. Chat. "Join friend" teleports you to a friend. |
+| **Cruise** | Free roam. No score. Chat. "Join" in the pause menu puts you behind another player. |
 | **Score attack** | Near-miss scoring with combos (below) |
-| **Runs** | Point-to-point between exits or markers through traffic. Rolling start, checkpoints. Solo time attack or head-to-head. |
-| **Loop** | A closed highway driven both ways. You keep meeting the same players and traffic each lap (below). |
-| **Police** | Toggle that layers on top of any sub-mode (below) |
+| **Runs** | A sprint between two marks through traffic: lanes closed behind the start (a traffic break), a rolling start at 90 km/h, each player's clock starting at the line, a checkpoint every 400 m (an exit or a flyover is out of the run), results and a board. Solo or splitscreen head-to-head; online runs come later. |
+| **Loop** | Lap times each way round (below) |
+| **Police** | A toggle on top of any sub-mode (below) |
 
 ### Score attack
 
 | Event | Points |
 |---|---|
-| Near miss | Gap < 1.0 m (hull to hull) while passing at > 30 km/h relative speed |
-| Close miss | Gap < 0.5 m. Double points. |
-| Lane split | Passing between two side-by-side vehicles. Bonus. |
-| Speed multiplier | ×1 at 120 km/h, ×1.5 at 160, ×2 at 200, ×3 at 250+ |
-| Combo | Grows with each near miss within a 5 s window |
+| Near miss | 100: under 1.0 m hull to hull while passing 30 km/h faster or more |
+| Close miss | 200: under 0.5 m |
+| Lane split | +300: two close passes either side within 0.6 s |
+| Speed multiplier | Nothing under 120 km/h; ×1 from 120, ×1.5 from 160, ×2 from 200, ×3 from 250 |
+| Combo | Each event within 5 s of the last grows it: ×1 for the first, +0.25 for each after, at most ×5 |
 
-- **Banking:** points stay unbanked while the combo runs. They bank once the combo ends cleanly (no events for 5 s). Any contact with traffic or a wall **loses all unbanked points**.
-- **Leaderboards:** per server and local best.
+- **Banking:** the chain's points × the combo bank once 5 s pass with no event. Any contact over 20 N·s with traffic, police or a wall **loses what isn't banked**. Going the wrong way scores nothing.
+- **HUD:** the banked score, the chain and its multiplier, a bar for the time left before it banks, the speed step, and a line for each pass ("Close miss +300", "Combo ×4", "Banked 2500", "Lost 1200"); banked and lost are read out with race narration and captioned.
+- **Leaderboards:** each player's best of a session on the local board; online the server scores every player itself and keeps its own boards (D114, D118).
 
 ### Police
 
-- **Heat 1–5** rises with speeding in view of police, near misses and crashes. Higher heat brings more units, then roadblocks (heat 4+), then spike strips (heat 5, later).
-- **Busted:** police contact while your speed stays under 10 km/h for 3 s. You lose unbanked score and heat, and respawn.
-- **Evade:** break line of sight and keep > 300 m away until the cooldown ends.
-- Police drive **Interceptor** platforms. Players as police comes later (M10+).
+- A unit waits at each **speed trap**, parked on the shoulder. Only what a unit sees counts (within 250 m, in line of sight): speeding 20 km/h over the limit (+1 heat every 2 s), a near miss (+1), a close miss (+2), a crash (+3), ramming a unit (+5).
+- **Heat 1–5** (from 1, 6, 15, 30 and 50 points): that many units after you, sent in from behind out of sight, sirens and light bars on. From heat 4 a **roadblock** ahead: every lane but the outer one closed, two units across. Not yet: spike strips, traffic pulling over for sirens, and patrols cruising in traffic (units wait at the traps or come in when sent).
+- **Busted:** under 10 km/h with a unit touching you or within 0.6 m for 3 s. You lose the unbanked score and the heat, and start again on the shoulder.
+- **Evaded:** out of every unit's sight and over 300 m from them all for 8 s + 4 s per heat level.
+- Police drive **Interceptors**. The HUD shows the heat (pips and the word) and how close you are to losing them; sirens show on the sound arrows. With Reduce flashing the light bars flash at most three times a second (D116). Players as police come later (M10+).
 
 ### Loop
 
 A highway that closes on itself, like a city ring expressway. The world feels lived-in: the same players, cars and landmarks come round again.
 
-- **Map:** a `highway` track whose main road forms a closed loop ([TRACK_EDITOR.md §1](TRACK_EDITOR.md#1-track-types)), with two carriageways (clockwise and counter-clockwise) split by a barrier, plus ramps.
-- **Direction:** pick one when you spawn. Switch at any interchange, or pick again when you respawn.
-- **Other players:** players going the other way pass you head-on across the barrier, so you keep seeing them. At similar speeds, two players going opposite ways meet about twice per lap. Players going your way are caught or catch you. Nameplates show across the barrier, and horn and light flashes work as greetings.
-- **Persistent traffic:** the loop's whole traffic population keeps circulating instead of despawning behind you, so you pass the same cars again. A few vehicles leave and join at ramps so it never feels frozen.
-  - Every traffic car on the loop is a lightweight lane follower in `noss_core`. Only cars near a player become full vehicles.
-  - Online, the server still sends just a seed plus ramp spawn and exit events ([NETWORKING.md §6](NETWORKING.md#6-server-owned-simulation)).
-- **Fixed sights:** skyline, bridges, tunnels and signs stay put, so laps become familiar.
-- **Lap time:** optional. A gantry marks the lap line and each direction has its own best time. Local and per-server leaderboards.
-- **Wrong way:** ramps are one-way. Driving against traffic shows "Wrong way" and pauses scoring.
-- **Combines with:** cruise, score attack and police all run on a loop map.
+- **Map:** a `highway` track whose main road is a closed loop ([TRACK_EDITOR.md §1](TRACK_EDITOR.md#1-track-types)), with a carriageway each way split by a barrier, plus ramps.
+- **Direction:** picked before the start (or both ways, in turn). Switch at a flyover crossover, or with "Change direction" in the pause menu.
+- **Other players:** going the other way they pass you across the barrier, so you keep seeing them (measured on the Lumen Ring: 2–6 times a lap). Names float over other players' cars within 400 m, across the barrier too; the horn and a light flash work as greetings.
+- **Persistent traffic:** the whole population keeps going round; a few cars leave and join at the ramps (measured: 92–94% of the cars met on the other carriageway one lap are met again the next).
+- **Fixed sights:** skyline, flyovers, the tunnel and signs stay put, so laps become familiar.
+- **Lap time:** a lap each way has its own board; a direction change, a portal or a reset makes it no lap. Online the server times the laps for its boards.
+- **Wrong way:** ramps are one-way. Driving against the traffic shows "Wrong way" and stops the score.
 
 ## 4. Endless
 

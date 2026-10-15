@@ -5,7 +5,7 @@
   "files": {
     "track.json": "sha256:e2809a630b3fe67ebe4d6f808f3efd22ba0b586617752973914030f9191d7652"
   },
-  "game_min_version": "0.6.0",
+  "game_min_version": "0.7.0",
   "id": "lumen_ring",
   "kind": "road",
   "layout": "sha256:738faa86ab7d10b1dc3113d43e49d3ef96da1be33025969136410cfda167aa81",
