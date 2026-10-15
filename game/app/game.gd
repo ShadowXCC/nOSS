@@ -21,6 +21,8 @@ extends Node
 ##   --ai-car=<path>      car for the AI-driven players
 ##   --ai-profile=<json>  options for the AI-driven players' throwaway profiles
 ##   --perf               print frame, CPU, physics and per-view GPU times every second
+##   --perf-log           a summary line (frame time average, p95, p99; physics; traffic cars driven)
+##                        every 30 s and at exit (M7 acceptance runs)
 ##   --fullscreen         fullscreen for this run; --no-vsync: no vsync (measurements)
 ##   --pause-at=<s>       open the last player's pause menu
 ##   --menu=<m>           title: open classes, event, players, settings, online, online-players or tracks
@@ -107,6 +109,8 @@ func _ready() -> void:
 		Settings.use_folder("user://tests/bots") # never this machine's player's profile or car
 		Net.use_identity(NetIdentity.throwaway())
 		add_child(NetBot.new())
+	if dev.has("perf-log"):
+		add_child(PerfLog.new())
 	if dev.has("traffic-selftest"):
 		print(TrafficTypes.selftest(String(dev["traffic-selftest"])))
 		get_tree().quit.call_deferred()

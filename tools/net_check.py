@@ -101,6 +101,7 @@ def main(argv=None):
     p.add_argument("--dirs", choices=["same", "opposite"], default="same", help="highway: players start one way, or turn about")
     p.add_argument("--sub", choices=["cruise", "score", "loop"], default="cruise", help="highway: the sub-mode")
     p.add_argument("--police", action="store_true", help="highway: police on (the bots speed, so they get chased)")
+    p.add_argument("--open", action="store_true", help="a place kept for a player from outside (another PC joining with --perf-log)")
     p.add_argument("--desync", action="store_true", help="highway: the first bot's traffic goes out of step once (it must resync)")
     p.add_argument("--laps", type=int, default=3)
     p.add_argument("--ai", type=int, default=0, help="AI cars the server adds (races)")
@@ -129,6 +130,8 @@ def main(argv=None):
     if args.fresh:
         args.clients, args.quad, args.event = 1, 0, "race"
     players = args.clients + 4 * args.quad
+    if args.open and players >= 16:
+        sys.exit("--open: at most 15 bot players, so one place is left")
     track = args.track
     if Path(track).exists():  # a path here, not an id: the config lives in the logs' folder
         track = str(Path(track).resolve())
@@ -141,7 +144,7 @@ def main(argv=None):
                       "ai_count": args.ai, "grid": "random", "start": "standing",
                       "ai_cars": "garage" if args.fresh else "builtin"})
     config = {
-        "schema": "noss.server/1", "name": "net_check", "port": args.port, "max_players": 16, "lan": False,
+        "schema": "noss.server/1", "name": "net_check", "port": args.port, "max_players": 16, "lan": bool(args.open),
         "rotation": [{"track": track, "class": args.klass, "event": event}],
         "plausibility": args.plausibility,
     }
