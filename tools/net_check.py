@@ -55,6 +55,17 @@ HIGHWAY_MISSES = 3  # HighwayNet.MISSES: checksums that disagree before a game a
 LOOP_AGAIN_MIN = 0.6  # acceptance 3: the share of the traffic met one lap that comes round the next
 
 
+def lan_ip():
+    """This PC's address on the LAN (no packet is sent)."""
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("192.0.2.1", 9))
+            return sock.getsockname()[0]
+    except OSError:
+        return "this PC's address"
+
+
 def rss_mb(pid):
     try:
         for line in Path(f"/proc/{pid}/status").read_text().splitlines():
@@ -106,14 +117,16 @@ def main(argv=None):
     p.add_argument("--sub", choices=["cruise", "score", "loop"], default="cruise", help="highway: the sub-mode")
     p.add_argument("--police", action="store_true", help="highway: police on (the bots speed, so they get chased)")
     p.add_argument("--speed-factor", type=float, default=0.0, help="highway: the bots drive at this times the limit (default 1.4 with --police, else 1)")
-    p.add_argument("--open", action="store_true", help="a place kept for a player from outside (another PC joining with --perf-log)")
+    p.add_argument("--open", action="store_true",
+                   help="a place kept for a player from outside (another PC joining with --perf-log); the server goes on the "
+                        "LAN list, on the standard port 47800 unless --port is given")
     p.add_argument("--desync", action="store_true", help="highway: the first bot's traffic goes out of step once (it must resync)")
     p.add_argument("--laps", type=int, default=3)
     p.add_argument("--ai", type=int, default=0, help="AI cars the server adds (races)")
     p.add_argument("--class", dest="klass", default="")
     p.add_argument("--track", default="",
                    help="the server's track: an id, or a .nosstrack / track folder (sent to bots that lack it)")
-    p.add_argument("--port", type=int, default=47850)
+    p.add_argument("--port", type=int, default=0, help="the server's port (default 47850; 47800 with --open)")
     p.add_argument("--rtt", type=float, default=0.0, help="simulated round trip, ms")
     p.add_argument("--jitter", type=float, default=0.0)
     p.add_argument("--loss", type=float, default=0.0, help="percent, each way")
@@ -126,6 +139,8 @@ def main(argv=None):
     p.add_argument("--logs", default="", help="the logs' folder (default reports/net_check/<time>/)")
     p.add_argument("--verbose", action="store_true")
     args = p.parse_args(argv)
+    # The game's LAN list only asks the standard ports (47800-47815), so an open server uses one.
+    args.port = args.port or (47800 if args.open else 47850)
     highway = args.event == "highway"
     args.klass = args.klass or ("official.highway.street" if highway else "official.track.gt")
     args.track = args.track or ("lumen_ring" if highway else "proving_ground")
@@ -181,6 +196,8 @@ def main(argv=None):
     # Its own folder (instances/90): its boards and keys never mix with this PC's player's.
     server = start("server", ["--server", f"--config={config_path}", f"--min-players={players}", "--net-stats", "--instance=90"] + debug + personal)
     time.sleep(2.0)
+    if args.open:
+        print(f'open: join "net_check" from the LAN list, or {lan_ip()}:{args.port} (UDP {args.port} and {args.port + 1} must be let in)', flush=True)
     port = args.port
     sim = None
     if args.rtt or args.jitter or args.loss or args.rate != "0":
