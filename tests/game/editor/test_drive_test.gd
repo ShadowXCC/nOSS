@@ -69,13 +69,17 @@ func test_presets_have_a_key_back_to_the_editor() -> void:
 		var preset: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(Bindings.PRESET_DIR + id + ".json"))
 		var b: Dictionary = preset.bindings
 		assert_bool(b.has("editor_back")).override_failure_message(id).is_true()
-		# Nothing else while driving uses the same input.
+		# Nothing else while driving uses the same input (kart actions share only what karts
+		# ignore, D135).
 		var seen := {}
 		for action: String in Bindings.DRIVING:
 			for input: Dictionary in b.get(action, []):
 				var name := str(input)
-				assert_bool(seen.has(name)).override_failure_message("%s: %s and %s share %s" % [id, seen.get(name), action, name]).is_false()
-				seen[name] = action
+				var other: String = seen.get(name, "")
+				var shared: bool = action in Bindings.KART and other in Bindings.KART_SHARES[action]
+				assert_bool(other.is_empty() or shared).override_failure_message("%s: %s and %s share %s" % [id, other, action, name]).is_true()
+				if other.is_empty():
+					seen[name] = action
 		keys[id] = seen
 	# Two players on one keyboard (left and right halves) never share a key.
 	for name: String in keys.kb_left:
