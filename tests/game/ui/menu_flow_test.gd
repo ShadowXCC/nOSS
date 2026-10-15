@@ -149,3 +149,52 @@ func test_results_by_keys_and_buttons() -> void:
 		assert_bool(quit[0]).is_true()
 		menu.queue_free()
 		await _frames(1)
+
+
+## Highway (M7) by keys alone: title -> Highway -> the Lumen Ring -> the highway menu (score
+## attack, both ways) -> a highway class -> Players -> Ready.
+func test_keyboard_only_boot_to_a_highway() -> void:
+	var runner := scene_runner(TITLE_SCENE)
+	await _frames(4)
+	await _key(KEY_DOWN)
+	await _key(KEY_DOWN)
+	assert_str(_focused(runner)).is_equal("Highway")
+	await _key(KEY_ENTER)
+	await _frames(4)
+	assert_str(_focused(runner)).starts_with("Lumen Ring")
+	await _key(KEY_ENTER)
+	await _frames(4)
+	var menu: HighwayMenu = _find(runner.scene(), "HighwayMenu")
+	assert_object(menu).is_not_null()
+	for c: Control in menu.find_children("*", "Control", true, false):
+		if c.is_visible_in_tree() and c.focus_mode != Control.FOCUS_NONE and (c is BaseButton or c is Range):
+			assert_str(String(c.accessibility_name)).override_failure_message("Unnamed %s" % c).is_not_empty()
+	assert_str(_focused(runner)).starts_with("Mode: ")
+	while not _focused(runner).begins_with("Mode: Score attack"):
+		await _key(KEY_RIGHT)
+	await _key(KEY_DOWN) # Traffic
+	await _key(KEY_DOWN) # Way round
+	assert_str(_focused(runner)).starts_with("Way round: ")
+	while not _focused(runner).ends_with("Both ways"):
+		await _key(KEY_RIGHT)
+	await _key(KEY_DOWN)
+	assert_str(_focused(runner)).is_equal("Next")
+	await _key(KEY_ENTER)
+	await _frames(4)
+	assert_str(_focused(runner)).starts_with("Highway")
+	await _key(KEY_ENTER)
+	await _frames(4)
+	await _key(KEY_ENTER) # joins
+	await _frames(6)
+	var v := Players.slots[0].menu_target
+	await _key(KEY_UP)
+	await _key(KEY_UP)
+	assert_str(UiKit.text_of(Players.focus_of(v) as Button)).starts_with("Ready")
+	await _key(KEY_ENTER)
+	await _frames(4)
+	assert_int(_requested.size()).is_equal(1)
+	var e: RaceEvent = _requested[0][0]
+	assert_str(e.kind).is_equal("highway")
+	assert_str(e.sub).is_equal("score")
+	assert_int(e.direction).is_equal(0)
+	assert_str(String(_requested[0][1])).starts_with("official.highway.")

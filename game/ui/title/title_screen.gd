@@ -64,14 +64,21 @@ func _ready() -> void:
 	race_button.custom_minimum_size = _drive_button.custom_minimum_size
 	race_button.pressed.connect(_open_classes.bind("race"))
 	_drive_button.add_sibling(race_button)
+	var highway_button := Button.new()
+	highway_button.name = "HighwayButton"
+	highway_button.text = "Highway"
+	highway_button.accessibility_description = "Cruise, score attack, runs and laps through traffic"
+	highway_button.custom_minimum_size = _drive_button.custom_minimum_size
+	highway_button.pressed.connect(_open_highway)
+	race_button.add_sibling(highway_button)
 	var online_button := Button.new()
 	online_button.name = "OnlineButton"
 	online_button.text = "Online"
 	online_button.accessibility_description = "Host or join a game over the network"
 	online_button.custom_minimum_size = _drive_button.custom_minimum_size
 	online_button.pressed.connect(_open_online)
-	race_button.add_sibling(online_button)
-	var order := [_drive_button, race_button, online_button, trial_button, garage_button, bay_button, editor_button, _settings_button, _quit_button]
+	highway_button.add_sibling(online_button)
+	var order := [_drive_button, race_button, highway_button, online_button, trial_button, garage_button, bay_button, editor_button, _settings_button, _quit_button]
 	for b: Button in order:
 		b.accessibility_name = b.text
 		b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -93,6 +100,7 @@ func _ready() -> void:
 		"settings": _open_settings()
 		"online": _open_online()
 		"tracks": _open_tracks(func(_t: String) -> void: pass, true)
+		"highway": _open_highway()
 		"online-players":
 			_open_online()
 			_online._open_players()
@@ -163,6 +171,44 @@ func _open_tracks(then: Callable, always := false) -> void:
 	add_child(_tracks)
 
 
+## Highway (M7): the highway first, then what to do on it (HighwayMenu), the class, the players.
+func _open_highway() -> void:
+	_mode = "highway"
+	_tracks = TrackPicker.new()
+	_tracks.type = "highway"
+	_tracks.picked.connect(func(path: String) -> void:
+		_tracks.visible = false
+		_open_highway_menu(path))
+	_tracks.closed.connect(func() -> void:
+		_tracks.queue_free()
+		_drive_button.grab_focus())
+	add_child(_tracks)
+
+
+func _open_highway_menu(track: String) -> void:
+	var menu := HighwayMenu.new()
+	menu.track_path = track
+	menu.picked.connect(func(e: RaceEvent) -> void:
+		menu.visible = false
+		_classes = ClassPicker.new()
+		_classes.mode_filter = "highway"
+		_classes.current = String(Settings.profile.get("last_platform", ""))
+		_classes.picked.connect(func(id: String) -> void:
+			_classes.visible = false
+			Settings.profile.last_platform = id
+			_open_players(id, e, track))
+		_classes.closed.connect(func() -> void:
+			_classes.queue_free()
+			menu.visible = true
+			menu.grab_focus_first())
+		add_child(_classes))
+	menu.closed.connect(func() -> void:
+		menu.queue_free()
+		_tracks.visible = true
+		_tracks.grab_focus_first())
+	add_child(menu)
+
+
 func _open_event(platform_id: String) -> void:
 	_event = EventMenu.new()
 	_event.picked.connect(func(e: RaceEvent) -> void:
@@ -188,7 +234,10 @@ func _open_players(platform_id: String, event: RaceEvent = null, track := "") ->
 			Game.start_free_drive("", platform_id, false, false, track))
 	_players.closed.connect(func() -> void:
 		_players.queue_free()
-		if is_instance_valid(_event):
+		if _mode == "highway" and is_instance_valid(_classes): # highway, menu, class, players
+			_classes.visible = true
+			_classes.grab_focus_first()
+		elif is_instance_valid(_event):
 			_event.visible = true
 			_event.grab_focus_first()
 		elif is_instance_valid(_tracks):
