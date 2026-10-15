@@ -222,10 +222,11 @@ func test_the_lane_driver_holds_its_lane_and_stops_for_a_wreck() -> void:
 	await get_tree().process_frame
 
 
-func test_starts_never_share_a_spot_or_a_ramp_mouth() -> void:
+func test_starts_never_share_a_spot_a_ramp_mouth_or_a_trap() -> void:
 	var pkg := TrackLoader.load_package("res://content/tracks/lumen_ring", {}, { "terrain": false })
 	var hc := HighwayControl.new()
-	hc.layout = pkg.track.highway
+	var layout := pkg.track.highway
+	hc.layout = layout
 	for dir: int in [1, -1]:
 		var spots := []
 		for i in 16:
@@ -233,8 +234,16 @@ func test_starts_never_share_a_spot_or_a_ramp_mouth() -> void:
 			for other: Vector3 in spots:
 				# Along the road START_GAP_M apart (a little less on the inside of a corner).
 				assert_float(at.distance_to(other)).override_failure_message("dir %d, %d" % [dir, i]).is_greater(HighwayControl.START_GAP_M * 0.9)
-			assert_bool(hc._in_mouth(float(pkg.track.project(at).distance), dir)).is_false()
+			assert_bool(hc._taken(float(pkg.track.project(at).distance), dir)).is_false()
 			spots.append(at)
+		# A reset beside each of this carriageway's speed traps lands clear of its unit.
+		for trap: Dictionary in layout.traps:
+			if int(trap.dir) != dir:
+				continue
+			var unit := layout.main.transform_at(float(trap.at_m), -dir * (layout.half - 1.6)).origin
+			for i in 16:
+				assert_float(hc.spawn_for(i, dir).origin.distance_to(unit)).is_greater(HighwayControl.TRAP_CLEAR_M - 5.0)
+			assert_float(hc.shoulder_spot(dir, float(trap.at_m)).origin.distance_to(unit)).is_greater(HighwayControl.TRAP_CLEAR_M - 5.0)
 	hc.free()
 
 

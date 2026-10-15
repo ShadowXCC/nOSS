@@ -7,6 +7,8 @@ extends Node
 ## Players start this far behind the lap line, this far apart.
 const START_BACK_M := 40.0
 const START_GAP_M := 30.0
+## Speed-trap units park on the outer shoulder: spots this near one (m, along) are kept clear.
+const TRAP_CLEAR_M := 25.0
 ## Join friend: at most this many in the pause menu, and this far behind them.
 const JOIN_MAX := 6
 const JOIN_BEHIND_M := 60.0
@@ -115,7 +117,7 @@ func spawn_for(i: int, dir: int) -> Transform3D:
 	var d := layout.main.start_m - dir * START_BACK_M
 	var found := -1
 	for step in ceili(length / 5.0):
-		if _in_mouth(d, dir):
+		if _taken(d, dir):
 			d -= dir * 5.0
 			continue
 		found += 1
@@ -125,10 +127,15 @@ func spawn_for(i: int, dir: int) -> Transform3D:
 	return shoulder_spot(dir, fposmod(d, length))
 
 
-## True if a car on direction `dir`'s shoulder at `d` would be in a ramp's mouth.
-func _in_mouth(d: float, dir: int) -> bool:
+## True if direction `dir`'s outer shoulder at `d` is no place for a car: in a ramp's mouth, or
+## where a speed trap's unit parks.
+func _taken(d: float, dir: int) -> bool:
+	var length := layout.main.length
 	for off: float in [-6.0, 0.0, 6.0]:
-		if layout.gap(layout.main.index_at(fposmod(d + off, layout.main.length)), -float(dir)):
+		if layout.gap(layout.main.index_at(fposmod(d + off, length)), -float(dir)):
+			return true
+	for trap: Dictionary in layout.traps:
+		if int(trap.dir) == dir and absf(fposmod(d - float(trap.at_m) + length / 2.0, length) - length / 2.0) < TRAP_CLEAR_M:
 			return true
 	return false
 
@@ -137,13 +144,12 @@ func _in_mouth(d: float, dir: int) -> bool:
 func shoulder_spot(dir: int, d: float) -> Transform3D:
 	var shoulder := float(layout.settings.shoulder_out_m)
 	var lat := -dir * (layout.inner + layout.lanes * layout.lane_m + shoulder / 2.0)
-	var k := layout.main.index_at(d)
-	# Not in a ramp's mouth (the shoulder is part of the taper there): a little further on.
+	# Not in a ramp's mouth (the shoulder is part of the taper there) or on a trap's unit: a little
+	# further on.
 	for step in 40:
-		if not layout.gap(k, -float(dir)):
+		if not _taken(d, dir):
 			break
 		d = fposmod(d + dir * 10.0, layout.main.length)
-		k = layout.main.index_at(d)
 	var t := layout.main.transform_at(d, lat)
 	if dir < 0:
 		t.basis = Basis(-t.basis.x, t.basis.y, -t.basis.z)
