@@ -15,7 +15,7 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	for r in racers:
-		if r.vehicle and is_instance_valid(r.vehicle):
+		if r.vehicle and is_instance_valid(r.vehicle) and not r.waiting: # waiting: off the track
 			r.update_track(delta)
 
 

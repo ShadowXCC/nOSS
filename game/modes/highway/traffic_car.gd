@@ -18,6 +18,9 @@ const GHOST_S := 3.0
 ## there without touching anything until it's clear: a kinematic body moved into a car would
 ## throw it.
 const JUMP_M := 1.5
+## A proxy nobody sees (a server, a headless bot) far from everything its game drives follows its
+## owner's states only every this many ticks.
+const FAR_EVERY := 4
 
 var manager: TrafficManager
 var car := -1
@@ -46,6 +49,7 @@ var _shown_t := PackedFloat64Array()
 var _shown_p := PackedVector3Array()
 ## Counts as a wreck at the next decision (wreck()).
 var _wreck_now := false
+var _moved_frame := -1
 var _off_time := 0.0
 var _wheelbase := 2.7
 var _max_steer := 0.55
@@ -72,7 +76,8 @@ func _physics_process(delta: float) -> void:
 			ghost_time = 0.0
 			vehicle.set_ghost(false)
 	if remote:
-		_follow(delta)
+		if Vehicle.drawn or (Engine.get_physics_frames() + car) % FAR_EVERY == 0 or manager.near_driven(vehicle.global_position):
+			_follow(delta)
 		return
 	if wrecked:
 		vehicle.throttle = 0.0
@@ -121,7 +126,10 @@ func _follow(delta: float) -> void:
 
 ## A proxy to `xform`: a jump goes there at once, with no contact until it's clear.
 func _move(xform: Transform3D, velocity: Vector3, angular: Vector3, snap: bool) -> void:
-	var jump := vehicle.ground_reference().origin.distance_to(xform.origin) > JUMP_M + velocity.length() / Engine.physics_ticks_per_second
+	var frame := Engine.get_physics_frames()
+	var ticks := clampi(frame - _moved_frame, 1, FAR_EVERY) if _moved_frame >= 0 else 1
+	_moved_frame = frame
+	var jump := vehicle.ground_reference().origin.distance_to(xform.origin) > JUMP_M + velocity.length() * ticks / Engine.physics_ticks_per_second
 	if jump and ghost_time <= 0.0:
 		ghost_time = GHOST_S
 		vehicle.set_ghost(true, false)

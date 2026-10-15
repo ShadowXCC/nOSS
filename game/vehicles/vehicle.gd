@@ -61,6 +61,9 @@ var siren := false
 var light_bar := false
 ## Update wheels and lights once a frame instead of every physics tick (traffic, D120).
 var visual_every_frame := false
+## Off on a dedicated server and on headless bots, where nobody sees the cars: no wheels, lights
+## or horn are updated.
+static var drawn := true
 ## Indicators blink at 1.5 Hz (on half the time).
 const BLINK_HZ := 1.5
 var _blink := 0.0
@@ -214,15 +217,17 @@ func move_remote(ground: Transform3D, velocity: Vector3, angular: Vector3, snap 
 
 func _physics_process(delta: float) -> void:
 	if remote:
-		if not visual_every_frame:
+		if drawn and not visual_every_frame:
 			_update_remote_visual(delta)
 		return
 	sim.set_controls(steer, throttle, brake, handbrake, clutch)
-	if not visual_every_frame:
+	if drawn and not visual_every_frame:
 		_update_visual()
 
 
 func _process(delta: float) -> void:
+	if not drawn:
+		return
 	_blink = fmod(_blink + delta * BLINK_HZ, 1.0)
 	if visual_every_frame:
 		if remote:

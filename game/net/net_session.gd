@@ -18,6 +18,8 @@ const CONTACT_SIZE := 29
 const CONTACT_PER_S := 10.0
 const CONTACT_MAX_DV := 3.0
 const CONTACT_NEAR_M := 8.0
+## Contact times older than this are let go (every window that reads them is shorter).
+const CONTACT_KEEP_S := 5.0
 const RELAY_HZ := 60.0
 ## Most states in one packet (46 bytes each): stays under ENet's fragment size.
 const PER_PACKET := 24
@@ -46,6 +48,8 @@ var _resets := {} # car id -> [reset_count seen, teleport flags left to send]
 var _contact_sent := {} # "a:b" -> time, so a pair relays at most CONTACT_PER_S
 var _own_contact := {} # "own:other" -> time this game's car last touched that car itself
 var _contact_routed := {} # server: "a:b" -> time last passed on
+var _touched_at := {} # server: car id -> time a knock with it last passed on
+var _prune_time := 0.0
 var _plaus := {} # server: car id -> Plausibility
 var _plaus_said := {} # server: car id -> time the driver last heard why
 var _plaus_logged := {} # server: car id -> time last logged
@@ -109,10 +113,29 @@ func drop_traffic(id: int) -> void:
 
 func _physics_process(delta: float) -> void:
 	_relay_contacts()
+	_prune_time += delta
+	if _prune_time >= 1.0:
+		_prune_time = 0.0
+		_prune()
 	if is_server():
 		_server_tick(delta)
 	elif Net.client and Net.client.state == NetClient.State.JOINED:
 		_client_tick(delta)
+
+
+## Once a second: contact times nothing reads any more, and (server) the last states of traffic
+## cars that went back into the lane sim, so the relay doesn't look at them.
+func _prune() -> void:
+	var t := now()
+	for d: Dictionary in [_contact_sent, _own_contact, _contact_routed, _touched_at]:
+		for k: Variant in d.keys():
+			if t - float(d[k]) > CONTACT_KEEP_S:
+				d.erase(k)
+	if is_server() and session.traffic:
+		for id: int in _latest.keys():
+			if id >= NetProtocol.FIRST_TRAFFIC_ID and not session.traffic.owners.has(id - NetProtocol.FIRST_TRAFFIC_ID):
+				_latest.erase(id)
+				_relay.forget(id)
 
 
 ## This game's cars' knocks with remote cars go to those cars' games (D86).
@@ -168,14 +191,12 @@ func _check(peer: int, s: CarState, t: float) -> void:
 	if p == null:
 		p = Plausibility.for_platform(session.platform.platform, session.track)
 		_plaus[s.id] = p
-	var contact := false
-	for pair: String in _contact_routed:
-		if (pair.begins_with("%d:" % s.id) or pair.ends_with(":%d" % s.id)) and t - float(_contact_routed[pair]) < 0.5:
-			contact = true
+	var contact := t - float(_touched_at.get(s.id, -INF)) < 0.5
 	if not contact and session.traffic:
 		# A knock with a traffic car its own game drives never comes through here.
+		var at := s.xform.origin
 		for tc: TrafficCar in session.traffic.cars.values():
-			if tc.vehicle.global_position.distance_to(s.xform.origin) < CONTACT_NEAR_M:
+			if tc.vehicle.global_position.distance_squared_to(at) < CONTACT_NEAR_M * CONTACT_NEAR_M:
 				contact = true
 				break
 	var found := p.check(s, t, session.track, contact)
@@ -229,6 +250,8 @@ func _route_contact(from_peer: int, p: PackedByteArray) -> void:
 	if now() - float(_contact_routed.get(pair, -1.0)) < 0.5 / CONTACT_PER_S:
 		return # more than a game sends on its own
 	_contact_routed[pair] = now()
+	_touched_at[from] = now()
+	_touched_at[to] = now()
 	var target_v := _vehicle_of(to)
 	if target_v == null:
 		return

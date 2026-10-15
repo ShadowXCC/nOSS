@@ -93,6 +93,7 @@ func _ready() -> void:
 	dedicated = OS.has_feature("dedicated_server") or dev.has("server")
 	if dedicated:
 		Engine.max_fps = Engine.physics_ticks_per_second # one physics tick per frame, no busy loop
+	Vehicle.drawn = not (dedicated or (dev.has("bot") and headless))
 	if dev.has("instance"):
 		Settings.use_folder("user://instances/%d" % clampi(int(dev.instance), 1, 99))
 	Net.session_started.connect(start_online_session)

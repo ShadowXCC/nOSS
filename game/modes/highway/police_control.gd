@@ -25,6 +25,8 @@ const KNOCK_AGAIN_S := 2.0
 const ROADBLOCK_AHEAD_M := 900.0
 const ROADBLOCK_LENGTH_M := 60.0
 const ROADBLOCK_PAST_M := 150.0
+## Sight (line of sight is a ray) and near misses are looked at every this many ticks per player.
+const LOOK_EVERY := 2
 
 var session: TrackSession
 var layout: HighwayLayout
@@ -46,6 +48,8 @@ var _blocks := {} # Racer -> {closures, at_m, units}
 var _clock := 0.0
 var _placed := false
 var _told := {} # NetRacer -> [level, evading] last sent to its game
+var _seen := {} # Racer -> seen by a unit when last looked
+var _ticks := 0
 
 
 func _ready() -> void:
@@ -94,10 +98,13 @@ func _physics_process(delta: float) -> void:
 	if not _placed:
 		_placed = not units.is_empty() and _place_units()
 		return
+	_ticks += 1
+	var i := 0
 	for p: Racer in players():
+		i += 1
 		if p.vehicle == null or not is_instance_valid(p.vehicle) or p.waiting:
 			continue
-		_watch(p, delta)
+		_watch(p, delta, (i + _ticks) % LOOK_EVERY == 0)
 	_dispatch()
 	_roadblocks()
 
@@ -126,8 +133,9 @@ func _trap_spot(trap: Dictionary) -> Transform3D:
 	return at
 
 
-## What the units see of player `p` this tick, and where the chase stands.
-func _watch(p: Racer, delta: float) -> void:
+## What the units see of player `p` this tick, and where the chase stands. Sight and near misses
+## are looked at on `look` ticks (LOOK_EVERY), what was seen held in between.
+func _watch(p: Racer, delta: float, look: bool) -> void:
 	var h := heat_of(p)
 	var was := h.level()
 	var v := p.vehicle
@@ -139,25 +147,30 @@ func _watch(p: Racer, delta: float) -> void:
 			continue
 		var d := u.vehicle.global_position.distance_to(v.global_position)
 		nearest = minf(nearest, d)
-		if d < Heat.SEEN_M and _sees(u, p):
+		if look and not seen and d < Heat.SEEN_M and _sees(u, p):
 			seen = true
 		if d < 8.0:
 			var gap := NossTraffic.box_gap(u.vehicle.global_position, u.vehicle.global_basis.z, _half(u.vehicle), v.global_position, v.global_basis.z, _half(v))
 			close = close or gap < Heat.BUST_M
+	if look:
+		_seen[p] = seen
+	else:
+		seen = bool(_seen.get(p, false))
 	if seen:
 		var at: Dictionary = session.highway_field.at(p) if session.highway_field else {}
 		var limit := layout.speed_at(p.direction, p.distance) * 3.6
 		if not at.is_empty() and int(at.get("road", -1)) >= 0:
 			limit = float(layout.ramps[int(at.road)].speed) * 3.6
 		h.seen_speeding(absf(v.speed()) * 3.6 - limit, delta)
-		var rows: Array = session.traffic.near_rows(v, 30.0) if session.traffic else []
-		for d: Dictionary in (_miss[p] as NearMiss).step(rows, _clock):
-			if not d.has("split") and float(d.gap) < ScoreAttack.NEAR_M and absf(float(d.relative_kmh)) >= ScoreAttack.MIN_RELATIVE_KMH:
-				h.seen("close" if float(d.gap) < ScoreAttack.CLOSE_M else "near")
+		if look:
+			var rows: Array = session.traffic.near_rows(v, 30.0) if session.traffic else []
+			for d: Dictionary in (_miss[p] as NearMiss).step(rows, _clock):
+				if not d.has("split") and float(d.gap) < ScoreAttack.NEAR_M and absf(float(d.relative_kmh)) >= ScoreAttack.MIN_RELATIVE_KMH:
+					h.seen("close" if float(d.gap) < ScoreAttack.CLOSE_M else "near")
 		if _clock - float(_knocked.get(p, -INF)) > KNOCK_AGAIN_S and maxf(v.wall_impulse, v.traffic_impulse) > CRASH_NS:
 			_knocked[p] = _clock
 			h.seen("crash")
-	else:
+	elif look:
 		(_miss[p] as NearMiss).step([], _clock)
 	# A remote car's knocks come from its game: a crash as its states say, a ram as relayed.
 	if v.remote:

@@ -173,10 +173,11 @@ func ramp(id: String) -> RampData:
 
 ## Where `pos` is on the highway: {road (-1: the main road, else a ramp's index), index, distance,
 ## lateral (+ = left of that road), dir (main road: the carriageway; ramp: 0), lane (main road),
-## on_road}. `hint` is the last result (keeps the walk short).
-func locate(pos: Vector3, hint := {}) -> Dictionary:
-	var main_hint: int = hint.get("main", -1)
-	var mp := main.project(pos, main_hint)
+## on_road}. `hint` is the last result (keeps the walk short); `mp`, if given, is `pos` already
+## projected onto the main road ({index, distance, lateral}).
+func locate(pos: Vector3, hint := {}, mp := {}) -> Dictionary:
+	if mp.is_empty():
+		mp = main.project(pos, int(hint.get("main", -1)))
 	var k := int(mp.index)
 	var lat := float(mp.lateral)
 	var edge: float = main.half_l[k] if lat >= 0.0 else main.half_r[k]

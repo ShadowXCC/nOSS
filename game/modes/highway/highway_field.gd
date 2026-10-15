@@ -8,12 +8,15 @@ extends Node
 ## Against the traffic faster than this for this long: wrong way.
 const WRONG_WAY_SPEED := 4.0
 const WRONG_WAY_S := 1.5
+## Each car is looked at every this many ticks, in turn (plenty for its direction and wrong way).
+const UPDATE_EVERY := 2
 
 var session: TrackSession
 var layout: HighwayLayout
-## Racer -> HighwayLayout.locate() result, last tick.
+## Racer -> HighwayLayout.locate() result, when it was last looked at.
 var where := {}
 var _against := {}
+var _ticks := 0
 
 
 func _ready() -> void:
@@ -21,14 +24,19 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_ticks += 1
+	var i := 0
 	for r in session.racers:
-		if r.vehicle == null or not is_instance_valid(r.vehicle):
+		i += 1
+		if r.vehicle == null or not is_instance_valid(r.vehicle) or r.waiting or (i + _ticks) % UPDATE_EVERY != 0:
 			continue
-		update(r, delta)
+		update(r, delta * UPDATE_EVERY)
 
 
 func update(r: Racer, delta: float) -> void:
-	var at := layout.locate(r.vehicle.global_position + Vector3.UP * 0.5, where.get(r, {}))
+	# The RaceField has put it on the main road this tick already.
+	var mp := { "index": r.track_index, "distance": r.distance, "lateral": r.lateral } if r.track_index >= 0 else {}
+	var at := layout.locate(r.vehicle.global_position + Vector3.UP * 0.5, where.get(r, {}), mp)
 	where[r] = at
 	var vel := r.vehicle.remote_velocity if r.vehicle.remote else r.vehicle.linear_velocity
 	var along := 0.0

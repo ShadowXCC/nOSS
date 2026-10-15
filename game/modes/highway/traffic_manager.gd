@@ -18,7 +18,10 @@ const R_OUT := 200.0
 ## A physics car nobody has been near for this long goes back even off its lane's line (where its
 ## shadow is).
 const FORCE_BACK_S := 3.0
-## Physics cars at most: in this game, and near one player.
+## A proxy within this of a car this game drives moves every tick (see TrafficCar.FAR_EVERY).
+const NEAR_DRIVEN_M := 80.0
+## Physics cars at most: in each game, and near one player. This game's own cap (`cap`) drops
+## from CAP_GAME when its physics gets slow; online it limits only the cars this game drives.
 const CAP_GAME := 24
 const CAP_PLAYER := 12
 const CAP_MIN := 4
@@ -91,6 +94,8 @@ var _decide := 0.0
 var _seq := 0
 var _members := PackedFloat32Array()
 var _members_frame := -1
+var _driven := PackedVector3Array()
+var _driven_frame := -1
 var _slow_time := 0.0
 var _fast_time := 0.0
 var _blink := 0.0
@@ -251,6 +256,25 @@ func members() -> PackedFloat32Array:
 	return _members
 
 
+## True if a car this game drives (its players, its police, its own physics traffic) is within
+## NEAR_DRIVEN_M of `pos`: a proxy there must move every tick to be hit right. Once a physics tick.
+func near_driven(pos: Vector3) -> bool:
+	var frame := Engine.get_physics_frames()
+	if frame != _driven_frame:
+		_driven_frame = frame
+		_driven = PackedVector3Array()
+		for r in session.racers:
+			if r.vehicle and is_instance_valid(r.vehicle) and not r.vehicle.remote and not r.waiting:
+				_driven.append(r.vehicle.global_position)
+		for tc: TrafficCar in cars.values():
+			if not tc.remote and tc.vehicle:
+				_driven.append(tc.vehicle.global_position)
+	for at in _driven:
+		if at.distance_squared_to(pos) < NEAR_DRIVEN_M * NEAR_DRIVEN_M:
+			return true
+	return false
+
+
 func member_id(r: Racer) -> int:
 	return RACER_ID + session.racers.find(r)
 
@@ -358,14 +382,17 @@ func _promotions() -> void:
 			_event(RESHADOW, car, tc.lane, tc.s, maxf(tc.vehicle.speed(), 0.0))
 		if session.net:
 			_handover(car, tc, promoters)
-	# Lane cars near someone: nearest first, up to the caps.
-	if promoters.is_empty() or owners.size() >= cap:
+	# Lane cars near someone: nearest first, up to the caps (online, each game's own).
+	if promoters.is_empty() or (session.net == null and owners.size() >= cap):
 		return
 	var poses := sim.poses(0.0)
 	var candidates := []
 	var per := {} # owner -> physics cars
+	var games := {} # game (peer) -> physics cars
 	for car: int in owners:
 		per[owners[car]] = int(per.get(owners[car], 0)) + 1
+		var game := _peer_of(owners[car])
+		games[game] = int(games.get(game, 0)) + 1
 	for i in sim.get_count():
 		var flags := int(poses[i * 8 + 5])
 		if flags & ACTIVE == 0 or flags & SHADOW != 0 or owners.has(i):
@@ -377,13 +404,13 @@ func _promotions() -> void:
 			candidates.append([d, i, _promoter_ids[who] if session.net else who])
 	candidates.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
 	for c: Array in candidates:
-		if owners.size() >= cap:
-			break
 		var owner: int = c[2]
-		if int(per.get(owner, 0)) >= CAP_PLAYER or (session.net and _game_count(owner) >= CAP_GAME):
+		var game := _peer_of(owner) if session.net else 1
+		if int(per.get(owner, 0)) >= CAP_PLAYER or int(games.get(game, 0)) >= (cap if game == 1 else CAP_GAME):
 			continue
 		if _promote(c[1], owner if session.net else 0, poses):
 			per[owner] = int(per.get(owner, 0)) + 1
+			games[game] = int(games.get(game, 0)) + 1
 
 
 ## Lane car `car` becomes a physics car (its owner's; a proxy elsewhere) where the lane sim has
@@ -403,16 +430,6 @@ func _promote(car: int, owner: int, poses: PackedFloat32Array) -> bool:
 	_event(PROMOTE, car, -1, 0.0, 0.0, owner)
 	promotions += 1
 	return true
-
-
-## Physics cars the game that drives `owner`'s car owns (online caps are per game).
-func _game_count(owner: int) -> int:
-	var peer := _peer_of(owner)
-	var n := 0
-	for car: int in owners:
-		if _peer_of(owners[car]) == peer:
-			n += 1
-	return n
 
 
 func _peer_of(owner: int) -> int:
