@@ -74,6 +74,8 @@ var terrain: TerrainData
 var platform: PlatformLoader.Result
 ## The mode offering this class (its tuning and assist rules).
 var mode := {}
+## The class's kart_arcade numbers (GameModes.arcade), or {}: every car driven here gets them.
+var arcade := {}
 var views := ViewManager.new()
 var players: Array[SessionPlayer] = []
 ## Every car: players and AI.
@@ -104,6 +106,8 @@ var run: RunControl
 var server_boards := {}
 ## The police (event.police), where the session is decided: offline here, online the server.
 var police: PoliceControl
+## Kart sessions (D129): tow, slipstream, items. Null otherwise.
+var kart: KartControl
 var traffic: TrafficManager
 ## Dev and tests: the traffic's seed (-1: the track's).
 var traffic_seed := -1
@@ -145,6 +149,7 @@ func _ready() -> void:
 		platform = PlatformLoader.load_official(platform_id)
 	_default_car = GameModes.default_car(platform.platform)
 	mode = GameModes.mode_for(platform_id)
+	arcade = GameModes.arcade(mode)
 	if is_online():
 		_apply_server_rules(online.get("rules", {}))
 	if event.kind == "race":
@@ -163,6 +168,8 @@ func _ready() -> void:
 	add_child(field)
 	if event.kind == "highway" and track.highway:
 		_ready_highway()
+	elif not arcade.is_empty() and event.kind != "time_trial":
+		_ready_kart()
 
 	add_child(views)
 	var map := TrackMap.new()
@@ -385,6 +392,16 @@ func _ready_highway() -> void:
 		add_child(police)
 
 
+## Kart (D129): the kart node next to an ordinary session. No track limits: falling off is
+## what costs time.
+func _ready_kart() -> void:
+	kart = KartControl.new()
+	kart.name = "KartControl"
+	kart.session = self
+	kart.arcade = arcade
+	add_child(kart)
+
+
 ## Highways: racer `i`'s starting direction.
 func direction_for(i: int) -> int:
 	if i < directions.size():
@@ -563,6 +580,8 @@ func _add_racer(r: Racer) -> void:
 		r.limits = false
 		r.wrong_way_respawn = false
 		r.direction = direction_for(racers.size())
+	elif kart:
+		r.limits = false
 	racers.append(r)
 	add_child(r)
 	r.setup()

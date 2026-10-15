@@ -81,6 +81,21 @@
         "key": "L"
       }
     ],
+    "drift": [
+      {
+        "key": "Slash"
+      }
+    ],
+    "use_item": [
+      {
+        "key": "Period"
+      }
+    ],
+    "throw_back": [
+      {
+        "key": "Apostrophe"
+      }
+    ],
     "menu_up": [
       {
         "key": "Up"

@@ -29,6 +29,10 @@ var sim := VehicleSim.new()
 var visual: CarVisual
 ## The mode's kart_arcade numbers (GameModes.arcade), or {} for the plain sim (D130).
 var arcade := {}
+## Kart: the drift button, held (its press also hops, or does a trick in the air).
+var drift := false
+## Kart flags the game keeps (shield, magnet, towed, out); the sim adds its own (kart_flags()).
+var kart_bits := 0
 
 var steer := 0.0
 var throttle := 0.0
@@ -245,6 +249,8 @@ func _physics_process(delta: float) -> void:
 	if remote:
 		return # its wheels and lights once a frame (_process)
 	sim.set_controls(steer, throttle, brake, handbrake, clutch)
+	if not arcade.is_empty():
+		sim.set_kart_input(drift)
 	if drawn and not visual_every_frame:
 		_update_visual(_near_camera())
 
@@ -316,6 +322,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	for i in state.get_contact_count():
 		var j := state.get_contact_impulse(i)
 		var impulse := j.length()
+		var felt := j # what this car keeps of the knock
 		var other := state.get_contact_collider_object(i)
 		if other is Vehicle:
 			car_impulse += impulse
@@ -329,13 +336,44 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 				var keep: float = other.mass / (mass + other.mass)
 				state.apply_impulse(-j * (1.0 - keep), point - state.transform.origin)
 				remote_contacts.append([other, j * keep, point])
+				felt = j * keep
 		elif other is Node and (other as Node).has_meta(&"noss_traffic"):
 			traffic_impulse += impulse
 			car_impulse += impulse
 		else:
 			wall_impulse += impulse
+		if not arcade.is_empty() and impulse > 0.0:
+			_kart_bounce(state, felt, other)
 	if (car_impulse + wall_impulse) / mass > KNOCK_DV:
 		knocked_at = Time.get_ticks_msec() / 1000.0
+
+
+## Kart walls and bumps bounce (D132). Jolt gives every contact a bounce of 0.1; a kart adds the
+## rest of its mode's restitution from the knock's own impulse, so a wall it leans on stays still.
+func _kart_bounce(state: PhysicsDirectBodyState3D, j: Vector3, other: Object) -> void:
+	var b: Dictionary = arcade.bounce
+	var e := 0.0
+	if other is Vehicle:
+		e = b.kart
+	elif other is Node and (other as Node).has_meta(&"noss_tag"):
+		return # stunt pieces are driven on
+	elif absf(j.normalized().y) < 0.5:
+		e = b.wall
+	else:
+		return # floors and slopes
+	if j.length() / mass < float(b.min_dv) * 1.1 or e <= 0.1:
+		return
+	state.apply_central_impulse(j * ((e - 0.1) / 1.1))
+
+
+## The kart's flags (CarState's kart word, D142): the sim's drift, tier, boost, spin, slow, trick
+## and airborne, and the game's own bits.
+func kart_flags() -> int:
+	return (sim.get_kart_flags() if not arcade.is_empty() else 0) | kart_bits
+
+
+func drifting() -> bool:
+	return kart_flags() & (VehicleSim.KART_FLAG_DRIFT_LEFT | VehicleSim.KART_FLAG_DRIFT_RIGHT) != 0
 
 
 ## No contact with other cars (a car rejoining, or a ghosted session), drawn see-through

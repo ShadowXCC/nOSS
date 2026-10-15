@@ -1,0 +1,137 @@
+class_name KartControl
+extends Node
+## Kart sessions (D129): added next to an ordinary session when the class's mode has the
+## kart_arcade layer. Here: the tow drone (D132) and slipstream; items and boxes join it.
+
+const SLIP_HZ := 30.0
+const SLIP_MIN_SPEED := 10.0 # m/s: the car ahead must be going
+const TOW_LIFT := 6.0 # m above the higher end, at the middle of the carry
+const GHOST_AFTER_TOW := 1.0
+
+var session: TrackSession
+var arcade := {}
+## Racers being carried: racer -> {t, from: Transform3D, to: Transform3D, drone: Node3D, freeze_mode}.
+var _tows := {}
+var _slip_time := 0.0
+## Magnet (items): racer -> how many times stronger its slipstream is (D139).
+var slip_boost := {}
+
+
+func _ready() -> void:
+	process_physics_priority = -57 # after the race field, before the drivers (-50)
+
+
+## A drone lifts the kart and carries it back to the last valid spot on the road, then puts it
+## down rolling (D132): falling off costs the time, the lap still counts.
+func tow(r: Racer) -> void:
+	if _tows.has(r) or r.vehicle == null or r.waiting:
+		return
+	var v := r.vehicle
+	var to := session.track.transform_at(r.last_valid)
+	_tows[r] = { "t": 0.0, "from": v.global_transform, "to": to, "freeze_mode": v.freeze_mode, "drone": _drone(v) }
+	r.towed = true
+	v.kart_bits |= CarState.KART_TOWED
+	v.sim.kart_effect(VehicleSim.KART_CANCEL, 0.0)
+	v.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	v.freeze = true
+	r.set_ghost(true)
+	r.notify("Tow", 1.5)
+
+
+func towing(r: Racer) -> bool:
+	return _tows.has(r)
+
+
+func _physics_process(delta: float) -> void:
+	for r: Racer in _tows.keys():
+		_carry(r, delta)
+	_slip_time += delta
+	if _slip_time >= 1.0 / SLIP_HZ:
+		_slip_time = 0.0
+		_slipstream()
+
+
+func _carry(r: Racer, delta: float) -> void:
+	var tow: Dictionary = _tows[r]
+	var v := r.vehicle
+	if v == null or not is_instance_valid(v):
+		_tows.erase(r)
+		return
+	tow.t += delta / float(arcade.tow.s)
+	var from: Transform3D = tow.from
+	var to: Transform3D = tow.to
+	var k := smoothstep(0.0, 1.0, minf(tow.t, 1.0))
+	var ground := to.origin - to.basis.y * v.fitted.ground_y
+	var p := from.origin.lerp(ground, k) + Vector3.UP * TOW_LIFT * sin(PI * minf(tow.t, 1.0))
+	var b := from.basis.orthonormalized().slerp(to.basis.orthonormalized(), k)
+	v.global_transform = Transform3D(b, p)
+	if tow.t < 1.0:
+		return
+	_tows.erase(r)
+	if is_instance_valid(tow.drone):
+		tow.drone.queue_free()
+	v.freeze = false
+	v.freeze_mode = tow.freeze_mode
+	var speed: float = v.sim.get_geared_top() * float(arcade.tow.speed)
+	v.reset_to(to, to.basis.z * speed)
+	v.kart_bits &= ~CarState.KART_TOWED
+	r.towed = false
+	r.distance = r.last_valid
+	r.track_index = -1
+	r.timer.teleported(r.lap_pos(r.last_valid))
+	r.ghost_for(GHOST_AFTER_TOW)
+
+
+## A small quadcopter on a cable above the kart (made in code, original). None on a server.
+func _drone(v: Vehicle) -> Node3D:
+	if Game.dedicated or Game.dev.has("bot"):
+		return null
+	var root := Node3D.new()
+	root.name = "TowDrone"
+	var top := v.fitted.envelope.end.y if v.fitted else 1.0
+	root.position = Vector3(0, top + 1.6, 0)
+	var dark := StandardMaterial3D.new()
+	dark.albedo_color = Color(0.12, 0.12, 0.14)
+	var light := StandardMaterial3D.new()
+	light.albedo_color = Color(0.95, 0.75, 0.15)
+	var b := MeshBatch.new()
+	b.box(Vector3.ZERO, Basis(), Vector3(0.5, 0.14, 0.5))
+	for x in [-1, 1]:
+		for z in [-1, 1]:
+			b.box(Vector3(0.38 * x, 0.04, 0.38 * z), Basis(), Vector3(0.36, 0.02, 0.36))
+	var body := MeshInstance3D.new()
+	body.mesh = b.mesh()
+	body.material_override = dark
+	root.add_child(body)
+	var cable := MeshInstance3D.new()
+	var cb := MeshBatch.new()
+	cb.box(Vector3(0, -0.8, 0), Basis(), Vector3(0.03, 1.6, 0.03))
+	cable.mesh = cb.mesh()
+	cable.material_override = light
+	root.add_child(cable)
+	v.add_child(root)
+	return root
+
+
+## Slipstream (D139): close behind a car, inside its width, the drag drops.
+func _slipstream() -> void:
+	var s: Dictionary = arcade.slipstream
+	var reach: float = s.range_m
+	var half: float = s.half_width_m
+	for r in session.racers:
+		var v := r.vehicle
+		if v == null or v.remote or v.arcade.is_empty() or r.waiting or r.towed:
+			continue
+		var fwd := v.global_basis.z
+		var left := v.global_basis.x
+		var best := 0.0
+		for o in session.racers:
+			if o == r or o.vehicle == null or o.waiting or o.towed or absf(o.speed) < SLIP_MIN_SPEED:
+				continue
+			var rel := o.vehicle.global_position - v.global_position
+			var along := rel.dot(fwd)
+			if along <= 0.0 or along > reach or absf(rel.dot(left)) > half:
+				continue
+			best = maxf(best, 1.0 - along / reach)
+		var cut := minf(float(s.drag_cut) * best * float(slip_boost.get(r, 1.0)), 0.9)
+		v.sim.set_kart_drag(1.0 - cut)

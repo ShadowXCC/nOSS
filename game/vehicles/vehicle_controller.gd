@@ -6,6 +6,8 @@ extends Node
 
 signal reset_requested
 signal camera_next_requested
+## Kart: the player used their item, throwing it back (D135).
+signal item_requested(back: bool)
 
 ## Keyboard steering rates, full lock per second, at low and high speed.
 const KEY_RATE_SLOW := 5.0
@@ -74,9 +76,13 @@ func _physics_process(delta: float) -> void:
 	# it off while a wheel steers.
 	var aid_setting := String(input.profile.data.assists.get("steer_aid", "auto"))
 	var aid := bool(assists.get("steer_aid", false)) and (aid_setting == "on" or active_device != "wheel")
-	if aid:
-		steer *= 1.0 / (1.0 + pow(speed / AID_REF_SPEED, 2.0))
-		steer += _counter_steer(speed)
+	var kart := not vehicle.arcade.is_empty()
+	# A drift's steering sets how tight it turns: no aid then (D131). Karts get a stronger aid.
+	if aid and not (kart and vehicle.drifting()):
+		var ref: float = vehicle.arcade.steer_aid.ref_speed if kart else AID_REF_SPEED
+		var counter: float = vehicle.arcade.steer_aid.counter if kart else 1.0
+		steer *= 1.0 / (1.0 + pow(speed / ref, 2.0))
+		steer += _counter_steer(speed) * counter
 		steer = clampf(steer, -1.0, 1.0)
 
 	vehicle.steer = steer
@@ -86,7 +92,14 @@ func _physics_process(delta: float) -> void:
 	vehicle.clutch = input.analog("clutch")
 	vehicle.horn = input.held("horn")
 	vehicle.head_flash = input.held("lights")
-	_h_shifter()
+	if kart:
+		# Kart controls share inputs with the handbrake and the shifts, which karts don't use (D135).
+		vehicle.drift = input.held("drift")
+		vehicle.handbrake = 0.0
+		if input.just_pressed("use_item"):
+			item_requested.emit(input.held("throw_back"))
+	else:
+		_h_shifter()
 	if racer and racer.held:
 		# On the grid: the car waits on the handbrake (the brake would select reverse).
 		vehicle.throttle = 0.0
@@ -97,7 +110,9 @@ func _physics_process(delta: float) -> void:
 	elif _guide:
 		_apply_access_assists(delta)
 
-	if input.just_pressed("shift_up"):
+	if kart:
+		pass
+	elif input.just_pressed("shift_up"):
 		vehicle.sim.shift(1)
 	elif input.just_pressed("shift_down"):
 		vehicle.sim.shift(-1)
@@ -133,6 +148,7 @@ func release() -> void:
 		vehicle.brake = 0.0
 		vehicle.steer = 0.0
 		vehicle.handbrake = 0.0
+		vehicle.drift = false
 	_key_steer = 0.0
 	if input:
 		input.clear_toggles()

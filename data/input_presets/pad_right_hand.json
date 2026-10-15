@@ -63,6 +63,21 @@
         "button": "start"
       }
     ],
+    "drift": [
+      {
+        "button": "right_stick"
+      }
+    ],
+    "use_item": [
+      {
+        "button": "y"
+      }
+    ],
+    "throw_back": [
+      {
+        "button": "b"
+      }
+    ],
     "menu_up": [
       {
         "axis": "right_y",

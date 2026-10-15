@@ -39,6 +39,9 @@ const ACTIONS := {
 	"editor_back": { "name": "Back to editor" },
 	"horn": { "name": "Horn" },
 	"lights": { "name": "Flash lights" },
+	"drift": { "name": "Drift" },
+	"use_item": { "name": "Use item" },
+	"throw_back": { "name": "Throw back" },
 	"menu_up": { "name": "Menu up", "repeat": true },
 	"menu_down": { "name": "Menu down", "repeat": true },
 	"menu_left": { "name": "Menu left", "repeat": true },
@@ -49,12 +52,20 @@ const ACTIONS := {
 const DRIVING := ["steer_left", "steer_right", "throttle", "brake", "handbrake", "clutch", "shift_up", "shift_down",
 	"gear_r", "gear_n", "gear_1", "gear_2", "gear_3", "gear_4", "gear_5", "gear_6", "gear_7",
 	"camera_next", "look_back", "look_left", "look_right", "look_up", "look_down", "reset_car", "hotswap_menu",
-	"pause", "editor_back", "horn", "lights"]
+	"pause", "editor_back", "horn", "lights", "drift", "use_item", "throw_back"]
+## Kart actions (D135), and the driving actions each may share an input with: ones kart sessions
+## ignore (no handbrake, a one-gear automatic), and looking back for throwing back.
+const KART := ["drift", "use_item", "throw_back"]
+const KART_SHARES := {
+	"drift": ["handbrake", "shift_up", "shift_down"],
+	"use_item": ["handbrake", "shift_up", "shift_down"],
+	"throw_back": ["handbrake", "shift_up", "shift_down", "look_back"],
+}
 ## H-shifter gates (docs/INPUT.md §5): action -> gear (-1 reverse, 0 neutral).
 const GEARS := { "gear_r": -1, "gear_n": 0, "gear_1": 1, "gear_2": 2, "gear_3": 3, "gear_4": 4, "gear_5": 5, "gear_6": 6, "gear_7": 7 }
 const MENU := ["menu_up", "menu_down", "menu_left", "menu_right", "menu_confirm", "menu_cancel"]
 ## Hold actions that can be toggles instead (docs/ACCESSIBILITY.md §5.1).
-const HOLD := ["throttle", "brake", "handbrake", "look_back"]
+const HOLD := ["throttle", "brake", "handbrake", "look_back", "drift", "throw_back"]
 ## What a player's menu gets, as InputEventAction: navigation, plus pause and change car,
 ## which close the menus they open.
 const MENU_EVENTS := {

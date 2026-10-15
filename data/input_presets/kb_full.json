@@ -93,6 +93,21 @@
         "key": "L"
       }
     ],
+    "drift": [
+      {
+        "key": "Space"
+      }
+    ],
+    "use_item": [
+      {
+        "key": "E"
+      }
+    ],
+    "throw_back": [
+      {
+        "key": "B"
+      }
+    ],
     "menu_up": [
       {
         "key": "Up"

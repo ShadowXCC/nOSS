@@ -109,6 +109,21 @@
         "button": "x"
       }
     ],
+    "drift": [
+      {
+        "button": "right_shoulder"
+      }
+    ],
+    "use_item": [
+      {
+        "button": "left_shoulder"
+      }
+    ],
+    "throw_back": [
+      {
+        "button": "right_stick"
+      }
+    ],
     "menu_up": [
       {
         "button": "dpad_up"

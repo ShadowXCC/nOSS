@@ -379,6 +379,7 @@ Dictionary VehicleSim::get_kart_state() const {
 	d["grounded"] = k.grounded;
 	d["boosts"] = k.boosts;
 	d["tricks"] = k.tricks;
+	d["drag"] = k.drag_scale;
 	return d;
 }
 

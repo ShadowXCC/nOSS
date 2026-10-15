@@ -229,9 +229,13 @@ func _drive_bounce(v: float, p: Vector3, b: Basis) -> void:
 			kart.throttle = 0.0
 			_state.back = maxf(_state.back, -kart.linear_velocity.z)
 		else:
-			kart.throttle = 1.0 # pushed into the wall: it shouldn't buzz
+			if since == 60: # now at rest against the wall, pushing into it: it shouldn't buzz
+				kart.reset_to(Transform3D(Basis(), Vector3(0, 0, 40.0 - kart.fitted.envelope.end.z - 0.05)))
+			kart.throttle = 1.0
 			if since > 120:
 				_state.buzz = maxf(_state.buzz, absf(kart.linear_velocity.z))
+			if opts.verbose and since % 6 == 0:
+				print("    since %d vz %.2f z %.2f wall %.1f" % [since, kart.linear_velocity.z, kart.global_position.z, kart.wall_impulse])
 		if since > 300:
 			var ratio: float = _state.back / v
 			results.append("bounce at %4.1f m/s: back at %.1f m/s (%.2f of it), pushing against it %.2f m/s" % [v, _state.back, ratio, _state.buzz])

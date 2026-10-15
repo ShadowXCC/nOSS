@@ -77,6 +77,8 @@ func _build() -> void:
 	var map := _map(d)
 	var kind: String = d.kind
 	for action: String in Bindings.DRIVING + Bindings.MENU:
+		if action == Bindings.KART[0]:
+			rows.add_child(UiKit.label("Kart", 24)) # its actions share inputs kart ignores (D135)
 		var refs: Array = map.get(action, [])
 		var label := Bindings.refs_label(refs, kind)
 		var dupes := _also(map, action)

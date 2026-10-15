@@ -15,6 +15,8 @@ const REJOIN_CLEAR_S := 4.0
 const REJOIN_MAX_WAIT_S := 10.0
 ## ...then appears at the road's edge without collisions for this long.
 const REJOIN_GHOST_S := 3.0
+## Kart: this far below the road where it is, the kart is towed (D132).
+const KART_FALL_M := 6.0
 
 var session: TrackSession
 var track: TrackData
@@ -62,6 +64,8 @@ var held := false
 var finished := false
 ## Waiting off the track to rejoin after a reset (hidden, no collisions).
 var waiting := false
+## Kart: carried by the tow drone (D132).
+var towed := false
 ## No collisions with other cars, drawn see-through (just rejoined, or ghosted sessions).
 var ghosted := false
 ## Rolling start: held to this speed (m/s) until the green; 0 = no limit.
@@ -185,6 +189,8 @@ func _car_changed() -> void:
 func _spawn(pkg: VehiclePackage) -> void:
 	vehicle = Vehicle.create(platform, pkg, session.fitting_mode)
 	vehicle.name = "Vehicle%d" % number
+	if not session.arcade.is_empty():
+		vehicle.set_arcade(session.arcade) # kart (D130)
 	session.add_child(vehicle)
 	vehicle.reset_to(spawn_at)
 	var proj := track.project(spawn_at.origin)
@@ -262,6 +268,8 @@ func _physics_process(delta: float) -> void:
 ## Called by the RaceField once per physics tick, before the drivers: projects the car's centre
 ## of mass onto the track and feeds the lap timer.
 func update_track(delta: float) -> void:
+	if towed:
+		return # in the air under the tow drone (kart)
 	var com := vehicle.global_transform * vehicle.center_of_mass
 	var proj := track.project(com, track_index)
 	track_index = proj.index
@@ -278,8 +286,9 @@ func update_track(delta: float) -> void:
 		last_valid = distance
 	if limits:
 		_check_track_limits()
-	# Fallen off the world (off a bridge, into water): back on the road.
-	if com.y < track.kill_y and not waiting:
+	# Fallen off the world (off a bridge, into water): back on the road. A kart is also towed
+	# from well below the road where it is (off a jump or a loop, D132).
+	if (com.y < track.kill_y or (session.kart and com.y < track.point_at(distance).y - KART_FALL_M)) and not waiting:
 		reset_car()
 	# Wrong way: a warning (the HUD shows it), then a respawn facing the right way.
 	if wrong_way and wrong_way_respawn and not waiting:
@@ -324,6 +333,9 @@ func _check_track_limits() -> void:
 func reset_car() -> void:
 	if vehicle == null or waiting:
 		return
+	if session.kart:
+		session.kart.tow(self)
+		return
 	if session.highway:
 		session.highway.reset(self)
 		return
@@ -340,6 +352,12 @@ func reset_car() -> void:
 
 ## Online: the server ghosts this car while its link is bad (D86).
 var forced_ghost := false
+
+
+## Ghosted for `seconds`, then solid again once clear of other cars.
+func ghost_for(seconds: float) -> void:
+	_ghost_time = seconds
+	set_ghost(true)
 
 
 ## No collisions with other cars, and drawn see-through.
