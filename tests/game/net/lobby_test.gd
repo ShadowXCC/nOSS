@@ -274,3 +274,23 @@ func test_lan_discovery_finds_both_servers() -> void:
 	for r: NetDiscovery.Responder in responders:
 		r.queue_free()
 	scan.queue_free()
+
+
+## The server's AI cars come with a paint job each (D128), the same on every game: it travels in
+## the roster, already clean.
+func test_ai_cars_bring_their_paint() -> void:
+	var cfg := ServerConfig.defaults()
+	var e := RaceEvent.new()
+	e.kind = "race"
+	e.ai_count = 6
+	e.ai_cars = "builtin"
+	cfg.rotation[0].event = e.to_dict()
+	_start(cfg)
+	var ai: Array = host.session_dict().roster.filter(func(d: Dictionary) -> bool: return d.get("ai", false))
+	assert_int(ai.size()).is_equal(6)
+	var looks := {}
+	for d: Dictionary in ai:
+		assert_bool(d.paint is Dictionary).is_true()
+		assert_dict(CarVisual.clean_paint(d.paint)).is_equal(d.paint)
+		looks[JSON.stringify(d.paint)] = true
+	assert_int(looks.size()).is_greater(1)

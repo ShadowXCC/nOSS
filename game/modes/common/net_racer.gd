@@ -16,6 +16,8 @@ const FAR_EVERY := 2
 var peer := 0
 ## The car package's hash ("" until picked).
 var car_hash := ""
+## The server's AI cars: their paint job (CarVisual.random_paint, D128); {} for the car's own.
+var paint := {}
 var buffer := MotionBuffer.new()
 ## Where server time comes from (NetSession.now).
 var clock := Callable()
@@ -77,6 +79,8 @@ func _on_net_car(pkg: VehiclePackage, tier: String) -> void:
 		vehicle.mount(pkg) # swaps at once: nothing here drives it
 	if tier == "default":
 		vehicle.visual.set_paint("primary", color, "solid")
+	elif not paint.is_empty():
+		vehicle.visual.apply_choice(paint)
 	_car_changed()
 
 

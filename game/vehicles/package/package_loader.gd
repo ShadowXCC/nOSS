@@ -48,14 +48,19 @@ static func list_available() -> PackedStringArray:
 
 ## Manifest only, for listings. Not validated: loading the package does that.
 static func read_manifest(path: String) -> Dictionary:
+	return read_json(path, "manifest.json")
+
+
+## One small JSON file of a package (a folder or a .noss), e.g. paint.json; {} without it.
+static func read_json(path: String, file: String) -> Dictionary:
 	var bytes := PackedByteArray()
 	if DirAccess.dir_exists_absolute(path):
-		bytes = FileAccess.get_file_as_bytes(path.path_join("manifest.json"))
+		bytes = FileAccess.get_file_as_bytes(path.path_join(file))
 	else:
 		var zip := ZIPReader.new()
 		if zip.open(path) == OK:
-			if zip.file_exists("manifest.json"):
-				bytes = zip.read_file("manifest.json")
+			if zip.file_exists(file):
+				bytes = zip.read_file(file)
 			zip.close()
 	var data: Variant = JSON.parse_string(bytes.get_string_from_utf8()) if bytes.size() < 65536 and not bytes.is_empty() else null
 	return data if data is Dictionary else {}

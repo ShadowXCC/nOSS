@@ -121,6 +121,11 @@ func test_ai_racers_have_no_views_and_share_models() -> void:
 		assert_int(r.number).is_greater_equal(5)
 		assert_bool(r.is_human).is_false()
 		assert_object(r.driver).is_instanceof(RacingAI)
+		# Each wears a paint job picked for it (D128).
+		assert_object(r.paint).is_not_null()
+		if (r.paint as Dictionary).has("primary"):
+			var m: ShaderMaterial = r.vehicle.visual._paint.primary
+			assert_object(m.get_shader_parameter("paint_color")).is_equal(Color.html(r.paint.primary))
 	# Every car on its own grid spot.
 	for i in s.racers.size():
 		for j in range(i + 1, s.racers.size()):

@@ -463,6 +463,7 @@ func _add_online_racer(d: Dictionary, index: int) -> Racer:
 		var a := AiRacer.new()
 		a.configure(int(d.get("local", 0)), float(d.get("skill", ai_skill)))
 		a.net_id = id
+		a.paint = CarVisual.clean_paint(d.get("paint"))
 		a.spawn_at = spot
 		_add_racer(a)
 		var path := Net.host_logic.ai_path(id) if Net.host_logic else ""
@@ -486,6 +487,7 @@ func _add_online_racer(d: Dictionary, index: int) -> Racer:
 	r.color = Color.from_string(String(d.color), Color.WHITE)
 	r.number = index + 1
 	r.is_human = not d.get("ai", false)
+	r.paint = CarVisual.clean_paint(d.get("paint"))
 	r.name = "Net%d" % id
 	r.spawn_at = spot
 	_add_racer(r)

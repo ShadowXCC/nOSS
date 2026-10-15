@@ -12,6 +12,14 @@ const FINISHES := {
 	"matte": [0.0, 0.75, 0.0, 0.5, 0.0],
 	"chrome": [1.0, 0.06, 0.0, 0.1, 0.0],
 }
+## Paint for AI cars whose package has no presets (D128): [colour, finish], common car colours.
+const STOCK_COLORS := [
+	["#E8E8E6", "solid"], ["#111214", "metallic"], ["#9EA2A6", "metallic"], ["#55595E", "metallic"],
+	["#B3141B", "solid"], ["#1F3E8C", "metallic"], ["#2C7BD6", "pearl"], ["#1E5A3A", "metallic"],
+	["#F2C12E", "solid"], ["#E8721C", "solid"], ["#5A1E2E", "pearl"], ["#C9B98F", "metallic"],
+]
+## A paint choice names at most this many slots.
+const CHOICE_SLOTS := 4
 const BRAKE_ON_ENERGY := 4.0
 const BRAKE_OFF_ENERGY := 0.0
 ## Light groups the game switches (fit.json "lights"): their glow colour and energy when on.
@@ -145,6 +153,46 @@ func set_light(group: String, level: float) -> void:
 
 func light_level(group: String) -> float:
 	return float(_light_level.get(group, 0.0))
+
+
+## A paint job for an AI car (D128): one of the package's presets or its own paint, at random;
+## with no presets, a stock colour. Keys as a preset's (paint.json): slot -> "#RRGGBB", and
+## "finish" for the primary; {} is the car's own paint.
+static func random_paint(paint: Dictionary, rng: RandomNumberGenerator = null) -> Dictionary:
+	var presets: Array = (paint.get("presets", []) as Array).filter(func(p: Variant) -> bool: return p is Dictionary)
+	var roll := func(n: int) -> int: return (rng.randi() if rng else randi()) % n
+	if presets.is_empty():
+		var c: Array = STOCK_COLORS[roll.call(STOCK_COLORS.size())]
+		return { "primary": c[0], "finish": c[1] }
+	var i: int = roll.call(presets.size() + 1)
+	return clean_paint(presets[i]) if i < presets.size() else {}
+
+
+## A paint choice as it may come from a file or a server: "#RRGGBB" colours for at most
+## CHOICE_SLOTS slots and a known finish; anything else is dropped.
+static func clean_paint(d: Variant) -> Dictionary:
+	var out := {}
+	if not d is Dictionary:
+		return out
+	var colours := 0
+	for key: Variant in d:
+		var v: Variant = d[key]
+		if key is String and key == "finish":
+			if v is String and FINISHES.has(v):
+				out["finish"] = v
+		elif key is String and key != "name" and String(key).length() <= 32 and v is String and String(v).length() <= 9 \
+				and Color.html_is_valid(v) and colours < CHOICE_SLOTS:
+			out[key] = v
+			colours += 1
+	return out
+
+
+## Puts a paint choice (random_paint) on: its colours on their slots, its finish on the primary.
+func apply_choice(choice: Dictionary) -> void:
+	for slot: String in _paint:
+		var m: ShaderMaterial = _paint[slot]
+		var color: Color = Color.html(choice[slot]) if choice.has(slot) else m.get_shader_parameter("paint_color")
+		set_paint(slot, color, String(choice.get("finish", "")) if slot == "primary" else "")
 
 
 func set_paint(slot: String, color: Color, finish := "") -> void:

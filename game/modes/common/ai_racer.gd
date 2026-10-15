@@ -10,6 +10,9 @@ const COLOR := Color(0.78, 0.8, 0.84)
 
 ## 0-100 (docs/GAMEMODES.md §0).
 var skill := 80.0
+## Its paint job (CarVisual.random_paint, D128): picked when its car first comes, or the
+## server's (online); null until then.
+var paint: Variant = null
 
 
 func _init() -> void:
@@ -24,6 +27,14 @@ func configure(index: int, ai_skill: float) -> void:
 	color = COLOR
 	skill = ai_skill
 	is_human = false
+
+
+func _car_changed() -> void:
+	if vehicle == null or vehicle.visual == null or vehicle.package == null:
+		return
+	if paint == null:
+		paint = CarVisual.random_paint(vehicle.package.paint)
+	vehicle.visual.apply_choice(paint)
 
 
 func _make_driver() -> Node:

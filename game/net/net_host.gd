@@ -384,6 +384,7 @@ func _ai_entries() -> Array:
 			"color": AiRacer.COLOR.to_html(false), "fp": "", "admin": false, "car": h,
 			"car_name": String(pick[1].get("name", "")).left(64), "family": String(pick[1].get("family", "car")).left(16),
 			"car_note": "", "ready": true, "ai": true, "skill": skills[i],
+			"paint": CarVisual.random_paint(PackageLoader.read_json(pick[0], "paint.json"), rng),
 		})
 		_ai_paths[NetProtocol.FIRST_AI_ID + i] = pick[0]
 	return out
