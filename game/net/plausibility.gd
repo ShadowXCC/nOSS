@@ -3,8 +3,9 @@ extends RefCounted
 ## The server's checks on a remote car's states (docs/NETWORKING.md §8, D87). nOSS is open source,
 ## so a determined cheater can change their game; these make cheating hard and visible:
 ## - speed above the platform's top speed (power against drag) plus a margin
-## - acceleration no car could do, away from contacts and resets (along the ground: landing off a
-##   crest or a kerb's knock is up and down, a speed cheat isn't)
+## - acceleration no car could do, away from contacts, knocks and resets (along the ground: landing
+##   off a crest or a kerb's knock is up and down, a speed cheat isn't; a car its game says was
+##   knocked may lose speed suddenly, not gain it)
 ## - moving further between two states than its speed allows (a teleport not marked as a reset)
 ## - a reset that jumps ahead along the track
 ## - states stamped far from the server's clock
@@ -17,6 +18,7 @@ const SPEED_MARGIN := 1.15
 const SPEED_EXTRA := 8.0 # m/s: slipstream, downhill
 const MAX_ACCEL := 45.0 # m/s²: well beyond any grip, short of a crash's spike
 const ACCEL_GRACE_S := 0.5 # after a contact or reset
+const KNOCK_GAIN := 2.0 # m/s: what a knocked car may gain and still count as knocked
 const JUMP_SLACK_M := 6.0
 const RESET_AHEAD_M := 40.0
 const CLOCK_AHEAD_S := 0.5
@@ -61,6 +63,8 @@ func check(s: CarState, now: float, track: TrackData, contact := false) -> Packe
 			out.append("reset ahead")
 	elif _last and s.time > _last.time:
 		var dt := s.time - _last.time
+		if s.flags & CarState.FLAG_KNOCK and s.velocity.length() <= _last.velocity.length() + KNOCK_GAIN:
+			_grace_until = now + ACCEL_GRACE_S # a knock stops a car hard; it never speeds one up much
 		var moved := _last.xform.origin.distance_to(s.xform.origin)
 		var could := maxf(_last.velocity.length(), s.velocity.length()) * dt + JUMP_SLACK_M
 		if moved > could and s.flags & CarState.FLAG_WAITING == 0:

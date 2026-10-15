@@ -11,7 +11,7 @@ const STATE_HZ := 10.0
 const KINDS := ["free", "time_trial", "practice", "qualifying", "race"]
 const FLAGS := ["", "green", "yellow", "blue", "checkered"]
 const HEADER := 30
-const CAR_SIZE := 20
+const CAR_SIZE := 21
 ## A link this bad for BAD_LINK_S ghosts its cars (rules.ghost_bad_links).
 const BAD_RTT_MS := 250.0
 const BAD_LOSS := 0.05
@@ -131,7 +131,7 @@ func _on_assists(id: int, used: Dictionary) -> void:
 
 
 ## The race state: [103][time f64][kind][index][phase][lights][clock f32][go_at f64]
-## [leader finished f32][n] then per car [id][bits][pace][lap u16][best f32][last f32][penalty]
+## [leader finished f32][n] then per car [id u16][bits][pace][lap u16][best f32][last f32][penalty]
 ## [warnings][finish f32][position]. bits: held 1, finished 2, dnf 4, flag << 3.
 func pack_state() -> PackedByteArray:
 	var cars: Array[Racer] = []
@@ -152,17 +152,18 @@ func pack_state() -> PackedByteArray:
 	p[29] = cars.size()
 	var at := HEADER
 	for r in cars:
-		p[at] = r.net_id
+		p.encode_u16(at, r.net_id)
+		var o := at + 1 # the fields after the id, each where [o + n] says
 		var flag := maxi(FLAGS.find(r.flag), 0)
-		p[at + 1] = (1 if r.held else 0) | (2 if r.finished else 0) | (4 if r.dnf else 0) | (flag << 3) | (64 if _bad_link(r) else 0)
-		p[at + 2] = clampi(roundi(r.pace_limit), 0, 255)
-		p.encode_u16(at + 3, clampi(r.timer.lap, 0, 65535))
-		p.encode_float(at + 5, r.timer.best_lap)
-		p.encode_float(at + 9, r.timer.last_lap)
-		p[at + 13] = clampi(roundi(r.penalty_s), 0, 255)
-		p[at + 14] = clampi(r.warnings, 0, 255)
-		p.encode_float(at + 15, r.finish_time)
-		p[at + 19] = clampi(race.position_of(r), 0, 255)
+		p[o + 1] = (1 if r.held else 0) | (2 if r.finished else 0) | (4 if r.dnf else 0) | (flag << 3) | (64 if _bad_link(r) else 0)
+		p[o + 2] = clampi(roundi(r.pace_limit), 0, 255)
+		p.encode_u16(o + 3, clampi(r.timer.lap, 0, 65535))
+		p.encode_float(o + 5, r.timer.best_lap)
+		p.encode_float(o + 9, r.timer.last_lap)
+		p[o + 13] = clampi(roundi(r.penalty_s), 0, 255)
+		p[o + 14] = clampi(r.warnings, 0, 255)
+		p.encode_float(o + 15, r.finish_time)
+		p[o + 19] = clampi(race.position_of(r), 0, 255)
 		at += CAR_SIZE
 	return p
 
@@ -190,9 +191,9 @@ func _on_raw(bytes: PackedByteArray) -> void:
 	race.leader_finished_at = leader if is_finite(leader) else -1.0
 	var at := HEADER
 	for k in n:
-		var r: Racer = net.racers.get(bytes[at])
+		var r: Racer = net.racers.get(bytes.decode_u16(at))
 		if r:
-			_apply_car(r, bytes, at)
+			_apply_car(r, bytes, at + 1) # its fields from [at + 1 + n] as packed
 		at += CAR_SIZE
 
 

@@ -20,6 +20,8 @@ signal roster_changed(roster: Array)
 signal session_ended
 ## RACE_BEGIN, RESULTS or NOTE from the server (NetRace).
 signal race_message(type: int, data: Dictionary)
+## The server's highway traffic as it is (HighwayNet, D109).
+signal traffic_full(data: Dictionary)
 
 const CHAT_KEEP := 100
 
@@ -380,6 +382,9 @@ func _handle(type: int, data: Dictionary) -> void:
 			session = { "track": data.track, "track_name": String(data.get("track_name", "")), "track_bytes": int(data.get("track_bytes", -1)),
 				"class": data["class"], "class_hash": String(data.get("class_hash", "")),
 				"event": data.event, "roster": roster, "rules": data.get("rules", {}) if data.get("rules") is Dictionary else {} }
+			var hw: Variant = data.get("highway")
+			if hw is Dictionary and NetProtocol.has_fields(hw, { "seed": TYPE_INT, "count": TYPE_INT, "t0": TYPE_FLOAT }):
+				session.highway = { "seed": hw.seed, "count": clampi(hw.count, -1, RaceEvent.TRAFFIC_MAX), "t0": float(hw.t0) }
 			_fetch_track(String(data.track), int(data.get("track_bytes", -1)))
 			race_begin = {}
 			session_started.emit(session)
@@ -393,6 +398,9 @@ func _handle(type: int, data: Dictionary) -> void:
 			session = {}
 			race_begin = {}
 			session_ended.emit()
+		NetProtocol.Msg.TRAFFIC_FULL:
+			if not session.is_empty():
+				traffic_full.emit(data)
 		NetProtocol.Msg.RACE_BEGIN, NetProtocol.Msg.RESULTS, NetProtocol.Msg.NOTE:
 			if type == NetProtocol.Msg.RACE_BEGIN:
 				race_begin = data

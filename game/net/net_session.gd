@@ -2,21 +2,29 @@ class_name NetSession
 extends Node
 ## Online play inside a track session (docs/NETWORKING.md §6, D84). Each game sends the states of
 ## the cars it drives: a client to the server, at 30 per second (60 on a fast link); the server
-## sends everyone every other car's freshest states 60 times a second (a client's own cars
-## excepted), its own cars (a listen host's players, AI) included. Remote cars are NetRacers. A
-## client keeps the server's clock (ClockSync); the server's is its own.
+## relays every other car's freshest states up to 60 times a second (a client's own cars
+## excepted), its own cars (a listen host's players, AI) included, nearest first within a byte
+## budget (RelayScheduler, D111). Remote cars are NetRacers. On highways the physics traffic cars
+## a game owns go the same way (ids from NetProtocol.FIRST_TRAFFIC_ID, 20 a second); elsewhere
+## they're proxies (TrafficCar.remote). A client keeps the server's clock (ClockSync); the
+## server's is its own.
 
 const MSG_STATE := 100
 const MSG_CONTACT := 104
-const CONTACT_SIZE := 27
+## [104][from u16][to u16][impulse f32 ×3][point f32 ×3]
+const CONTACT_SIZE := 29
 ## Contact relay (D86): most per second between two cars, the largest change of speed it may
 ## give (m/s), and how near the car it must be (m).
 const CONTACT_PER_S := 10.0
 const CONTACT_MAX_DV := 3.0
 const CONTACT_NEAR_M := 8.0
 const RELAY_HZ := 60.0
-## Most states in one packet (44 bytes each): stays under ENet's fragment size.
+## Most states in one packet (46 bytes each): stays under ENet's fragment size.
 const PER_PACKET := 24
+## Traffic cars this game drives are sent this many times a second.
+const TRAFFIC_HZ := 20.0
+## A car's states say it was knocked (a wall, a car) for this long after (Plausibility).
+const KNOCK_S := 0.25
 ## A placed car's states carry the teleport flag this many times (one may be lost).
 const TELEPORT_REPEAT := 3
 
@@ -25,6 +33,8 @@ var session: TrackSession
 var racers := {}
 ## car id -> Racer this game drives.
 var owned := {}
+## car id -> TrafficCar this game drives (highways).
+var traffic_owned := {}
 ## Sends own cars this many times a second (0: 60 if the round trip is under 30 ms, else 30).
 var send_rate := 0
 var clock := ClockSync.new()
@@ -32,7 +42,6 @@ var clock := ClockSync.new()
 var _send_time := 0.0
 var _relay_time := 0.0
 var _latest := {} # server: car id -> newest CarState (all cars)
-var _relayed := {} # server: car id -> time of the state last relayed
 var _resets := {} # car id -> [reset_count seen, teleport flags left to send]
 var _contact_sent := {} # "a:b" -> time, so a pair relays at most CONTACT_PER_S
 var _own_contact := {} # "own:other" -> time this game's car last touched that car itself
@@ -40,6 +49,8 @@ var _contact_routed := {} # server: "a:b" -> time last passed on
 var _plaus := {} # server: car id -> Plausibility
 var _plaus_said := {} # server: car id -> time the driver last heard why
 var _plaus_logged := {} # server: car id -> time last logged
+var _relay := RelayScheduler.new()
+var _traffic_time := 0.0
 
 
 func _ready() -> void:
@@ -79,8 +90,21 @@ func remove(id: int) -> void:
 	racers.erase(id)
 	owned.erase(id)
 	_latest.erase(id)
-	_relayed.erase(id)
 	_resets.erase(id)
+	_relay.forget(id)
+
+
+## A traffic car this game drives now (highways): its states go out.
+func own_traffic(id: int, tc: TrafficCar) -> void:
+	traffic_owned[id] = tc
+
+
+## A traffic car this game no longer drives (gone back into the lane sim, or handed over).
+func drop_traffic(id: int) -> void:
+	traffic_owned.erase(id)
+	if is_server():
+		_latest.erase(id)
+		_relay.forget(id)
 
 
 func _physics_process(delta: float) -> void:
@@ -94,8 +118,13 @@ func _physics_process(delta: float) -> void:
 ## This game's cars' knocks with remote cars go to those cars' games (D86).
 func _relay_contacts() -> void:
 	var t := now()
+	var mine := {}
 	for id: int in owned:
-		var v: Vehicle = owned[id].vehicle
+		mine[id] = owned[id].vehicle
+	for id: int in traffic_owned:
+		mine[id] = (traffic_owned[id] as TrafficCar).vehicle
+	for id: int in mine:
+		var v: Vehicle = mine[id]
 		if v == null or not is_instance_valid(v):
 			continue
 		for c: Array in v.remote_contacts:
@@ -110,11 +139,11 @@ func _relay_contacts() -> void:
 			var p := PackedByteArray()
 			p.resize(CONTACT_SIZE)
 			p[0] = MSG_CONTACT
-			p[1] = id
-			p[2] = other
+			p.encode_u16(1, id)
+			p.encode_u16(3, other)
 			for k in 3:
-				p.encode_float(3 + k * 4, -(c[1] as Vector3)[k]) # what the other car gets
-				p.encode_float(15 + k * 4, (c[2] as Vector3)[k])
+				p.encode_float(5 + k * 4, -(c[1] as Vector3)[k]) # what the other car gets
+				p.encode_float(17 + k * 4, (c[2] as Vector3)[k])
 			if is_server():
 				_route_contact(1, p)
 			elif Net.client:
@@ -122,6 +151,8 @@ func _relay_contacts() -> void:
 
 
 func _id_of(v: Vehicle) -> int:
+	if v.traffic_id >= 0:
+		return NetProtocol.FIRST_TRAFFIC_ID + v.traffic_id
 	for id: int in racers:
 		if racers[id].vehicle == v:
 			return id
@@ -141,6 +172,12 @@ func _check(peer: int, s: CarState, t: float) -> void:
 	for pair: String in _contact_routed:
 		if (pair.begins_with("%d:" % s.id) or pair.ends_with(":%d" % s.id)) and t - float(_contact_routed[pair]) < 0.5:
 			contact = true
+	if not contact and session.traffic:
+		# A knock with a traffic car its own game drives never comes through here.
+		for tc: TrafficCar in session.traffic.cars.values():
+			if tc.vehicle.global_position.distance_to(s.xform.origin) < CONTACT_NEAR_M:
+				contact = true
+				break
 	var found := p.check(s, t, session.track, contact)
 	if not found.is_empty() and p.strike(found, t):
 		respond(peer, s.id, p.reasons(), mode)
@@ -184,25 +221,25 @@ func check_lap(r: Racer, seconds: float) -> void:
 func _route_contact(from_peer: int, p: PackedByteArray) -> void:
 	if p.size() != CONTACT_SIZE:
 		return
-	var from := p[1]
-	var to := p[2]
+	var from := p.decode_u16(1)
+	var to := p.decode_u16(3)
 	if from_peer != 1 and not _owned_by(from, from_peer):
 		return
 	var pair := "%d:%d" % [from, to]
 	if now() - float(_contact_routed.get(pair, -1.0)) < 0.5 / CONTACT_PER_S:
 		return # more than a game sends on its own
 	_contact_routed[pair] = now()
-	var target: Racer = racers.get(to)
-	if target == null or target.vehicle == null:
+	var target_v := _vehicle_of(to)
+	if target_v == null:
 		return
-	var impulse := Vector3(p.decode_float(3), p.decode_float(7), p.decode_float(11))
-	var point := Vector3(p.decode_float(15), p.decode_float(19), p.decode_float(23))
-	if not impulse.is_finite() or not point.is_finite() or point.distance_to(target.vehicle.global_position) > CONTACT_NEAR_M:
+	var impulse := Vector3(p.decode_float(5), p.decode_float(9), p.decode_float(13))
+	var point := Vector3(p.decode_float(17), p.decode_float(21), p.decode_float(25))
+	if not impulse.is_finite() or not point.is_finite() or point.distance_to(target_v.global_position) > CONTACT_NEAR_M:
 		return
-	impulse = impulse.limit_length(target.vehicle.mass * CONTACT_MAX_DV)
+	impulse = impulse.limit_length(target_v.mass * CONTACT_MAX_DV)
 	for k in 3:
-		p.encode_float(3 + k * 4, impulse[k])
-	var owner_peer := 1 if owned.has(to) else int(Net.server.players[to].peer) if Net.server.players.has(to) else -1
+		p.encode_float(5 + k * 4, impulse[k])
+	var owner_peer := _peer_of(to)
 	if owner_peer == 1:
 		_apply_contact(p)
 	elif owner_peer > 1:
@@ -211,17 +248,17 @@ func _route_contact(from_peer: int, p: PackedByteArray) -> void:
 
 ## A knock from another game, unless this game's car felt that one itself.
 func _apply_contact(p: PackedByteArray) -> void:
-	var from := p[1]
-	var to := p[2]
-	var r: Racer = owned.get(to)
-	if r == null or r.vehicle == null:
+	var from := p.decode_u16(1)
+	var to := p.decode_u16(3)
+	var v: Vehicle = owned[to].vehicle if owned.has(to) else (traffic_owned[to] as TrafficCar).vehicle if traffic_owned.has(to) else null
+	if v == null or not is_instance_valid(v):
 		return
 	var rtt := clock.rtt if not is_server() else 0.1
 	if now() - float(_own_contact.get("%d:%d" % [to, from], -10.0)) < rtt + 0.1:
 		return # it hit the other car here too
-	var impulse := Vector3(p.decode_float(3), p.decode_float(7), p.decode_float(11))
-	var point := Vector3(p.decode_float(15), p.decode_float(19), p.decode_float(23))
-	r.vehicle.apply_remote_impulse(impulse.limit_length(r.vehicle.mass * CONTACT_MAX_DV), point)
+	var impulse := Vector3(p.decode_float(5), p.decode_float(9), p.decode_float(13))
+	var point := Vector3(p.decode_float(17), p.decode_float(21), p.decode_float(25))
+	v.apply_remote_impulse(impulse.limit_length(v.mass * CONTACT_MAX_DV), point)
 
 
 func _client_tick(delta: float) -> void:
@@ -241,8 +278,24 @@ func _client_tick(delta: float) -> void:
 		if s:
 			_dev_cheat(s)
 			states.append(s)
+	_traffic_time += 1.0 / rate
+	if _traffic_time >= 1.0 / TRAFFIC_HZ:
+		_traffic_time = 0.0
+		states.append_array(_traffic_states())
 	for packet in pack(states):
 		Net.client.send_raw(packet, NetProtocol.CH_STATE)
+
+
+## States of the traffic cars this game drives, with their drivers' word (flags2).
+func _traffic_states() -> Array[CarState]:
+	var out: Array[CarState] = []
+	for id: int in traffic_owned:
+		var tc: TrafficCar = traffic_owned[id]
+		if tc.vehicle and is_instance_valid(tc.vehicle):
+			var s := CarState.of(tc.vehicle, id, now())
+			s.flags2 |= tc.flags2()
+			out.append(s)
+	return out
 
 
 ## Dev (--cheat=speed|teleport|time, bots): sends false states, so net_check can see the server's
@@ -262,32 +315,69 @@ func _server_tick(delta: float) -> void:
 	_relay_time += delta
 	if _relay_time < 1.0 / RELAY_HZ:
 		return
+	var dt := _relay_time
 	_relay_time = 0.0
 	# The server's own cars.
 	for id: int in owned:
 		var s := _own_state(id)
 		if s:
 			_latest[id] = s
-	# Fresh states go to every client but the car's owner.
-	var fresh: Array[CarState] = []
-	for id: int in _latest:
-		var s: CarState = _latest[id]
-		if s.time > float(_relayed.get(id, -1.0)):
-			_relayed[id] = s.time
-			fresh.append(s)
-	if fresh.is_empty():
-		return
+	_traffic_time += dt
+	if _traffic_time >= 1.0 / TRAFFIC_HZ:
+		_traffic_time = 0.0
+		for s in _traffic_states():
+			_latest[s.id] = s
+	# Each client: the cars near its players first, within the budget; never its own.
+	var players := {} # peer -> its players' positions
+	var own := {} # peer -> {car id: true}
+	for id: int in racers:
+		var peer := _peer_of(id)
+		var v: Vehicle = racers[id].vehicle
+		if peer <= 1 or v == null or not is_instance_valid(v):
+			continue
+		if not players.has(peer):
+			own[peer] = {}
+		var near: PackedVector3Array = players.get(peer, PackedVector3Array()) # a copy: put back
+		near.append(v.global_position)
+		players[peer] = near
+		own[peer][id] = true
+	if session.traffic:
+		for car: int in session.traffic.owners:
+			var peer := _peer_of(NetProtocol.FIRST_TRAFFIC_ID + car)
+			if own.has(peer):
+				own[peer][NetProtocol.FIRST_TRAFFIC_ID + car] = true
 	for peer: int in Net.server.peers:
 		if peer == 1 or not Net.server.peers[peer].connected:
 			continue
-		var theirs := fresh.filter(func(s: CarState) -> bool: return not _owned_by(s.id, peer))
+		var theirs := _relay.pick(peer, _latest, players.get(peer, PackedVector3Array()), own.get(peer, {}), {}, dt)
 		for packet in pack(theirs):
 			Net.server.send_raw(peer, packet, NetProtocol.CH_STATE)
 
 
 func _owned_by(id: int, peer: int) -> bool:
-	var p: NetPlayer = Net.server.players.get(id)
-	return p != null and p.peer == peer
+	return _peer_of(id) == peer
+
+
+## The game (peer) that drives car `id` (1: this server; -1: nobody).
+func _peer_of(id: int) -> int:
+	if owned.has(id) or traffic_owned.has(id):
+		return 1
+	if id >= NetProtocol.FIRST_TRAFFIC_ID:
+		var owner: int = session.traffic.owners.get(id - NetProtocol.FIRST_TRAFFIC_ID, -1) if session.traffic else -1
+		if owner < 0:
+			return -1
+		return 1 if owner == 0 else _peer_of(owner)
+	var p: NetPlayer = Net.server.players.get(id) if Net.server else null
+	return p.peer if p else -1
+
+
+## Car `id`'s body here (a racer's, or a traffic car's physics car or proxy), or null.
+func _vehicle_of(id: int) -> Vehicle:
+	if id >= NetProtocol.FIRST_TRAFFIC_ID:
+		var tc: TrafficCar = session.traffic.cars.get(id - NetProtocol.FIRST_TRAFFIC_ID) if session.traffic else null
+		return tc.vehicle if tc else null
+	var r: Racer = racers.get(id)
+	return r.vehicle if r and r.vehicle and is_instance_valid(r.vehicle) else null
 
 
 ## The state of a car this game drives, flagged ghosted, waiting or placed as it is.
@@ -296,6 +386,8 @@ func _own_state(id: int) -> CarState:
 	if r.vehicle == null or not is_instance_valid(r.vehicle):
 		return null
 	var s := CarState.of(r.vehicle, id, now())
+	if Time.get_ticks_msec() / 1000.0 - r.vehicle.knocked_at < KNOCK_S:
+		s.flags |= CarState.FLAG_KNOCK
 	if r.ghosted:
 		s.flags |= CarState.FLAG_GHOSTED
 	if r.waiting:
@@ -350,9 +442,21 @@ func _on_client_raw(bytes: PackedByteArray) -> void:
 		MSG_STATE:
 			var t := now()
 			for s in unpack(bytes, t):
+				if s.id >= NetProtocol.FIRST_TRAFFIC_ID:
+					_traffic_state(s, t)
+					continue
 				var r: NetRacer = racers.get(s.id) as NetRacer
 				if r:
 					r.push_state(s, t)
+
+
+## A state of a traffic car another game drives: to its proxy here.
+func _traffic_state(s: CarState, t: float) -> void:
+	if session.traffic == null or traffic_owned.has(s.id):
+		return
+	var tc: TrafficCar = session.traffic.cars.get(s.id - NetProtocol.FIRST_TRAFFIC_ID)
+	if tc and tc.remote:
+		tc.push_state(s, t)
 
 
 func _on_server_raw(peer: int, bytes: PackedByteArray) -> void:
@@ -368,6 +472,10 @@ func _on_server_raw(peer: int, bytes: PackedByteArray) -> void:
 			for s in unpack(bytes, t):
 				if not _owned_by(s.id, peer):
 					continue # a client only speaks for its own cars
+				if s.id >= NetProtocol.FIRST_TRAFFIC_ID:
+					_latest[s.id] = s
+					_traffic_state(s, t)
+					continue
 				_check(peer, s, t)
 				_latest[s.id] = s
 				var r: NetRacer = racers.get(s.id) as NetRacer

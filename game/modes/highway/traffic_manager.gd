@@ -6,7 +6,10 @@ extends Node
 ## stopped until towed; stand-in boxes for lane cars right next to a player that aren't physics
 ## cars (yet); and a cap on physics cars that drops when physics gets slow.
 ##
-## Offline this game decides everything (authority); online the server does (NetHighway, D109).
+## Offline this game decides everything (authority); online the server does (HighwayNet, D109):
+## its events land a little ahead (`lead`) so they reach every game in time, and each game's lane
+## sim, stepped by the server's clock, takes them at the same tick. A promoted car's physics run
+## on its owner's game (the nearest player's, or the server's); the others show a proxy.
 
 ## Lane cars this close to a player (or police) become physics cars; physics cars this far from
 ## everyone go back to the lane sim. A wreck stays until nobody is within R_OUT, then it's towed.
@@ -25,13 +28,25 @@ const BOXES := 16
 ## Distant traffic is drawn this far from a camera.
 const VIEW_M := 1500.0
 const DECIDE_S := 0.25
+## Online: a physics car hands over to another player's game once that player has been clearly
+## nearer this long (its owner's player beyond HAND_FAR_M, or HAND_RATIO times as far and more
+## than HAND_MIN_M away, the other within HAND_NEAR_M), and not again for HAND_AGAIN_S. Players
+## driving together keep their cars where they are.
+const HAND_FAR_M := 220.0
+const HAND_RATIO := 2.5
+const HAND_MIN_M := 50.0
+const HAND_NEAR_M := 120.0
+const HAND_S := 1.0
+const HAND_AGAIN_S := 5.0
 ## The lane sim's ticks a second (native traffic_sim.h TICK_HZ).
 const TICK_HZ := 20
 ## Ids members() gives racers (their index added).
 const RACER_ID := 10000
-## Event kinds (NossTraffic, D109).
+## Event kinds (NossTraffic, D109). HANDOVER moves a physics car to another game; the lane sim
+## never sees it.
 const PROMOTE := 1
 const DEMOTE := 2
+const HANDOVER := 3
 const WRECK := 4
 const TOW := 5
 const CLOSE := 6
@@ -48,8 +63,16 @@ var sim: NossTraffic
 ## This game decides promotions (offline, and the server online).
 var authority := true
 var cap := CAP_GAME
-## Car index -> TrafficCar (its physics car).
+## Car index -> TrafficCar (its physics car, or a proxy of another game's).
 var cars := {}
+## Online (null offline): the network side; events land this many ticks ahead.
+var net: HighwayNet
+var lead := 0
+## A client's lane sim waits for the server's (TRAFFIC_FULL) before it runs.
+var synced := true
+## Car index -> its owner: a player's car id (that player's game drives it) or 0 (this game
+## offline; the server online). Promoted cars, and those about to be.
+var owners := {}
 ## Totals since the session began (checks).
 var promotions := 0
 var demotions := 0
@@ -71,6 +94,14 @@ var _members_frame := -1
 var _slow_time := 0.0
 var _fast_time := 0.0
 var _blink := 0.0
+## Events this game's physics cars wait on: [tick, seq, kind, car, owner], by tick.
+var _due: Array = []
+## Cars a DEMOTE, TOW or WRECK has been sent for (not again until it lands).
+var _asked := {}
+var _promoter_ids := PackedInt32Array()
+var _hand := {} # car -> seconds another player has been clearly nearer
+var _hand_at := {} # car -> session time of its last handover
+var _clock := 0.0
 
 
 ## The lane sim for `track`'s highway: `count` cars from `seed`. False (and why, pushed) if it
@@ -130,8 +161,15 @@ func _exit_tree() -> void:
 func _physics_process(delta: float) -> void:
 	if sim == null:
 		return
-	_time += delta
-	sim.step_to(int(_time * TICK_HZ))
+	_clock += delta
+	if net:
+		if not synced:
+			return
+		sim.step_to(net.tick_now())
+	else:
+		_time += delta
+		sim.step_to(int(_time * TICK_HZ))
+	_run_due()
 	if authority:
 		_decide -= delta
 		if _decide <= 0.0:
@@ -149,8 +187,46 @@ func _process(delta: float) -> void:
 
 ## How far the sim is into its next tick (0..1), for drawing between ticks.
 func alpha() -> float:
-	var t := (_time + Engine.get_physics_interpolation_fraction() / Engine.physics_ticks_per_second) * TICK_HZ
+	var t := net.tick_float() if net else (_time + Engine.get_physics_interpolation_fraction() / Engine.physics_ticks_per_second) * TICK_HZ
 	return clampf(t - sim.get_tick(), 0.0, 1.0)
+
+
+## Server time (online) for proxies' states; the session's own clock offline.
+func now() -> float:
+	return session.net.now() if session.net else _clock
+
+
+## Lane-sim car `car` drawn now: {xform (its ground reference, centred), velocity}, or {}.
+func shadow_pose(car: int) -> Dictionary:
+	var pose := sim.poses(alpha())
+	if car * 8 + 7 >= pose.size():
+		return {}
+	var t: Dictionary = _types[_car_type[car]]
+	var fwd := Vector3(pose[car * 8 + 3], 0.0, pose[car * 8 + 4]).normalized()
+	var front := Vector3(pose[car * 8], pose[car * 8 + 1], pose[car * 8 + 2])
+	var v := float(sim.car(car).get("v", 0.0))
+	return { "xform": Transform3D(Basis(Vector3(fwd.z, 0.0, -fwd.x), Vector3.UP, fwd), front - fwd * float(t.length_m) / 2.0), "velocity": fwd * v }
+
+
+## True if another car is where `tc`'s car is (it spawned on top of it).
+func overlaps(tc: TrafficCar) -> bool:
+	var at := tc.vehicle.global_position
+	var reach := tc.vehicle.fitted.envelope.size.z / 2.0 + 1.0 if tc.vehicle.fitted else 3.0
+	var m := members()
+	for i in range(0, m.size(), 9):
+		if int(m[i]) != tc.car and Vector3(m[i + 1], m[i + 2], m[i + 3]).distance_to(at) < reach + m[i + 7]:
+			return true
+	return false
+
+
+## Whether `owner` is this game: offline always; online, one of this game's cars (or 0 on the
+## server).
+func is_local(owner: int) -> bool:
+	if session.net == null:
+		return true
+	if owner == 0:
+		return session.net.is_server()
+	return session.net.owned.has(owner)
 
 
 # --- physics cars ---------------------------------------------------------------------------
@@ -185,26 +261,33 @@ func _add_member(id: int, v: Vehicle) -> void:
 	_members.append_array([id, p.x, p.y, p.z, f.x, f.z, v.speed(), e.size.z / 2.0, e.size.x / 2.0])
 
 
-## Where physics cars matter: every player's car (police come in M7's police step).
+## Where physics cars matter: every player's car (police come in M7's police step). Their car
+## ids (owners online) go in _promoter_ids.
 func promoters() -> PackedVector3Array:
 	var out := PackedVector3Array()
+	_promoter_ids.clear()
 	for r in session.racers:
 		if r.vehicle and is_instance_valid(r.vehicle) and not r.waiting and (r is SessionPlayer or r.is_human):
 			out.append(r.vehicle.global_position)
+			_promoter_ids.append(r.net_id if session.net else 0)
 	return out
 
 
 func _promotions() -> void:
 	var promoters := promoters()
-	# Physics cars: back into the lane sim, wrecked, towed, or the lane sim told where they are.
+	# Physics cars: back into the lane sim, wrecked, towed, the lane sim told where they are, or
+	# handed to another game.
 	for car: int in cars.keys():
 		var tc: TrafficCar = cars[car]
+		if _asked.has(car):
+			continue # waiting for its event to land
+		if tc.remote:
+			tc.observe()
 		var near := _nearest(promoters, tc.vehicle.global_position)
 		if tc.wrecked:
 			if near > R_OUT:
-				_event(TOW, car)
+				_ask(car, TOW)
 				tows += 1
-				_release(car)
 			continue
 		if tc.crashed():
 			tc.wrecked = true
@@ -214,45 +297,46 @@ func _promotions() -> void:
 		tc.alone = tc.alone + DECIDE_S if near > R_OUT else 0.0
 		if near > R_OUT and (tc.lane_ok() or tc.alone > FORCE_BACK_S):
 			if tc.lane_ok():
-				_event(DEMOTE, car, tc.lane, tc.s, maxf(tc.vehicle.speed(), 0.0))
+				_ask(car, DEMOTE, tc.lane, tc.s, maxf(tc.vehicle.speed(), 0.0))
 			else:
-				_event(DEMOTE, car) # back where its shadow is
+				_ask(car, DEMOTE) # back where its shadow is
 			demotions += 1
-			_release(car)
 			continue
 		if tc.drifted(DECIDE_S):
 			_event(RESHADOW, car, tc.lane, tc.s, maxf(tc.vehicle.speed(), 0.0))
+		if session.net:
+			_handover(car, tc, promoters)
 	# Lane cars near someone: nearest first, up to the caps.
-	if promoters.is_empty() or cars.size() >= cap:
+	if promoters.is_empty() or owners.size() >= cap:
 		return
 	var poses := sim.poses(0.0)
 	var candidates := []
-	var per := PackedInt32Array()
-	per.resize(promoters.size())
-	for car: int in cars:
-		var who := _nearest_index(promoters, (cars[car] as TrafficCar).vehicle.global_position)
-		per[who] += 1
+	var per := {} # owner -> physics cars
+	for car: int in owners:
+		per[owners[car]] = int(per.get(owners[car], 0)) + 1
 	for i in sim.get_count():
 		var flags := int(poses[i * 8 + 5])
-		if flags & ACTIVE == 0 or flags & SHADOW != 0:
+		if flags & ACTIVE == 0 or flags & SHADOW != 0 or owners.has(i):
 			continue
 		var at := Vector3(poses[i * 8], poses[i * 8 + 1], poses[i * 8 + 2])
-		var d := _nearest(promoters, at)
+		var who := _nearest_index(promoters, at)
+		var d := promoters[who].distance_to(at)
 		if d < R_IN:
-			candidates.append([d, i, _nearest_index(promoters, at)])
+			candidates.append([d, i, _promoter_ids[who] if session.net else who])
 	candidates.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
 	for c: Array in candidates:
-		if cars.size() >= cap:
+		if owners.size() >= cap:
 			break
-		if per[c[2]] >= CAP_PLAYER:
+		var owner: int = c[2]
+		if int(per.get(owner, 0)) >= CAP_PLAYER or (session.net and _game_count(owner) >= CAP_GAME):
 			continue
-		if _promote(c[1], poses):
-			per[c[2]] += 1
+		if _promote(c[1], owner if session.net else 0, poses):
+			per[owner] = int(per.get(owner, 0)) + 1
 
 
-## Lane car `car` becomes a physics car where the lane sim has it, at its speed. False if its
-## spot is taken by another physics car (it tries again next time).
-func _promote(car: int, poses: PackedFloat32Array) -> bool:
+## Lane car `car` becomes a physics car (its owner's; a proxy elsewhere) where the lane sim has
+## it when the event lands. False if its spot is taken by another car (it tries again later).
+func _promote(car: int, owner: int, poses: PackedFloat32Array) -> bool:
 	var type := _car_type[car]
 	if not _packages.has(type):
 		return false
@@ -263,27 +347,61 @@ func _promote(car: int, poses: PackedFloat32Array) -> bool:
 	for i in range(0, members().size(), 9):
 		if Vector3(_members[i + 1], _members[i + 2], _members[i + 3]).distance_to(centre) < float(t.length_m) / 2.0 + 4.0:
 			return false
-	var info := sim.car(car)
-	var v := _take_vehicle(type)
-	if v == null:
-		return false
-	v.traffic_id = car
-	var colors := TrafficTypes.colors(type)
-	if v.visual:
-		v.visual.set_paint("primary", colors[int(info.color) % colors.size()], "metallic")
-	var basis := Basis(Vector3(fwd.z, 0.0, -fwd.x), Vector3.UP, fwd)
-	v.reset_to(Transform3D(basis, centre), fwd * float(info.v))
-	var tc := TrafficCar.new()
-	tc.name = "Traffic%d" % car
-	tc.manager = self
-	tc.car = car
-	tc.vehicle = v
-	tc.wrecked = int(info.flags) & WRECK_FLAG != 0 # a wreck in the lane sim stays one
-	add_child(tc)
-	cars[car] = tc
-	_event(PROMOTE, car)
+	owners[car] = owner
+	_event(PROMOTE, car, -1, 0.0, 0.0, owner)
 	promotions += 1
 	return true
+
+
+## Physics cars the game that drives `owner`'s car owns (online caps are per game).
+func _game_count(owner: int) -> int:
+	var peer := _peer_of(owner)
+	var n := 0
+	for car: int in owners:
+		if _peer_of(owners[car]) == peer:
+			n += 1
+	return n
+
+
+func _peer_of(owner: int) -> int:
+	if owner == 0 or not Net.server:
+		return 1
+	var p: NetPlayer = Net.server.players.get(owner)
+	return p.peer if p else -1
+
+
+## Online: car `car` goes to the game of a player who's been clearly nearer than its owner's for
+## a while (or whose owner left).
+func _handover(car: int, tc: TrafficCar, promoters: PackedVector3Array) -> void:
+	var owner: int = owners.get(car, 0)
+	var at := tc.vehicle.global_position
+	var own := INF
+	var best := -1
+	var best_d := INF
+	for i in promoters.size():
+		var d := promoters[i].distance_to(at)
+		if _promoter_ids[i] == owner:
+			own = minf(own, d)
+		elif d < best_d:
+			best_d = d
+			best = _promoter_ids[i]
+	var gone := owner != 0 and own == INF
+	var better := best >= 0 and best_d < HAND_NEAR_M and (own > HAND_FAR_M or (own > HAND_RATIO * best_d and own > HAND_MIN_M))
+	_hand[car] = float(_hand.get(car, 0.0)) + DECIDE_S if better else 0.0
+	var again := _clock - float(_hand_at.get(car, -INF)) > HAND_AGAIN_S
+	if gone or (better and _hand[car] >= HAND_S and again):
+		var to := best if best >= 0 and best_d < R_OUT else 0
+		if to == owner:
+			return
+		_hand[car] = 0.0
+		_hand_at[car] = _clock
+		_event(HANDOVER, car, -1, 0.0, 0.0, to)
+
+
+## Asks for an event that ends the car's time as a physics car (DEMOTE, TOW): once.
+func _ask(car: int, kind: int, lane := -1, s := 0.0, v := 0.0) -> void:
+	_asked[car] = kind
+	_event(kind, car, lane, s, v)
 
 
 ## A physics car for traffic type `type`: one from the pool, or a new one.
@@ -307,14 +425,20 @@ func _take_vehicle(type: int) -> Vehicle:
 	return v
 
 
-## Physics car `car` goes back into the pool.
+## Physics car (or proxy) `car` goes back into the pool.
 func _release(car: int) -> void:
+	if not cars.has(car):
+		return
 	var tc: TrafficCar = cars[car]
 	cars.erase(car)
+	if session.net:
+		session.net.drop_traffic(NetProtocol.FIRST_TRAFFIC_ID + car)
 	var v := tc.vehicle
 	tc.queue_free()
 	v.traffic_id = -1
 	v.indicators = 0
+	v.set_ghost(false)
+	v.set_remote(false)
 	v.freeze = true
 	v.visible = false
 	v.collision_layer = 0
@@ -324,9 +448,148 @@ func _release(car: int) -> void:
 	(_pool[_car_type[car]] as Array).append(v)
 
 
-func _event(kind: int, car: int, lane := -1, s := 0.0, v := 0.0) -> void:
+## Car `car`'s physics car or proxy, where the lane sim has it now: driven here if `owner` is
+## this game, a proxy of the owner's states otherwise.
+func _spawn(car: int, owner: int) -> void:
+	if cars.has(car):
+		return
+	var type := _car_type[car]
+	if not _packages.has(type):
+		return
+	var at := shadow_pose(car)
+	var v := _take_vehicle(type)
+	if v == null or at.is_empty():
+		return
+	var info := sim.car(car)
+	v.traffic_id = car
+	var colors := TrafficTypes.colors(type)
+	if v.visual:
+		v.visual.set_paint("primary", colors[int(info.color) % colors.size()], "metallic")
+	var tc := TrafficCar.new()
+	tc.name = "Traffic%d" % car
+	tc.manager = self
+	tc.car = car
+	tc.vehicle = v
+	tc.wrecked = int(info.flags) & WRECK_FLAG != 0 # a wreck in the lane sim stays one
+	_drive_here(tc, is_local(owner), at.xform, at.velocity)
+	add_child(tc)
+	cars[car] = tc
+	if overlaps(tc):
+		tc.ghost_time = TrafficCar.GHOST_S
+		v.set_ghost(true, false)
+
+
+## Makes `tc` driven here (a physics car) or shown from its owner's states (a proxy), from
+## `xform` at `velocity`.
+func _drive_here(tc: TrafficCar, local: bool, xform: Transform3D, velocity: Vector3) -> void:
+	var v := tc.vehicle
+	tc.remote = not local
+	tc.buffer = MotionBuffer.new()
+	tc.remote_flags = 0
+	v.set_remote(not local)
+	if local:
+		v.reset_to(xform, velocity)
+	else:
+		v.move_remote(xform, velocity, Vector3.ZERO, true)
+	if session.net:
+		var id := NetProtocol.FIRST_TRAFFIC_ID + tc.car
+		if local:
+			session.net.own_traffic(id, tc)
+		else:
+			session.net.drop_traffic(id)
+
+
+## Ownership of `car` moves to `owner` (HANDOVER): a proxy here becomes this game's physics car
+## where it is, at its speed, or this game's physics car becomes a proxy.
+func _set_owner(car: int, owner: int) -> void:
+	if not owners.has(car):
+		return
+	owners[car] = owner
+	if net:
+		net.handovers += 1
+	var tc: TrafficCar = cars.get(car)
+	if tc == null:
+		return
+	var local := is_local(owner)
+	if local != not tc.remote:
+		var v := tc.vehicle
+		var velocity := v.remote_velocity if tc.remote else v.linear_velocity
+		_drive_here(tc, local, v.ground_reference(), velocity)
+
+
+## Schedules an event (offline now; online `lead` ticks on, and sent to every game).
+func _event(kind: int, car: int, lane := -1, s := 0.0, v := 0.0, owner := 0) -> void:
 	_seq = (_seq + 1) % 65536
-	sim.schedule(NossTraffic.pack_event(kind, _seq, sim.get_tick(), car, 0, lane, s, v, -1, 0, 0, 0))
+	var record := NossTraffic.pack_event(kind, _seq, sim.get_tick() + lead, car, owner, lane, s, v, -1, 0, 0, 0)
+	receive(record)
+	if net:
+		net.send_events(record)
+
+
+## Events (24-byte records) from the server, or this game's own: into the lane sim (rolling it
+## back if they're late), and noted for when they land. HANDOVER happens at once. False if one
+## came too late to replay (this game needs the server's traffic again).
+func receive(records: PackedByteArray) -> bool:
+	var ok := true
+	var list := NossTraffic.unpack_events(records)
+	for k in list.size():
+		var e: Dictionary = list[k]
+		var car := int(e.car)
+		if int(e.kind) == HANDOVER:
+			_set_owner(car, int(e.owner))
+			continue
+		if int(e.tick) < sim.get_tick() and net:
+			net.late += 1
+		if not sim.schedule(records.slice(k * 24, k * 24 + 24)):
+			ok = false
+			continue
+		if int(e.kind) == PROMOTE:
+			owners[car] = int(e.owner)
+		_due.append([int(e.tick), int(e.seq), int(e.kind), car, int(e.owner)])
+	_due.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0] or (a[0] == b[0] and a[1] < b[1]))
+	return ok
+
+
+## Events the lane sim has reached: their physics cars come and go.
+func _run_due() -> void:
+	while not _due.is_empty() and int(_due[0][0]) < sim.get_tick():
+		var e: Array = _due.pop_front()
+		var car: int = e[3]
+		match int(e[2]):
+			PROMOTE:
+				if owners.has(car):
+					_spawn(car, int(owners[car]))
+			DEMOTE, TOW:
+				_release(car)
+				owners.erase(car)
+				_asked.erase(car)
+			WRECK:
+				if cars.has(car):
+					(cars[car] as TrafficCar).wrecked = true
+
+
+## A client takes the server's traffic as it is (joining, or out of step): the lane sim at
+## `tick`, the events still to land, and who owns each physics car.
+func load_full(state: PackedByteArray, tick: int, events: PackedByteArray, owner_pairs: PackedInt32Array) -> bool:
+	if not sim.load_full_state(state) or sim.get_tick() != tick:
+		return false
+	_due.clear()
+	var keep := {}
+	for k in range(0, owner_pairs.size() - 1, 2):
+		keep[owner_pairs[k]] = owner_pairs[k + 1]
+	for car: int in cars.keys():
+		if not keep.has(car):
+			_release(car)
+	owners = keep
+	for car: int in owners:
+		if cars.has(car):
+			_set_owner(car, owners[car])
+		elif int(sim.car(car).flags) & SHADOW != 0:
+			_spawn(car, owners[car]) # its PROMOTE landed already (else it's in `events`)
+	if not events.is_empty():
+		receive(events)
+	synced = true
+	return true
 
 
 static func _nearest(points: PackedVector3Array, at: Vector3) -> float:

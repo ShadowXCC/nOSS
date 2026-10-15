@@ -31,11 +31,13 @@ func test_states_round_trip() -> void:
 	s.gear = 4
 	s.rpm = 6512
 	s.flags = CarState.FLAG_BRAKE | CarState.FLAG_TELEPORT
+	s.flags2 = CarState.FLAG2_INDICATOR_L | CarState.FLAG2_LANE_OK
+	s.id = 1234 # traffic ids pass 255
 	var bytes := PackedByteArray()
 	bytes.resize(CarState.SIZE)
 	s.encode(bytes, 0)
 	var back := CarState.decode(bytes, 0, 1234.0)
-	assert_int(back.id).is_equal(7)
+	assert_int(back.id).is_equal(1234)
 	assert_float(back.time).is_equal_approx(1234.568, 0.0011)
 	assert_float(back.xform.origin.distance_to(s.xform.origin)).is_less(0.002)
 	var dq := back.xform.basis.get_rotation_quaternion().angle_to(s.xform.basis.get_rotation_quaternion())
@@ -48,6 +50,7 @@ func test_states_round_trip() -> void:
 	assert_int(back.gear).is_equal(4)
 	assert_float(back.rpm).is_equal(6512.0)
 	assert_int(back.flags).is_equal(CarState.FLAG_BRAKE | CarState.FLAG_TELEPORT)
+	assert_int(back.flags2).is_equal(CarState.FLAG2_INDICATOR_L | CarState.FLAG2_LANE_OK)
 
 
 func test_time_wraps_and_bad_numbers() -> void:
@@ -57,7 +60,7 @@ func test_time_wraps_and_bad_numbers() -> void:
 	bytes.resize(CarState.SIZE)
 	s.encode(bytes, 0)
 	assert_float(CarState.decode(bytes, 0, 4294966.5).time).is_equal_approx(4294969.0, 0.002)
-	bytes.encode_half(21, INF)
+	bytes.encode_half(22, INF)
 	assert_object(CarState.decode(bytes, 0, 0.0)).is_null()
 
 
@@ -67,7 +70,7 @@ func test_states_pack_into_packets() -> void:
 		states.append(_state(10.0 + i, Vector3(i, 0, 0)))
 	var packets := NetSession.pack(states)
 	assert_int(packets.size()).is_equal(2)
-	assert_int(packets[0].size()).is_less(1100)
+	assert_int(packets[0].size()).is_less(1200) # under ENet's MTU (1400 with headers): never fragmented
 	var back := NetSession.unpack(packets[1], 30.0)
 	assert_int(back.size()).is_equal(6)
 	assert_float(back[5].xform.origin.x).is_equal_approx(29.0, 0.001)

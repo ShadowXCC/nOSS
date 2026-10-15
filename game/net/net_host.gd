@@ -13,6 +13,8 @@ signal start_requested
 signal assists_reported(id: int, used: Dictionary)
 ## The router mapping's result (UPnP), as a short line for the host.
 signal port_checked(ok: bool, message: String)
+## A client's highway traffic is out of step (or it just joined): it wants the server's (D109).
+signal resync_requested(peer: int)
 
 var server: NetServer
 var config: ServerConfig
@@ -37,6 +39,7 @@ var _in_session := {} # player ids in the session (a race takes no one mid-way)
 var _dirty := false
 var _names := {} # platform id -> display name
 var _tracks := {} # track path (the config's) -> track_info()
+var _highway := {} # this session's traffic: {seed, count, t0} (highway events)
 
 
 func _init(p_server: NetServer) -> void:
@@ -209,6 +212,9 @@ func handle(peer: int, type: int, data: Dictionary) -> void:
 					if key is String and (key in ResultsMenu.ASSIST_NAMES) and data.used[key] is bool:
 						used[key] = data.used[key]
 				assists_reported.emit(data.id, used)
+		NetProtocol.Msg.RESYNC:
+			if peer != 1 and state == "session":
+				resync_requested.emit(peer)
 		NetProtocol.Msg.REMOVE_LOCAL:
 			if NetProtocol.has_fields(data, { "player": TYPE_INT }) and _owns(peer, data.player) and server.players_of(peer).size() > 1:
 				var name: String = server.players[data.player].name
@@ -279,6 +285,10 @@ func start_session() -> void:
 		_in_session[id] = true
 	_ai = []
 	state = "session"
+	_highway = {}
+	if event().kind == "highway":
+		# The same traffic on every game: one seed, tick 0 at this moment on the server's clock.
+		_highway = { "seed": randi() % 1000000, "count": event().traffic, "t0": ClockSync.local_now() }
 	_to_all(NetProtocol.Msg.SESSION, session_dict())
 	log_line.emit("Session: %s, %s, %s" % [track_info().name, _class_name(platform_id()), event().kind])
 	_dirty = true
@@ -300,8 +310,11 @@ func session_dict() -> Dictionary:
 	if state != "session" or _ai.is_empty():
 		_ai = _ai_entries()
 	var t := track_info()
-	return { "track": t.hash, "track_id": t.id, "track_name": t.name, "track_bytes": t.bytes,
+	var out := { "track": t.hash, "track_id": t.id, "track_name": t.name, "track_bytes": t.bytes,
 		"class": platform_id(), "class_hash": platform_result().hash, "event": event().to_dict(), "roster": roster(), "rules": rules_dict() }
+	if not _highway.is_empty():
+		out.highway = _highway
+	return out
 
 
 ## The server's rules a session follows (MP-06).

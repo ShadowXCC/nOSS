@@ -215,3 +215,19 @@ func test_the_lane_driver_holds_its_lane_and_stops_for_a_wreck() -> void:
 	assert_float(absf(p.speed)).is_less(1.0)
 	s.queue_free()
 	await get_tree().process_frame
+
+
+func test_starts_never_share_a_spot_or_a_ramp_mouth() -> void:
+	var pkg := TrackLoader.load_package("res://content/tracks/lumen_ring", {}, { "terrain": false })
+	var hc := HighwayControl.new()
+	hc.layout = pkg.track.highway
+	for dir: int in [1, -1]:
+		var spots := []
+		for i in 16:
+			var at := hc.spawn_for(i, dir).origin
+			for other: Vector3 in spots:
+				# Along the road START_GAP_M apart (a little less on the inside of a corner).
+				assert_float(at.distance_to(other)).override_failure_message("dir %d, %d" % [dir, i]).is_greater(HighwayControl.START_GAP_M * 0.9)
+			assert_bool(hc._in_mouth(float(pkg.track.project(at).distance), dir)).is_false()
+			spots.append(at)
+	hc.free()

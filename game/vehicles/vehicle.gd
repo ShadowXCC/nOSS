@@ -10,6 +10,8 @@ const LAYER_WORLD := 1
 const LAYER_VEHICLES := 2
 ## Collision box floor above the model's ground, so curbs and crests don't snag it.
 const BODY_CLEARANCE := 0.12
+## A knock that changes the car's speed this much in one tick (m/s) counts (knocked_at).
+const KNOCK_DV := 0.5
 const CHAMFER := 0.18
 
 var platform := {}
@@ -32,6 +34,8 @@ var clutch := 0.0
 var steering_wheel_lock_deg := 540.0
 ## Contact impulse this tick (N·s) with other cars and with anything else, and the car hit last.
 var car_impulse := 0.0
+## When this car last took a knock of KNOCK_DV or more (s, Time ticks): its states say so online.
+var knocked_at := -INF
 var wall_impulse := 0.0
 var last_hit: Vehicle
 ## Each reset_to() counts up (network states flag the car as placed, not moved).
@@ -256,6 +260,8 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 			car_impulse += impulse
 		else:
 			wall_impulse += impulse
+	if (car_impulse + wall_impulse) / mass > KNOCK_DV:
+		knocked_at = Time.get_ticks_msec() / 1000.0
 
 
 ## No contact with other cars (a car rejoining, or a ghosted session), drawn see-through

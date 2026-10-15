@@ -58,10 +58,29 @@ func _through_portal(r: Racer, exit: RampData) -> void:
 	r.notify(String(layout.portals[best.from.portal].name), 1.5)
 
 
-## Player `i`'s start: on the shoulder of direction `dir`'s carriageway behind the lap line.
+## Player `i`'s start: on the shoulder of direction `dir`'s carriageway behind the lap line, in
+## single file START_GAP_M apart, the file passing any ramp's mouth (no two on one spot).
 func spawn_for(i: int, dir: int) -> Transform3D:
-	var d := layout.main.start_m - dir * (START_BACK_M + i * START_GAP_M)
-	return shoulder_spot(dir, fposmod(d, layout.main.length))
+	var length := layout.main.length
+	var d := layout.main.start_m - dir * START_BACK_M
+	var found := -1
+	for step in ceili(length / 5.0):
+		if _in_mouth(d, dir):
+			d -= dir * 5.0
+			continue
+		found += 1
+		if found == i:
+			break
+		d -= dir * START_GAP_M
+	return shoulder_spot(dir, fposmod(d, length))
+
+
+## True if a car on direction `dir`'s shoulder at `d` would be in a ramp's mouth.
+func _in_mouth(d: float, dir: int) -> bool:
+	for off: float in [-6.0, 0.0, 6.0]:
+		if layout.gap(layout.main.index_at(fposmod(d + off, layout.main.length)), -float(dir)):
+			return true
+	return false
 
 
 ## On direction `dir`'s outer shoulder at main-road distance `d`, facing the way it drives.

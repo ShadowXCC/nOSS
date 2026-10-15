@@ -320,11 +320,19 @@ func _ready_highway() -> void:
 	add_child(highway)
 	var settings: Dictionary = track.highway.settings.traffic
 	var count := event.traffic if event.traffic >= 0 else int(settings.count)
+	var seed := traffic_seed if traffic_seed >= 0 else int(Game.dev.get("traffic-seed", settings.get("seed", 1)))
+	if is_online():
+		# Online every game runs the server's traffic: its seed and count (D109).
+		var hw: Dictionary = online.get("highway", {})
+		if hw.is_empty():
+			return
+		seed = int(hw.seed)
+		count = int(hw.count) if int(hw.count) >= 0 else int(settings.count)
 	if count > 0:
 		traffic = TrafficManager.new()
 		traffic.name = "Traffic"
 		traffic.session = self
-		var seed := traffic_seed if traffic_seed >= 0 else int(Game.dev.get("traffic-seed", settings.get("seed", 1)))
+		traffic.authority = not is_online() or Net.is_server()
 		if traffic.setup(track, seed, count):
 			add_child(traffic)
 		else:
@@ -369,6 +377,14 @@ func _ready_online() -> void:
 	net.name = "NetSession"
 	net.session = self
 	add_child(net)
+	if traffic:
+		var hn := HighwayNet.new()
+		hn.name = "HighwayNet"
+		hn.session = self
+		hn.traffic = traffic
+		hn.t0 = float(online.highway.t0)
+		traffic.net = hn
+		add_child(hn)
 	if not dedicated:
 		Players.primary_slot()
 	var roster: Array = online.roster
@@ -394,7 +410,7 @@ func _on_chat(line: Dictionary) -> void:
 
 func _add_online_racer(d: Dictionary, index: int) -> Racer:
 	var id := int(d.id)
-	var spot := track.transform_at(_grid_distance(index), _grid_lateral(index))
+	var spot := highway.spawn_for(index, direction_for(index)) if highway else track.transform_at(_grid_distance(index), _grid_lateral(index))
 	if d.get("ai", false) and Net.is_server(): # the server's AI cars (D88)
 		var a := AiRacer.new()
 		a.configure(int(d.get("local", 0)), float(d.get("skill", ai_skill)))

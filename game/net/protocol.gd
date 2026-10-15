@@ -6,24 +6,30 @@ extends RefCounted
 ## before decoding, its fields after. Car states and content chunks have their own packed formats.
 
 ## Bumped whenever messages change: a client and server must match.
-const VERSION := 2
+const VERSION := 3
 const DEFAULT_PORT := 47800
 ## Channels beyond Godot's channel 0 (which carries reliable control messages).
-const EXTRA_CHANNELS := 2
+const EXTRA_CHANNELS := 3
 const CH_CONTROL := 0
 ## Car states: unreliable, alone on their channel (ENet holds unreliable packets behind reliable
 ## ones on the same channel).
 const CH_STATE := 1
 ## Content chunks: unreliable and sequenced, with their own acks (NetTransfer).
 const CH_CONTENT := 2
+## Highway traffic events (D109): reliable and in order, apart from control messages so a big
+## one (a lobby, a track offer) never holds them up.
+const CH_EVENTS := 3
 const MAX_AUTH_BYTES := 4096
 const MAX_CONTROL_BYTES := 65536
 ## Most local players one connection brings (LOC-05), and most players on a server (MP-03).
 const MAX_LOCAL := 4
 const MAX_PLAYERS := 16
 const MAX_NAME := 24
-## Car ids from here up are the server's AI cars; players get the ids below.
+## Car ids from here up are the server's AI cars; players get the ids below. Police cars and
+## highway traffic (1000 + the lane-sim index) have their own ranges (D112).
 const FIRST_AI_ID := 200
+const FIRST_POLICE_ID := 300
+const FIRST_TRAFFIC_ID := 1000
 ## ENet's packet throttle drops unreliable packets (car states, content) after the round trip
 ## grows, and comes back only when it shrinks below the lowest of the last interval (5 s by
 ## default). Every peer gets throttle_configure(THROTTLE_INTERVAL_MS, 32, 0): never slow down,
@@ -63,6 +69,8 @@ enum Msg {
 	RESULTS = 44, ## server: {kind, has_next, next_name, rows}: it ended
 	NOTE = 45, ## server: {id, text, seconds}: a message for one car's driver ("Track limits: warning")
 	ASSISTS = 46, ## client: {id, used}: the assists a car has used this session (results)
+	TRAFFIC_FULL = 47, ## server: {tick, state (zstd), size, events, owners}: a highway's traffic as it is (joining, or out of step)
+	RESYNC = 48, ## client: {}: send me the traffic as it is
 }
 
 

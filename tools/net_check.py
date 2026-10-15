@@ -14,6 +14,12 @@ and exits 0 (PASS) or 1 (FAIL).
   tools/net_check.py --clients 3 --rtt 150 --jitter 10 --loss 1     # through a bad link
   tools/net_check.py --fresh --ai 15 --rate 50mbit --rtt 20         # a fresh client fetches every car
   tools/net_check.py --track my.nosstrack --fresh --ai 3 --laps 1   # ...and the server's own track
+  tools/net_check.py --event highway --clients 12 --quad 1 --traffic 150   # M7: highway traffic
+
+On a highway (--event highway, the Lumen Ring and the Street class unless given) every bot also
+reports its traffic: checksums that disagreed with the server's (must be 0), full states taken
+(1 on joining), late events rolled back, handovers, and the most physics cars it drove; the
+server reports promotions and handovers (NETCHECK_SERVER).
 
 With --fresh, the server's AI cars are this machine's garage cars (every one before any twice), and
 one bot with an empty cache fetches them all whole; it reports when every car was there as a
@@ -41,6 +47,7 @@ PILEUP_S = 3.0
 PILEUP_M = 30.0
 PILEUP_CARS = 3
 MAX_DOWN_KB = 64.0
+MAX_TRAFFIC_ERR_M = 1.0
 
 
 def rss_mb(pid):
@@ -88,11 +95,12 @@ def main(argv=None):
     p.add_argument("--clients", type=int, default=3, help="bots with one player each")
     p.add_argument("--quad", type=int, default=0, help="bots with four players each (splitscreen guests)")
     p.add_argument("--duration", type=float, default=60.0, help="seconds of driving (free drive)")
-    p.add_argument("--event", choices=["free", "race"], default="free")
+    p.add_argument("--event", choices=["free", "race", "highway"], default="free")
+    p.add_argument("--traffic", type=int, default=150, help="highway: traffic cars")
     p.add_argument("--laps", type=int, default=3)
     p.add_argument("--ai", type=int, default=0, help="AI cars the server adds (races)")
-    p.add_argument("--class", dest="klass", default="official.track.gt")
-    p.add_argument("--track", default="proving_ground",
+    p.add_argument("--class", dest="klass", default="")
+    p.add_argument("--track", default="",
                    help="the server's track: an id, or a .nosstrack / track folder (sent to bots that lack it)")
     p.add_argument("--port", type=int, default=47850)
     p.add_argument("--rtt", type=float, default=0.0, help="simulated round trip, ms")
@@ -107,6 +115,9 @@ def main(argv=None):
     p.add_argument("--logs", default="", help="the logs' folder (default reports/net_check/<time>/)")
     p.add_argument("--verbose", action="store_true")
     args = p.parse_args(argv)
+    highway = args.event == "highway"
+    args.klass = args.klass or ("official.highway.street" if highway else "official.track.gt")
+    args.track = args.track or ("lumen_ring" if highway else "proving_ground")
 
     logs = Path(args.logs) if args.logs else ROOT / "reports" / "net_check" / time.strftime("%Y%m%d_%H%M%S")
     logs.mkdir(parents=True, exist_ok=True)
@@ -118,6 +129,8 @@ def main(argv=None):
         track = str(Path(track).resolve())
     builtin_track = (ROOT / "content" / "tracks" / args.track).is_dir()
     event = {"kind": args.event}
+    if highway:
+        event.update({"sub": "cruise", "traffic": args.traffic})
     if args.event == "race":
         event.update({"practice_min": 5 if args.fresh else 0, "qualifying_min": 0, "race_laps": args.laps,
                       "ai_count": args.ai, "grid": "random", "start": "standing",
@@ -152,7 +165,7 @@ def main(argv=None):
     debug = ["--net-debug"] if args.verbose else []
     # --fresh: the garage's personal-use cars (FM4) go to this PC's own bot only (Requirements §6).
     personal = ["--share-personal"] if args.fresh else []
-    server = start("server", ["--server", f"--config={config_path}", f"--min-players={players}"] + debug + personal)
+    server = start("server", ["--server", f"--config={config_path}", f"--min-players={players}", "--net-stats"] + debug + personal)
     time.sleep(2.0)
     port = args.port
     sim = None
@@ -177,7 +190,7 @@ def main(argv=None):
         time.sleep(0.2)
 
     peak = {}
-    deadline = time.monotonic() + (args.within + 80 if args.fresh else args.duration + 60 if args.event == "free" else 60 + args.laps * 150)
+    deadline = time.monotonic() + (args.within + 80 if args.fresh else args.duration + 60 if args.event != "race" else 60 + args.laps * 150)
     try:
         while time.monotonic() < deadline and any(b.poll() is None for b in bots):
             for name, proc, _ in procs:
@@ -191,6 +204,7 @@ def main(argv=None):
 
     # Gather the bots' reports.
     reports, contacts, fails, results, checks = {}, [], [], None, []
+    server_stats = {}
     track_ms = {}
     for name, proc, _ in procs:
         text = (logs / f"{name}.log").read_text(errors="replace")
@@ -203,6 +217,8 @@ def main(argv=None):
                 checks.append(line.split("Checks failed:", 1)[1].strip())
             elif line.startswith("NETCHECK_TRACK "):
                 track_ms[name] = int(line.split()[1])
+            elif line.startswith("NETCHECK_SERVER "):
+                server_stats = json.loads(line[len("NETCHECK_SERVER "):])
             elif line.startswith("NETCHECK_RESULTS "):
                 results = json.loads(line[len("NETCHECK_RESULTS "):])
             elif line.startswith("NETCHECK_CONTACT "):
@@ -237,6 +253,29 @@ def main(argv=None):
         if name not in reports:
             fails.append(f"{name} reported nothing")
     print("server RSS %.0f MB, bots max %.0f MB" % (peak.get("server", 0.0), max([v for k, v in peak.items() if k.startswith("bot")] or [0])))
+    if highway:
+        print("%-7s %10s %7s %6s %9s %9s %8s %9s" % ("traffic", "mismatches", "resyncs", "late", "handovers", "owned max", "ticks/s", "err p95"))
+        for name in sorted(n for n in reports if n.startswith("bot")):
+            t = reports[name].get("traffic", {})
+            if not t:
+                fails.append(f"{name}: no traffic")
+                continue
+            print("%-7s %10d %7d %6d %9d %9d %8.0f %8.2fm" % (name, t["mismatches"], t["resyncs"], t["late"], t["handovers"], t["owned_max"],
+                  t["tick_rate_min"], t.get("err_p95", 0.0)))
+            if t.get("err_p95", 0.0) > MAX_TRAFFIC_ERR_M:
+                fails.append(f"{name}: traffic shown {t['err_p95']:.2f} m off (p95)")
+            if t["mismatches"] > 0:
+                fails.append(f"{name}: {t['mismatches']} traffic checksums disagreed")
+            if t["resyncs"] > 1:
+                fails.append(f"{name}: took the server's traffic {t['resyncs']} times")
+            if t["beats"] < 5:
+                fails.append(f"{name}: only {t['beats']} traffic checksums compared")
+            if 0 <= t["tick_rate_min"] < 18:
+                fails.append(f"{name}: its lane sim fell behind ({t['tick_rate_min']:.0f} ticks/s)")
+        if server_stats:
+            print("server traffic: " + ", ".join(f"{k} {v}" for k, v in server_stats.items()))
+        else:
+            fails.append("the server reported no traffic")
     for name, ms in sorted(track_ms.items()):
         print("%s got the track in %d ms" % (name, ms))
     if args.fresh and not builtin_track and "bot00" not in track_ms:
@@ -272,6 +311,8 @@ def main(argv=None):
         fails.append("honest cars failed checks (%d)" % len(checks))
     if worst_down > MAX_DOWN_KB and not args.fresh:  # a fresh client's download isn't steady traffic
         fails.append("%.1f KB/s down, over %g" % (worst_down, MAX_DOWN_KB))
+    if highway:  # knocks with traffic happen offline too; a pile-up of players' cars says sync is off
+        contacts = [c for c in contacts if c["a"] < 1000 and c["b"] < 1000]
     piles = pileups(contacts)
     for pile in piles:
         fails.append("pile-up: " + pile)

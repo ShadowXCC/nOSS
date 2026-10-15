@@ -141,6 +141,7 @@ func _apply(delta: float, snap: bool) -> void:
 	if placed:
 		_no_contact = TELEPORT_GHOST_TICKS
 	vehicle.move_remote(p.xform, p.velocity, p.angular, snap or placed)
+	CarState.show_on(vehicle, s.flags2)
 	if placed: # its timer shouldn't see the jump as a shortcut
 		var proj := track.project(vehicle.global_transform * vehicle.center_of_mass)
 		distance = proj.distance

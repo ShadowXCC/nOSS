@@ -47,6 +47,15 @@ func test_plausibility() -> void:
 	t += 1.0 / 30.0
 	pos += Vector3(40.0 / 30.0, 0, 0)
 	assert_array(Array(p.check(_state(t, pos, Vector3(50, 0, 0)), t, track))).contains(["acceleration"])
+	# A knock (a wall) stops a car hard: no flag; a "knock" that speeds it up is still one.
+	var k := Plausibility.for_platform(gt, track)
+	var kt := 30.0
+	assert_array(Array(k.check(_state(kt, pos, Vector3(40, 0, 0)), kt, track))).is_empty()
+	assert_array(Array(k.check(_state(kt + 0.033, pos + Vector3(1.0, 0, 0), Vector3(5, 0, 0), CarState.FLAG_KNOCK), kt + 0.033, track))).is_empty()
+	assert_array(Array(k.check(_state(kt + 0.066, pos + Vector3(1.2, 0, 0), Vector3(5, 0, 0)), kt + 0.066, track))).is_empty()
+	var cheat := Plausibility.for_platform(gt, track)
+	assert_array(Array(cheat.check(_state(kt, pos, Vector3(10, 0, 0)), kt, track))).is_empty()
+	assert_array(Array(cheat.check(_state(kt + 0.033, pos + Vector3(0.4, 0, 0), Vector3(20, 0, 0), CarState.FLAG_KNOCK), kt + 0.033, track))).contains(["acceleration"])
 	# Too fast, too far, wrong clock.
 	assert_array(Array(p.check(_state(t + 0.033, pos + Vector3(1.3, 0, 0), Vector3(200, 0, 0)), t + 0.033, track))).contains(["speed"])
 	assert_array(Array(p.check(_state(t + 0.066, pos + Vector3(60, 0, 0), Vector3(40, 0, 0)), t + 0.066, track))).contains(["teleport"])

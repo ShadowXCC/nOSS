@@ -3,11 +3,21 @@ extends Node
 ## A traffic car turned into a physics car near a player (D110, D120): a Vehicle on its type's
 ## traffic platform, driven by the native lane driver after its lane-sim shadow (NossTraffic.drive),
 ## in lite mode (no engine sound, visuals once a frame). The TrafficManager makes and removes them.
+## Online, the game that owns it drives it and sends its states; everywhere else it's a `remote`
+## proxy (kinematic) shown where those states put it, or where its shadow is until they come.
 
 ## Stopped this long while its shadow drives on, or on its side: a wreck.
 const STUCK_S := 4.0
 const RESHADOW_M := 15.0
 const OFF_LANE_S := 2.0
+## A proxy without a state this long follows its shadow again (its owner stopped sending it here).
+const STALE_S := 1.0
+## Spawned on another car: no contact until it's clear, this long at most.
+const GHOST_S := 3.0
+## A proxy put this far from where it was shown (its owner's first states, a correction) jumps
+## there without touching anything until it's clear: a kinematic body moved into a car would
+## throw it.
+const JUMP_M := 1.5
 
 var manager: TrafficManager
 var car := -1
@@ -23,6 +33,17 @@ var wrecked := false
 var stuck_time := 0.0
 ## Seconds nobody has been near it (TrafficManager).
 var alone := 0.0
+## Another game drives it: shown from its owner's states (D110).
+var remote := false
+var buffer := MotionBuffer.new()
+## The owner's word on it (CarState flags2: wrecked, on its lane's line).
+var remote_flags := 0
+## No contact while it starts on top of another car.
+var ghost_time := 0.0
+## Bots (NetRacer.measure): how far off a proxy was shown, against its owner's states for then.
+var errors := PackedFloat32Array()
+var _shown_t := PackedFloat64Array()
+var _shown_p := PackedVector3Array()
 ## Counts as a wreck at the next decision (wreck()).
 var _wreck_now := false
 var _off_time := 0.0
@@ -44,6 +65,14 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	if vehicle == null or not is_instance_valid(vehicle):
+		return
+	if ghost_time > 0.0:
+		ghost_time -= delta
+		if ghost_time <= 0.0 or not manager.overlaps(self):
+			ghost_time = 0.0
+			vehicle.set_ghost(false)
+	if remote:
+		_follow(delta)
 		return
 	if wrecked:
 		vehicle.throttle = 0.0
@@ -68,13 +97,74 @@ func _physics_process(delta: float) -> void:
 	stuck_time = stuck_time + delta if absf(vehicle.speed()) < 1.0 and shadow_v > 3.0 else 0.0
 
 
+## A proxy: where its owner's states put it now, or where its shadow is if none have come lately.
+func _follow(delta: float) -> void:
+	var now := manager.now()
+	var p := buffer.pose(now, delta) if not buffer.is_empty() else {}
+	if not p.is_empty() and now - (p.state as CarState).time < STALE_S:
+		var st: CarState = p.state
+		vehicle.remote_state = st
+		_move(p.xform, p.velocity, p.angular, st.flags & CarState.FLAG_TELEPORT != 0)
+		CarState.show_on(vehicle, st.flags2)
+		remote_flags = st.flags2
+		if NetRacer.measure:
+			_shown_t.append(now)
+			_shown_p.append(p.xform.origin)
+			if _shown_t.size() > 120:
+				_shown_t = _shown_t.slice(60)
+				_shown_p = _shown_p.slice(60)
+		return
+	var at := manager.shadow_pose(car)
+	if not at.is_empty():
+		_move(at.xform, at.velocity, Vector3.ZERO, false)
+
+
+## A proxy to `xform`: a jump goes there at once, with no contact until it's clear.
+func _move(xform: Transform3D, velocity: Vector3, angular: Vector3, snap: bool) -> void:
+	var jump := vehicle.ground_reference().origin.distance_to(xform.origin) > JUMP_M + velocity.length() / Engine.physics_ticks_per_second
+	if jump and ghost_time <= 0.0:
+		ghost_time = GHOST_S
+		vehicle.set_ghost(true, false)
+	vehicle.move_remote(xform, velocity, angular, snap or jump)
+
+
+## A state from its owner (online).
+func push_state(st: CarState, now: float) -> void:
+	if NetRacer.measure and st.flags & CarState.FLAG_TELEPORT == 0:
+		for i in range(_shown_t.size() - 2, -1, -1):
+			if _shown_t[i] <= st.time and st.time <= _shown_t[i + 1]:
+				var u := (st.time - _shown_t[i]) / maxf(_shown_t[i + 1] - _shown_t[i], 1e-6)
+				errors.append(_shown_p[i].lerp(_shown_p[i + 1], u).distance_to(st.xform.origin))
+				break
+	buffer.push(st, now)
+
+
+## Where the lane sim would have a proxy now (its lane, how far along, how far off the line),
+## from where it is: the server rules on it from that (D110).
+func observe() -> void:
+	var at := manager.sim.locate(vehicle.global_position + Vector3.UP * 0.5)
+	lane = int(at.get("lane", -1))
+	s = float(at.get("s", 0.0))
+	lateral = float(at.get("lateral", 0.0))
+	heading_error = 0.0 if remote_flags & CarState.FLAG2_LANE_OK else 1.0
+
+
+## Its driver's word for the network: wrecked, back on its lane's line.
+func flags2() -> int:
+	return (CarState.FLAG2_WRECKED if wrecked or crashed() else 0) | (CarState.FLAG2_LANE_OK if lane_ok() else 0)
+
+
 ## Back on its lane's line, heading along it and the right way up: it can go back into the lane sim.
 func lane_ok() -> bool:
+	if remote:
+		return lane >= 0 and remote_flags & CarState.FLAG2_LANE_OK != 0
 	return lane >= 0 and absf(lateral) < 1.2 and absf(heading_error) < 0.2 and vehicle.global_basis.y.y > 0.95
 
 
 ## On its side or roof, or stopped where nothing holds it up: a wreck.
 func crashed() -> bool:
+	if remote:
+		return _wreck_now or remote_flags & CarState.FLAG2_WRECKED != 0
 	return _wreck_now or vehicle.global_basis.y.y < 0.5 or stuck_time > STUCK_S
 
 
