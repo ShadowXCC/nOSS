@@ -10,6 +10,9 @@ const LAYER_WORLD := 1
 const LAYER_VEHICLES := 2
 ## Collision box floor above the model's ground, so curbs and crests don't snag it.
 const BODY_CLEARANCE := 0.12
+## A kart's is higher: the wheels hold it, and its body mustn't scrape inside loops and
+## wall-rides (a 4.6 m model in a 9 m loop sags 0.2 m toward its ends, D133).
+const KART_CLEARANCE := 0.3
 ## A knock that changes the car's speed this much in one tick (m/s) counts (knocked_at).
 const KNOCK_DV := 0.5
 const CHAMFER := 0.18
@@ -24,6 +27,8 @@ var package: VehiclePackage
 var fitted: Fitting.Result
 var sim := VehicleSim.new()
 var visual: CarVisual
+## The mode's kart_arcade numbers (GameModes.arcade), or {} for the plain sim (D130).
+var arcade := {}
 
 var steer := 0.0
 var throttle := 0.0
@@ -85,6 +90,18 @@ var _lights_key := -1
 var _collision: CollisionShape3D
 
 
+## Drives with the kart_arcade layer (`numbers` from GameModes.arcade), or without it ({}).
+func set_arcade(numbers: Dictionary) -> void:
+	arcade = numbers
+	sim.set_layer(numbers)
+	if fitted:
+		_collision.shape = _hull(fitted, _clearance())
+
+
+func _clearance() -> float:
+	return KART_CLEARANCE if not arcade.is_empty() else BODY_CLEARANCE
+
+
 ## Builds a vehicle; add it to the tree, then place it with reset_to().
 static func create(platform_result: PlatformLoader.Result, pkg: VehiclePackage, fitting := "normal") -> Vehicle:
 	var v := Vehicle.new()
@@ -133,7 +150,7 @@ func mount(pkg: VehiclePackage) -> void:
 	mass = body.mass
 	center_of_mass = body.center_of_mass
 	inertia = body.inertia
-	_collision.shape = _hull(fitted)
+	_collision.shape = _hull(fitted, _clearance())
 
 	if visual:
 		visual.queue_free()
@@ -166,7 +183,7 @@ func fits_here(pkg: VehiclePackage) -> bool:
 		return true
 	var f := Fitting.fit(platform, pkg.fit, fitting_mode)
 	var query := PhysicsShapeQueryParameters3D.new()
-	query.shape = _hull(f)
+	query.shape = _hull(f, _clearance())
 	var lift := global_basis.y * (fitted.ground_y - f.ground_y + 0.02) if fitted else Vector3.ZERO
 	query.transform = Transform3D(global_basis, global_position + lift)
 	query.collision_mask = LAYER_WORLD
@@ -396,10 +413,11 @@ func _update_remote_visual(delta: float, wheels := true) -> void:
 
 
 ## Convex hull of the clamped envelope, with its floor raised and its lower ends chamfered.
-static func _hull(f: Fitting.Result) -> ConvexPolygonShape3D:
+static func _hull(f: Fitting.Result, clearance := BODY_CLEARANCE) -> ConvexPolygonShape3D:
 	var e := f.envelope
-	var lo := Vector3(e.position.x, f.ground_y + BODY_CLEARANCE, e.position.z)
 	var hi := e.end
+	# Never thinner than 0.25 m, however low the model.
+	var lo := Vector3(e.position.x, minf(f.ground_y + clearance, hi.y - 0.25), e.position.z)
 	var chamfer := minf(CHAMFER, (hi.y - lo.y) * 0.4)
 	var points := PackedVector3Array()
 	for x in [lo.x, hi.x]:
