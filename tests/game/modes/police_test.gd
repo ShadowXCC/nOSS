@@ -2,6 +2,7 @@ extends GdUnitTestSuite
 ## Police v1 (D115, MODE-04) in a session: a unit parked at each speed trap; speeding past one
 ## gives heat and brings units after you, sirens on; slow with a unit on you for 3 s is busted
 ## (the unbanked score goes, back to the shoulder); out of sight and far long enough, evaded.
+## Units in the pool stay out of play.
 
 const FIXTURE := "res://tests/fixtures/tracks/highway_ring_small.json"
 
@@ -60,6 +61,20 @@ func test_a_trap_sees_speeding_and_units_give_chase() -> void:
 	assert_bool(chasing.all(func(u: PoliceRacer) -> bool: return u.vehicle.siren and u.vehicle.light_bar)).is_true()
 	assert_int(pc.pursuits).is_equal(1)
 	assert_object(p.hud.get_node_or_null(^"HeatPanel")).is_not_null()
+	s.queue_free()
+	await get_tree().process_frame
+
+
+func test_pooled_units_stay_out_of_play() -> void:
+	# A racer waiting after a reset rejoins by itself; a unit in the pool must not.
+	var s := await _session()
+	var pc := s.police
+	s.players[0].driver.set_physics_process(false)
+	await _ticks(int(120 * (Racer.REJOIN_MAX_WAIT_S + 2.0)))
+	for u in pc.units:
+		if not pc._trap_units.has(u):
+			assert_bool(u.waiting).is_true()
+			assert_float(u.vehicle.global_position.y).is_less(-400.0)
 	s.queue_free()
 	await get_tree().process_frame
 

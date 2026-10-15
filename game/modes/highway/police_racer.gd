@@ -35,6 +35,13 @@ func setup() -> void:
 	wrong_way_respawn = false
 
 
+## In the pool it stays out of play (a racer waiting after a reset puts itself back on the road).
+func _physics_process(delta: float) -> void:
+	if waiting:
+		return
+	super(delta)
+
+
 func _make_driver() -> Node:
 	ai = PoliceAI.new()
 	ai.name = "PoliceAI"
