@@ -5,8 +5,12 @@ extends Node
 ## lap timer. Drivers, the spotter, flags and standings read this instead of projecting cars
 ## themselves.
 
+## On a client, another game's car is put on the track every this many ticks.
+const REMOTE_EVERY := 4
+
 var racers: Array[Racer] = []
 var track: TrackData
+var _ticks := 0
 
 
 func _ready() -> void:
@@ -14,8 +18,18 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_ticks += 1
+	var client := Net.client != null and not Net.is_server()
+	var i := 0
 	for r in racers:
-		if r.vehicle and is_instance_valid(r.vehicle) and not r.waiting: # waiting: off the track
+		i += 1
+		if r.vehicle == null or not is_instance_valid(r.vehicle) or r.waiting: # waiting: off the track
+			continue
+		if client and r is NetRacer:
+			# Another game's car: its game and the server time it; here it's for the HUD.
+			if (i + _ticks) % REMOTE_EVERY == 0:
+				r.update_track(delta * REMOTE_EVERY)
+		else:
 			r.update_track(delta)
 
 

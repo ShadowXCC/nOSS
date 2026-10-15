@@ -8,6 +8,7 @@ extends Node
 
 ## Stopped this long while its shadow drives on, or on its side: a wreck.
 const STUCK_S := 4.0
+const STUCK_EVERY := 8
 const RESHADOW_M := 15.0
 const OFF_LANE_S := 2.0
 ## A proxy without a state this long follows its shadow again (its owner stopped sending it here).
@@ -18,9 +19,12 @@ const GHOST_S := 3.0
 ## there without touching anything until it's clear: a kinematic body moved into a car would
 ## throw it.
 const JUMP_M := 1.5
-## A proxy nobody sees (a server, a headless bot) far from everything its game drives follows its
-## owner's states only every this many ticks.
+## A proxy far from everything its game drives (TrafficManager.NEAR_DRIVEN_M; NEAR_SEEN_M where
+## cars are drawn) follows its owner's states only every this many ticks: FAR_EVERY where nobody
+## sees it (a server, a headless bot), FAR_EVERY_SEEN where cars are drawn.
 const FAR_EVERY := 4
+const FAR_EVERY_SEEN := 2
+const NEAR_SEEN_M := 150.0
 
 var manager: TrafficManager
 var car := -1
@@ -76,7 +80,9 @@ func _physics_process(delta: float) -> void:
 			ghost_time = 0.0
 			vehicle.set_ghost(false)
 	if remote:
-		if Vehicle.drawn or (Engine.get_physics_frames() + car) % FAR_EVERY == 0 or manager.near_driven(vehicle.global_position):
+		var every := FAR_EVERY_SEEN if Vehicle.drawn else FAR_EVERY
+		var near := NEAR_SEEN_M if Vehicle.drawn else TrafficManager.NEAR_DRIVEN_M
+		if (Engine.get_physics_frames() + car) % every == 0 or manager.near_driven(vehicle.global_position, near):
 			_follow(delta)
 		return
 	if wrecked:
@@ -98,8 +104,10 @@ func _physics_process(delta: float) -> void:
 	vehicle.indicators = 1 if out[9] > 0.5 else (2 if out[9] < -0.5 else 0)
 	gap = out[10]
 	# Stuck: not moving while the lane sim's version of it is (a queue or a merge isn't stuck).
-	var shadow_v := float(manager.sim.car(car).get("v", 0.0))
-	stuck_time = stuck_time + delta if absf(vehicle.speed()) < 1.0 and shadow_v > 3.0 else 0.0
+	# Looked at every STUCK_EVERY ticks.
+	if (Engine.get_physics_frames() + car) % STUCK_EVERY == 0:
+		var shadow_v := float(manager.sim.car(car).get("v", 0.0))
+		stuck_time = stuck_time + delta * STUCK_EVERY if absf(vehicle.speed()) < 1.0 and shadow_v > 3.0 else 0.0
 
 
 ## A proxy: where its owner's states put it now, or where its shadow is if none have come lately.

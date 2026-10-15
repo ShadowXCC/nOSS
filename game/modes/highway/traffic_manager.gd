@@ -257,8 +257,8 @@ func members() -> PackedFloat32Array:
 
 
 ## True if a car this game drives (its players, its police, its own physics traffic) is within
-## NEAR_DRIVEN_M of `pos`: a proxy there must move every tick to be hit right. Once a physics tick.
-func near_driven(pos: Vector3) -> bool:
+## `radius` of `pos`: a proxy there must move every tick to be hit (or seen) right.
+func near_driven(pos: Vector3, radius := NEAR_DRIVEN_M) -> bool:
 	var frame := Engine.get_physics_frames()
 	if frame != _driven_frame:
 		_driven_frame = frame
@@ -270,7 +270,7 @@ func near_driven(pos: Vector3) -> bool:
 			if not tc.remote and tc.vehicle:
 				_driven.append(tc.vehicle.global_position)
 	for at in _driven:
-		if at.distance_squared_to(pos) < NEAR_DRIVEN_M * NEAR_DRIVEN_M:
+		if at.distance_squared_to(pos) < radius * radius:
 			return true
 	return false
 

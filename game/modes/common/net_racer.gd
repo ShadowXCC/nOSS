@@ -8,6 +8,9 @@ extends Racer
 
 ## Ticks without car contact after a placed car (a reset or the grid) moves.
 const TELEPORT_GHOST_TICKS := 2
+## On a highway, a car further than TrafficCar.NEAR_SEEN_M from everything this game drives is
+## moved every this many ticks.
+const FAR_EVERY := 2
 
 ## The game that owns this car (the server's peer id for it).
 var peer := 0
@@ -125,6 +128,10 @@ func _measure(s: CarState) -> void:
 
 func _physics_process(delta: float) -> void:
 	if vehicle == null or buffer.is_empty():
+		return
+	# On a highway, a car far from everything this game drives moves every other tick.
+	var tm := session.traffic if session else null
+	if tm and (Engine.get_physics_frames() + net_id) % FAR_EVERY != 0 and not tm.near_driven(vehicle.global_position, TrafficCar.NEAR_SEEN_M):
 		return
 	_apply(delta, false)
 

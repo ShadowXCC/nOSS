@@ -64,6 +64,10 @@ var visual_every_frame := false
 ## Off on a dedicated server and on headless bots, where nobody sees the cars: no wheels, lights
 ## or horn are updated.
 static var drawn := true
+## Wheels turn and steer only on cars this near a camera (lights everywhere).
+const WHEELS_NEAR_M := 80.0
+static var _cams := PackedVector3Array()
+static var _cams_frame := -1
 ## Indicators blink at 1.5 Hz (on half the time).
 const BLINK_HZ := 1.5
 var _blink := 0.0
@@ -74,6 +78,9 @@ var remote := false
 var remote_state: CarState
 var remote_velocity := Vector3.ZERO
 var _remote_spin := PackedFloat32Array()
+var _wheel_radius := PackedFloat32Array() # per physics wheel, for a remote car's spin
+var _wheel_front := PackedByteArray()
+var _lights_key := -1
 
 var _collision: CollisionShape3D
 
@@ -131,6 +138,8 @@ func mount(pkg: VehiclePackage) -> void:
 	if visual:
 		visual.queue_free()
 	visual = CarVisual.create(pkg, fitted, placeholder_color)
+	_lights_key = -1
+	_remote_spin.clear()
 	add_child(visual)
 	Siren.fit(self) # police cars: their light bar and siren
 	var sw: Variant = pkg.fit.get("steering_wheel")
@@ -217,28 +226,46 @@ func move_remote(ground: Transform3D, velocity: Vector3, angular: Vector3, snap 
 
 func _physics_process(delta: float) -> void:
 	if remote:
-		if drawn and not visual_every_frame:
-			_update_remote_visual(delta)
-		return
+		return # its wheels and lights once a frame (_process)
 	sim.set_controls(steer, throttle, brake, handbrake, clutch)
 	if drawn and not visual_every_frame:
-		_update_visual()
+		_update_visual(_near_camera())
 
 
 func _process(delta: float) -> void:
 	if not drawn:
 		return
 	_blink = fmod(_blink + delta * BLINK_HZ, 1.0)
-	if visual_every_frame:
-		if remote:
-			_update_remote_visual(delta)
-		else:
-			_update_visual()
+	if remote:
+		_update_remote_visual(delta, _near_camera())
+	elif visual_every_frame:
+		_update_visual(_near_camera())
 	if visual:
 		var on := _blink < 0.5
-		visual.set_indicators(on and indicators & 1 != 0, on and indicators & 2 != 0)
-		visual.set_light("head", 2.0 if head_flash else float(head_lights))
+		var key := (1 if on and indicators & 1 != 0 else 0) | (2 if on and indicators & 2 != 0 else 0) | (4 if head_flash else 0) | (8 * head_lights)
+		if key != _lights_key: # only when something changed
+			_lights_key = key
+			visual.set_indicators(key & 1 != 0, key & 2 != 0)
+			visual.set_light("head", 2.0 if head_flash else float(head_lights))
 		_sound_horn()
+
+
+## True if a player's camera is within WHEELS_NEAR_M (always with no camera, as in tests).
+func _near_camera() -> bool:
+	var frame := Engine.get_process_frames()
+	if frame != _cams_frame:
+		_cams_frame = frame
+		_cams = PackedVector3Array()
+		for rig in CameraRig.rigs:
+			if is_instance_valid(rig) and rig.camera.is_inside_tree():
+				_cams.append(rig.camera.global_position)
+	if _cams.is_empty():
+		return true
+	var at := global_position
+	for c in _cams:
+		if c.distance_squared_to(at) < WHEELS_NEAR_M * WHEELS_NEAR_M:
+			return true
+	return false
 
 
 ## The horn sounds while it's held (this car's, or a remote car's from its states).
@@ -314,8 +341,11 @@ func eye_point() -> Vector3:
 	return fitted.eye_point
 
 
-func _update_visual() -> void:
+func _update_visual(wheels := true) -> void:
 	if visual == null:
+		return
+	visual.set_brake_lights(sim.get_brake() > 0.05)
+	if not wheels:
 		return
 	var physics := []
 	for j in sim.get_wheel_count():
@@ -332,31 +362,37 @@ func _update_visual() -> void:
 			lift += physics[j].z / mapped.size()
 		visual.set_wheel(i, steer, physics[mapped[0]].y, lift)
 	visual.set_steering_angle(-steer * deg_to_rad(steering_wheel_lock_deg) / 2.0)
-	visual.set_brake_lights(sim.get_brake() > 0.05)
 
 
-## Wheels and lights of a remote car from its newest state; wheels spin with its speed.
-func _update_remote_visual(delta: float) -> void:
+## Wheels and lights of a remote car from its newest state; wheels spin with its speed (only
+## `wheels` near a camera).
+func _update_remote_visual(delta: float, wheels := true) -> void:
 	if visual == null or fitted == null or remote_state == null:
 		return
 	var s := remote_state
+	visual.set_brake_lights(s.flags & CarState.FLAG_BRAKE != 0)
+	if not wheels:
+		return
 	var n := fitted.physics_wheels.size()
 	if _remote_spin.size() != n:
 		_remote_spin.resize(n)
 		_remote_spin.fill(0.0)
+		_wheel_radius.resize(n)
+		_wheel_front.resize(n)
+		for j in n:
+			var w: Dictionary = fitted.physics_wheels[j]
+			_wheel_radius[j] = maxf(float(w.get("visual_radius", w.radius)), 0.1)
+			_wheel_front[j] = 1 if int(w.axle) == 1 else 0
 	var fwd := remote_velocity.dot(global_basis.z)
 	for j in n:
-		var radius := maxf(float(fitted.physics_wheels[j].get("visual_radius", fitted.physics_wheels[j].radius)), 0.1)
-		_remote_spin[j] = fmod(_remote_spin[j] + fwd / radius * delta, TAU)
+		_remote_spin[j] = fmod(_remote_spin[j] + fwd / _wheel_radius[j] * delta, TAU)
 	for i in mini(visual.wheel_count(), fitted.wheel_map.size()):
 		var mapped := fitted.wheel_map[i]
 		if mapped.is_empty() or mapped[0] >= n:
 			continue
 		var j := mapped[0]
-		var front := int(fitted.physics_wheels[j].axle) == 1
-		visual.set_wheel(i, s.steer if front else 0.0, _remote_spin[j], s.lift[mini(j, 3)])
+		visual.set_wheel(i, s.steer if _wheel_front[j] == 1 else 0.0, _remote_spin[j], s.lift[mini(j, 3)])
 	visual.set_steering_angle(-s.steer * deg_to_rad(steering_wheel_lock_deg) / 2.0)
-	visual.set_brake_lights(s.flags & CarState.FLAG_BRAKE != 0)
 
 
 ## Convex hull of the clamped envelope, with its floor raised and its lower ends chamfered.

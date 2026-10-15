@@ -20,6 +20,8 @@ var vehicle: Vehicle
 var input: PlayerInput
 var mode := "chase_near"
 var camera := Camera3D.new()
+## Every player's rig in the scene (cars far from them all skip wheel animation).
+static var rigs: Array[CameraRig] = []
 
 var _pos := Vector3.ZERO
 var _vel := Vector3.ZERO
@@ -38,6 +40,14 @@ func _ready() -> void:
 	top_level = true
 	# The rig follows the car's interpolated transform itself.
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+
+
+func _enter_tree() -> void:
+	rigs.append(self)
+
+
+func _exit_tree() -> void:
+	rigs.erase(self)
 
 
 func set_vehicle(v: Vehicle) -> void:

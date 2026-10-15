@@ -19,6 +19,7 @@ const COLORS := { "red": Color(1.0, 0.1, 0.08), "blue": Color(0.15, 0.35, 1.0) }
 
 var vehicle: Vehicle
 var _time := 0.0
+var _dark := false
 var _normal := {} # "red"/"blue" -> [StandardMaterial3D]
 var _calm := {} # the same, on the calm copies
 var _calm_nodes: Array[MeshInstance3D] = []
@@ -73,6 +74,9 @@ func _process(delta: float) -> void:
 	if vehicle == null or not is_instance_valid(vehicle):
 		return
 	var on := vehicle.light_bar
+	if not on and _dark:
+		return # off, and already shown off
+	_dark = not on
 	_time = _time + delta if on else 0.0
 	var full := pattern(_time, false) if on else { "red": 0.0, "blue": 0.0 }
 	var calm := pattern(_time, true) if on else { "red": 0.0, "blue": 0.0 }
