@@ -78,7 +78,8 @@ func _ready() -> void:
 	online_button.custom_minimum_size = _drive_button.custom_minimum_size
 	online_button.pressed.connect(_open_online)
 	highway_button.add_sibling(online_button)
-	var order := [_drive_button, race_button, highway_button, online_button, trial_button, garage_button, bay_button, editor_button, _settings_button, _quit_button]
+	# Focus goes down the buttons as they're shown (one list, so the two can't differ).
+	var order := _drive_button.get_parent().get_children()
 	for b: Button in order:
 		b.accessibility_name = b.text
 		b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER

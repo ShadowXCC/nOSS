@@ -22,14 +22,17 @@ func test_free_drive_button_has_focus() -> void:
 	assert_bool(drive.has_focus()).is_true()
 
 
+## Down goes through the buttons in the order they're shown (Changes.md: focus went from
+## Garage to Fitting Bay, past Track Editor above it).
 func test_buttons_have_accessible_names_and_focus_order() -> void:
 	var runner := scene_runner(TITLE_SCENE)
-	var names := ["FreeDriveButton", "RaceButton", "HighwayButton", "OnlineButton", "TimeTrialButton", "GarageButton", "FittingBayButton", "TrackEditorButton", "SettingsButton", "QuitButton"]
+	var names := ["FreeDriveButton", "RaceButton", "HighwayButton", "OnlineButton", "TimeTrialButton", "GarageButton", "TrackEditorButton", "FittingBayButton", "SettingsButton", "QuitButton"]
 	for i in names.size():
 		var b: Button = runner.find_child(names[i])
 		assert_str(b.accessibility_name).is_not_empty()
 		var below := b.get_node(b.focus_neighbor_bottom) as Button
 		assert_str(below.name).is_equal(names[(i + 1) % names.size()])
+		assert_int(b.get_index()).is_equal(i)
 
 
 ## Every button is on screen in the default window (Changes.md: Quit was cut off); with big
