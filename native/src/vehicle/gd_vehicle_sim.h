@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 
 #include <godot_cpp/classes/physics_direct_body_state3d.hpp>
 #include <godot_cpp/classes/physics_ray_query_parameters3d.hpp>
@@ -21,6 +22,7 @@ class VehicleSim : public godot::RefCounted {
 	godot::Ref<godot::PhysicsRayQueryParameters3D> _ray;
 	godot::String _error;
 	double _reference_rack = 9.0;
+	std::optional<vehicle::KartParams> _arcade;
 
 protected:
 	static void _bind_methods();
@@ -62,6 +64,21 @@ public:
 	// Body-frame acceleration, m/s^2 (without gravity).
 	godot::Vector3 get_acceleration() const;
 	godot::Dictionary get_telemetry() const;
+
+	// The kart_arcade layer (D130): a mode's "arcade" block, or {} for none. It stays through
+	// configure() (hotswap).
+	void set_layer(const godot::Dictionary &p_arcade);
+	bool has_layer() const;
+	void set_kart_input(bool p_drift);
+	// Slipstream drag share, and a pull toward another kart (m/s^2, world): set at 30 Hz.
+	void set_kart_drag(double p_scale);
+	void set_kart_pull(const godot::Vector3 &p_accel);
+	// KART_BOOST (value s), KART_SPIN (value s, dir +1 left / -1 right), KART_SLOW (value s,
+	// dir = power left), KART_CANCEL.
+	void kart_effect(int64_t p_kind, double p_value, double p_dir);
+	int64_t get_kart_flags() const;
+	godot::Dictionary get_kart_state() const;
+	double get_geared_top() const;
 };
 
 } // namespace noss

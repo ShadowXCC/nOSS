@@ -67,6 +67,61 @@ inline Geometry nsx_geometry(double p_wheelbase = 2.551, double p_track = 1.572,
 	return g;
 }
 
+// Kart / Medium as in data/platforms/kart/medium.platform.json (with the open family's defaults).
+inline PlatformSpec kart_spec() {
+	PlatformSpec s;
+	s.mass = 200.0;
+	s.front_weight = 0.42;
+	s.cog_height_over_track = 0.25;
+	s.yaw_dynamic_index = 0.90;
+	s.wheelbase_ref = 1.80;
+	s.track_ref = 1.30;
+	s.wheel_radius_ref = 0.20;
+	s.drive = Drive::RWD;
+	s.engine.torque_curve = { { 2000, 18 }, { 6000, 26 }, { 9000, 24 }, { 11000, 20 } };
+	s.engine.idle_rpm = 1800;
+	s.engine.redline_rpm = 10500;
+	s.engine.limiter_rpm = 11000;
+	s.engine.inertia = 0.02;
+	s.engine.engine_brake = 6;
+	s.gearbox.type = GearboxType::AUTO;
+	s.gearbox.ratios = { 1.0 };
+	s.gearbox.reverse = 1.0;
+	s.gearbox.final_drive = 8.3;
+	s.gearbox.shift_time = 0.0;
+	s.axle_diff[0] = s.axle_diff[1] = { DiffType::LOCKED, 0, 0, 0 };
+	s.brake_torque = 600;
+	s.brake_bias_front = 0.45;
+	s.axles[0] = { 6.0, 0.60, 0.80, 0.02, true, false };
+	s.axles[1] = { 6.0, 0.60, 0.80, 0.02, false, true };
+	s.rigid = true;
+	s.roll_gradient_deg_per_g = 0.6;
+	s.roll_front_share = 0.50;
+	s.max_steer_deg = 25;
+	s.cd_a = 0.50;
+	s.tire.mu = 1.35;
+	s.tire.load_sensitivity = 0.10;
+	s.tire.peak_slip_ratio = 0.12;
+	s.tire.peak_slip_angle = 9.0 * PI / 180.0;
+	s.relaxation_length = 0.12;
+	s.rolling_resistance = 0.015;
+	return s;
+}
+
+// A kart's fitted geometry: hubs at the wheel radius above y = 0.
+inline Geometry kart_geometry(double p_wheelbase = 1.25, double p_track = 1.15, double p_radius = 0.14) {
+	Geometry g;
+	for (int i = 0; i < 4; i++) {
+		WheelGeometry w;
+		w.side = (i % 2 == 0) ? 1 : -1;
+		w.axle = i / 2;
+		w.radius = p_radius;
+		w.hub = V3(w.side * p_track / 2.0, p_radius, w.axle == 0 ? p_wheelbase / 2.0 : -p_wheelbase / 2.0);
+		g.wheels.push_back(w);
+	}
+	return g;
+}
+
 using Harness = FlatHarness;
 
 } // namespace noss::test

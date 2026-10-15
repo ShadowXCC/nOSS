@@ -73,6 +73,10 @@ Array NossConformance::run_batch(const Array &p_jobs, int64_t p_threads) {
 		Job &job = jobs[size_t(i)];
 		Dictionary d = p_jobs[i];
 		PlatformSpec platform = parse_platform(d.get("platform", Dictionary()));
+		Dictionary arcade = d.get("arcade", Dictionary());
+		if (!arcade.is_empty()) {
+			platform.arcade = parse_kart(arcade); // a kart platform runs with its mode's layer (D130)
+		}
 		Geometry geometry;
 		String error;
 		if (platform.engine.torque_curve.size() < 2 || platform.gearbox.ratios.empty()) {

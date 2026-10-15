@@ -73,11 +73,12 @@ func _run_platform(platform: Dictionary, platform_hash: String, track_options: D
 	options.step_speed = test_kmh / 3.6
 	var jobs := []
 	var index := []
+	var arcade := GameModes.arcade(GameModes.mode_for(platform.id)) # kart platforms drive with their layer
 	for config in configs:
 		var fitted := Fitting.fit(platform, config.fit, config.get("mode", "normal"))
 		var geometry := { "ground_y": fitted.ground_y, "wheels": fitted.physics_wheels }
 		for maneuver in NossConformance.maneuvers():
-			jobs.append({ "platform": platform, "geometry": geometry, "maneuver": maneuver, "options": options })
+			jobs.append({ "platform": platform, "geometry": geometry, "maneuver": maneuver, "options": options, "arcade": arcade })
 			index.append([config, maneuver, fitted])
 	var results := NossConformance.run_batch(jobs, threads)
 

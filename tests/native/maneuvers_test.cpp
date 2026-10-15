@@ -100,3 +100,30 @@ TEST_CASE("maneuvers: results are plausible and deterministic") {
 	CHECK(g > 1.1);
 	CHECK(g < 1.6);
 }
+
+TEST_CASE("maneuvers: the kart layer's drift and boost") {
+	PlatformSpec s = kart_spec();
+	ManeuverSpec spec;
+	spec.name = "drift";
+	CHECK(run_maneuver(make_config(s, kart_geometry()), spec).metrics.empty()); // no layer, nothing to measure
+	s.arcade = KartParams();
+	ManeuverResult drift = run_maneuver(make_config(s, kart_geometry()), spec);
+	REQUIRE_MESSAGE(drift.ok(), drift.error);
+	CHECK(metric(drift, "drift_yaw_rad_s") > 0.4);
+	CHECK(metric(drift, "drift_kmh") > 45.0);
+	spec.name = "boost";
+	ManeuverResult boost = run_maneuver(make_config(s, kart_geometry()), spec);
+	REQUIRE_MESSAGE(boost.ok(), boost.error);
+	CHECK(metric(boost, "boost_kmh") > 112.0);
+	CHECK(metric(boost, "boost_kmh") <= 125.2);
+	CHECK(metric(boost, "after_boost_kmh") < 106.0);
+	// The same at the kart platform's smallest and largest geometry.
+	for (auto geo : { kart_geometry(1.10, 1.00), kart_geometry(2.80, 1.70) }) {
+		spec.name = "drift";
+		ManeuverResult d = run_maneuver(make_config(s, geo), spec);
+		CHECK(metric(d, "drift_yaw_rad_s") == doctest::Approx(metric(drift, "drift_yaw_rad_s")).epsilon(0.02));
+		CHECK(metric(d, "drift_kmh") == doctest::Approx(metric(drift, "drift_kmh")).epsilon(0.02));
+		spec.name = "boost";
+		CHECK(metric(run_maneuver(make_config(s, geo), spec), "boost_kmh") == doctest::Approx(metric(boost, "boost_kmh")).epsilon(0.02));
+	}
+}

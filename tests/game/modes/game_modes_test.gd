@@ -21,3 +21,47 @@ func test_every_class_has_a_default_car() -> void:
 func test_describe() -> void:
 	var gt := PlatformLoader.load_official("official.track.gt").platform
 	assert_str(GameModes.describe(gt)).is_equal("RWD · 377 kW · 1300 kg")
+
+
+func test_the_kart_mode_fills_its_arcade_numbers() -> void:
+	var kart := GameModes.mode_for("official.kart.medium")
+	var arcade := GameModes.arcade(kart)
+	assert_float(arcade.grip).is_equal(1.25)
+	assert_array(arcade.drift.tiers_s).is_equal([0.6, 1.2, 2.0])
+	assert_float(arcade.tow.s).is_equal(1.5)
+	# A block that only sets some keys keeps the rest.
+	var partial := kart.duplicate(true)
+	partial.arcade = { "drift": { "hop": 0.0 } }
+	var merged := GameModes.arcade(partial)
+	assert_float(merged.drift.hop).is_equal(0.0)
+	assert_float(merged.drift.min_speed).is_equal(8.0)
+	assert_float(merged.grip).is_equal(1.25)
+	assert_dict(GameModes.arcade(GameModes.mode_for("official.track.gt"))).is_empty()
+	# The mode file's arcade block passes its schema, and a bad one doesn't.
+	var schema := JsonSchema.load_schema("mode")
+	partial.arcade = { "drift": { "tiers_s": [0.6, 1.2] } }
+	assert_array(JsonSchema.validate(partial, schema)).is_not_empty()
+
+
+func test_the_layer_drives_a_vehicle_sim() -> void:
+	var platform := PlatformLoader.load_official("official.kart.medium").platform
+	var sim := VehicleSim.new()
+	var wheels := []
+	for i in 4:
+		wheels.append({ "center": Vector3(0.55 if i % 2 == 0 else -0.55, 0.14, 0.6 if i < 2 else -0.6), "radius": 0.14,
+			"axle": 1 if i < 2 else 2, "side": "L" if i % 2 == 0 else "R" })
+	assert_bool(sim.configure(platform, { "ground_y": 0.0, "wheels": wheels })).is_true()
+	assert_bool(sim.has_layer()).is_false()
+	assert_dict(sim.get_kart_state()).is_empty()
+	sim.set_layer(GameModes.arcade(GameModes.mode_for("official.kart.medium")))
+	assert_bool(sim.has_layer()).is_true()
+	sim.kart_effect(VehicleSim.KART_BOOST, 1.0)
+	assert_float(float(sim.get_kart_state().boost)).is_equal(1.0)
+	assert_int(sim.get_kart_flags() & VehicleSim.KART_FLAG_BOOST).is_equal(VehicleSim.KART_FLAG_BOOST)
+	assert_float(sim.get_geared_top() * 3.6).is_equal_approx(100.0, 1.0)
+	# Hotswap keeps the layer and its state.
+	assert_bool(sim.configure(platform, { "ground_y": 0.0, "wheels": wheels })).is_true()
+	assert_bool(sim.has_layer()).is_true()
+	assert_float(float(sim.get_kart_state().boost)).is_equal(1.0)
+	sim.set_layer({})
+	assert_bool(sim.has_layer()).is_false()

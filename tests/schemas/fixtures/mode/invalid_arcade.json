@@ -1,0 +1,8 @@
+{
+  "schema": "noss.mode/1",
+  "id": "kart",
+  "name": "Kart",
+  "classes": ["official.kart.medium"],
+  "physics_layer": "kart_arcade",
+  "arcade": { "grip": 1.25, "drift": { "tiers_s": [0.6, 1.2] }, "nitro": 3 }
+}

@@ -137,6 +137,50 @@ PlatformSpec parse_platform(const Dictionary &p) {
 	return s;
 }
 
+KartParams parse_kart(const Dictionary &p) {
+	KartParams k;
+	auto pair = [&](const String &p_path, double (&r_pair)[2]) {
+		Array a = at(p, p_path, Array());
+		for (int64_t i = 0; i < 2 && i < a.size(); i++) {
+			r_pair[i] = double(a[i]);
+		}
+	};
+	auto triple = [&](const String &p_path, double (&r_triple)[3]) {
+		Array a = at(p, p_path, Array());
+		for (int64_t i = 0; i < 3 && i < a.size(); i++) {
+			r_triple[i] = double(a[i]);
+		}
+	};
+	k.grip = num(p, "grip", k.grip);
+	k.drift_min_speed = num(p, "drift.min_speed", k.drift_min_speed);
+	k.drift_min_steer = num(p, "drift.min_steer", k.drift_min_steer);
+	pair("drift.turn_g", k.drift_turn_g);
+	pair("drift.slip", k.drift_slip);
+	k.drift_side_grip = num(p, "drift.side_grip", k.drift_side_grip);
+	k.drift_tire_slip = num(p, "drift.tire_slip", k.drift_tire_slip);
+	k.drift_wheel_steer = num(p, "drift.wheel_steer", k.drift_wheel_steer);
+	k.drift_yaw_accel = num(p, "drift.yaw_accel", k.drift_yaw_accel);
+	k.drift_hop = num(p, "drift.hop", k.drift_hop);
+	triple("drift.tiers_s", k.drift_tiers);
+	triple("drift.boost_s", k.drift_boost);
+	k.boost_accel = num(p, "boost.accel", k.boost_accel);
+	k.boost_cap = num(p, "boost.cap", k.boost_cap);
+	k.pad_s = num(p, "boost.pad_s", k.pad_s);
+	k.air_pitch = num(p, "air.pitch", k.air_pitch);
+	k.air_roll = num(p, "air.roll", k.air_roll);
+	k.air_yaw = num(p, "air.yaw", k.air_yaw);
+	k.trick_window = num(p, "air.trick_window_s", k.trick_window);
+	k.trick_boost = num(p, "air.trick_boost_s", k.trick_boost);
+	k.stick_min_speed = num(p, "stick.min_speed", k.stick_min_speed);
+	k.stick_hold = num(p, "stick.hold_s", k.stick_hold);
+	k.right_after = num(p, "right_after_s", k.right_after);
+	k.spin_s = num(p, "spin.s", k.spin_s);
+	k.spin_grip = num(p, "spin.grip", k.spin_grip);
+	k.spin_yaw_rate = num(p, "spin.yaw_rate", k.spin_yaw_rate);
+	k.slow_power = num(p, "slow.power", k.slow_power);
+	return k;
+}
+
 bool parse_geometry(const Dictionary &p_geometry, Geometry &r_geometry, String &r_error) {
 	r_geometry = Geometry();
 	r_geometry.ground_y = double(p_geometry.get("ground_y", 0.0));

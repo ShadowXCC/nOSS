@@ -408,10 +408,81 @@ ManeuverResult lap(const Config &p_config, const ManeuverSpec &p_spec) {
 	return r;
 }
 
+// Kart layer (D130): a held drift from a steady 50 km/h (or half the geared top speed), steering
+// half into it at full throttle for 3 s; its yaw rate and speed over the last second. Platforms
+// without the layer have no metrics.
+ManeuverResult drift(const Config &p_config, const ManeuverSpec &) {
+	ManeuverResult r;
+	if (!p_config.spec.arcade) {
+		return r;
+	}
+	FlatHarness h(p_config);
+	Path path = straight_path(8000.0);
+	PathDriver driver(path, p_config.spec);
+	settle(h);
+	double throttle;
+	double entry = std::min(50.0 * KMH, 0.5 * KartLayer::geared_top(p_config));
+	if (!hold_speed(h, driver, entry, 1.0, throttle)) {
+		return fail("Can't reach the drift's speed");
+	}
+	h.model.kart->drift = true;
+	h.model.controls = Controls();
+	h.model.controls.throttle = 1.0;
+	h.model.controls.steer = 0.6;
+	double yaw = 0.0, speed = 0.0;
+	for (int i = 0; i < int(4.0 / DT); i++) {
+		if (h.model.kart->drift_dir != 0) {
+			h.model.controls.steer = 0.5;
+		}
+		h.step();
+		if (diverged(h)) {
+			return fail("Sim diverged");
+		}
+		if (i >= int(3.0 / DT)) {
+			yaw += std::abs(h.yaw_rate()) * DT;
+			speed += h.forward_speed() / KMH * DT;
+		}
+	}
+	if (h.model.kart->drift_dir == 0) {
+		return fail("No drift");
+	}
+	r.metrics.push_back({ "drift_yaw_rad_s", yaw });
+	r.metrics.push_back({ "drift_kmh", speed });
+	return r;
+}
+
+// Kart layer: 2 s of boost from the top speed at full throttle; the speed it reaches.
+ManeuverResult boost(const Config &p_config, const ManeuverSpec &) {
+	ManeuverResult r;
+	if (!p_config.spec.arcade) {
+		return r;
+	}
+	FlatHarness h(p_config);
+	Path path = straight_path(8000.0);
+	PathDriver driver(path, p_config.spec);
+	settle(h);
+	for (int i = 0; i < int(16.0 / DT); i++) {
+		if (i == int(12.0 / DT)) {
+			h.model.kart->effect(KART_BOOST, 2.0);
+		}
+		h.model.controls.steer = driver.steer(h);
+		h.model.controls.throttle = 1.0;
+		h.step();
+		if (diverged(h)) {
+			return fail("Sim diverged");
+		}
+		if (i == int(14.0 / DT)) {
+			r.metrics.push_back({ "boost_kmh", h.forward_speed() / KMH });
+		}
+	}
+	r.metrics.push_back({ "after_boost_kmh", h.forward_speed() / KMH });
+	return r;
+}
+
 } // namespace
 
 const std::vector<std::string> &maneuver_names() {
-	static const std::vector<std::string> names = { "launch", "top_speed", "braking", "skidpad", "step_steer", "slalom", "lap" };
+	static const std::vector<std::string> names = { "launch", "top_speed", "braking", "skidpad", "step_steer", "slalom", "lap", "drift", "boost" };
 	return names;
 }
 
@@ -437,6 +508,12 @@ ManeuverResult run_maneuver(const Config &p_config, const ManeuverSpec &p_spec) 
 	}
 	if (n == "lap") {
 		return lap(p_config, p_spec);
+	}
+	if (n == "drift") {
+		return drift(p_config, p_spec);
+	}
+	if (n == "boost") {
+		return boost(p_config, p_spec);
 	}
 	return fail("Unknown maneuver: " + n);
 }

@@ -1,0 +1,13 @@
+{
+  "schema": "noss.mode/1",
+  "id": "kart",
+  "name": "Kart",
+  "classes": ["official.kart.medium"],
+  "default_car": "res://content/cars/noss_kart",
+  "physics_layer": "kart_arcade",
+  "arcade": {
+    "grip": 1.25,
+    "drift": { "turn_g": [0.4, 1.0], "tiers_s": [0.6, 1.2, 2.0], "boost_s": [0.5, 0.9, 1.4] },
+    "boost": { "cap": 1.25 }
+  }
+}

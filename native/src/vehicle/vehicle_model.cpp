@@ -209,6 +209,9 @@ VehicleModel::VehicleModel(const Config &p_config) :
 			_driven.push_back(int(i));
 		}
 	}
+	if (_config.spec.arcade) {
+		kart.emplace(*_config.spec.arcade);
+	}
 }
 
 void VehicleModel::reset() {
@@ -222,6 +225,9 @@ void VehicleModel::reset() {
 	gearbox.shift_timer = 0.0;
 	_tcs_factor = 1.0;
 	_has_last_velocity = false;
+	if (kart) {
+		kart->reset();
+	}
 }
 
 void VehicleModel::roll_at(double p_speed) {
@@ -265,6 +271,21 @@ void VehicleModel::take_state(const VehicleModel &p_other) {
 		wheels[i].deflection = p_other.wheels[i].deflection;
 		wheels[i].spin_angle = p_other.wheels[i].spin_angle;
 		wheels[i].abs_factor = p_other.wheels[i].abs_factor;
+	}
+	if (kart && p_other.kart) {
+		KartParams params = kart->params;
+		*kart = *p_other.kart;
+		kart->params = params;
+	}
+}
+
+void VehicleModel::set_kart(const KartParams *p_params) {
+	if (!p_params) {
+		kart.reset();
+	} else if (kart) {
+		kart->params = *p_params;
+	} else {
+		kart.emplace(*p_params);
 	}
 }
 
@@ -352,6 +373,10 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 	}
 	_last_velocity = p_chassis.velocity;
 	_has_last_velocity = true;
+	KartMods mods;
+	if (kart) {
+		mods = kart->begin(_config, p_chassis, p_contacts, controls, gravity, rpm(), p_dt);
+	}
 
 	// --- Driver inputs and gearbox -----------------------------------------------------
 	double driver_throttle = clampd(controls.throttle, 0.0, 1.0);
@@ -374,7 +399,7 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 			continue;
 		}
 		double kappa = w.kappa * drive_sign / spec.tire.peak_slip_ratio;
-		double alpha = w.tan_alpha / std::tan(spec.tire.peak_slip_angle);
+		double alpha = w.tan_alpha * mods.slip_seen / std::tan(spec.tire.peak_slip_angle);
 		double combined = std::sqrt(kappa * kappa + alpha * alpha);
 		if (kappa > 1.15 || (kappa > 0.4 && combined > 1.1)) {
 			spinning = true;
@@ -387,7 +412,7 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 	} else {
 		_tcs_factor = std::min(1.0, _tcs_factor + p_dt * 2.5);
 	}
-	double throttle_drive = throttle * (assists.tcs ? _tcs_factor : 1.0);
+	double throttle_drive = throttle * (assists.tcs ? _tcs_factor : 1.0) * mods.power;
 	tcs_active = tcs_active || (assists.tcs && _tcs_factor < 0.98 && throttle > 0.05);
 
 	// Clutch engagement.
@@ -413,7 +438,7 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 	} else {
 		clutch_out = 1.0 - clampd(controls.clutch, 0.0, 1.0);
 	}
-	double clutch_capacity = _config.clutch_max * clutch_out * gearbox.engage;
+	double clutch_capacity = mods.free_clutch ? 0.0 : _config.clutch_max * clutch_out * gearbox.engage;
 
 	// Shifts: ignition cut on upshifts, a throttle blip to rev-match downshifts.
 	bool blip = false;
@@ -428,7 +453,7 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 	}
 
 	// --- Steering ------------------------------------------------------------------------
-	double delta = -clampd(controls.steer, -1.0, 1.0) * _config.max_steer;
+	double delta = -clampd(controls.steer, -1.0, 1.0) * _config.max_steer * mods.steer;
 	double L = std::max(_config.wheelbase, 0.5);
 	for (size_t i = 0; i < n; i++) {
 		const WheelConfig &wc = _config.wheels[i];
@@ -603,11 +628,12 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 			w.deflection = clampd(w.deflection, -sigma * max_tan_alpha, sigma * max_tan_alpha);
 			w.tan_alpha = w.deflection / sigma;
 			v_den[i] = std::max(std::abs(vl), SLIP_SPEED_FLOOR);
-			mu[i] = tire_mu(spec.tire, w.fz) * surface_info(w.surface).grip;
+			mu[i] = tire_mu(spec.tire, w.fz) * surface_info(w.surface).grip * mods.grip;
 			double kappa = (w.omega * r - vl) / v_den[i];
 			double dk = 0.01 * spec.tire.peak_slip_ratio;
-			TireForce f0 = tire_force(spec.tire, w.fz, mu[i], kappa, w.tan_alpha);
-			TireForce f1 = tire_force(spec.tire, w.fz, mu[i], kappa + dk, w.tan_alpha);
+			double tan_alpha = w.tan_alpha * mods.slip_seen;
+			TireForce f0 = tire_force(spec.tire, w.fz, mu[i], kappa, tan_alpha);
+			TireForce f1 = tire_force(spec.tire, w.fz, mu[i], kappa + dk, tan_alpha);
 			fx0[i] = f0.fx;
 			dfx[i] = std::max(0.0, (f1.fx - f0.fx) / dk) * r / v_den[i];
 			ieff[i] += h * r * dfx[i];
@@ -727,8 +753,8 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 			}
 			double fx = fx0[i] + dfx[i] * (w.omega - omega0[i]);
 			w.kappa = (w.omega * r - v_long[i]) / v_den[i];
-			TireForce exact = tire_force(spec.tire, w.fz, mu[i], w.kappa, w.tan_alpha);
-			double fy = exact.fy;
+			TireForce exact = tire_force(spec.tire, w.fz, mu[i], w.kappa, w.tan_alpha * mods.slip_seen);
+			double fy = exact.fy * mods.lateral;
 			double low = clampd(1.0 - std::abs(v_long[i]) / LOW_SPEED, 0.0, 1.0);
 			fy -= LOW_SPEED_DAMPING * w.fz * v_lat[i] * low;
 			double limit = mu[i] * w.fz;
@@ -788,7 +814,7 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 
 	// Aero: drag at the CoG, downforce at the axles.
 	double q_fwd = 0.5 * AIR_DENSITY * forward_speed * forward_speed;
-	out.force += p_chassis.velocity * (-0.5 * AIR_DENSITY * spec.cd_a * length(p_chassis.velocity));
+	out.force += p_chassis.velocity * (-0.5 * AIR_DENSITY * spec.cd_a * mods.drag * length(p_chassis.velocity));
 	for (int ax = 0; ax < 2; ax++) {
 		double cl = ax == 0 ? spec.cl_a_front : spec.cl_a_rear;
 		if (cl == 0.0) {
@@ -798,6 +824,10 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 		V3 at = p_chassis.origin + R * _config.axle_center[ax];
 		out.force += f;
 		out.torque += cross(at - p_chassis.com, f);
+	}
+	if (kart) {
+		out.force += mods.force;
+		out.torque += mods.torque;
 	}
 	return out;
 }

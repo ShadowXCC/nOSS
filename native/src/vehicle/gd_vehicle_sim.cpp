@@ -48,6 +48,15 @@ void VehicleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_engine_load"), &VehicleSim::get_engine_load);
 	ClassDB::bind_method(D_METHOD("get_acceleration"), &VehicleSim::get_acceleration);
 	ClassDB::bind_method(D_METHOD("get_telemetry"), &VehicleSim::get_telemetry);
+	ClassDB::bind_method(D_METHOD("set_layer", "arcade"), &VehicleSim::set_layer);
+	ClassDB::bind_method(D_METHOD("has_layer"), &VehicleSim::has_layer);
+	ClassDB::bind_method(D_METHOD("set_kart_input", "drift"), &VehicleSim::set_kart_input);
+	ClassDB::bind_method(D_METHOD("set_kart_drag", "scale"), &VehicleSim::set_kart_drag);
+	ClassDB::bind_method(D_METHOD("set_kart_pull", "accel"), &VehicleSim::set_kart_pull);
+	ClassDB::bind_method(D_METHOD("kart_effect", "kind", "value", "dir"), &VehicleSim::kart_effect, DEFVAL(1.0));
+	ClassDB::bind_method(D_METHOD("get_kart_flags"), &VehicleSim::get_kart_flags);
+	ClassDB::bind_method(D_METHOD("get_kart_state"), &VehicleSim::get_kart_state);
+	ClassDB::bind_method(D_METHOD("get_geared_top"), &VehicleSim::get_geared_top);
 
 	BIND_CONSTANT(SURFACE_ASPHALT);
 	BIND_CONSTANT(SURFACE_CONCRETE);
@@ -59,6 +68,21 @@ void VehicleSim::_bind_methods() {
 	BIND_CONSTANT(SURFACE_SAND);
 	BIND_CONSTANT(SURFACE_SNOW);
 	BIND_CONSTANT(SURFACE_ICE);
+	BIND_CONSTANT(TAG_BOOST);
+	BIND_CONSTANT(TAG_JUMP);
+	BIND_CONSTANT(TAG_STICK);
+	BIND_CONSTANT(KART_BOOST);
+	BIND_CONSTANT(KART_SPIN);
+	BIND_CONSTANT(KART_SLOW);
+	BIND_CONSTANT(KART_CANCEL);
+	BIND_CONSTANT(KART_FLAG_DRIFT_LEFT);
+	BIND_CONSTANT(KART_FLAG_DRIFT_RIGHT);
+	BIND_CONSTANT(KART_FLAG_TIER_SHIFT);
+	BIND_CONSTANT(KART_FLAG_BOOST);
+	BIND_CONSTANT(KART_FLAG_SPUN);
+	BIND_CONSTANT(KART_FLAG_SLOWED);
+	BIND_CONSTANT(KART_FLAG_TRICK);
+	BIND_CONSTANT(KART_FLAG_AIRBORNE);
 }
 
 VehicleSim::VehicleSim() {
@@ -79,6 +103,7 @@ bool VehicleSim::configure(const Dictionary &p_platform, const Dictionary &p_geo
 		return false;
 	}
 	_reference_rack = spec.ffb_reference_nm;
+	spec.arcade = _arcade;
 	auto model = std::make_unique<VehicleModel>(make_config(spec, geo));
 	if (_model) {
 		model->take_state(*_model); // reconfiguring mid-drive (hotswap) keeps the physics state
@@ -139,6 +164,7 @@ void VehicleSim::integrate(PhysicsDirectBodyState3D *p_state) {
 		Object *collider = hit["collider"];
 		if (collider) {
 			c.surface = int(collider->get_meta("noss_surface", 0));
+			c.tags = int(collider->get_meta("noss_tag", 0));
 			// Terrain: what's painted under this wheel (D91). (get_meta with no default errors.)
 			NossSurfaceMap *map = collider->has_meta("noss_surface_map") ? Object::cast_to<NossSurfaceMap>(collider->get_meta("noss_surface_map")) : nullptr;
 			if (map) {
@@ -149,6 +175,7 @@ void VehicleSim::integrate(PhysicsDirectBodyState3D *p_state) {
 			}
 		}
 	}
+	_model->gravity = v3(p_state->get_total_gravity());
 	StepResult r = _model->step(ch, contacts, p_state->get_step());
 	p_state->apply_central_force(gv(r.force));
 	p_state->apply_torque(gv(r.torque));
@@ -287,6 +314,76 @@ Dictionary VehicleSim::get_telemetry() const {
 	}
 	d["wheels"] = wheels;
 	return d;
+}
+
+void VehicleSim::set_layer(const Dictionary &p_arcade) {
+	if (p_arcade.is_empty()) {
+		_arcade.reset();
+	} else {
+		_arcade = parse_kart(p_arcade);
+	}
+	if (_model) {
+		_model->set_kart(_arcade ? &*_arcade : nullptr);
+	}
+}
+
+bool VehicleSim::has_layer() const {
+	return _model && _model->kart.has_value();
+}
+
+void VehicleSim::set_kart_input(bool p_drift) {
+	if (has_layer()) {
+		_model->kart->drift = p_drift;
+	}
+}
+
+void VehicleSim::set_kart_drag(double p_scale) {
+	if (has_layer()) {
+		_model->kart->drag_scale = std::clamp(p_scale, 0.0, 2.0);
+	}
+}
+
+void VehicleSim::set_kart_pull(const Vector3 &p_accel) {
+	if (has_layer()) {
+		_model->kart->pull = v3(p_accel);
+	}
+}
+
+void VehicleSim::kart_effect(int64_t p_kind, double p_value, double p_dir) {
+	if (has_layer()) {
+		_model->kart->effect(int(p_kind), p_value, p_dir);
+	}
+}
+
+int64_t VehicleSim::get_kart_flags() const {
+	return has_layer() ? _model->kart->flags() : 0;
+}
+
+Dictionary VehicleSim::get_kart_state() const {
+	Dictionary d;
+	if (!has_layer()) {
+		return d;
+	}
+	const KartLayer &k = *_model->kart;
+	d["drift"] = k.drift_dir;
+	d["charge"] = k.charge;
+	d["tier"] = k.drift_dir != 0 ? k.tier() : 0;
+	d["boost"] = k.boost;
+	d["spin"] = k.spin;
+	d["slow"] = k.slow;
+	d["air_time"] = k.air_time;
+	d["trick"] = k.trick;
+	d["righting"] = k.righting;
+	d["upside"] = k.upside;
+	d["stick"] = k.stick;
+	d["grounded"] = k.grounded;
+	d["boosts"] = k.boosts;
+	d["tricks"] = k.tricks;
+	return d;
+}
+
+double VehicleSim::get_geared_top() const {
+	return _model ? KartLayer::geared_top(_model->config()) : 0.0;
 }
 
 } // namespace noss

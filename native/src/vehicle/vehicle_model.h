@@ -7,9 +7,11 @@
 // Body frame (the fitted model frame): +X left, +Y up, +Z forward, metres.
 
 #include <climits>
+#include <optional>
 #include <vector>
 
 #include "vehicle/drivetrain.h"
+#include "vehicle/kart_layer.h"
 #include "vehicle/tire.h"
 #include "vehicle/vmath.h"
 
@@ -114,6 +116,8 @@ struct PlatformSpec {
 	double rolling_resistance = 0.012;
 	double wheel_inertia = 0.0; // kg m^2 per wheel; 0 = from mass and wheel radius
 	double ffb_reference_nm = 9.0;
+	// The kart_arcade layer's parameters, when the mode has one (D130).
+	std::optional<KartParams> arcade;
 };
 
 struct WheelGeometry {
@@ -215,6 +219,7 @@ struct Contact {
 	V3 normal{ 0, 1, 0 };
 	double distance = 0.0;
 	int surface = SURFACE_ASPHALT;
+	int tags = 0; // ContactTag bits of the collider
 	V3 ground_velocity;
 };
 
@@ -249,6 +254,10 @@ public:
 
 	Controls controls;
 	Assists assists;
+	// The kart_arcade layer, or none (the plain sim, exactly).
+	std::optional<KartLayer> kart;
+	// The world's gravity at the car (the kart layer's stick gravity replaces it).
+	V3 gravity{ 0.0, -GRAVITY, 0.0 };
 
 	// Ray each wheel casts this tick; the caller fills a Contact per wheel.
 	Ray wheel_ray(int p_index, const Chassis &p_chassis) const;
@@ -260,6 +269,8 @@ public:
 	void roll_at(double p_speed);
 	// Takes over engine, gearbox, wheel spin and assist state from p_other (hotswap).
 	void take_state(const VehicleModel &p_other);
+	// Adds the kart layer with these parameters (keeping its state if there is one), or removes it.
+	void set_kart(const KartParams *p_params);
 
 	std::vector<WheelState> wheels;
 	Gearbox gearbox;

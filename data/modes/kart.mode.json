@@ -2,9 +2,105 @@
   "schema": "noss.mode/1",
   "id": "kart",
   "name": "Kart",
-  "classes": ["official.kart.medium"],
-  "tuning": { "allow": [] },
-  "assists": { "allowed": ["auto_gearbox", "auto_clutch", "steer_aid", "auto_throttle", "brake_assist", "steering_assist", "autodrive"], "defaults": ["auto_gearbox", "auto_clutch"] },
-  "damage": { "cosmetic": true, "mechanical": false },
-  "physics_layer": "kart_arcade"
+  "classes": [
+    "official.kart.medium"
+  ],
+  "default_car": "res://content/cars/noss_box",
+  "tuning": {
+    "allow": []
+  },
+  "assists": {
+    "allowed": [
+      "auto_gearbox",
+      "auto_clutch",
+      "steer_aid",
+      "auto_throttle",
+      "brake_assist",
+      "steering_assist",
+      "autodrive",
+      "item_assist"
+    ],
+    "defaults": [
+      "auto_gearbox",
+      "auto_clutch"
+    ]
+  },
+  "damage": {
+    "cosmetic": true,
+    "mechanical": false
+  },
+  "physics_layer": "kart_arcade",
+  "arcade": {
+    "grip": 1.25,
+    "steer_aid": {
+      "ref_speed": 20.0,
+      "counter": 1.5
+    },
+    "drift": {
+      "min_speed": 8.0,
+      "min_steer": 0.3,
+      "turn_g": [
+        0.4,
+        1.0
+      ],
+      "slip": [
+        0.25,
+        0.45
+      ],
+      "side_grip": 0.35,
+      "tire_slip": 0.3,
+      "wheel_steer": 0.3,
+      "yaw_accel": 12.0,
+      "hop": 0.8,
+      "tiers_s": [
+        0.6,
+        1.2,
+        2.0
+      ],
+      "boost_s": [
+        0.5,
+        0.9,
+        1.4
+      ]
+    },
+    "boost": {
+      "accel": 6.0,
+      "cap": 1.25,
+      "pad_s": 0.8
+    },
+    "air": {
+      "pitch": 3.0,
+      "roll": 3.0,
+      "yaw": 2.0,
+      "trick_window_s": 0.35,
+      "trick_boost_s": 0.6
+    },
+    "stick": {
+      "min_speed": 7.0,
+      "hold_s": 0.25
+    },
+    "right_after_s": 1.5,
+    "bounce": {
+      "wall": 0.6,
+      "kart": 0.3,
+      "min_dv": 1.0
+    },
+    "spin": {
+      "s": 1.2,
+      "grip": 0.35,
+      "yaw_rate": 7.0
+    },
+    "slow": {
+      "power": 0.0
+    },
+    "slipstream": {
+      "range_m": 30.0,
+      "half_width_m": 1.5,
+      "drag_cut": 0.3
+    },
+    "tow": {
+      "s": 1.5,
+      "speed": 0.6
+    }
+  }
 }

@@ -56,6 +56,7 @@ void FlatHarness::step() {
 				contacts[i].point = ray.origin + ray.direction * t;
 				contacts[i].normal = V3(0, 1, 0);
 				contacts[i].surface = surface;
+				contacts[i].tags = tags;
 			}
 		}
 	}

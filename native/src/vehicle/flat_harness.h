@@ -16,6 +16,7 @@ public:
 	Chassis chassis;
 	double ground_y = 0.0;
 	int surface = SURFACE_ASPHALT;
+	int tags = 0; // ContactTag bits of the ground
 	double time = 0.0;
 
 	explicit FlatHarness(const Config &p_config);
