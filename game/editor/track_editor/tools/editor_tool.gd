@@ -51,6 +51,12 @@ func draft_changed(_what: StringName) -> void:
 	pass
 
 
+## A text field is being typed in: panels wait for it to finish before they're built again.
+func typing() -> bool:
+	var owner := editor.get_viewport().gui_get_focus_owner() if editor.is_inside_tree() else null
+	return owner is LineEdit and (owner as LineEdit).is_editing()
+
+
 ## The AI line and the checks are new (editor.analysis).
 func analysed() -> void:
 	pass

@@ -97,3 +97,69 @@ func test_every_value_control_works() -> void:
 	assert_float(float(TrackFormat.attr(d.layout.road, 0, "width_l"))).is_equal(8.0)
 	e.queue_free()
 	await get_tree().process_frame
+
+
+## The File tool's Name and Author take whole words (Changes.md: they lost the focus after one
+## letter, as each letter rebuilt the panel), and each edit is one undo step.
+func test_name_and_author_take_typing() -> void:
+	var d := TrackDraft.blank("Typed", Vector2i(2, 2))
+	var e := _editor(d)
+	await get_tree().process_frame
+	e.show_tool("File")
+	await get_tree().process_frame
+	var steps := d.history.version()
+	for field_name: String in ["Name", "Author"]:
+		var field := _field(e, field_name)
+		field.grab_focus() # as with the keyboard: then Enter to type
+		await get_tree().process_frame
+		field.edit()
+		field.select_all()
+		for ch in "Test Track":
+			_key(e, KEY_NONE, ch.unicode_at(0))
+			await get_tree().process_frame
+		field = _field(e, field_name)
+		assert_bool(field.has_focus() and field.is_editing()).override_failure_message("%s lost the typing" % field_name).is_true()
+		assert_str(field.text).is_equal("Test Track")
+		_key(e, KEY_ENTER)
+		await get_tree().process_frame
+		await get_tree().process_frame
+	assert_str(String(d.info.name)).is_equal("Test Track")
+	assert_str(String(d.info.author)).is_equal("Test Track")
+	assert_int(d.history.version() - steps).is_equal(2)
+	# Leaving a field keeps what was typed too; an empty one goes back to what it was.
+	var author := _field(e, "Author")
+	author.grab_focus()
+	author.edit()
+	author.text = "Someone"
+	_field(e, "Name").grab_focus()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_str(String(d.info.author)).is_equal("Someone")
+	var name := _field(e, "Name")
+	name.grab_focus()
+	name.edit()
+	name.text = "  "
+	_field(e, "Author").grab_focus()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_str(String(d.info.name)).is_equal("Test Track")
+	assert_str(_field(e, "Name").text).is_equal("Test Track")
+	e.queue_free()
+	await get_tree().process_frame
+
+
+func _field(e: TrackEditor, field_name: String) -> LineEdit:
+	for c in e._content.find_children("*", "LineEdit", true, false):
+		if String((c as LineEdit).accessibility_name) == field_name:
+			return c
+	return null
+
+
+func _key(e: TrackEditor, keycode: Key, unicode := 0) -> void:
+	for pressed in [true, false]:
+		var k := InputEventKey.new()
+		k.keycode = keycode
+		k.physical_keycode = keycode
+		k.unicode = unicode
+		k.pressed = pressed
+		e.get_viewport().push_input(k)

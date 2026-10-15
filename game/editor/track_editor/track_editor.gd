@@ -208,7 +208,7 @@ func refresh_panel(focus_first := false) -> void:
 	# Back to the control that had the focus, when it's still there.
 	for c: Control in controls:
 		for f: Control in [c] + c.find_children("*", "Control", true, false):
-			if f.focus_mode != Control.FOCUS_NONE and owner and owner.get_parent() == null and (UiKit.text_of(f as Button) == focus_text if f is Button else String(f.accessibility_name) == focus_name):
+			if f.focus_mode != Control.FOCUS_NONE and owner and not owner.is_inside_tree() and (UiKit.text_of(f as Button) == focus_text if f is Button else String(f.accessibility_name) == focus_name):
 				UiKit.focus_later(f)
 				return
 	if focus_first and not controls.is_empty():
@@ -611,12 +611,8 @@ class FileTool:
 	func panel() -> Array:
 		var t := draft.track()
 		var out := []
-		out.append(UiKit.text_field("Name", String(draft.info.name), func(v: String) -> void:
-			if v.strip_edges():
-				draft.set_info("name", v.strip_edges().left(64)), 64))
-		out.append(UiKit.text_field("Author", String(draft.info.author), func(v: String) -> void:
-			if v.strip_edges():
-				draft.set_info("author", v.strip_edges().left(64)), 64))
+		out.append(_info_field("Name", "name"))
+		out.append(_info_field("Author", "author"))
 		out.append(UiKit.spinner("License", TrackDraft.LICENSES, String(draft.info.license), func(v: String) -> void: draft.set_info("license", v),
 			"Personal-use tracks stay offline"))
 		var facts := "%.2f km · %d points" % [t.length / 1000.0, draft.points().size()] if t.samples.size() > 2 else "%d points" % draft.points().size()
@@ -637,8 +633,23 @@ class FileTool:
 		return out
 
 	func draft_changed(what: StringName) -> void:
-		if what == &"info" and editor.tool == self:
+		if what == &"info" and editor.tool == self and not typing():
 			editor.refresh_panel()
+
+	## A text field for one of the track's details, kept on Enter or on leaving it: one undo
+	## step for the whole edit, and the panel isn't built again under the typing.
+	func _info_field(text: String, key: String) -> HBoxContainer:
+		var keep := func(v: String) -> void:
+			var value := v.strip_edges().left(64)
+			if value and value != String(draft.info.get(key, "")):
+				draft.set_info(key, value)
+		var row := UiKit.text_field(text, String(draft.info.get(key, "")), func(_v: String) -> void: pass, 64, "", keep)
+		var field := row.get_child(1) as LineEdit
+		field.focus_exited.connect(func() -> void:
+			keep.call_deferred(field.text) # not while the panel is being taken down
+			if field.text.strip_edges().is_empty():
+				field.text = String(draft.info.get(key, "")))
+		return row
 
 	func _new() -> void:
 		var choices := []

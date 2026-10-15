@@ -132,7 +132,7 @@ func draft_changed(_what: StringName) -> void:
 		point = -1
 	if point >= _points().size():
 		point = _points().size() - 1
-	if _dragging < 0 and editor.tool == self and not _typing():
+	if _dragging < 0 and editor.tool == self and not typing():
 		editor.refresh_panel()
 
 
@@ -260,12 +260,6 @@ func _add_at(at: Vector3) -> void:
 	_select(ids[0])
 	if r == null:
 		editor.say("Added, but it doesn't fit here: see Check")
-
-
-## The name field is being typed in (the panel stays until it's done).
-func _typing() -> bool:
-	var owner := editor.get_viewport().gui_get_focus_owner() if editor.is_inside_tree() else null
-	return owner is LineEdit and (owner as LineEdit).is_editing()
 
 
 # --- the panel ----------------------------------------------------------------------------
