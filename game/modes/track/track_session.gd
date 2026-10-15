@@ -102,6 +102,8 @@ var highway_field: HighwayField
 var run: RunControl
 ## Online: the server's boards for this track, as last sent ({board: entries}).
 var server_boards := {}
+## The police (event.police), where the session is decided: offline here, online the server.
+var police: PoliceControl
 var traffic: TrafficManager
 ## Dev and tests: the traffic's seed (-1: the track's).
 var traffic_seed := -1
@@ -361,6 +363,14 @@ func _ready_highway() -> void:
 			add_child(traffic)
 		else:
 			traffic = null
+	if event.police and (not is_online() or Net.is_server()):
+		police = PoliceControl.new()
+		police.name = "PoliceControl"
+		police.session = self
+		police.layout = track.highway
+		police.police_class = String(GameModes.list().filter(func(m: Dictionary) -> bool: return m.id == "highway").map(
+			func(m: Dictionary) -> String: return String(m.get("police_class", "official.highway.interceptor"))).front())
+		add_child(police)
 
 
 ## Highways: racer `i`'s starting direction.
