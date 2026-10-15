@@ -77,9 +77,11 @@ func _chase(xf: Transform3D, delta: float, look_back: bool, fov_extra: float, pr
 	var vel := Vector3(vehicle.linear_velocity.x, 0.0, vehicle.linear_velocity.z)
 	if vel.length() > 3.0 and vel.normalized().dot(fwd) > 0.0:
 		fwd = fwd.lerp(vel.normalized(), 0.35).normalized()
-	if not _initialized:
-		_yaw_dir = fwd
-	_yaw_dir = _yaw_dir.slerp(fwd, 1.0 - exp(-delta * 6.0)).normalized()
+	var same := _yaw_dir.dot(fwd)
+	if not _initialized or same < -0.99 or same > 0.99999:
+		_yaw_dir = fwd # turned right round (a reset), or there already: slerp's axis is unsteady
+	else:
+		_yaw_dir = _yaw_dir.slerp(fwd, 1.0 - exp(-delta * 6.0)).normalized()
 	var dir := -_yaw_dir if look_back else _yaw_dir
 	if Game.dev.has("cam-yaw"):
 		dir = dir.rotated(Vector3.UP, deg_to_rad(float(Game.dev["cam-yaw"])))
