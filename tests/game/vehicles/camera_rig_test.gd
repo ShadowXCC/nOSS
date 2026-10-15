@@ -29,3 +29,47 @@ func test_turned_round_and_at_rest() -> void:
 	rig._chase(_facing(PI / 2.0), 1.0 / 60.0, false, 0.0, {})
 	assert_bool(rig._yaw_dir.is_normalized()).is_true()
 	assert_float(rig._yaw_dir.distance_to(Vector3(0, 0, -1))).is_less(0.2)
+
+
+## Free look (Changes.md): the right stick turns the chase camera round the car and the cockpit
+## view, and the view swings back to the camera when the stick is let go.
+func test_free_look_turns_and_comes_back() -> void:
+	var rig := _rig()
+	var input := PlayerInput.new()
+	input.profile = PlayerProfile.create("look")
+	input.devices.assign([{ "kind": "gamepad", "key": "pad:test#7", "name": "Test pad", "id": 7, "guid": "test" }])
+	input.rebuild()
+	rig.input = input
+	_stick(JOY_AXIS_RIGHT_X, 1.0)
+	for i in 120:
+		rig.update_look(1.0 / 60.0)
+		rig._chase(_facing(0.0), 1.0 / 60.0, false, 0.0, {})
+	assert_float(rig._look.x).is_equal_approx(deg_to_rad(CameraRig.LOOK_CHASE[0]), 0.01)
+	# The car faces +Z, so its right is -X: the camera looks that way, from its left.
+	var forward := -rig.camera.global_transform.basis.z
+	assert_float(forward.x).is_less(-0.5)
+	assert_float(rig.camera.global_position.x).is_greater(0.0)
+	_stick(JOY_AXIS_RIGHT_X, 0.0)
+	for i in 60:
+		rig.update_look(1.0 / 60.0)
+	assert_float(rig._look.length()).is_less(0.01)
+	# A fixed camera turns its head: looking right is towards its own +X, up towards +Y.
+	rig._look = Vector2(PI / 2.0, 0.0)
+	assert_float((rig._looked(Basis()) * Vector3.FORWARD).distance_to(Vector3.RIGHT)).is_less(1e-4)
+	rig._look = Vector2(0.0, 0.3)
+	assert_float((rig._looked(Basis()) * Vector3.FORWARD).y).is_greater(0.2)
+	# Without a player (a remote car's camera) there's no free look.
+	rig.input = null
+	rig._look = Vector2(1.0, 0.0)
+	for i in 60:
+		rig.update_look(1.0 / 60.0)
+	assert_float(rig._look.length()).is_less(0.01)
+
+
+static func _stick(axis: int, v: float) -> void:
+	var e := InputEventJoypadMotion.new()
+	e.device = 7
+	e.axis = axis
+	e.axis_value = v
+	Input.parse_input_event(e)
+	Input.flush_buffered_events()

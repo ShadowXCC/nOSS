@@ -29,6 +29,10 @@ const ACTIONS := {
 	"gear_7": { "name": "Gear 7" },
 	"camera_next": { "name": "Camera" },
 	"look_back": { "name": "Look back" },
+	"look_left": { "name": "Look left" },
+	"look_right": { "name": "Look right" },
+	"look_up": { "name": "Look up" },
+	"look_down": { "name": "Look down" },
 	"reset_car": { "name": "Reset car" },
 	"hotswap_menu": { "name": "Change car" },
 	"pause": { "name": "Pause" },
@@ -44,7 +48,8 @@ const ACTIONS := {
 }
 const DRIVING := ["steer_left", "steer_right", "throttle", "brake", "handbrake", "clutch", "shift_up", "shift_down",
 	"gear_r", "gear_n", "gear_1", "gear_2", "gear_3", "gear_4", "gear_5", "gear_6", "gear_7",
-	"camera_next", "look_back", "reset_car", "hotswap_menu", "pause", "editor_back", "horn", "lights"]
+	"camera_next", "look_back", "look_left", "look_right", "look_up", "look_down", "reset_car", "hotswap_menu",
+	"pause", "editor_back", "horn", "lights"]
 ## H-shifter gates (docs/INPUT.md §5): action -> gear (-1 reverse, 0 neutral).
 const GEARS := { "gear_r": -1, "gear_n": 0, "gear_1": 1, "gear_2": 2, "gear_3": 3, "gear_4": 4, "gear_5": 5, "gear_6": 6, "gear_7": 7 }
 const MENU := ["menu_up", "menu_down", "menu_left", "menu_right", "menu_confirm", "menu_cancel"]

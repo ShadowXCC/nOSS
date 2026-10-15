@@ -65,6 +65,19 @@ func test_gamepad_axes_are_shaped_and_only_the_players_pad_counts() -> void:
 	assert_float(input.value("handbrake")).is_equal(0.0)
 
 
+## The right stick looks around (Changes.md): its four ways, past the player's stick deadzone.
+func test_right_stick_looks_around() -> void:
+	var input := _make_input([_pad(PAD)])
+	_axis(PAD, JOY_AXIS_RIGHT_X, 1.0)
+	_axis(PAD, JOY_AXIS_RIGHT_Y, -0.5)
+	assert_float(input.value("look_right")).is_equal_approx(1.0, 0.0001)
+	assert_float(input.value("look_left")).is_equal(0.0)
+	assert_float(input.value("look_up")).is_greater(0.3)
+	assert_float(input.value("look_down")).is_equal(0.0)
+	_axis(PAD, JOY_AXIS_RIGHT_X, float(_profile.data.pad_deadzone) * 0.5)
+	assert_float(input.value("look_right")).is_equal(0.0)
+
+
 func test_two_devices_drive_one_car_largest_wins() -> void:
 	var input := _make_input([_kb("full"), _pad(PAD)])
 	_axis(PAD, JOY_AXIS_TRIGGER_RIGHT, 0.3)

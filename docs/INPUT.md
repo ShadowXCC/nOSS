@@ -12,7 +12,7 @@ Each local player has their own set of actions:
 |---|---|
 | Driving | `steer` (−1…1), `throttle`, `brake`, `clutch`, `handbrake` (0…1) |
 | Gears | `shift_up`, `shift_down`, `gear_r`, `gear_n`, `gear_1`…`gear_7` (H-shifter) |
-| View | `camera_next`, `look_left`, `look_right`, `look_back`, `free_look` (mouse or right stick) |
+| View | `camera_next`, `look_back`, free look: `look_left`, `look_right`, `look_up`, `look_down` (0…1; the view turns while held and swings back to the camera when let go) |
 | Car | `horn`, `lights`, `reset_car`, `hotswap_menu` |
 | Kart | `use_item`, `throw_back` (hold), `drift` |
 | UI | `pause`, `chat`, `scoreboard`, `confirm`, `cancel`, `editor_back` (a test drive back to the track editor, M6) |
@@ -27,6 +27,7 @@ Each local player has their own set of actions:
 | Shift up, down | E, Q | E, Q | `.`, `,` | RB, LB |
 | Camera | C | C | ; | Y |
 | Look back | B | X | ' | R3 |
+| Free look | — | — | — | Right stick |
 | Reset car | R | R | ] | View |
 | Change car | Tab | Tab | [ | D-pad up |
 | Pause | Esc | Esc | Backspace | Start |
@@ -35,7 +36,9 @@ Each local player has their own set of actions:
 | Menu confirm, back | Enter or Space, Esc or Backspace | Space or F, Esc or G | Enter, Backspace | A, B |
 | Frame rate | F3 (any keyboard) | | | — |
 
-One-handed controller layouts (`pad_left_hand`, `pad_right_hand`) put driving on one half of the pad; reset, change car and back to editor are then in the pause menu, and the horn and lights are unbound (D119). No two driving actions share an input on any preset (a test checks it).
+One-handed controller layouts (`pad_left_hand`, `pad_right_hand`) put driving on one half of the pad; reset, change car and back to editor are then in the pause menu, and the horn, lights and free look are unbound (D119).
+
+**Free look:** at full deflection a chase camera orbits up to 120° round the car (up to 10° lower, 25° higher), and the hood, bumper and cockpit views turn up to 100° to the side and 30° up or down. The stick uses the player's stick deadzone, straight. It works with Look back. Keyboards have it unbound; any keys can be bound to it. No two driving actions share an input on any preset (a test checks it).
 
 The **track editor** has its own controls for its view (mouse, keyboard or controller with a crosshair; [TRACK_EDITOR.md §2](TRACK_EDITOR.md#2-editor-tools)). They can't be rebound yet (D103).
 

@@ -12,6 +12,8 @@ extends RefCounted
 const PRESS := 0.5
 const TRIGGER_DEADZONE := 0.05
 const STEER := ["steer_left", "steer_right"]
+## Free look (the right stick): the stick's deadzone, straight.
+const LOOK := ["look_left", "look_right", "look_up", "look_down"]
 ## Keys the rebinding capture watches. On a shared keyboard, the other player's keys are skipped.
 const CAPTURE_KEYS := [
 	KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_M,
@@ -261,6 +263,8 @@ func _read(b: Dictionary, action: String) -> float:
 				var v := clampf(Input.get_joy_axis(b.device, r.axis) * r.dir, 0.0, 1.0)
 				if action in STEER:
 					return VehicleController.shape_axis(v, float(profile.data.pad_deadzone), float(profile.data.pad_linearity))
+				if action in LOOK:
+					return VehicleController.shape_axis(v, float(profile.data.pad_deadzone), 1.0)
 				return VehicleController.shape_axis(v, TRIGGER_DEADZONE, 1.0)
 		"sim":
 			if r.has("button"):

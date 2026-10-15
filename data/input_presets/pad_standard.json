@@ -3,7 +3,7 @@
   "id": "pad_standard",
   "name": "Controller",
   "device": "gamepad",
-  "description": "Left stick steers, triggers drive.",
+  "description": "Left stick steers, triggers drive, right stick looks around.",
   "verified": true,
   "bindings": {
     "steer_left": [
@@ -53,6 +53,30 @@
     "look_back": [
       {
         "button": "right_stick"
+      }
+    ],
+    "look_left": [
+      {
+        "axis": "right_x",
+        "dir": -1
+      }
+    ],
+    "look_right": [
+      {
+        "axis": "right_x",
+        "dir": 1
+      }
+    ],
+    "look_up": [
+      {
+        "axis": "right_y",
+        "dir": -1
+      }
+    ],
+    "look_down": [
+      {
+        "axis": "right_y",
+        "dir": 1
       }
     ],
     "reset_car": [

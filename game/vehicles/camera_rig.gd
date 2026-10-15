@@ -2,7 +2,8 @@ class_name CameraRig
 extends Node3D
 ## Chase (near, far), hood, bumper and cockpit cameras for one player (docs/ART_AUDIO.md §4,
 ## AV-04), with that player's comfort options (docs/ACCESSIBILITY.md §4): camera shake, head
-## movement, speed FOV and horizon lock. The camera is current in the viewport the rig is in,
+## movement, speed FOV and horizon lock. Free look (the right stick, docs/INPUT.md §1) turns the
+## view while it's held and swings back to the camera when it's let go. The camera is current in the viewport the rig is in,
 ## so in splitscreen each player's view has its own.
 
 const MODES := ["chase_near", "chase_far", "hood", "bumper", "cockpit"]
@@ -14,6 +15,12 @@ const CHASE := {
 const COCKPIT_FOV := 72.0
 const SPEED_FOV_EXTRA := 10.0
 const SPEED_FOV_AT := 70.0 # m/s
+## Free look at full deflection, degrees: [sideways, up, down]. Chase cameras orbit the car (up
+## brings the camera lower, so it's kept small); the others turn the head.
+const LOOK_CHASE := [120.0, 10.0, 25.0]
+const LOOK_MOUNTED := [100.0, 30.0, 30.0]
+## How quickly the view follows the stick, and comes back.
+const LOOK_RATE := 14.0
 
 var vehicle: Vehicle
 ## Whose settings and look-back control this camera follows; null: P1's settings, no look-back.
@@ -27,6 +34,8 @@ var _pos := Vector3.ZERO
 var _vel := Vector3.ZERO
 var _yaw_dir := Vector3.FORWARD
 var _head := Vector3.ZERO
+## Free look now, radians: x turns right, y looks up.
+var _look := Vector2.ZERO
 var _shake_time := 0.0
 var _initialized := false
 
@@ -72,12 +81,29 @@ func _process(delta: float) -> void:
 	var look_back := input != null and input.held("look_back")
 	var profile: Dictionary = input.profile.data if input else Settings.profile
 	var fov_extra := SPEED_FOV_EXTRA * clampf(speed / SPEED_FOV_AT, 0.0, 1.0) if profile.get("speed_fov", true) else 0.0
+	update_look(delta)
 	if mode == "cockpit":
 		_cockpit(xf, delta, look_back, fov_extra, profile)
 	elif mode in MOUNTED_FOV:
 		_mounted(xf, delta, look_back, fov_extra, profile)
 	else:
 		_chase(xf, delta, look_back, fov_extra, profile)
+
+
+## Eases the free look toward where the stick points (nothing held: back to the camera).
+func update_look(delta: float) -> void:
+	var target := Vector2.ZERO
+	if input:
+		var limits: Array = LOOK_CHASE if mode in CHASE else LOOK_MOUNTED
+		var x := input.value("look_right") - input.value("look_left")
+		var y := input.value("look_up") - input.value("look_down")
+		target = Vector2(deg_to_rad(limits[0]) * x, deg_to_rad(limits[1] if y > 0.0 else limits[2]) * y)
+	_look = _look.lerp(target, 1.0 - exp(-delta * LOOK_RATE))
+
+
+## A fixed camera's view turned by the free look.
+func _looked(look: Basis) -> Basis:
+	return look * Basis(Vector3.UP, -_look.x) * Basis(Vector3.RIGHT, _look.y)
 
 
 func _chase(xf: Transform3D, delta: float, look_back: bool, fov_extra: float, profile: Dictionary) -> void:
@@ -95,6 +121,7 @@ func _chase(xf: Transform3D, delta: float, look_back: bool, fov_extra: float, pr
 	var dir := -_yaw_dir if look_back else _yaw_dir
 	if Game.dev.has("cam-yaw"):
 		dir = dir.rotated(Vector3.UP, deg_to_rad(float(Game.dev["cam-yaw"])))
+	dir = dir.rotated(Vector3.UP, -_look.x)
 	# Pinned to the car; only the heading and the height are smoothed. Pulls back a little
 	# with speed.
 	var speed := vehicle.linear_velocity.length()
@@ -104,7 +131,8 @@ func _chase(xf: Transform3D, delta: float, look_back: bool, fov_extra: float, pr
 		_initialized = true
 	_vel.y = lerpf(_vel.y, xf.origin.y, 1.0 - exp(-delta * 10.0))
 	var base := Vector3(xf.origin.x, _vel.y, xf.origin.z)
-	_pos = base - dir * distance + Vector3.UP * c.height
+	# Looking up brings the camera lower behind the car, looking down raises it.
+	_pos = base - dir * distance * cos(_look.y) + Vector3.UP * (c.height - distance * sin(_look.y))
 	var look_at: Vector3 = base + Vector3.UP * c.look_height + dir * 2.0
 	var shake := _shake(delta, profile)
 	camera.global_transform = Transform3D(Basis.looking_at(look_at - (_pos + shake), Vector3.UP), _pos + shake)
@@ -123,7 +151,7 @@ func _cockpit(xf: Transform3D, delta: float, look_back: bool, fov_extra: float, 
 	if profile.get("horizon_lock", false):
 		var flat := Vector3(basis.z.x, 0.0, basis.z.z).normalized()
 		basis = Basis(Vector3.UP.cross(flat).normalized(), Vector3.UP, flat)
-	var look := basis.rotated(basis.y, PI if not look_back else 0.0)
+	var look := _looked(basis.rotated(basis.y, PI if not look_back else 0.0))
 	var shake := _shake(delta, profile) * 0.3
 	camera.global_transform = Transform3D(look.orthonormalized(), xf * eye + shake)
 	camera.fov = COCKPIT_FOV + fov_extra * 0.6
@@ -137,7 +165,7 @@ func _mounted(xf: Transform3D, delta: float, look_back: bool, fov_extra: float, 
 	if profile.get("horizon_lock", false):
 		var flat := Vector3(basis.z.x, 0.0, basis.z.z).normalized()
 		basis = Basis(Vector3.UP.cross(flat).normalized(), Vector3.UP, flat)
-	var look := basis.rotated(basis.y, PI if not look_back else 0.0)
+	var look := _looked(basis.rotated(basis.y, PI if not look_back else 0.0))
 	var shake := _shake(delta, profile) * 0.5
 	camera.global_transform = Transform3D(look.orthonormalized(), xf * at + shake)
 	camera.fov = MOUNTED_FOV[mode] + fov_extra * 0.6
