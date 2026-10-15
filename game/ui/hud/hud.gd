@@ -350,14 +350,19 @@ func _update_arrows() -> void:
 		return
 	var me := racer.vehicle.global_position
 	var cam_basis := camera.global_basis
+	_arrows.sirens.clear()
 	for r in racer.session.racers:
 		if r == racer or r.vehicle == null or r.waiting:
 			continue
 		var to := r.vehicle.global_position - me
-		if to.length() > Arrows.RANGE_M:
+		var siren := r.vehicle.siren and to.length() < Arrows.SIREN_RANGE_M
+		if to.length() > Arrows.RANGE_M and not siren:
 			continue
 		var local := cam_basis.inverse() * to # camera: -Z forward, +X right
 		var dir := Vector2(local.x, local.z) # screen: +y down = behind
+		if siren:
+			_arrows.sirens.append(dir.normalized()) # heard wherever it is
+			continue
 		if local.z < -to.length() * 0.6:
 			continue # well in front, in view
 		_arrows.dirs.append(dir.normalized())
@@ -528,7 +533,10 @@ class SlipIcons:
 class Arrows:
 	extends Control
 	const RANGE_M := 15.0
+	## A siren is shown from this far (D115): a hollow arrow marked "Siren".
+	const SIREN_RANGE_M := 300.0
 	var dirs: Array[Vector2] = []
+	var sirens: Array[Vector2] = []
 	var left_car := false:
 		set(value):
 			if value != left_car:
@@ -549,6 +557,15 @@ class Arrows:
 			var side := Vector2(-d.y, d.x) * 18.0
 			draw_colored_polygon(PackedVector2Array([tip + d * 22.0, tip - d * 10.0 + side, tip - d * 10.0 - side]), Color(1, 1, 1, 0.85))
 		var font := get_theme_default_font()
+		for d in sirens:
+			var t := minf((size.x / 2.0 - 70.0) / maxf(absf(d.x), 1e-3), (size.y / 2.0 - 70.0) / maxf(absf(d.y), 1e-3))
+			var tip := center + d * t
+			var side := Vector2(-d.y, d.x) * 26.0
+			var points := PackedVector2Array([tip + d * 32.0, tip - d * 14.0 + side, tip - d * 14.0 - side, tip + d * 32.0])
+			draw_polyline(points, Color(1, 1, 1, 0.95), 5.0)
+			var at := tip - d * 50.0 - Vector2(36.0, -10.0)
+			draw_string_outline(font, at, "Siren", HORIZONTAL_ALIGNMENT_LEFT, -1, 26, 6, Color.BLACK)
+			draw_string(font, at, "Siren", HORIZONTAL_ALIGNMENT_LEFT, -1, 26, Color.WHITE)
 		for item: Array in [[left_car, 0.0, "◀ Car"], [right_car, size.x - 26.0, "Car ▶"]]:
 			if not item[0]:
 				continue

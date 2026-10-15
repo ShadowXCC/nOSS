@@ -173,6 +173,8 @@ func test_keyboard_only_boot_to_a_highway() -> void:
 	while not _focused(runner).begins_with("Mode: Score attack"):
 		await _key(KEY_RIGHT)
 	await _key(KEY_DOWN) # Traffic
+	await _key(KEY_DOWN) # Police
+	assert_str(_focused(runner)).is_equal("Police: Off")
 	await _key(KEY_DOWN) # Way round
 	assert_str(_focused(runner)).starts_with("Way round: ")
 	while not _focused(runner).ends_with("Both ways"):
