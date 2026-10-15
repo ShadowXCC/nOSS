@@ -196,6 +196,10 @@ def main(argv=None):
     # Its own folder (instances/90): its boards and keys never mix with this PC's player's.
     server = start("server", ["--server", f"--config={config_path}", f"--min-players={players}", "--net-stats", "--instance=90"] + debug + personal)
     time.sleep(2.0)
+    if server.poll() is not None:  # it couldn't start (most often: the port is taken by another server)
+        reason = [l for l in (logs / "server.log").read_text(errors="replace").splitlines() if "Can't" in l or "ERROR" in l]
+        stop_all()
+        sys.exit("FAIL the server stopped at once: " + (reason[-1].strip() if reason else "see " + str(logs / "server.log")))
     if args.open:
         print(f'open: join "net_check" from the LAN list, or {lan_ip()}:{args.port} (UDP {args.port} and {args.port + 1} must be let in)', flush=True)
     port = args.port
