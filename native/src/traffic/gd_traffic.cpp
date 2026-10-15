@@ -125,6 +125,7 @@ void NossTraffic::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("desired", "car"), &NossTraffic::desired);
 	ClassDB::bind_method(D_METHOD("follow", "lane", "s_hint", "speed_max", "member", "at", "forward", "speed", "wheelbase", "max_steer", "half", "members"), &NossTraffic::follow);
 	ClassDB::bind_method(D_METHOD("lane_limit", "lane", "s"), &NossTraffic::lane_limit);
+	ClassDB::bind_method(D_METHOD("closed_ahead", "lane", "s", "ahead"), &NossTraffic::closed_ahead);
 	ClassDB::bind_method(D_METHOD("place", "car", "lane", "s", "v"), &NossTraffic::place);
 	ClassDB::bind_method(D_METHOD("set_palettes", "palettes"), &NossTraffic::set_palettes);
 	ClassDB::bind_method(D_METHOD("buffers", "alpha", "cameras", "range", "blink"), &NossTraffic::buffers);
@@ -470,6 +471,11 @@ double NossTraffic::lane_limit(int64_t p_lane, double p_s) const {
 		return 0.0;
 	}
 	return _sim.graph.limit_at(int(p_lane), int64_t(std::llround(p_s * 1000.0))) / 1000.0;
+}
+
+// A closure on lane `p_lane` from `p_s` to `p_ahead` m on (round the loop on a closed lane).
+bool NossTraffic::closed_ahead(int64_t p_lane, double p_s, double p_ahead) const {
+	return _ready && _sim.closed_ahead(int(p_lane), int64_t(std::llround(p_s * 1000.0)), int64_t(std::llround(p_ahead * 1000.0)));
 }
 
 double NossTraffic::desired(int64_t p_car) const {

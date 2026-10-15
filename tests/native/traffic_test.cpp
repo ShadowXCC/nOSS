@@ -403,6 +403,15 @@ TEST_CASE("traffic: a closure makes cars move over; a wreck stops its lane") {
 	close.v = 300000;
 	REQUIRE(sim.schedule({ close }));
 	sim.step_to(sim.st.tick + 20 * 90);
+	// Asked about: ahead, inside, behind, another lane, and from the far side of the loop's seam.
+	CHECK(sim.closed_ahead(2, 900000, 200000));
+	CHECK(sim.closed_ahead(2, 1100000, 1000));
+	CHECK_FALSE(sim.closed_ahead(2, 700000, 200000));
+	CHECK_FALSE(sim.closed_ahead(2, 1400000, 200000));
+	CHECK_FALSE(sim.closed_ahead(1, 900000, 200000));
+	int64_t length = sim.graph.lanes[2].length;
+	CHECK(sim.closed_ahead(2, length - 50000, 1100000));
+	CHECK_FALSE(sim.closed_ahead(2, length - 50000, 1000000));
 	for (const Car &c : sim.st.cars) {
 		if ((c.flags & ACTIVE) && c.lane == 2) {
 			CHECK_FALSE((c.s > 1000000 && c.s <= 1300000));

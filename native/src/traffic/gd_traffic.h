@@ -74,6 +74,7 @@ public:
 			double p_speed, double p_wheelbase, double p_max_steer, const godot::Vector2 &p_half, const godot::PackedFloat32Array &p_members) const;
 	// The speed limit on a lane at s (its zones and bends, braking for what's ahead), m/s.
 	double lane_limit(int64_t p_lane, double p_s) const;
+	bool closed_ahead(int64_t p_lane, double p_s, double p_ahead) const;
 	// The speed the car wants where it is, m/s.
 	double desired(int64_t p_car) const;
 	// Each type's paint colours (TrafficTypes.colors), for buffers().

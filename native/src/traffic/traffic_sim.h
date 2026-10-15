@@ -147,6 +147,8 @@ public:
 	// The speed car `p_car` wants where it is, mm/s (its lane's limit, its own pace, an exit).
 	int64_t desired(int p_car) const { return _desired(st.cars[size_t(p_car)]); }
 	int count() const { return int(st.cars.size()); }
+	// A closure on lane `p_lane` within [p_s, p_s + p_ahead] (mm; round the loop on a closed lane).
+	bool closed_ahead(int p_lane, int64_t p_s, int64_t p_ahead) const;
 	int active() const;
 	int away() const;
 	// Branches by global index: [lane, index in that lane's branches].

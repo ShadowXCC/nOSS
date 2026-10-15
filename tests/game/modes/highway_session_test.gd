@@ -3,7 +3,7 @@ extends GdUnitTestSuite
 ## traffic's way; lane cars near them become physics cars where the lane sim had them and go back
 ## when nobody is near; wrecks stay until towed; the cap holds, with stand-in boxes beyond it; a
 ## car going against the traffic is told so; a portal leads out of the next entry; turning round;
-## an autodriven car on its roof is put back.
+## an autodriven car on its roof is put back, and gets out of closed lanes before a roadblock.
 
 const FIXTURE := "res://tests/fixtures/tracks/highway_ring_small.json"
 
@@ -236,6 +236,38 @@ func test_an_autodriven_car_on_its_roof_is_put_back() -> void:
 	assert_float(-float(s.track.project(p.vehicle.global_position).lateral)).is_greater(s.track.highway.inner + 3 * 3.6 - 1.0)
 	await _ticks(120 * 3)
 	assert_float(p.vehicle.speed()).is_greater(5.0)
+	s.queue_free()
+	await get_tree().process_frame
+
+
+func test_an_autodriven_car_gets_out_of_closed_lanes_in_time() -> void:
+	# A roadblock 500 m ahead closes every lane but the outer one; the car starts innermost.
+	var s := _session(1, 0)
+	await _wait_for_car(s)
+	var p := s.players[0]
+	await _ticks(30)
+	var h := s.track.highway
+	var start := 300.0
+	var block := start + 500.0
+	for lane in range(1, h.lanes):
+		assert_int(s.traffic.close_lane(1, lane, block, 120.0)).is_greater(0)
+	var at := s.track.transform_at(start, h.lane_lateral(1, h.lanes - 1))
+	p.vehicle.reset_to(at, at.basis.z * 25.0)
+	p.driver.lane = -1
+	var lateral_at_block := INF
+	var slowest := INF
+	for i in 120 * 30:
+		await get_tree().physics_frame
+		var along := fposmod(p.distance - start, s.track.length)
+		if along > 100.0 and along < block - start + 120.0:
+			slowest = minf(slowest, p.vehicle.speed())
+		if along >= block - start and not is_finite(lateral_at_block):
+			lateral_at_block = p.lateral
+		if along > block - start + 200.0:
+			break
+	# Through in the outer lane, without stopping.
+	assert_float(absf(lateral_at_block - h.lane_lateral(1, 0))).is_less(h.lane_m / 2.0 + 0.5)
+	assert_float(slowest).is_greater(5.0)
 	s.queue_free()
 	await get_tree().process_frame
 

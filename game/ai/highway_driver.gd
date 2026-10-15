@@ -17,6 +17,10 @@ const HELD_GAP_M := 120.0
 ## Room a lane beside needs: this far ahead, this far behind (m).
 const ROOM_AHEAD_M := 40.0
 const ROOM_BEHIND_M := 15.0
+## A lane closed (a roadblock, a wreck) within this far ahead is no lane to move into (m); its
+## own lane closed within it, the car heads for an open one a lane at a time, this often (s).
+const CLOSED_AHEAD_M := 300.0
+const ESCAPE_AGAIN_S := 1.5
 ## Stuck this long, or on its side or roof this long (s): reset.
 const STUCK_S := 6.0
 const UPSET_S := 3.0
@@ -128,24 +132,32 @@ func _trouble(c: Dictionary, delta: float) -> bool:
 	return false
 
 
-## Held up (`gap` m to what's ahead, going `lead_v`): over a lane with room; clear for a while:
-## back out a lane.
+## Its lane closed ahead: a lane towards an open one (through closed ones if need be). Held up
+## (`gap` m to what's ahead, going `lead_v`): over a lane with room; clear for a while: back out
+## a lane. Never into a lane closed ahead otherwise.
 func _overtake(delta: float, gap: float, lead_v: float, limit: float) -> void:
 	_clock += delta
 	var held := gap < HELD_GAP_M and lead_v < limit * 0.9
 	_held = _held + delta if held else 0.0
 	_clear = _clear + delta if not held else 0.0
-	if _clock - _changed_at < CHANGE_AGAIN_S:
-		return
 	var tm := racer.session.traffic
+	var since := _clock - _changed_at
+	if since < ESCAPE_AGAIN_S:
+		return
 	var info := tm.sim.lane_info(lane)
 	var to := -1
-	if _held > OVERTAKE_AFTER_S:
+	if tm.sim.closed_ahead(lane, maxf(_s, 0.0), CLOSED_AHEAD_M):
+		var side := _open_side(info)
+		if not side.is_empty() and _room(side == "inner"):
+			to = int(info[side])
+	elif since < CHANGE_AGAIN_S:
+		return
+	elif _held > OVERTAKE_AFTER_S:
 		for side: String in ["inner", "outer"]:
-			if int(info.get(side, -1)) >= 0 and _room(side == "inner"):
+			if int(info.get(side, -1)) >= 0 and not _closed(int(info[side])) and _room(side == "inner"):
 				to = int(info[side])
 				break
-	elif _clear > KEEP_OUT_S and int(info.get("outer", -1)) >= 0 and _room(false):
+	elif _clear > KEEP_OUT_S and int(info.get("outer", -1)) >= 0 and not _closed(int(info.outer)) and _room(false):
 		to = int(info.outer)
 	if to >= 0:
 		lane = to
@@ -153,6 +165,24 @@ func _overtake(delta: float, gap: float, lead_v: float, limit: float) -> void:
 		_changed_at = _clock
 		_held = 0.0
 		_clear = 0.0
+
+
+## True if lane `l` (beside this one, so about as far along) is closed within CLOSED_AHEAD_M.
+func _closed(l: int) -> bool:
+	return racer.session.traffic.sim.closed_ahead(l, maxf(_s, 0.0) - ROOM_BEHIND_M, CLOSED_AHEAD_M)
+
+
+## Which way ("outer" or "inner", from this lane's `info`) the nearest lane not closed ahead is;
+## "" if every lane is.
+func _open_side(info: Dictionary) -> String:
+	var sim := racer.session.traffic.sim
+	for side: String in ["outer", "inner"]:
+		var l := int(info.get(side, -1))
+		while l >= 0:
+			if not _closed(l):
+				return side
+			l = int(sim.lane_info(l).get(side, -1))
+	return ""
 
 
 ## True if the lane beside (to the driver's left if `left`) is clear from ROOM_BEHIND_M behind to

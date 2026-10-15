@@ -420,6 +420,30 @@ bool TrafficSim::_behind(int p_lane, int64_t p_s, int p_self, int64_t p_length, 
 	return false;
 }
 
+bool TrafficSim::closed_ahead(int p_lane, int64_t p_s, int64_t p_ahead) const {
+	if (p_lane < 0 || p_lane >= int(graph.lanes.size())) {
+		return false;
+	}
+	const Lane &l = graph.lanes[size_t(p_lane)];
+	for (const Closure &cl : st.closures) {
+		if (cl.lane != p_lane) {
+			continue;
+		}
+		int64_t from = cl.from - p_s;
+		int64_t to = cl.to - p_s;
+		if (l.closed && l.length > 0) {
+			// The lap of the loop where its end is just ahead (or where p_s is inside it).
+			int64_t k = to >= 0 ? to / l.length : -((-to + l.length - 1) / l.length);
+			from -= k * l.length;
+			to -= k * l.length;
+		}
+		if (to >= 0 && from <= p_ahead) {
+			return true;
+		}
+	}
+	return false;
+}
+
 bool TrafficSim::_closed_at(int p_lane, int64_t p_s) const {
 	for (const Closure &cl : st.closures) {
 		if (cl.lane == p_lane && p_s >= cl.from - 20000 && p_s <= cl.to) {
