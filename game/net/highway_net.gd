@@ -37,6 +37,9 @@ var resyncs := 0
 var late := 0
 var handovers := 0
 var beats := 0
+## Server under --net-stats with players both ways round: acceptance 3 measured online
+## (NETCHECK_LOOP).
+var loop: LoopWatch
 
 var _beat_time := 0.0
 var _lead_time := 0.0
@@ -98,7 +101,24 @@ func _physics_process(delta: float) -> void:
 # --- Server ----------------------------------------------------------------------------------
 
 
+## The first player each way round, once both are on the road; then counted every tick.
+func _watch_loop() -> void:
+	if loop and (not is_instance_valid(loop.a) or not is_instance_valid(loop.b)):
+		loop = null
+	if loop == null:
+		var way := {}
+		for r in session.racers:
+			if r.is_human and r.vehicle and not r.waiting and not way.has(r.direction):
+				way[r.direction] = r
+		if not (way.has(1) and way.has(-1)):
+			return
+		loop = LoopWatch.new(session, way[1], way[-1])
+	loop.step()
+
+
 func _server_tick(delta: float) -> void:
+	if Game.dev.has("net-stats"):
+		_watch_loop()
 	_stats_time += delta
 	if _stats_time >= 10.0 and Game.dev.has("net-stats"):
 		_stats_time = 0.0
@@ -108,6 +128,8 @@ func _server_tick(delta: float) -> void:
 			"physics": t.cars.size(), "lead_ticks": t.lead, "tick": t.sim.get_tick(),
 			"pursuits": session.police.pursuits if session.police else 0, "busts": session.police.busts if session.police else 0,
 			"evades": session.police.evades if session.police else 0, "roadblocks": session.police.roadblocks if session.police else 0 }))
+		if loop:
+			print("NETCHECK_LOOP " + JSON.stringify({ "a": loop.a.display_name, "b": loop.b.display_name, "lap": loop.a.timer.lap, "b_lap": loop.b.timer.lap, "rows": loop.rows() }))
 	_lead_time += delta
 	if _lead_time >= 1.0:
 		_lead_time = 0.0

@@ -146,7 +146,7 @@ func _apply(delta: float, snap: bool) -> void:
 		var proj := track.project(vehicle.global_transform * vehicle.center_of_mass)
 		distance = proj.distance
 		track_index = proj.index
-		timer.teleported(track.from_start(distance))
+		timer.teleported(lap_pos(distance))
 	if measure:
 		_shown_t.append(now)
 		_shown_p.append(p.xform.origin)
@@ -174,7 +174,7 @@ func update_track(delta: float) -> void:
 	lateral = proj.lateral
 	speed = vehicle.speed()
 	on_track = absf(lateral) < track.half_width(distance, lateral) + 1.0
-	timer.update(track.from_start(distance), delta, vehicle.remote_velocity.length())
+	timer.update(lap_pos(distance), delta, vehicle.remote_velocity.length())
 	_clock += delta
 	if Net.server and not dnf:
 		_check_track_limits()

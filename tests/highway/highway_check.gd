@@ -9,8 +9,6 @@ extends Node
 ##   lap come round again the next.
 
 const STUCK_S := 10.0
-const MEET_M := 60.0
-const NEAR_M := 45.0
 const RECUR_MIN := 0.6
 
 var opts := { "scenario": "cruise", "players": "1", "traffic": "-1", "seconds": "120", "laps": "3", "seed": "1" }
@@ -31,9 +29,7 @@ var _frame_us := 0
 var _frame_sum := 0.0
 var _frames := 0
 ## Loop scenario.
-var meetings := PackedInt32Array()
-var _last_gap := INF
-var met_by_lap: Array[Dictionary] = []
+var loop: LoopWatch
 
 
 func _ready() -> void:
@@ -106,41 +102,16 @@ func _tick() -> void:
 		else:
 			stuck[p] = 0.0
 	if opts.scenario == "loop":
-		_loop_tick()
+		if loop == null:
+			loop = LoopWatch.new(session, session.players[0], session.players[1])
+		if loop.step() and opts.has("verbose"):
+			print("  met at %.0f s on lap %d" % [time, session.players[0].timer.lap])
 		if session.players[0].timer.lap > int(opts.laps) + 1:
 			_report()
 		elif time > (int(opts.laps) + 2) * session.track.length / 12.0: # laps + 1 at 12 m/s at least
 			_report()
 	elif time >= float(opts.seconds):
 		_report()
-
-
-## Player 1 and 2 drive opposite ways: count each time they pass, and which traffic player 1
-## meets on the other carriageway, per lap of player 1.
-func _loop_tick() -> void:
-	var a := session.players[0]
-	var b := session.players[1]
-	var lap := a.timer.lap
-	while meetings.size() <= lap:
-		meetings.append(0)
-		met_by_lap.append({})
-	# Their gap along the road (both on the main road): passing flips its sign.
-	var gap := b.distance - a.distance
-	var half := session.track.length / 2.0
-	gap = fposmod(gap + half, session.track.length) - half
-	if is_finite(_last_gap) and signf(gap) != signf(_last_gap) and absf(gap) < MEET_M:
-		meetings[lap] += 1
-		if opts.has("verbose"):
-			print("  met at %.0f s on lap %d" % [time, lap])
-	_last_gap = gap
-	if ticks % 10 == 0 and session.traffic:
-		var tm := session.traffic
-		for car in tm.sim.cars_near(a.vehicle.global_position, NEAR_M):
-			var info := tm.sim.car(car)
-			if int(info.lane) < 0:
-				continue
-			if int(tm.sim.lane_info(int(info.lane)).dir) == -a.direction:
-				met_by_lap[lap][car] = true
 
 
 func _fail_now(why: String) -> void:
@@ -170,20 +141,15 @@ func _report() -> void:
 		print("  %s: %.1f km, lap %d, dir %d" % [p.display_name, float(travelled.get(p, 0.0)) / 1000.0, p.timer.lap, p.direction])
 	if opts.scenario == "loop":
 		# Whole laps of player 1: from its first lap line crossing to its last.
-		for lap in range(1, mini(meetings.size(), int(opts.laps) + 1)):
-			var met := met_by_lap[lap]
-			var next: Dictionary = met_by_lap[lap + 1] if lap + 1 < met_by_lap.size() else {}
-			var again := 0
-			for car: int in met:
-				again += 1 if next.has(car) else 0
-			var share := float(again) / maxf(met.size(), 1.0)
-			print("  lap %d: met player 2 %d times, %d traffic cars met, %.0f%% met again next lap" % [lap, meetings[lap], met.size(), share * 100.0])
-			if meetings[lap] < 1:
-				fails.append("lap %d: the players never passed" % lap)
-			if not next.is_empty() and share < RECUR_MIN:
-				fails.append("lap %d: only %.0f%% of the traffic came round again" % [lap, share * 100.0])
-		if meetings.size() <= int(opts.laps):
-			fails.append("player 1 drove %d of %d laps" % [meetings.size() - 1, int(opts.laps)])
+		var rows := loop.rows() if loop else []
+		for row: Dictionary in rows.slice(0, int(opts.laps)):
+			print("  lap %d: met player 2 %d times, %d traffic cars met, %.0f%% met again next lap" % [row.lap, row.met, row.traffic, maxf(row.again, 0.0) * 100.0])
+			if row.met < 1:
+				fails.append("lap %d: the players never passed" % row.lap)
+			if row.again >= 0.0 and row.again < RECUR_MIN:
+				fails.append("lap %d: only %.0f%% of the traffic came round again" % [row.lap, row.again * 100.0])
+		if rows.size() < int(opts.laps):
+			fails.append("player 1 drove %d of %d laps" % [rows.size(), int(opts.laps)])
 	if fails.is_empty():
 		print("PASS")
 		get_tree().quit(0)

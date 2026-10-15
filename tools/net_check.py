@@ -15,11 +15,14 @@ and exits 0 (PASS) or 1 (FAIL).
   tools/net_check.py --fresh --ai 15 --rate 50mbit --rtt 20         # a fresh client fetches every car
   tools/net_check.py --track my.nosstrack --fresh --ai 3 --laps 1   # ...and the server's own track
   tools/net_check.py --event highway --clients 12 --quad 1 --traffic 150   # M7: highway traffic
+  tools/net_check.py --event highway --clients 2 --dirs opposite --speed-factor 1.6 --duration 600   # M7 acceptance 3
 
 On a highway (--event highway, the Lumen Ring and the Street class unless given) every bot also
 reports its traffic: checksums that disagreed with the server's (must be 0), full states taken
 (1 on joining), late events rolled back, handovers, and the most physics cars it drove; the
-server reports promotions and handovers (NETCHECK_SERVER).
+server reports promotions and handovers (NETCHECK_SERVER). With --dirs opposite the server also
+watches the first player each way round (NETCHECK_LOOP): they must pass every lap, and at least 60%
+of the traffic the first meets on the other carriageway one lap must come round the next.
 
 With --fresh, the server's AI cars are this machine's garage cars (every one before any twice), and
 one bot with an empty cache fetches them all whole; it reports when every car was there as a
@@ -49,6 +52,7 @@ PILEUP_CARS = 3
 MAX_DOWN_KB = 64.0
 MAX_TRAFFIC_ERR_M = 1.0
 HIGHWAY_MISSES = 3  # HighwayNet.MISSES: checksums that disagree before a game asks again
+LOOP_AGAIN_MIN = 0.6  # acceptance 3: the share of the traffic met one lap that comes round the next
 
 
 def rss_mb(pid):
@@ -101,6 +105,7 @@ def main(argv=None):
     p.add_argument("--dirs", choices=["same", "opposite"], default="same", help="highway: players start one way, or turn about")
     p.add_argument("--sub", choices=["cruise", "score", "loop"], default="cruise", help="highway: the sub-mode")
     p.add_argument("--police", action="store_true", help="highway: police on (the bots speed, so they get chased)")
+    p.add_argument("--speed-factor", type=float, default=0.0, help="highway: the bots drive at this times the limit (default 1.4 with --police, else 1)")
     p.add_argument("--open", action="store_true", help="a place kept for a player from outside (another PC joining with --perf-log)")
     p.add_argument("--desync", action="store_true", help="highway: the first bot's traffic goes out of step once (it must resync)")
     p.add_argument("--laps", type=int, default=3)
@@ -195,7 +200,8 @@ def main(argv=None):
         n = 4 if i >= args.clients else 1
         cheat = [f"--cheat={args.cheat}"] if args.cheat and i == 0 else []
         cheat += ["--traffic-desync"] if args.desync and i == 0 else []
-        cheat += ["--speed-factor=1.4"] if args.police else []
+        factor = args.speed_factor or (1.4 if args.police else 0.0)
+        cheat += [f"--speed-factor={factor:g}"] if factor else []
         bots.append(start(f"bot{i:02d}", ["--bot", f"--connect=127.0.0.1:{port}", f"--players={n}",
                                           f"--bot-fps={args.bot_fps}"] + quit_flag + cheat))
         time.sleep(0.2)
@@ -216,6 +222,7 @@ def main(argv=None):
     # Gather the bots' reports.
     reports, contacts, fails, results, checks = {}, [], [], None, []
     server_stats = {}
+    loop = None
     track_ms = {}
     for name, proc, _ in procs:
         text = (logs / f"{name}.log").read_text(errors="replace")
@@ -230,6 +237,8 @@ def main(argv=None):
                 track_ms[name] = int(line.split()[1])
             elif line.startswith("NETCHECK_SERVER "):
                 server_stats = json.loads(line[len("NETCHECK_SERVER "):])
+            elif line.startswith("NETCHECK_LOOP "):
+                loop = json.loads(line[len("NETCHECK_LOOP "):])
             elif line.startswith("NETCHECK_RESULTS "):
                 results = json.loads(line[len("NETCHECK_RESULTS "):])
             elif line.startswith("NETCHECK_CONTACT "):
@@ -293,6 +302,20 @@ def main(argv=None):
                 fails.append("police on, but no chase began")
         else:
             fails.append("the server reported no traffic")
+        if args.dirs == "opposite":  # acceptance 3 online: they meet every lap, the traffic comes round
+            if not loop or not loop["rows"]:
+                fails.append("no whole lap of the loop (%s)" % ("on lap %d" % loop["lap"] if loop else "nobody each way round"))
+            else:
+                print("loop: %s (+1) on lap %d and %s (-1) on lap %d" % (loop["a"], loop["lap"], loop["b"], loop["b_lap"]))
+                if loop["b_lap"] < loop["lap"] - 1:  # the server counts laps the other way round too
+                    fails.append(f"loop: {loop['b']}'s laps didn't count (lap {loop['b_lap']})")
+                for r in loop["rows"]:
+                    print("  lap %d: met %d times, %d traffic cars met, %s met again next lap" % (
+                        r["lap"], r["met"], r["traffic"], "%.0f%%" % (r["again"] * 100) if r["again"] >= 0 else "-"))
+                    if r["met"] < 1:
+                        fails.append(f"loop lap {r['lap']}: they never passed")
+                    if 0 <= r["again"] < LOOP_AGAIN_MIN:
+                        fails.append(f"loop lap {r['lap']}: only {r['again'] * 100:.0f}% of the traffic came round again")
     for name, ms in sorted(track_ms.items()):
         print("%s got the track in %d ms" % (name, ms))
     if args.fresh and not builtin_track and "bot00" not in track_ms:
