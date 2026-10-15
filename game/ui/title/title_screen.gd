@@ -12,6 +12,7 @@ var _tracks: TrackPicker
 var _players: PlayersMenu
 var _settings: SettingsMenu
 var _event: EventMenu
+var _free: FreeDriveMenu
 var _online: OnlineMenu
 var _lobby: LobbyMenu
 ## What the class picker leads to: "free", "race" or "time_trial".
@@ -126,8 +127,8 @@ func _ready() -> void:
 		_online._join(String(Game.dev.connect), String(Game.dev.get("password", "")))
 
 
-## Free Drive: class first (how it drives), then the track, then the players, who each pick a car
-## (how it looks). Race: class, then the event (track included), then the players. Time Trial:
+## Free Drive: class first (how it drives), then its setup (track, AI, rules), then the players,
+## who each pick a car (how it looks). Race: class, then the event (track included), then the players. Time Trial:
 ## class, then the track, then P1 drives.
 func _open_classes(mode: String) -> void:
 	_mode = mode
@@ -150,7 +151,20 @@ func _on_class_picked(id: String) -> void:
 		Settings.profile.last_platform = id
 		_open_tracks(func(track: String) -> void: Game.start_event(RaceEvent.time_trial(), id, track))
 	else:
-		_open_tracks(func(track: String) -> void: _open_players(id, null, track))
+		_open_free(id)
+
+
+## Free Drive's setup: the track, AI cars and rules.
+func _open_free(platform_id: String) -> void:
+	_free = FreeDriveMenu.new()
+	_free.picked.connect(func(e: RaceEvent, track: String) -> void:
+		_free.visible = false
+		_open_players(platform_id, e, track))
+	_free.closed.connect(func() -> void:
+		_free.queue_free()
+		_classes.visible = true
+		_classes.grab_focus_first())
+	add_child(_free)
 
 
 ## The track picker, then `then` (track path). With only one track, straight on (unless `always`).
@@ -229,10 +243,10 @@ func _open_players(platform_id: String, event: RaceEvent = null, track := "") ->
 	_players = PlayersMenu.new()
 	_players.platform_id = platform_id
 	_players.started.connect(func() -> void:
-		if event:
+		if event and event.kind != "free":
 			Game.start_event(event, platform_id, track)
 		else:
-			Game.start_free_drive("", platform_id, false, false, track))
+			Game.start_free_drive("", platform_id, false, false, track, event))
 	_players.closed.connect(func() -> void:
 		_players.queue_free()
 		if _mode == "highway" and is_instance_valid(_classes): # highway, menu, class, players
@@ -241,6 +255,9 @@ func _open_players(platform_id: String, event: RaceEvent = null, track := "") ->
 		elif is_instance_valid(_event):
 			_event.visible = true
 			_event.grab_focus_first()
+		elif is_instance_valid(_free):
+			_free.visible = true
+			_free.grab_focus_first()
 		elif is_instance_valid(_tracks):
 			_tracks.visible = true
 			_tracks.grab_focus_first()

@@ -153,6 +153,8 @@ func _ready() -> void:
 		ai_skill = event.ai_skill
 		ai_builtin_cars = event.ai_cars == "builtin"
 		safe_rejoin = true
+	elif event.kind == "free":
+		ai_racers = clampi(ai_racers, 0, maxi(int(track.grid.slots) - maxi(Players.count(), 1), 0))
 	ghosted = not event.collisions
 	if event.kind == "time_trial":
 		solo = true

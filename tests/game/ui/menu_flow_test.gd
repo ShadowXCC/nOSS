@@ -245,3 +245,66 @@ func test_keyboard_back_out_of_the_highway_menus() -> void:
 	await _key(KEY_ESCAPE)
 	await _frames(4)
 	assert_str(_focused(runner)).is_equal("Highway")
+
+
+## Free Drive by keys alone (Changes.md: it had no setup): title -> Free Drive -> class -> the
+## setup (2 AI cars, ghosted) -> Players -> Ready; and back out of the setup to the class.
+func test_keyboard_only_boot_to_free_drive_with_ai() -> void:
+	Settings.profile.erase("last_free")
+	var runner := scene_runner(TITLE_SCENE)
+	await _frames(4)
+	assert_str(_focused(runner)).is_equal("Free Drive")
+	await _key(KEY_ENTER)
+	await _frames(4)
+	assert_str(_focused(runner)).starts_with("Track GT")
+	await _key(KEY_ENTER)
+	await _frames(4)
+	var menu: FreeDriveMenu = _find(runner.scene(), "FreeDriveMenu")
+	assert_object(menu).is_not_null()
+	for c: Control in menu.find_children("*", "Control", true, false):
+		if c.is_visible_in_tree() and c.focus_mode != Control.FOCUS_NONE and (c is BaseButton or c is Range):
+			assert_str(String(c.accessibility_name)).override_failure_message("Unnamed %s" % c).is_not_empty()
+	assert_str(_focused(runner)).starts_with("Track: ")
+	# Back to the class, and in again.
+	await _key(KEY_ESCAPE)
+	await _frames(4)
+	assert_object(_find(runner.scene(), "FreeDriveMenu")).is_null()
+	assert_str(_focused(runner)).starts_with("Track")
+	for i in 12:
+		if _focused(runner).begins_with("Track GT"):
+			break
+		await _key(KEY_DOWN)
+	await _key(KEY_ENTER)
+	await _frames(4)
+	await _key(KEY_DOWN)
+	assert_str(_focused(runner)).is_equal("AI cars: Off")
+	await _key(KEY_RIGHT)
+	await _key(KEY_RIGHT)
+	assert_str(_focused(runner)).is_equal("AI cars: 2")
+	for i in 3:
+		await _key(KEY_DOWN)
+	assert_str(_focused(runner)).starts_with("Collisions")
+	await _key(KEY_RIGHT)
+	assert_str(_focused(runner)).is_equal("Collisions: Ghosted")
+	await _key(KEY_DOWN) # Track limits
+	await _key(KEY_DOWN)
+	assert_str(_focused(runner)).is_equal("Next")
+	await _key(KEY_ENTER)
+	await _frames(4)
+	assert_object(_find(runner.scene(), "PlayersMenu")).is_not_null()
+	await _key(KEY_ENTER) # joins
+	await _frames(6)
+	var v := Players.slots[0].menu_target
+	await _key(KEY_UP)
+	await _key(KEY_UP)
+	assert_str(UiKit.text_of(Players.focus_of(v) as Button)).starts_with("Ready")
+	await _key(KEY_ENTER)
+	await _frames(4)
+	assert_int(_requested.size()).is_equal(1)
+	var e: RaceEvent = _requested[0][0]
+	assert_str(e.kind).is_equal("free")
+	assert_int(e.ai_count).is_equal(2)
+	assert_bool(e.collisions).is_false()
+	assert_str(String(_requested[0][1])).is_equal("official.track.gt")
+	# Remembered for next time.
+	assert_int(FreeDriveMenu.last().ai_count).is_equal(2)

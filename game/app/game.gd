@@ -224,10 +224,17 @@ func open_session(session: TrackSession) -> void:
 
 
 ## `solo`: only P1 drives (garage and Fitting Bay); otherwise every joined player. `track`: a
-## path; empty: selected_track().
-func start_free_drive(car_path := "", platform_id := "", bay_return := false, solo := true, track := "") -> void:
+## path; empty: selected_track(). `event`: the Free Drive setup (AI cars, collisions, track
+## limits); the dev options --ai, --ai-skill and --ai-builtin go over it.
+func start_free_drive(car_path := "", platform_id := "", bay_return := false, solo := true, track := "", event: RaceEvent = null) -> void:
+	if event:
+		event_requested.emit(event, platform_id)
+		if hold_events:
+			return
 	get_tree().paused = false
 	var session := TrackSession.new()
+	if event:
+		session.event = event
 	session.track_path = track if track else selected_track("circuit")
 	session.bay_return = bay_return
 	session.solo = solo and not dev.has("players")
@@ -235,9 +242,9 @@ func start_free_drive(car_path := "", platform_id := "", bay_return := false, so
 	session.platform_id = platform_id if platform_id else String(dev.get("platform", Settings.profile.get("last_platform", "")))
 	session.autodrive = dev.has("autodrive")
 	session.ai_players = maxi(int(dev.get("players", "1")) - maxi(Players.count(), 1), 0)
-	session.ai_racers = int(dev.get("ai", "0"))
-	session.ai_skill = float(dev.get("ai-skill", "80"))
-	session.ai_builtin_cars = dev.has("ai-builtin")
+	session.ai_racers = int(dev.get("ai", event.ai_count if event else 0))
+	session.ai_skill = float(dev.get("ai-skill", event.ai_skill if event else 80.0))
+	session.ai_builtin_cars = dev.has("ai-builtin") or (event != null and event.ai_cars == "builtin")
 	if dev.has("camera"):
 		Settings.profile.camera = dev.camera
 	open_session(session)
