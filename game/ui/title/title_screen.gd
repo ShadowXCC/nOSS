@@ -98,6 +98,7 @@ func _ready() -> void:
 	match Game.dev.get("menu", ""): # dev: open a menu directly
 		"classes": _open_classes("free")
 		"event": _open_event(String(Settings.profile.get("last_platform", "official.track.gt")))
+		"free": _open_free(String(Settings.profile.get("last_platform", "official.track.gt")))
 		"players": _open_players(String(Settings.profile.get("last_platform", "official.track.gt")))
 		"settings": _open_settings()
 		"online": _open_online()
@@ -162,8 +163,11 @@ func _open_free(platform_id: String) -> void:
 		_open_players(platform_id, e, track))
 	_free.closed.connect(func() -> void:
 		_free.queue_free()
-		_classes.visible = true
-		_classes.grab_focus_first())
+		if is_instance_valid(_classes):
+			_classes.visible = true
+			_classes.grab_focus_first()
+		else:
+			_drive_button.grab_focus())
 	add_child(_free)
 
 
