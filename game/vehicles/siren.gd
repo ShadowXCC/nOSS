@@ -1,5 +1,5 @@
 class_name Siren
-extends Node
+extends Node3D
 ## A police car's siren (D115, D116), synthesized (NossAudio.render_siren): a wail, switching to
 ## a yelp once it's within YELP_M of whoever hears it here, pitched by the Doppler effect as it
 ## passes. It sounds while its car's `siren` is on (its own game's, or from its states online).
@@ -20,7 +20,7 @@ func _ready() -> void:
 	_player.unit_size = 25.0
 	_player.max_distance = 900.0
 	_player.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_PHYSICS_STEP
-	vehicle.add_child(_player)
+	add_child(_player) # on the car (this node is), moving with it
 
 
 func _process(_delta: float) -> void:
@@ -53,7 +53,7 @@ static func fit(v: Vehicle) -> void:
 	var old := v.get_node_or_null(^"LightBar")
 	if old:
 		v.remove_child(old)
-		old.queue_free()
+		old.free() # out of the tree: at once
 	if v.package == null or "police" not in v.package.manifest.get("tags", []):
 		return
 	var bar := LightBar.new()
