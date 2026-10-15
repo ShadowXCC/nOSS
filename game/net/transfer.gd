@@ -67,6 +67,8 @@ var min_rtt := 0.0
 static var _blobs := {} # hash -> {data, size, used}
 static var _blob_bytes := 0
 static var _blob_mutex := Mutex.new()
+## tmp/ is cleared of old leftovers once a run, on the first download.
+static var _tmp_cleaned := false
 
 var _now := 0.0
 var _next_xfer := 1
@@ -334,6 +336,9 @@ func _on_offer(d: Dictionary) -> void:
 	# `from` is in chunks; the part file keeps whole chunks of this size from there.
 	var from: int = d.from if d.from * t.chunk <= int(ask.from) else 0
 	DirAccess.make_dir_recursive_absolute(ContentStore.tmp_dir())
+	if not _tmp_cleaned:
+		_tmp_cleaned = true
+		ContentStore.clean_tmp()
 	var part := ContentStore.part_path(d.hash)
 	if from == 0 or not FileAccess.file_exists(part):
 		t.file = FileAccess.open(part, FileAccess.WRITE)

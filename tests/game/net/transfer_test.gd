@@ -274,3 +274,18 @@ func test_many_files_with_loss_and_small_shares() -> void:
 	assert_bool(await _run(link, func() -> bool: return res.got.size() == 4, 30.0)).is_true()
 	for f: Dictionary in files:
 		assert_bool(res.got[f.hash] == f.bytes).is_true()
+
+
+func test_each_game_keeps_its_own_partial_downloads() -> void:
+	# Games sharing a cache never write one part file: each is named for its game.
+	var h := "sha256:" + "ab".repeat(32)
+	assert_str(ContentStore.part_path(h).get_file()).is_equal("%s.%d.part" % ["ab".repeat(32), OS.get_process_id()])
+	# Old leftovers go; a fresh one stays.
+	DirAccess.make_dir_recursive_absolute(ContentStore.tmp_dir())
+	var f := FileAccess.open(ContentStore.part_path(h), FileAccess.WRITE)
+	f.store_buffer(PackedByteArray([1, 2, 3]))
+	f.close()
+	ContentStore.clean_tmp()
+	assert_bool(FileAccess.file_exists(ContentStore.part_path(h))).is_true()
+	ContentStore.clean_tmp(-1.0)
+	assert_bool(FileAccess.file_exists(ContentStore.part_path(h))).is_false()

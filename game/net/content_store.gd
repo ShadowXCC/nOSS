@@ -6,8 +6,9 @@ extends RefCounted
 ##                     lower tier: data only, or its smallest LOD)
 ##   tracks/<hex>/     a track (.nosstrack) unpacked the same way; it's used once whole
 ##   platforms/<hex>.json
-##   tmp/              files being written, and partial downloads (<hex>.part) to resume
-## Files are written to tmp/ and renamed into place, so several games can share one cache.
+##   tmp/              files being written, and partial downloads (<hex>.<pid>.part) to resume
+## Files are written to tmp/ and renamed into place, so several games can share one cache; each
+## game keeps its own partial downloads (two fetching the same file don't share one).
 
 const KINDS := ["cars", "platforms", "tracks"]
 ## Package files for each tier, beyond what lower tiers bring.
@@ -45,7 +46,16 @@ static func tmp_dir() -> String:
 
 
 static func part_path(h: String) -> String:
-	return tmp_dir().path_join(hex(h) + ".part")
+	return tmp_dir().path_join("%s.%d.part" % [hex(h), OS.get_process_id()])
+
+
+## Removes what's in tmp/ from games long gone (interrupted downloads and writes).
+static func clean_tmp(older_than_s := 86400.0) -> void:
+	var now := Time.get_unix_time_from_system()
+	for f in DirAccess.get_files_at(tmp_dir()):
+		var path := tmp_dir().path_join(f)
+		if now - FileAccess.get_modified_time(path) > older_than_s:
+			DirAccess.remove_absolute(path)
 
 
 ## The cached car's manifest, or {} if it isn't here (or doesn't hash right).
