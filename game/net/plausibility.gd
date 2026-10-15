@@ -40,7 +40,7 @@ static func for_platform(platform: Dictionary, track: TrackData) -> Plausibility
 	var power := GameModes.peak_power_kw(platform) * 1000.0
 	var cd_a := maxf(float(platform.get("aero", {}).get("cd_a", 0.8)), 0.05)
 	p.top_speed = pow(2.0 * power / (AIR_DENSITY * cd_a), 1.0 / 3.0)
-	if track:
+	if track and track.arena == null: # an arena has no laps
 		var line := RacingLine.for_track(track)
 		p.ideal_lap = line.lap_time(line.speed_profile(platform, 1.0))
 	return p

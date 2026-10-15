@@ -27,7 +27,7 @@ func tow(r: Racer) -> void:
 	if _tows.has(r) or r.vehicle == null or r.waiting:
 		return
 	var v := r.vehicle
-	var to := session.track.transform_at(r.last_valid)
+	var to := r.last_valid_xform if session.track.arena else session.track.transform_at(r.last_valid)
 	_tows[r] = { "t": 0.0, "from": v.global_transform, "to": to, "freeze_mode": v.freeze_mode, "drone": _drone(v) }
 	r.towed = true
 	v.kart_bits |= CarState.KART_TOWED
@@ -76,9 +76,10 @@ func _carry(r: Racer, delta: float) -> void:
 	v.reset_to(to, to.basis.z * speed)
 	v.kart_bits &= ~CarState.KART_TOWED
 	r.towed = false
-	r.distance = r.last_valid
-	r.track_index = -1
-	r.timer.teleported(r.lap_pos(r.last_valid))
+	if session.track.arena == null:
+		r.distance = r.last_valid
+		r.track_index = -1
+		r.timer.teleported(r.lap_pos(r.last_valid))
 	r.ghost_for(GHOST_AFTER_TOW)
 
 

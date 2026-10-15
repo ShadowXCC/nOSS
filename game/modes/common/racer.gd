@@ -66,6 +66,8 @@ var finished := false
 var waiting := false
 ## Kart: carried by the tow drone (D132).
 var towed := false
+## Where the car was last on the road (or an arena's floor), upright: a tow puts it back there.
+var last_valid_xform := Transform3D()
 ## No collisions with other cars, drawn see-through (just rejoined, or ghosted sessions).
 var ghosted := false
 ## Rolling start: held to this speed (m/s) until the green; 0 = no limit.
@@ -193,6 +195,7 @@ func _spawn(pkg: VehiclePackage) -> void:
 		vehicle.set_arcade(session.arcade) # kart (D130)
 	session.add_child(vehicle)
 	vehicle.reset_to(spawn_at)
+	last_valid_xform = spawn_at
 	var proj := track.project(spawn_at.origin)
 	last_valid = proj.distance
 	distance = proj.distance
@@ -271,6 +274,19 @@ func update_track(delta: float) -> void:
 	if towed:
 		return # in the air under the tow drone (kart)
 	var com := vehicle.global_transform * vehicle.center_of_mass
+	if track.arena:
+		_update_arena(com)
+		return
+	if session.kart and track.kart:
+		var loop := track.kart.loop_progress(com)
+		if not loop.is_empty():
+			# Round a loop it stays where the loop stands on the road: no jump for the lap timer
+			# or the standings (D137).
+			distance = float(loop.piece.at_m)
+			speed = vehicle.speed()
+			on_track = true
+			timer.update(lap_pos(distance), delta, vehicle.linear_velocity.length())
+			return
 	var proj := track.project(com, track_index)
 	track_index = proj.index
 	distance = proj.distance
@@ -298,6 +314,19 @@ func update_track(delta: float) -> void:
 			reset_car()
 	else:
 		_wrong_way_time = 0.0
+
+
+## An arena (D138): no laps, no wrong way. On its floor, upright, is where a tow puts it back.
+func _update_arena(com: Vector3) -> void:
+	speed = vehicle.speed()
+	var arena := track.arena
+	on_track = arena.inside(com, 0.5) and vehicle.global_basis.y.y > 0.8
+	if on_track:
+		var fwd := vehicle.global_basis.z.slide(Vector3.UP).normalized()
+		if fwd.length() > 0.5:
+			last_valid_xform = Transform3D(Basis(Vector3.UP.cross(fwd), Vector3.UP, fwd), Vector3(com.x, arena.floor_y, com.z))
+	if (com.y < track.kill_y or com.y < arena.floor_y - KART_FALL_M) and not waiting:
+		reset_car()
 
 
 ## Track limits (docs/GAMEMODES.md §1): out when all four wheels are past the road's edge and
