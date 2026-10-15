@@ -268,3 +268,36 @@ func test_a_run_rolls_up_starts_at_the_line_and_finishes() -> void:
 	assert_int(board.size()).is_greater(0)
 	s.queue_free()
 	await get_tree().process_frame
+
+
+func test_join_a_friend_and_see_their_name() -> void:
+	Players.clear()
+	var s := TrackSession.new()
+	s.track_path = FIXTURE
+	s.platform_id = "official.highway.street"
+	s.event = RaceEvent.highway("cruise", false, 0)
+	s.event.direction = 0 # both ways: player 2 goes the other way
+	s.ai_players = 1
+	s.autodrive = true
+	add_child(s)
+	for i in 600:
+		if s.players.size() == 2 and s.players.all(func(p: SessionPlayer) -> bool: return p.vehicle != null):
+			break
+		await get_tree().physics_frame
+	await _ticks(70)
+	var p1 := s.players[0]
+	var p2 := s.players[1]
+	assert_int(p2.direction).is_equal(-1)
+	var items: Array = s.highway.pause_items(p1)
+	var join: Array = items.filter(func(it: Array) -> bool: return String(it[0]) == "Join " + p2.display_name)
+	assert_int(join.size()).is_equal(1)
+	p1.driver.set_physics_process(false)
+	(join[0][1] as Callable).call()
+	await _ticks(5)
+	assert_int(p1.direction).is_equal(-1)
+	var gap := fposmod(p2.direction * (p2.distance - p1.distance), s.track.length)
+	assert_float(gap).is_between(HighwayControl.JOIN_BEHIND_M - 25.0, HighwayControl.JOIN_BEHIND_M + 25.0)
+	assert_float(float(s.track.project(p1.vehicle.global_position).lateral)).is_greater(0.0) # direction -1's side
+	assert_object(p1.hud.get_node_or_null(^"Nameplates")).is_not_null()
+	s.queue_free()
+	await get_tree().process_frame

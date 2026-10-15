@@ -7,6 +7,9 @@ extends Node
 ## Players start this far behind the lap line, this far apart.
 const START_BACK_M := 40.0
 const START_GAP_M := 30.0
+## Join friend: at most this many in the pause menu, and this far behind them.
+const JOIN_MAX := 6
+const JOIN_BEHIND_M := 60.0
 
 var session: TrackSession
 var _timed := {} # racers whose loop laps go on a board
@@ -19,6 +22,8 @@ func _ready() -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	if Engine.get_physics_frames() % 60 == 0:
+		_ready_plates() # players join; their HUDs come with them
 	if session.run and session.run.state.is_empty() and not session.players.is_empty() \
 			and session.players.all(func(p: SessionPlayer) -> bool: return p.vehicle != null):
 		session.run.begin() # everyone's here: line up
@@ -173,4 +178,38 @@ func _place(r: Racer, dir: int) -> void:
 
 ## Pause menu items for player `p`: [[text, callable, description]].
 func pause_items(p: SessionPlayer) -> Array:
-	return [["Change direction", func() -> void: change_direction(p), "Turn round onto the other carriageway"]]
+	var items := [["Change direction", func() -> void: change_direction(p), "Turn round onto the other carriageway"]]
+	if event.sub != "run":
+		var others := session.racers.filter(func(r: Racer) -> bool: return r != p and (r.is_human or r is SessionPlayer) and r.vehicle != null)
+		others.sort_custom(func(a: Racer, b: Racer) -> bool: return a.display_name < b.display_name)
+		for r: Racer in others.slice(0, JOIN_MAX):
+			items.append(["Join %s" % r.display_name, func() -> void: join(p, r), "Start behind them, their way round"])
+	return items
+
+
+## Puts `p` at rest on `friend`'s carriageway's shoulder JOIN_BEHIND_M behind them.
+func join(p: Racer, friend: Racer) -> void:
+	if p.vehicle == null or friend.vehicle == null:
+		return
+	var dir := friend.direction
+	p.timer.invalidate("Joined")
+	p.direction = dir
+	var at := shoulder_spot(dir, fposmod(friend.distance - dir * JOIN_BEHIND_M, layout.main.length))
+	p.vehicle.reset_to(at)
+	var proj := layout.main.project(at.origin)
+	p.distance = proj.distance
+	p.lateral = proj.lateral
+	p.track_index = -1
+	p.timer.teleported(p.lap_pos(p.distance))
+	p.notify("Behind %s" % friend.display_name, 2.0)
+
+
+## Name plates over the other players' cars on each of this game's players' HUDs.
+func _ready_plates() -> void:
+	for pl in session.players:
+		if pl.hud and pl.hud.get_node_or_null(^"Nameplates") == null:
+			var plates := Nameplates.new()
+			plates.name = "Nameplates"
+			plates.session = session
+			plates.player = pl
+			pl.hud.add_child(plates)

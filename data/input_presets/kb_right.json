@@ -71,6 +71,16 @@
         "key": "F8"
       }
     ],
+    "horn": [
+      {
+        "key": "M"
+      }
+    ],
+    "lights": [
+      {
+        "key": "L"
+      }
+    ],
     "menu_up": [
       {
         "key": "Up"

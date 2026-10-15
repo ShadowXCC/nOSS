@@ -75,6 +75,16 @@
         "button": "dpad_down"
       }
     ],
+    "horn": [
+      {
+        "button": "left_stick"
+      }
+    ],
+    "lights": [
+      {
+        "button": "x"
+      }
+    ],
     "menu_up": [
       {
         "button": "dpad_up"

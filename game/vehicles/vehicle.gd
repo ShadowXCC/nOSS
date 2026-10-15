@@ -36,6 +36,9 @@ var steering_wheel_lock_deg := 540.0
 var car_impulse := 0.0
 ## When this car last took a knock of KNOCK_DV or more (s, Time ticks): its states say so online.
 var knocked_at := -INF
+## Its horn (D119): two tones, made once for every car.
+static var _horn_stream: AudioStreamWAV
+var _horn_player: AudioStreamPlayer3D
 var wall_impulse := 0.0
 var last_hit: Vehicle
 ## Each reset_to() counts up (network states flag the car as placed, not moved).
@@ -229,6 +232,27 @@ func _process(delta: float) -> void:
 		var on := _blink < 0.5
 		visual.set_indicators(on and indicators & 1 != 0, on and indicators & 2 != 0)
 		visual.set_light("head", 2.0 if head_flash else float(head_lights))
+		_sound_horn()
+
+
+## The horn sounds while it's held (this car's, or a remote car's from its states).
+func _sound_horn() -> void:
+	if _horn_player == null:
+		if not horn:
+			return
+		if _horn_stream == null:
+			_horn_stream = EngineSound._wav(NossAudio.render_horn(420.0, 500.0))
+		_horn_player = AudioStreamPlayer3D.new()
+		_horn_player.name = "Horn"
+		_horn_player.stream = _horn_stream
+		_horn_player.bus = &"Effects"
+		_horn_player.unit_size = 12.0
+		_horn_player.max_distance = 400.0
+		add_child(_horn_player)
+	if horn and not _horn_player.playing:
+		_horn_player.play()
+	elif not horn and _horn_player.playing:
+		_horn_player.stop()
 
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:

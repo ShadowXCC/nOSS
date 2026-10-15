@@ -189,3 +189,20 @@ static func _axis(id: int, a: int, v: float) -> void:
 	e.axis_value = v
 	Input.parse_input_event(e)
 	Input.flush_buffered_events()
+
+
+## The horn and the lights (D119) are in the presets that have room for them, and no two driving
+## actions in a preset share an input (menus may share theirs with driving).
+func test_presets_have_the_horn_and_lights_and_no_clashes() -> void:
+	for id in ["kb_full", "kb_left", "kb_right", "pad_standard"]:
+		var b := Bindings.effective(id)
+		assert_array(b.get("horn", [])).override_failure_message(id + ": horn").is_not_empty()
+		assert_array(b.get("lights", [])).override_failure_message(id + ": lights").is_not_empty()
+	for id in ["kb_full", "kb_left", "kb_right", "pad_standard", "pad_left_hand", "pad_right_hand"]:
+		var b := Bindings.effective(id)
+		var seen := {}
+		for action: String in Bindings.DRIVING:
+			for r: Dictionary in b.get(action, []):
+				var key := JSON.stringify(r)
+				assert_bool(seen.has(key)).override_failure_message("%s: %s and %s share %s" % [id, seen.get(key, ""), action, key]).is_false()
+				seen[key] = action

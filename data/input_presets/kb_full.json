@@ -83,6 +83,16 @@
         "key": "F5"
       }
     ],
+    "horn": [
+      {
+        "key": "H"
+      }
+    ],
+    "lights": [
+      {
+        "key": "L"
+      }
+    ],
     "menu_up": [
       {
         "key": "Up"

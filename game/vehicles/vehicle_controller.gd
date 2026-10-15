@@ -84,6 +84,8 @@ func _physics_process(delta: float) -> void:
 	vehicle.brake = input.analog("brake")
 	vehicle.handbrake = input.analog("handbrake")
 	vehicle.clutch = input.analog("clutch")
+	vehicle.horn = input.held("horn")
+	vehicle.head_flash = input.held("lights")
 	_h_shifter()
 	if racer and racer.held:
 		# On the grid: the car waits on the handbrake (the brake would select reverse).
