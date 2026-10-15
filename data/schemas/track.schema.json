@@ -12,7 +12,7 @@
     "name": { "type": "string", "minLength": 1, "maxLength": 64 },
     "author": { "type": "string", "maxLength": 64 },
     "license": { "type": "string", "maxLength": 64 },
-    "type": { "enum": ["circuit", "highway"] },
+    "type": { "enum": ["circuit", "highway", "arena"] },
     "style": { "type": "string", "pattern": "^[a-z0-9_]+$", "maxLength": 32 },
     "road": {
       "type": "object",
@@ -197,6 +197,35 @@
         }
       }
     },
+    "kart": {
+      "description": "Kart pieces (D136, D137): stunts along the road (at_m) or, in an arena, anywhere (p, yaw_deg); item boxes automatic, placed or none.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "boxes": { "enum": ["auto", "placed", "none"] },
+        "stunts": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/stunt" } }
+      }
+    },
+    "arena": {
+      "description": "An arena's floor, wall, spawns and item box clusters (D138); empty lists are filled automatically.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "floor": { "$ref": "#/$defs/surface" },
+        "wall": { "$ref": "#/$defs/barrier" },
+        "wall_m": { "type": "number", "minimum": 0.3, "maximum": 6 },
+        "spawns": {
+          "type": "array", "maxItems": 32,
+          "items": { "type": "object", "additionalProperties": false, "required": ["p"],
+            "properties": { "p": { "$ref": "#/$defs/vec3" }, "yaw_deg": { "type": "number", "minimum": -360, "maximum": 360 } } }
+        },
+        "boxes": {
+          "type": "array", "maxItems": 16,
+          "items": { "type": "object", "additionalProperties": false, "required": ["p"],
+            "properties": { "p": { "$ref": "#/$defs/vec3" }, "count": { "type": "integer", "minimum": 1, "maximum": 8 } } }
+        }
+      }
+    },
     "ground": {
       "type": "object",
       "additionalProperties": false,
@@ -271,6 +300,25 @@
     }
   },
   "$defs": {
+    "stunt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["boost_pad", "item_row", "jump", "wall_ride", "loop"] },
+        "at_m": { "$ref": "#/$defs/distance" },
+        "lateral_m": { "type": "number", "minimum": -40, "maximum": 40 },
+        "p": { "$ref": "#/$defs/vec3" },
+        "yaw_deg": { "type": "number", "minimum": -360, "maximum": 360 },
+        "length_m": { "type": "number", "minimum": 1, "maximum": 400 },
+        "width_m": { "type": "number", "minimum": 0, "maximum": 40 },
+        "height_m": { "type": "number", "minimum": 0.2, "maximum": 12 },
+        "count": { "type": "integer", "minimum": 0, "maximum": 8 },
+        "side": { "enum": ["left", "right"] },
+        "radius_m": { "type": "number", "minimum": 7, "maximum": 14 }
+      }
+    },
     "label": { "type": "string", "maxLength": 48 },
     "speed": { "type": "number", "minimum": 20, "maximum": 300 },
     "barrier": { "enum": ["none", "auto", "tyres", "armco", "concrete", "fence", "sound_wall"] },

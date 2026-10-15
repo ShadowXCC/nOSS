@@ -23,16 +23,28 @@ static func build(data: TrackData, ground: TerrainData = null, opts := {}) -> No
 		scene.build(b.root, b.visual)
 	else:
 		b._ground()
-	var road := RoadBuilder.new(data, ground)
-	road.visual = b.visual
-	if opts.get("segmented", false):
-		var pieces := Node3D.new()
-		pieces.name = "Road"
-		b.root.add_child(pieces)
-		road.build_all(pieces, true)
+	if data.arena:
+		# An arena's outline is its wall, not a road (D138).
+		var arena_root := Node3D.new()
+		arena_root.name = "Road"
+		b.root.add_child(arena_root)
+		ArenaBuilder.build(data, arena_root, b.visual)
 	else:
-		road.build_all(b.root)
-	if data.gantry and data.samples.size() > 2:
+		var road := RoadBuilder.new(data, ground)
+		road.visual = b.visual
+		if opts.get("segmented", false):
+			var pieces := Node3D.new()
+			pieces.name = "Road"
+			b.root.add_child(pieces)
+			road.build_all(pieces, true)
+		else:
+			road.build_all(b.root)
+	if data.kart:
+		var stunts := Node3D.new()
+		stunts.name = "Stunts"
+		b.root.add_child(stunts)
+		StuntBuilder.build(data, stunts, b.visual)
+	if data.gantry and data.samples.size() > 2 and data.arena == null:
 		b._start_gantry()
 	var props := PropBuilder.new(data, ground)
 	props.visual = b.visual

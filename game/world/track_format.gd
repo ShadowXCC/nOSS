@@ -36,7 +36,7 @@ const BARRIER_AUTO := 1
 const BARRIER_TYRES := 2
 const BARRIER_CONCRETE := 4
 const BARRIER_SOUND_WALL := 6
-const TYPES := ["circuit", "highway"]
+const TYPES := ["circuit", "highway", "arena"]
 
 ## A highway's carriageways and traffic (type "highway", D106): lanes each way, counted from the
 ## outside; the median between the two directions; shoulders inside and out; the speed limit.
@@ -171,6 +171,38 @@ static func validate_highway(d: Dictionary) -> String:
 	return ""
 
 
+## Problems the schema can't see in the kart and arena sections ("" if none, D136-D138): stunts
+## along the road on circuits and anywhere in arenas, kinds that fit, unique ids, at most
+## KartLayout.MAX_BOXES item boxes.
+static func validate_kart(d: Dictionary) -> String:
+	var type := String(d.get("type", "circuit"))
+	if d.has("arena") and type != "arena":
+		return "$.arena: only on arena tracks"
+	if d.has("kart") and type == "highway":
+		return "$.kart: not on highways"
+	var ids := {}
+	var boxes := 0
+	for p: Dictionary in d.get("kart", {}).get("stunts", []):
+		var where := "$.kart.stunts.%s" % p.id
+		if ids.has(p.id):
+			return where + ": twice"
+		ids[p.id] = true
+		if type == "arena":
+			if not p.has("p") or p.has("at_m"):
+				return where + ": in an arena a piece has p, not at_m"
+			if not p.kind in KartLayout.ARENA_KINDS:
+				return where + ": a %s needs a road" % p.kind
+		elif not p.has("at_m") or p.has("p"):
+			return where + ": on a road a piece has at_m, not p"
+		if p.kind == "item_row":
+			boxes += int(p.count) if int(p.get("count", 0)) > 0 else 5
+	for b: Dictionary in d.get("arena", {}).get("boxes", []):
+		boxes += int(b.get("count", ArenaLayout.CLUSTER_BOXES))
+	if boxes > KartLayout.MAX_BOXES:
+		return "$.kart: more than %d item boxes" % KartLayout.MAX_BOXES
+	return ""
+
+
 ## A noss.track/0 file as noss.track/1: the same centreline (points [x, z(, y)] become set
 ## heights), one width, its start, sectors and checkpoints, the race grid and AI caution the
 ## game used then, flat grass, and its set pieces as props where they stood.
@@ -247,6 +279,9 @@ static func validate(d: Dictionary) -> String:
 	var highway := validate_highway(d)
 	if highway:
 		return highway
+	var kart := validate_kart(d)
+	if kart:
+		return kart
 	for group: Dictionary in d.get("props", {}).get("scatter", []):
 		var xf: Array = group.xf
 		if xf.size() % 4 != 0:
@@ -259,7 +294,8 @@ static func validate(d: Dictionary) -> String:
 
 ## A track's layout identity: its road and race setup (AI pins left out), so editing props or
 ## paint keeps lap records while moving a corner doesn't. A highway's carriageways and ramps
-## count too (its traffic doesn't); tracks without one hash as they always did.
+## count too (its traffic doesn't), and so do kart pieces and an arena; tracks without them hash
+## as they always did.
 static func layout_hash(d: Dictionary) -> String:
 	var race: Dictionary = d.get("race", {}).duplicate(true)
 	if race.get("ai") is Dictionary:
@@ -269,6 +305,11 @@ static func layout_hash(d: Dictionary) -> String:
 		var h: Dictionary = (d.highway as Dictionary).duplicate(true)
 		h.erase("traffic")
 		layout.highway = h
+	for key in ["kart", "arena"]:
+		if d.get(key) is Dictionary:
+			layout[key] = d[key]
+	if d.get("type") == "arena":
+		layout.type = "arena"
 	# Through JSON first: numbers come back as floats, as they do from a file, so a draft (16) and
 	# its saved track (16.0) hash the same.
 	var key := PackageWriter.canonical_json(JSON.parse_string(JSON.stringify(layout)))

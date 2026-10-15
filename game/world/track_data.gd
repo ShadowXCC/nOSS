@@ -30,12 +30,16 @@ var width := 12.0
 var raw := {}
 ## "road": built from the spline; "centreline": a fitted scene (the spline only guides).
 var kind := "road"
-## "circuit" or "highway" (TrackFormat.TYPES).
+## "circuit", "highway" or "arena" (TrackFormat.TYPES).
 var type := "circuit"
 ## A loop (every track's main road), or an open strip with two ends (a highway's ramps, D107).
 var closed := true
 ## A highway's carriageways, ramps and runs (D106); null on circuits.
 var highway: HighwayLayout
+## Kart pieces and item boxes (D136); null unless the track has a kart section, or is an arena.
+var kart: KartLayout
+## An arena's outline, floor, spawns and box clusters (D138); null on other tracks.
+var arena: ArenaLayout
 ## The ground it was laid on (for rebuilding a highway's ramps without resampling the road).
 var _ground := Callable()
 ## Built in (res://): records are keyed by id alone.
@@ -136,6 +140,7 @@ static func from_dict(data: Dictionary, ground_height := Callable()) -> TrackDat
 	t._read_race(data.get("race", {}))
 	if t.type == "highway" and t.samples.size() >= 3:
 		t.highway = HighwayLayout.build(t, TrackFormat.highway_settings(data), ground)
+	t._read_kart(data)
 	return t
 
 
@@ -152,7 +157,19 @@ func with_race(data: Dictionary) -> TrackData:
 	t._read_race(data.get("race", {}))
 	if highway:
 		t.highway = HighwayLayout.build(t, TrackFormat.highway_settings(data), _ground)
+	t._read_kart(data)
 	return t
+
+
+func _read_kart(data: Dictionary) -> void:
+	arena = null
+	kart = null
+	if samples.size() < 3:
+		return
+	if type == "arena":
+		arena = ArenaLayout.build(self, data.get("arena", {}))
+	if data.has("kart") or arena:
+		kart = KartLayout.build(self, data.get("kart", {}))
 
 
 func _read_race(race: Dictionary) -> void:

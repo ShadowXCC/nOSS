@@ -147,7 +147,7 @@ func _batches(first: int, end: int) -> Dictionary:
 			else:
 				_lines(_batch(out, "lines"), k, j)
 		for side: float in [1.0, -1.0]:
-			if (track.curb_l if side > 0.0 else track.curb_r)[k]:
+			if (track.curb_l if side > 0.0 else track.curb_r)[k] and not _gapped(k, side):
 				_curb(_batch(out, "curbs"), k, j, side)
 			var runoff := int((track.runoff_l if side > 0.0 else track.runoff_r)[k])
 			if runoff != _ground_surface() and (track.runoff_l_m if side > 0.0 else track.runoff_r_m)[k] > 0.1 and not _gapped(k, side) and not _gapped(j, side):
@@ -163,7 +163,7 @@ func _batches(first: int, end: int) -> Dictionary:
 
 ## True where `side` of sample `k` opens onto another road (a highway's ramp mouths).
 func _gapped(k: int, side: float) -> bool:
-	return _hw != null and _hw.gapped(k, side)
+	return (_hw != null and _hw.gapped(k, side)) or (track.kart != null and track.kart.gap(k, side))
 
 
 func _batch(out: Dictionary, key: String) -> MeshBatch:
