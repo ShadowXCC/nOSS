@@ -135,7 +135,7 @@ func test_units_close_in_and_heat_four_brings_a_roadblock() -> void:
 	# A roadblock ahead: every lane but the outer one closed, two units parked across.
 	assert_bool(pc._blocks.has(p)).is_true()
 	var b: Dictionary = pc._blocks[p]
-	assert_array(b.closures as Array).is_empty() # no traffic in this session: nothing to close
+	assert_int((b.closures as Array).size()).is_equal(s.track.highway.lanes - 1) # all but the outer lane
 	assert_int((b.units as Array).size()).is_equal(2)
 	assert_int(pc.roadblocks).is_equal(1)
 	# The chasing unit closes in on the autodriven player.

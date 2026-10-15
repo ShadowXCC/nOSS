@@ -105,7 +105,9 @@ func _server_tick(delta: float) -> void:
 		var t := traffic
 		print("NETCHECK_SERVER " + JSON.stringify({ "promotions": t.promotions, "demotions": t.demotions, "tows": t.tows, "wrecks": t.wrecks,
 			"handovers": handovers, "events": _events_sent, "full_sent": resyncs, "server_owned": session.net.traffic_owned.size(),
-			"physics": t.cars.size(), "lead_ticks": t.lead, "tick": t.sim.get_tick() }))
+			"physics": t.cars.size(), "lead_ticks": t.lead, "tick": t.sim.get_tick(),
+			"pursuits": session.police.pursuits if session.police else 0, "busts": session.police.busts if session.police else 0,
+			"evades": session.police.evades if session.police else 0, "roadblocks": session.police.roadblocks if session.police else 0 }))
 	_lead_time += delta
 	if _lead_time >= 1.0:
 		_lead_time = 0.0

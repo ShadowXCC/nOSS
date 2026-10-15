@@ -227,6 +227,8 @@ func _exit_tree() -> void:
 		Net.content.car_changed.disconnect(_on_net_car)
 	if Net.board_received.is_connected(_on_board_received):
 		Net.board_received.disconnect(_on_board_received)
+	if Net.highway_event.is_connected(_on_highway_event):
+		Net.highway_event.disconnect(_on_highway_event)
 	if Net.host_logic and Net.host_logic.board_requested.is_connected(_on_board_requested):
 		Net.host_logic.board_requested.disconnect(_on_board_requested)
 	Engine.time_scale = 1.0
@@ -354,7 +356,8 @@ func _ready_highway() -> void:
 			return
 		seed = int(hw.seed)
 		count = int(hw.count) if int(hw.count) >= 0 else int(settings.count)
-	if count > 0:
+	# The lane sim runs even with traffic off: autodrive, bots and police drive by its lanes.
+	if count >= 0:
 		traffic = TrafficManager.new()
 		traffic.name = "Traffic"
 		traffic.session = self
@@ -419,6 +422,7 @@ func _ready_online() -> void:
 		if Net.host_logic:
 			Net.host_logic.board_requested.connect(_on_board_requested)
 		Net.board_received.connect(_on_board_received)
+		Net.highway_event.connect(_on_highway_event)
 	if traffic:
 		var hn := HighwayNet.new()
 		hn.name = "HighwayNet"
@@ -720,6 +724,46 @@ func close_results() -> void:
 
 func _on_board_received(board: String, entries: Array) -> void:
 	server_boards[board] = entries
+
+
+## Online client: one of the server's police units, shown from its states.
+func add_police_proxy(id: int) -> NetRacer:
+	var r := NetRacer.new()
+	r.net_id = id
+	r.peer = 1
+	r.display_name = "Police"
+	r.color = PoliceRacer.COLOR
+	r.is_human = false
+	r.name = "Net%d" % id
+	r.number = 50 + id - NetProtocol.FIRST_POLICE_ID
+	r.spawn_at = Transform3D(Basis(), Vector3(0, -500.0, 0))
+	_add_racer(r)
+	r.default_car = PoliceRacer.CAR
+	r.load_net_car()
+	net.add(r, false)
+	return r
+
+
+## Online client: police news for one of this game's cars (heat, busted, evaded).
+func _on_highway_event(data: Dictionary) -> void:
+	for p in players:
+		if p.net_id != int(data.id):
+			continue
+		var panel := p.hud.get_node_or_null(^"HeatPanel") as HeatPanel
+		if panel == null:
+			panel = HeatPanel.new()
+			panel.name = "HeatPanel"
+			p.hud.add_child(panel)
+		panel.show_heat(int(data.level), float(data.evading))
+		if String(data.text):
+			p.notify(String(data.text), 2.5)
+			if Narrator.race_on(p.slot.profile):
+				Narrator.say(String(data.text))
+		if data.kind == "busted":
+			var score := get_node_or_null(^"HighwayScore") as HighwayScore
+			if score:
+				score.rules_for(p).contact(INF, 0.0)
+			highway.reset(p)
 
 
 ## Server: a client asked for one of this server's boards for this track.

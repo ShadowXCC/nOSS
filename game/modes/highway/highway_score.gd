@@ -52,7 +52,8 @@ func _physics_process(delta: float) -> void:
 
 ## Who's scored here: this game's players; on a server, every player's car.
 func _scored() -> Array:
-	var out: Array = session.players.duplicate()
+	var out: Array = []
+	out.append_array(session.players) # a plain array: other games' cars go in too
 	if Net.is_server():
 		for r in session.racers:
 			if r is NetRacer and r.is_human:

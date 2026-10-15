@@ -24,6 +24,8 @@ signal race_message(type: int, data: Dictionary)
 signal traffic_full(data: Dictionary)
 ## One of the server's boards for this session's track (D118): [{name, car, time or score}].
 signal board_received(board: String, entries: Array)
+## Police news for one of this game's cars (D115): {id, kind (heat, busted, evaded), level, evading, text}.
+signal highway_event(data: Dictionary)
 
 const CHAT_KEEP := 100
 
@@ -403,6 +405,11 @@ func _handle(type: int, data: Dictionary) -> void:
 		NetProtocol.Msg.TRAFFIC_FULL:
 			if not session.is_empty():
 				traffic_full.emit(data)
+		NetProtocol.Msg.HW_EVENT:
+			if NetProtocol.has_fields(data, { "id": TYPE_INT, "kind": [TYPE_STRING, 16], "level": TYPE_INT, "evading": TYPE_FLOAT, "text": [TYPE_STRING, 64] }) \
+					and data.kind in ["heat", "busted", "evaded"]:
+				highway_event.emit({ "id": data.id, "kind": data.kind, "level": clampi(data.level, 0, 5), "evading": clampf(data.evading, 0.0, 1.0),
+					"text": NetChat.clean(String(data.text)) })
 		NetProtocol.Msg.BOARD:
 			if NetProtocol.has_fields(data, { "board": [TYPE_STRING, 160], "entries": [TYPE_ARRAY, Leaderboard.KEEP] }):
 				var entries := (data.entries as Array).filter(func(e: Variant) -> bool: return e is Dictionary).map(func(e: Dictionary) -> Dictionary:

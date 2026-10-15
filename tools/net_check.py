@@ -100,6 +100,7 @@ def main(argv=None):
     p.add_argument("--traffic", type=int, default=150, help="highway: traffic cars")
     p.add_argument("--dirs", choices=["same", "opposite"], default="same", help="highway: players start one way, or turn about")
     p.add_argument("--sub", choices=["cruise", "score", "loop"], default="cruise", help="highway: the sub-mode")
+    p.add_argument("--police", action="store_true", help="highway: police on (the bots speed, so they get chased)")
     p.add_argument("--desync", action="store_true", help="highway: the first bot's traffic goes out of step once (it must resync)")
     p.add_argument("--laps", type=int, default=3)
     p.add_argument("--ai", type=int, default=0, help="AI cars the server adds (races)")
@@ -134,7 +135,7 @@ def main(argv=None):
     builtin_track = (ROOT / "content" / "tracks" / args.track).is_dir()
     event = {"kind": args.event}
     if highway:
-        event.update({"sub": args.sub, "traffic": args.traffic, "direction": 0 if args.dirs == "opposite" else 1})
+        event.update({"sub": args.sub, "traffic": args.traffic, "direction": 0 if args.dirs == "opposite" else 1, "police": args.police})
     if args.event == "race":
         event.update({"practice_min": 5 if args.fresh else 0, "qualifying_min": 0, "race_laps": args.laps,
                       "ai_count": args.ai, "grid": "random", "start": "standing",
@@ -191,6 +192,7 @@ def main(argv=None):
         n = 4 if i >= args.clients else 1
         cheat = [f"--cheat={args.cheat}"] if args.cheat and i == 0 else []
         cheat += ["--traffic-desync"] if args.desync and i == 0 else []
+        cheat += ["--speed-factor=1.4"] if args.police else []
         bots.append(start(f"bot{i:02d}", ["--bot", f"--connect=127.0.0.1:{port}", f"--players={n}",
                                           f"--bot-fps={args.bot_fps}"] + quit_flag + cheat))
         time.sleep(0.2)
@@ -284,6 +286,8 @@ def main(argv=None):
                 fails.append(f"{name}: its lane sim fell behind ({t['tick_rate_min']:.0f} ticks/s)")
         if server_stats:
             print("server traffic: " + ", ".join(f"{k} {v}" for k, v in server_stats.items()))
+            if args.police and server_stats.get("pursuits", 0) < 1:
+                fails.append("police on, but no chase began")
         else:
             fails.append("the server reported no traffic")
     for name, ms in sorted(track_ms.items()):

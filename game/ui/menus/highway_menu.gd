@@ -1,8 +1,8 @@
 class_name HighwayMenu
 extends Control
-## A highway event (docs/GAMEMODES.md §3, MODE-03): the sub-mode (Cruise, Score attack, Run,
-## Loop), the traffic, which way round to start (named from the track: clockwise or
-## anticlockwise, or both ways in turn), and for a run, which one. Every control is named and in
+## A highway event (docs/GAMEMODES.md §3, MODE-03, MODE-04): the sub-mode (Cruise, Score attack,
+## Run, Loop), the traffic, the police, which way round to start (named from the track: clockwise
+## or anticlockwise, or both ways in turn), and for a run, which one. Every control is named and in
 ## the focus order; the last settings are remembered.
 
 signal picked(event: RaceEvent)
@@ -52,6 +52,8 @@ func _build(focus := "") -> void:
 	if not counts.any(func(c: Array) -> bool: return c[0] == event.traffic):
 		counts.append([event.traffic, str(event.traffic)])
 	_add(UiKit.spinner("Traffic", counts, event.traffic, func(v: int) -> void: event.traffic = v, "Cars on the road"))
+	_add(UiKit.spinner("Police", [[false, "Off"], [true, "On"]], event.police, func(v: bool) -> void: event.police = v,
+		"Speed traps; speed, near misses and crashes in their sight bring a chase"))
 	if event.sub == "run":
 		var runs := _runs()
 		if runs.is_empty():

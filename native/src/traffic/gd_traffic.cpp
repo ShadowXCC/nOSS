@@ -460,8 +460,8 @@ PackedFloat32Array NossTraffic::follow(int64_t p_lane, double p_s_hint, double p
 	if (!_ready) {
 		return controls(traffic::DriveOut());
 	}
-	double v0 = std::min(p_speed_max, lane_limit(p_lane, p_s_hint >= 0.0 ? p_s_hint : 0.0));
-	return controls(traffic::follow(_sim, int(p_lane), p_s_hint >= 0.0 ? int64_t(std::llround(p_s_hint * 1000.0)) : -1, v0,
+	// `p_speed_max` as asked: a caller over the lane's limit means it (autodrive told to hurry, police).
+	return controls(traffic::follow(_sim, int(p_lane), p_s_hint >= 0.0 ? int64_t(std::llround(p_s_hint * 1000.0)) : -1, p_speed_max,
 			drive_in(-1, p_member, p_at, p_forward, p_speed, p_wheelbase, p_max_steer, p_half), members_of(p_members)));
 }
 

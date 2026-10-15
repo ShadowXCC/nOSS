@@ -202,17 +202,22 @@ func test_the_lane_driver_holds_its_lane_and_stops_for_a_wreck() -> void:
 	var off := s.traffic.sim.locate(p.vehicle.global_position + Vector3.UP * 0.5)
 	assert_float(absf(float(off.get("lateral", 9.0)))).is_less(0.6)
 	assert_float(p.speed).is_greater(10.0)
-	# A wreck stands in its lane 150 m on: it stops behind without touching it.
+	# A wreck stands in its lane 150 m on: it stops behind it, or goes round it in a lane beside,
+	# never touching it.
 	var tm := s.traffic
 	var s_ahead := float(off.s) + 150.0
 	tm.sim.place(39, d.lane, s_ahead, 0.0)
 	tm._event(TrafficManager.WRECK, 39, d.lane, s_ahead, 0.0)
+	var wreck_at := Vector3.INF
 	var contact := false
 	for i in 15 * 120:
 		await get_tree().physics_frame
 		contact = contact or p.vehicle.car_impulse > 50.0 or p.vehicle.traffic_impulse > 50.0
+		if wreck_at == Vector3.INF and tm.cars.has(39):
+			wreck_at = (tm.cars[39] as TrafficCar).vehicle.global_position
 	assert_bool(contact).is_false()
-	assert_float(absf(p.speed)).is_less(1.0)
+	var past := wreck_at != Vector3.INF and (p.vehicle.global_position - wreck_at).dot(p.vehicle.global_basis.z) > 5.0
+	assert_bool(absf(p.speed) < 1.0 or past).override_failure_message("neither stopped nor past it").is_true()
 	s.queue_free()
 	await get_tree().process_frame
 

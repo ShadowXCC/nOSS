@@ -45,6 +45,7 @@ var _knocked := {} # Racer -> time of the last crash or ram counted
 var _blocks := {} # Racer -> {closures, at_m, units}
 var _clock := 0.0
 var _placed := false
+var _told := {} # NetRacer -> [level, evading] last sent to its game
 
 
 func _ready() -> void:
@@ -71,7 +72,8 @@ func _make_units() -> void:
 
 ## Who has heat: this game's players offline; on a server, every player's car.
 func players() -> Array:
-	var out: Array = session.players.duplicate()
+	var out: Array = []
+	out.append_array(session.players) # a plain array: other games' cars go in too
 	if Net.is_server():
 		for r in session.racers:
 			if r is NetRacer and r.is_human:
@@ -157,8 +159,20 @@ func _watch(p: Racer, delta: float) -> void:
 			h.seen("crash")
 	else:
 		(_miss[p] as NearMiss).step([], _clock)
+	# A remote car's knocks come from its game: a crash as its states say, a ram as relayed.
+	if v.remote:
+		var knocked := v.remote_state != null and v.remote_state.flags & CarState.FLAG_KNOCK != 0
+		if seen and knocked and _clock - float(_knocked.get(p, -INF)) > KNOCK_AGAIN_S:
+			_knocked[p] = _clock
+			h.seen("crash")
+		for u in units:
+			if session.net and session.net.touched(p.net_id, u.net_id, 0.3):
+				close = true
+				if _clock - float(_knocked.get(p, -INF)) > KNOCK_AGAIN_S:
+					_knocked[p] = _clock
+					h.seen("ram")
 	# A ram into a unit (seen or not: it's right there).
-	if v.last_hit and v.car_impulse > RAM_NS and units.any(func(u: PoliceRacer) -> bool: return u.vehicle == v.last_hit):
+	elif v.last_hit and v.car_impulse > RAM_NS and units.any(func(u: PoliceRacer) -> bool: return u.vehicle == v.last_hit):
 		close = true
 		if _clock - float(_knocked.get(p, -INF)) > KNOCK_AGAIN_S:
 			_knocked[p] = _clock
@@ -314,8 +328,19 @@ func _open_roadblock(p: Racer) -> void:
 	_blocks.erase(p)
 
 
-## What changed for `p`: a caption (and narration) for this game's players, and the heat meter.
+## What changed for `p`: a caption (and narration) for this game's players, and the heat meter;
+## online, the same for another game's player goes to that game (HW_EVENT).
 func _tell(p: Racer, h: Heat) -> void:
+	if p is NetRacer:
+		var sent: Array = _told.get(p, [-1, -1.0])
+		var evading := snappedf(h.evading(), 0.1)
+		if not h.news.is_empty() or h.level() != int(sent[0]) or evading != float(sent[1]):
+			_told[p] = [h.level(), evading]
+			var news: Dictionary = h.news.back() if not h.news.is_empty() else { "kind": "heat", "text": "" }
+			Net.server.send((p as NetRacer).peer, NetProtocol.Msg.HW_EVENT, { "id": p.net_id, "kind": String(news.kind),
+				"level": h.level(), "evading": evading, "text": String(news.text) })
+		h.news.clear()
+		return
 	for n: Dictionary in h.news:
 		p.notify(String(n.text), 2.5)
 		if p is SessionPlayer and Narrator.race_on((p as SessionPlayer).slot.profile):

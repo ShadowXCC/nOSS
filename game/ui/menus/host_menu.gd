@@ -14,6 +14,7 @@ var config := ServerConfig.defaults()
 var _kind := "free"
 var _track := TrackLibrary.DEFAULT
 var _traffic := 150
+var _police := false
 var _rows: Array = []
 var _status: Label
 var _race_settings: Button
@@ -36,6 +37,7 @@ func _ready() -> void:
 	_kind = config.event(0).kind
 	if _kind == "highway" and config.event(0).traffic >= 0:
 		_traffic = config.event(0).traffic
+	_police = _kind == "highway" and config.event(0).police
 	_track = TrackLibrary.resolve(String(config.rotation[0].get("track", "")))
 	_list = UiKit.panel(self, "Host", 860)
 	_build()
@@ -93,6 +95,7 @@ func _build(focus := "") -> void:
 		func(path: String) -> void: _track = path, "Players without it get it from you"))
 	if _kind == "highway":
 		_add(rows, UiKit.spinner("Traffic", TRAFFIC, _traffic, func(n: int) -> void: _traffic = n, "Cars on the road"))
+		_add(rows, UiKit.spinner("Police", [[false, "Off"], [true, "On"]], _police, func(v: bool) -> void: _police = v, "Speed traps and chases"))
 	else:
 		_race_settings = UiKit.button("Race settings", _open_event, "Sessions, laps, AI and rules")
 		_add(rows, _race_settings)
@@ -131,7 +134,7 @@ func _open_event() -> void:
 
 
 func _host() -> void:
-	var e := Settings.last_event() if _kind == "race" else RaceEvent.highway("cruise", false, _traffic) if _kind == "highway" else RaceEvent.free_drive()
+	var e := Settings.last_event() if _kind == "race" else RaceEvent.highway("cruise", _police, _traffic) if _kind == "highway" else RaceEvent.free_drive()
 	config.rotation[0]["track"] = _track
 	config.rotation[0]["event"] = e.to_dict()
 	var saved := config.to_dict()

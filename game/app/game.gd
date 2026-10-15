@@ -5,6 +5,7 @@ extends Node
 ##   --car=<path>         car package for --drive
 ##   --platform=<id>      platform class for --drive, e.g. official.highway.street
 ##   --autodrive          let the racing AI drive the players (tests, screenshots)
+##   --speed-factor=<x>   highways: autodriven players go x times the lanes' limits (police checks)
 ##   --players=<n>        free drive with n players; the extra ones are driven by the racing AI
 ##   --ai=<n>             add n AI racers (no views); --ai-skill=<0-100>, --ai-builtin: built-in cars only
 ##   --race               start a race right away (the last race set up); --race-laps=<n>, --race-ai=<n>

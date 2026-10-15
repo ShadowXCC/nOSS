@@ -446,8 +446,16 @@ func _on_client_raw(bytes: PackedByteArray) -> void:
 					_traffic_state(s, t)
 					continue
 				var r: NetRacer = racers.get(s.id) as NetRacer
+				if r == null and s.id >= NetProtocol.FIRST_POLICE_ID and session.highway:
+					r = session.add_police_proxy(s.id) # the server's police: known by their first state
 				if r:
 					r.push_state(s, t)
+
+
+## True if cars `a` and `b` touched (a knock relayed between their games) in the last `within` s.
+func touched(a: int, b: int, within: float) -> bool:
+	var t := now()
+	return t - float(_contact_routed.get("%d:%d" % [a, b], -INF)) < within or t - float(_contact_routed.get("%d:%d" % [b, a], -INF)) < within
 
 
 ## A state of a traffic car another game drives: to its proxy here.
