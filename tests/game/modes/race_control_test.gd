@@ -266,3 +266,37 @@ func test_online_race_waits_then_five_lights() -> void:
 	assert_int(_race.light_count).is_equal(RaceControl.LIGHTS)
 	_step(RaceControl.LIGHTS * RaceControl.LIGHT_S + 1.5)
 	assert_int(_race.phase).is_equal(RaceControl.Phase.RUNNING)
+
+
+## The start's tones (Changes.md): a beep for each light and the go tone when they go out, five
+## and one for a standing start, three and one for an online start, the go tone at a rolling
+## start's green, and nothing for offline free drive.
+func test_start_tones_follow_the_lights() -> void:
+	var tones: StartTones = auto_free(StartTones.new())
+	tones.race = _race
+	add_child(tones)
+	var run := func(seconds: float) -> void:
+		for i in roundi(seconds / 0.05):
+			_race._physics_process(0.05)
+			tones._process(0.05)
+	_race.begin("race")
+	run.call(10.0)
+	assert_int(_race.phase).is_equal(RaceControl.Phase.RUNNING)
+	assert_array([tones.beeps, tones.gos]).is_equal([5, 1])
+	_race.event.kind = "free"
+	_race.begin("free")
+	run.call(5.0)
+	assert_array([tones.beeps, tones.gos]).is_equal([5, 1])
+	_session.online = { "track": "t" }
+	_race.begin("free")
+	run.call(10.0)
+	assert_array([tones.beeps, tones.gos]).is_equal([8, 2])
+	# A rolling start's green.
+	_race.phase = RaceControl.Phase.FORMATION
+	tones._process(0.05)
+	_race._go()
+	tones._process(0.05)
+	assert_int(tones.gos).is_equal(3)
+	var beep := StartTones.stream("beep")
+	assert_int(beep.data.size()).is_equal(int(EngineSound.RATE * StartTones.BEEP_S) * 2)
+	assert_int(beep.loop_mode).is_equal(AudioStreamWAV.LOOP_DISABLED)

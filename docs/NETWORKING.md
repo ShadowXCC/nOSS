@@ -72,7 +72,7 @@ connect ─► join checks (versions, key, password, bans, room)
 | Thing | Authority | Method |
 |---|---|---|
 | **Player cars** | Owning client | The client simulates its own car. The server checks it's plausible (§8). |
-| AI cars | Server | The server's AI drives them; sent like player cars (D88) |
+| AI cars | Server | The server's AI drives them; sent like player cars (D88), each with its paint job in the roster (D128) |
 | Session state, timing, results | Server | `RaceControl` on the server; clients mirror its state (below) |
 | Kart items | Server | (M8) The server spawns item entities. The victim's client reports a hit; the server validates it. |
 | Police | Server | The server runs the police units (ids from 300), sent like player cars; clients know them by their first state. Heat, busts and evades go to each player's game (HW_EVENT, D115). |

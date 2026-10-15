@@ -215,6 +215,11 @@ func _ready() -> void:
 		net_race.session = self
 		add_child(net_race)
 	race.start()
+	if not dedicated and not Game.dev.has("bot"):
+		var tones := StartTones.new()
+		tones.name = "StartTones"
+		tones.race = race
+		add_child(tones)
 	apply_game_speed()
 	if event.kind == "time_trial":
 		time_trial = TimeTrial.new()

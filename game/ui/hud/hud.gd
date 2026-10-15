@@ -57,6 +57,10 @@ var _show_slip := false
 var _show_arrows := false
 var _reduce_flashing := false
 var _grinds := 0
+## The start lights show green this long when they go out (or at a rolling start's green).
+const GO_SHOW_S := 1.0
+var _go_time := 0.0
+var _race_phase := -1
 ## F3 toggles a frame-rate readout.
 var show_fps := false
 var high_contrast := false
@@ -260,7 +264,7 @@ func _process(delta: float) -> void:
 		_slip.visible = _show_slip and shows("speed")
 		if _slip.visible:
 			_slip.wheels = t.wheels
-	_update_race()
+	_update_race(delta)
 	if timer:
 		var session := race.session_text(racer) if race and racer else ""
 		_lap.text = session if session else ("Lap %d" % timer.lap if timer.lap > 0 else "Out lap")
@@ -283,14 +287,20 @@ func _process(delta: float) -> void:
 
 
 ## Position, gaps, standings, flag, lights and the live delta (race sessions).
-func _update_race() -> void:
+func _update_race(delta := 0.0) -> void:
 	var racing := race != null and racer != null and race.kind in ["race", "practice", "qualifying"]
 	_position.visible = racing and shows("position")
 	_gaps.visible = racing and race.kind == "race" and shows("position")
 	_standings.visible = racing and shows("standings")
 	_flag.flag = racer.flag if racer and shows("flags") else ""
+	var phase := race.phase if race else -1
+	if phase == RaceControl.Phase.RUNNING and _race_phase in [RaceControl.Phase.COUNTDOWN, RaceControl.Phase.FORMATION]:
+		_go_time = GO_SHOW_S
+	_race_phase = phase
+	_go_time -= delta
 	_lights.count = race.light_count if race else RaceControl.LIGHTS
-	_lights.lit = race.lights if race and race.phase == RaceControl.Phase.COUNTDOWN else 0
+	_lights.go = _go_time > 0.0
+	_lights.lit = race.lights if phase == RaceControl.Phase.COUNTDOWN else _lights.count if _lights.go else 0
 	_lights.visible = _lights.lit > 0
 	var syncing := race.sync_text() if race else ""
 	if syncing:
@@ -447,15 +457,22 @@ class FlagPanel:
 		draw_string(font, Vector2(icon.end.x + 16, size.y * 0.5 + fs * 0.35), WORDS.get(flag, ""), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
 
 
-## Start lights (five for a race, three for an online start), lit one per second. They never
-## flash; with Reduce flashing they're also dimmer against the plate.
+## Start lights (five for a race, three for an online start), red one per second, then all
+## green for a moment when they go out. They never flash; with Reduce flashing they're also
+## dimmer against the plate.
 class Lights:
 	extends Control
 	var lit := 0:
 		set(value):
 			if value != lit:
 				lit = value
-				accessibility_name = "%d of %d" % [lit, count]
+				accessibility_name = "Go" if go else "%d of %d" % [lit, count]
+				queue_redraw()
+	var go := false:
+		set(value):
+			if value != go:
+				go = value
+				accessibility_name = "Go" if go else "%d of %d" % [lit, count]
 				queue_redraw()
 	var count := 5:
 		set(value):
@@ -473,7 +490,7 @@ class Lights:
 		for i in count:
 			var center := Vector2(size.x * (i + 0.5) / float(count), size.y * 0.5)
 			var on := i < lit
-			var col := Color(0.95, 0.12, 0.1) if on else Color(0.2, 0.2, 0.22)
+			var col := (Color(0.15, 0.85, 0.25) if go else Color(0.95, 0.12, 0.1)) if on else Color(0.2, 0.2, 0.22)
 			if on and reduce_flashing:
 				col = col.darkened(0.3)
 			draw_circle(center, r, col)
