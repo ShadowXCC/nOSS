@@ -61,6 +61,8 @@ func controls(delta: float) -> Dictionary:
 	var p := v.platform
 	var e := v.fitted.envelope
 	var limit := tm.sim.lane_limit(lane, maxf(_s, 0.0)) * speed_factor
+	if racer.pace_limit > 0.0:
+		limit = minf(limit, racer.pace_limit) # a run's rolling start
 	var out := tm.sim.follow(lane, _s, limit, tm.member_id(racer), pos, v.global_basis.z, v.speed(),
 		float(p.geometry.wheelbase_m.ref), deg_to_rad(float(p.steering.max_road_angle_deg)), Vector2(e.size.z / 2.0, e.size.x / 2.0), tm.members())
 	_s = out[5]

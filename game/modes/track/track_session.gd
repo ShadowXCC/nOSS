@@ -98,6 +98,8 @@ var net: NetSession
 ## traffic; null otherwise.
 var highway: HighwayControl
 var highway_field: HighwayField
+## A highway run's start, checkpoints and finish (event.sub == "run").
+var run: RunControl
 var traffic: TrafficManager
 ## Dev and tests: the traffic's seed (-1: the track's).
 var traffic_seed := -1
@@ -318,6 +320,22 @@ func _ready_highway() -> void:
 	highway.layout = track.highway
 	highway.event = event
 	add_child(highway)
+	match event.sub:
+		"score":
+			var score := HighwayScore.new()
+			score.name = "HighwayScore"
+			score.session = self
+			add_child(score)
+		"run":
+			var runs: Array = track.highway.runs.filter(func(r: Dictionary) -> bool: return event.run.is_empty() or r.id == event.run)
+			if not runs.is_empty():
+				run = RunControl.new()
+				run.name = "RunControl"
+				run.session = self
+				run.layout = track.highway
+				run.run = runs[0]
+				run.done.connect(_on_run_done)
+				add_child(run)
 	var settings: Dictionary = track.highway.settings.traffic
 	var count := event.traffic if event.traffic >= 0 else int(settings.count)
 	var seed := traffic_seed if traffic_seed >= 0 else int(Game.dev.get("traffic-seed", settings.get("seed", 1)))
@@ -680,6 +698,29 @@ func close_results() -> void:
 	_close_results()
 
 
+## A highway run is done: its results on the main window; Restart lines everyone up again.
+func _on_run_done(rows: Array) -> void:
+	if dedicated or Game.dev.has("quit-after-results"):
+		print("Run results: %s" % ", ".join(PackedStringArray(rows.map(func(row: Dictionary) -> String: return "%d %s" % [row.position, row.name]))))
+		if Game.dev.has("quit-after-results"):
+			get_tree().quit()
+		return
+	results_menu = ResultsMenu.new()
+	results_menu.kind = "race"
+	results_menu.results = rows
+	results_menu.mode = "local"
+	results_menu.restarted.connect(func() -> void:
+		_close_results()
+		run.begin())
+	results_menu.quit_to_title.connect(func() -> void: Game.go_title())
+	var layer: CanvasLayer = $ResultsLayer
+	var window := get_viewport().get_visible_rect().size
+	var s := window.y / 1080.0 * Players.menu_text_scale()
+	layer.scale = Vector2(s, s)
+	results_menu.size = window / s
+	layer.add_child(results_menu)
+
+
 ## Players who left during the last session go before the next one.
 func _drop_leavers() -> void:
 	if net == null:
@@ -824,6 +865,11 @@ func _open_pause(p: SessionPlayer) -> void:
 		menu.ghost_picked.connect(time_trial.pick)
 		menu.leaderboard = Leaderboard.entries(track.record_key(), platform.platform.id)
 		menu.leaderboard_title = "%s · %s" % [track.display_name, platform.platform.name]
+	elif highway and highway.board(p):
+		var board := highway.board(p)
+		menu.leaderboard = Leaderboard.entries(track.record_key(), board)
+		menu.leaderboard_title = "%s · %s · %s" % [track.display_name, platform.platform.name, highway.board_name(p)]
+		menu.leaderboard_scores = Leaderboard.by_score(board)
 	menu.end_session.connect(func() -> void:
 		_resume(p)
 		race.end_session())

@@ -35,11 +35,13 @@ var can_restart := false
 ## The car's setup can be changed (not during a race).
 var can_setup := false
 var setup: Setup
-## Time trial: ghosts to race ([[id, label]]), the one shown, and the leaderboard's entries.
+## Time trial: ghosts to race ([[id, label]]), the one shown, and the leaderboard's entries
+## (highways too: a score, run or loop board; `leaderboard_scores` for points).
 var ghost_items: Array = []
 var ghost_current := ""
 var leaderboard: Array = []
 var leaderboard_title := ""
+var leaderboard_scores := false
 ## The mode's own items, after Reset car: [[text, callable, description]] (highways: Change
 ## direction).
 var extra_items: Array = []
@@ -66,7 +68,8 @@ func _ready() -> void:
 		_buttons.append(UiKit.button("Setup", _open_setup, "Gearing, brakes, suspension, aero"))
 	if not ghost_items.is_empty():
 		_buttons.append(UiKit.spinner("Ghost", ghost_items, ghost_current, func(id: String) -> void: ghost_picked.emit(id)))
-		_buttons.append(UiKit.button("Leaderboard", _open_leaderboard, "Your fastest laps here"))
+	if not ghost_items.is_empty() or leaderboard_title:
+		_buttons.append(UiKit.button("Leaderboard", _open_leaderboard, "Your best scores here" if leaderboard_scores else "Your fastest laps here"))
 	if can_end_session:
 		_buttons.append(UiKit.button("End session", func() -> void: end_session.emit(), "Results now"))
 	if can_restart:
@@ -115,6 +118,7 @@ func _open_leaderboard() -> void:
 	var menu := LeaderboardMenu.new()
 	menu.entries = leaderboard
 	menu.title = leaderboard_title
+	menu.scores = leaderboard_scores
 	UiKit.open_sub(self, menu, _ready_focus)
 
 

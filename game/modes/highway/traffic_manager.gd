@@ -102,6 +102,7 @@ var _promoter_ids := PackedInt32Array()
 var _hand := {} # car -> seconds another player has been clearly nearer
 var _hand_at := {} # car -> session time of its last handover
 var _clock := 0.0
+var _closure_id := 0
 
 
 ## The lane sim for `track`'s highway: `count` cars from `seed`. False (and why, pushed) if it
@@ -259,6 +260,57 @@ func _add_member(id: int, v: Vehicle) -> void:
 	var f := v.global_basis.z
 	var p := v.global_position
 	_members.append_array([id, p.x, p.y, p.z, f.x, f.z, v.speed(), e.size.z / 2.0, e.size.x / 2.0])
+
+
+## The traffic round car `v` (score attack, D114) as NearMiss rows: [id, gap (m, hull to hull),
+## along (m, its centre ahead of `v`'s), left (m), how much faster `v` is (m/s), half lengths
+## added]. Physics cars and proxies by their hulls; lane cars from the lane sim. Ids: the
+## lane-sim index either way.
+func near_rows(v: Vehicle, radius: float) -> Array:
+	var out := []
+	var env := v.fitted.envelope if v.fitted else AABB(Vector3(-0.9, 0, -2.2), Vector3(1.8, 1.4, 4.4))
+	var me := v.global_transform * env.get_center()
+	var fwd := Vector3(v.global_basis.z.x, 0.0, v.global_basis.z.z).normalized()
+	var left := Vector3(fwd.z, 0.0, -fwd.x)
+	var half := Vector2(env.size.z / 2.0, env.size.x / 2.0)
+	var speed := v.speed()
+	for car: int in cars:
+		var o := (cars[car] as TrafficCar).vehicle
+		if o == v:
+			continue
+		var oe := o.fitted.envelope if o.fitted else env
+		var oc := o.global_transform * oe.get_center()
+		var d := oc - me
+		if Vector2(d.x, d.z).length() > radius:
+			continue
+		var of := Vector3(o.global_basis.z.x, 0.0, o.global_basis.z.z).normalized()
+		var oh := Vector2(oe.size.z / 2.0, oe.size.x / 2.0)
+		var gap := NossTraffic.box_gap(me, fwd, half, oc, of, oh)
+		out.append([car, gap, d.dot(fwd), d.dot(left), speed - o.speed() * of.dot(fwd), half.x + oh.x])
+	var lane := sim.gaps(me, fwd, half, speed, radius)
+	for k in range(0, lane.size(), 5):
+		var car := int(lane[k])
+		var t: Dictionary = _types[_car_type[car]]
+		out.append([car, lane[k + 1], lane[k + 2], lane[k + 3], -lane[k + 4], half.x + float(t.length_m) / 2.0])
+	return out
+
+
+## Closes direction `dir`'s lane `lane` for `length` m from main-road distance `from_d` on, the
+## way it drives (a run's traffic break, a roadblock): traffic stops before it or moves over.
+## Returns the closure's id (for open_lanes), or -1.
+func close_lane(dir: int, lane: int, from_d: float, length: float) -> int:
+	var h := session.track.highway
+	var at := sim.locate(session.track.transform_at(from_d, h.lane_lateral(dir, lane)).origin + Vector3.UP * 0.5)
+	if int(at.get("lane", -1)) < 0:
+		return -1
+	_closure_id += 1
+	_event(CLOSE, _closure_id, int(at.lane), float(at.s), length)
+	return _closure_id
+
+
+## Opens closure `id` again.
+func open_lanes(id: int) -> void:
+	_event(OPEN, id)
 
 
 ## Where physics cars matter: every player's car (police come in M7's police step). Their car

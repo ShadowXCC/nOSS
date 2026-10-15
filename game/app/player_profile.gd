@@ -62,6 +62,8 @@ const DEFAULTS := {
 	"last_platform": "official.track.gt",
 	## The last track picked (a path; TrackLibrary).
 	"last_track": "",
+	## The last highway event set up (RaceEvent.to_dict; HighwayMenu).
+	"last_highway": {},
 }
 ## Dicts whose known keys are merged one by one; other dicts are taken whole.
 const NESTED := ["input", "assists", "presets"]

@@ -1,9 +1,11 @@
 class_name Leaderboard
 extends RefCounted
-## Local time-trial leaderboards (docs/GAMEMODES.md §6), one file per track:
-## user://leaderboards/<track>.json, a list per platform. Entries record the platform's id and
-## content hash, the game version, assists and setup. Only official platforms at full game
-## speed are listed (ACC-08: slower game speed never counts).
+## Local leaderboards (docs/GAMEMODES.md §6, D118), one file per track:
+## user://leaderboards/<track>.json, a list per board. A board is a platform's id (time-trial
+## laps), or a platform's id and what's timed or scored after "|": "|score" (score attack, most
+## points first), "|loop+1" and "|loop-1" (a highway loop's laps each way), "|run:<id>" (a run).
+## Entries record the platform's id and content hash, the game version, assists and setup. Only
+## official platforms at full game speed are listed (ACC-08: slower game speed never counts).
 
 const SCHEMA := "noss.leaderboard/1"
 const KEEP := 20
@@ -15,11 +17,30 @@ static func path_for(track_id: String) -> String:
 	return dir.path_join(track_id + ".json")
 
 
-## Fastest first.
-static func entries(track_id: String, platform_id: String) -> Array:
+## Best first (fastest, or the most points on a score board).
+static func entries(track_id: String, board: String) -> Array:
 	var data := _load(track_id)
-	var list: Variant = data.boards.get(platform_id, [])
+	var list: Variant = data.boards.get(board, [])
 	return list if list is Array else []
+
+
+## Whether `board` is ranked by points (most first) rather than time.
+static func by_score(board: String) -> bool:
+	return board.ends_with("|score")
+
+
+## An entry for `r`'s car now, with `values` ({time} or {score}): driver, car, platform and its
+## hash, the game's version, the assists it used, game speed, date.
+static func entry_of(r: Racer, values: Dictionary) -> Dictionary:
+	var v := r.vehicle
+	var out := {
+		"name": r.display_name, "car": v.package.display_name() if v and v.package else "", "platform": v.base_platform.get("id", "") if v else "",
+		"platform_hash": v.platform_hash if v else "", "version": ProjectSettings.get_setting("application/config/version"),
+		"assists": Array(PackedStringArray(r.assists_used.keys().filter(func(k: String) -> bool: return r.assists_used[k]))),
+		"game_speed": Engine.time_scale, "date": Time.get_datetime_string_from_system(),
+	}
+	out.merge(values, true)
+	return out
 
 
 ## Whether a lap may be listed: official platform, full game speed.
@@ -27,17 +48,21 @@ static func counts(entry: Dictionary) -> bool:
 	return String(entry.get("platform", "")).begins_with("official.") and is_equal_approx(float(entry.get("game_speed", 1.0)), 1.0)
 
 
-## Adds a lap; returns its place (1 = fastest), or 0 if it isn't listed.
-static func submit(track_id: String, entry: Dictionary) -> int:
+## Adds a lap (or a run's time, or a score) to `board` (the entry's platform if empty); returns
+## its place (1 = best), or 0 if it isn't listed.
+static func submit(track_id: String, entry: Dictionary, board := "") -> int:
 	if not counts(entry):
 		return 0
 	var data := _load(track_id)
-	var platform: String = entry.platform
-	var list: Array = data.boards.get(platform, [])
+	var key := board if board else String(entry.platform)
+	var list: Array = data.boards.get(key, [])
 	list.append(entry)
-	list.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a.time) < float(b.time))
+	if by_score(key):
+		list.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.score) > int(b.score))
+	else:
+		list.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a.time) < float(b.time))
 	var place := list.find(entry) + 1
-	data.boards[platform] = list.slice(0, KEEP)
+	data.boards[key] = list.slice(0, KEEP)
 	_save(track_id, data)
 	return place if place <= KEEP else 0
 

@@ -1,12 +1,15 @@
 class_name LeaderboardMenu
 extends Control
-## The local leaderboard for this track and class (docs/GAMEMODES.md §6): fastest laps with
-## driver, car and assists. Each line is focusable and reads in full to a screen reader.
+## A local leaderboard for this track and class (docs/GAMEMODES.md §6): fastest laps (or runs)
+## with driver, car and assists, or the most points (score attack). Each line is focusable and
+## reads in full to a screen reader.
 
 signal closed
 
 var entries: Array = []
 var title := ""
+## Points, not times (a score attack board).
+var scores := false
 
 
 func _ready() -> void:
@@ -28,15 +31,16 @@ func _ready() -> void:
 	scroll.add_child(rows)
 	var focusable: Array = []
 	if entries.is_empty():
-		rows.add_child(UiKit.label("No laps yet"))
+		rows.add_child(UiKit.label("No scores yet" if scores else "No laps yet"))
 	for i in entries.size():
 		var e: Dictionary = entries[i]
 		var assists := " ".join(PackedStringArray(e.get("assists", [])))
-		var text := "%d   %s   %s   %s%s" % [i + 1, Hud.format_time(float(e.time)), e.get("name", "?"), e.get("car", ""), "   " + assists if assists else ""]
+		var value := "%d points" % int(e.score) if scores else Hud.format_time(float(e.time))
+		var text := "%d   %s   %s   %s%s" % [i + 1, value, e.get("name", "?"), e.get("car", ""), "   " + assists if assists else ""]
 		var b := UiKit.button(text, func() -> void: pass)
 		b.flat = true
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.accessibility_name = "%d, %s, %s, %s%s" % [i + 1, Hud.format_time(float(e.time)), e.get("name", "?"), e.get("car", ""), ", assists: " + assists if assists else ""]
+		b.accessibility_name = "%d, %s, %s, %s%s" % [i + 1, value, e.get("name", "?"), e.get("car", ""), ", assists: " + assists if assists else ""]
 		rows.add_child(b)
 		focusable.append(b)
 	var back := UiKit.button("Back", func() -> void: closed.emit())

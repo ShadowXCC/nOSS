@@ -9,6 +9,7 @@ const START_BACK_M := 40.0
 const START_GAP_M := 30.0
 
 var session: TrackSession
+var _timed := {} # racers whose loop laps go on a board
 var layout: HighwayLayout
 var event: RaceEvent
 
@@ -18,7 +19,13 @@ func _ready() -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	if session.run and session.run.state.is_empty() and not session.players.is_empty() \
+			and session.players.all(func(p: SessionPlayer) -> bool: return p.vehicle != null):
+		session.run.begin() # everyone's here: line up
 	for r in session.racers:
+		if event.sub == "loop" and r is SessionPlayer and r.timer and not _timed.has(r):
+			_timed[r] = true
+			r.timer.lap_completed.connect(_on_lap.bind(r))
 		if r.vehicle == null or r.waiting or not is_instance_valid(r.vehicle) or r.vehicle.remote:
 			continue
 		var at: Dictionary = session.highway_field.at(r)
@@ -56,6 +63,43 @@ func _through_portal(r: Racer, exit: RampData) -> void:
 	r.vehicle.reset_to(at, t.tangents[k] * speed)
 	r.timer.invalidate("Off the road")
 	r.notify(String(layout.portals[best.from.portal].name), 1.5)
+
+
+## A loop lap done: on its direction's board (local games; a lap with a direction change, a
+## reset or a portal is no lap).
+func _on_lap(time: float, valid: bool, _best: bool, r: Racer) -> void:
+	if not valid or session.is_online() or not (r is SessionPlayer):
+		return
+	var place := Leaderboard.submit(session.track.record_key(), Leaderboard.entry_of(r, { "time": time }), board(r as SessionPlayer))
+	if place == 1:
+		r.notify("Best lap %s" % _way(r.direction).to_lower(), 2.5)
+
+
+## Player `p`'s leaderboard in this event ("" if none): score attack's, the run's, or the loop's
+## for the way they're going.
+func board(p: SessionPlayer) -> String:
+	match event.sub:
+		"score":
+			return session.platform_id + "|score"
+		"run":
+			return "%s|run:%s" % [session.platform_id, session.run.run.id] if session.run else ""
+		"loop":
+			return "%s|loop%+d" % [session.platform_id, p.direction]
+	return ""
+
+
+## What `board(p)` is, in words.
+func board_name(p: SessionPlayer) -> String:
+	match event.sub:
+		"score":
+			return "Score attack"
+		"run":
+			return String(session.run.run.name) if session.run else "Run"
+	return "Laps, " + _way(p.direction).to_lower()
+
+
+func _way(dir: int) -> String:
+	return "Clockwise" if layout.clockwise(dir) else "Anticlockwise"
 
 
 ## Player `i`'s start: on the shoulder of direction `dir`'s carriageway behind the lap line, in
