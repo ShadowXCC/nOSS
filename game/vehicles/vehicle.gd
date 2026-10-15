@@ -129,6 +129,7 @@ func mount(pkg: VehiclePackage) -> void:
 		visual.queue_free()
 	visual = CarVisual.create(pkg, fitted, placeholder_color)
 	add_child(visual)
+	Siren.fit(self) # police cars: their light bar and siren
 	var sw: Variant = pkg.fit.get("steering_wheel")
 	steering_wheel_lock_deg = sw.visual_lock_deg if sw is Dictionary else 540.0
 

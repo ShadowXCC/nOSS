@@ -138,12 +138,15 @@ func _spawned() -> void:
 	cameras.set_vehicle(vehicle)
 	cameras.set_mode(String(slot.profile.data.get("camera", "chase_near")))
 	cameras.camera.cull_mask = RacingLineView.cull_mask_for(slot.index, cameras.camera.cull_mask)
+	cameras.camera.doppler_tracking = Camera3D.DOPPLER_TRACKING_PHYSICS_STEP # sirens
 	hud.vehicle = vehicle
 	_update_line_view()
 
 
 func _physics_process(delta: float) -> void:
 	super(delta)
+	# Police light bars as this player wants them (D116): settings may change mid-drive.
+	cameras.camera.cull_mask = LightBar.cull_mask_for(bool(slot.profile.data.get("reduce_flashing", false)), cameras.camera.cull_mask)
 	if vehicle == null:
 		return
 	_spot_time -= delta
