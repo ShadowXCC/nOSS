@@ -112,6 +112,11 @@ var kart: KartControl
 var battle: BattleControl
 ## A kart cup's race (D145): its standings after the results, its AI field. Null otherwise.
 var cup: CupRun
+## Kart sessions (D149): AI karts pick a class of their own (off: they all take the session's,
+## as the balance checks want).
+var ai_class_mix := true
+var _classes := {} # class id -> PlatformLoader.Result
+var _ai_classes := {} # AI index -> class id
 var traffic: TrafficManager
 ## Dev and tests: the traffic's seed (-1: the track's).
 var traffic_seed := -1
@@ -607,6 +612,47 @@ func _on_net_car(car_hash: String) -> void:
 			(r as NetRacer).load_net_car()
 
 
+## Racer `r`'s class: in a kart session a player's own pick (their profile's `kart_class`) or an AI
+## kart's (D149); otherwise, and for a class the mode doesn't have, the session's.
+func platform_for(r: Racer) -> PlatformLoader.Result:
+	if arcade.is_empty() or is_online():
+		return platform
+	var id := ""
+	if r is SessionPlayer:
+		id = String((r as SessionPlayer).slot.profile.data.get("kart_class", ""))
+	elif r is AiRacer:
+		id = ai_class((r as AiRacer).number - 5)
+	return class_result(id)
+
+
+## The class `id` if this session's mode has it, else the session's own.
+func class_result(id: String) -> PlatformLoader.Result:
+	if id.is_empty() or id == platform_id or id not in Array(mode.get("classes", [])):
+		return platform
+	if not _classes.has(id):
+		var r := PlatformLoader.load_official(id)
+		_classes[id] = r if r.ok() else platform
+	return _classes[id]
+
+
+## AI kart `index`'s class: kept through a cup, else its own pick (the session's with
+## `ai_class_mix` off).
+func ai_class(index: int) -> String:
+	if cup and index < cup.roster.size() and (cup.roster[index] as Dictionary).has("class"):
+		return String(cup.roster[index]["class"])
+	if not ai_class_mix:
+		return platform_id
+	if not _ai_classes.has(index):
+		var ids: Array = mode.get("classes", [])
+		var rng := RandomNumberGenerator.new()
+		if Game.dev.has("seed"):
+			rng.seed = hash(int(Game.dev.seed) * 31 + index)
+		else:
+			rng.randomize()
+		_ai_classes[index] = String(ids[rng.randi() % ids.size()]) if not ids.is_empty() else platform_id
+	return _ai_classes[index]
+
+
 ## The class's default car (built-in).
 func default_car() -> String:
 	return _default_car
@@ -615,7 +661,7 @@ func default_car() -> String:
 func _add_racer(r: Racer) -> void:
 	r.session = self
 	r.track = track
-	r.platform = platform
+	r.platform = platform_for(r)
 	r.default_car = _default_car
 	if highway:
 		r.limits = false

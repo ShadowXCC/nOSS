@@ -11,7 +11,7 @@ extends Node
 ## stuck, fewer items used than karts, or more than two tows a kart.
 ## Runs as a scene so the autoloads are there:
 ##   tools/kart_check.sh [--karts=8] [--laps=2] [--seed=1] [--skill=50-90] [--track=<id|path>]
-##                       [--class=medium] [--odds=cycle] [--battle=standing|hits] [--minutes=5]
+##                       [--class=medium|light|heavy|mixed] [--odds=cycle] [--battle=standing|hits] [--minutes=5]
 ##                       [--verbose]
 
 const KNOCK_DV := 2.0
@@ -72,7 +72,8 @@ func _start() -> void:
 	Players.clear()
 	session = TrackSession.new()
 	session.autodrive = true
-	session.platform_id = "official.kart." + String(opts["class"])
+	session.platform_id = "official.kart." + ("medium" if opts["class"] == "mixed" else String(opts["class"]))
+	session.ai_class_mix = opts["class"] == "mixed" # one class unless asked (the balance checks)
 	if battle() and not opts.has("track_set"):
 		opts.track = ARENA
 	session.track_path = TrackLibrary.resolve(String(opts.track)) if not String(opts.track).ends_with(".json") else String(opts.track)

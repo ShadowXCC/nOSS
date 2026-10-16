@@ -261,16 +261,14 @@ def highway_menus():
 
 
 def kart_menus():
-    """Title -> Kart -> a race -> a kart class -> Players and back; a battle's; a cup's builder (M8)."""
+    """Title -> Kart -> a race -> Players and back; a battle's; a cup's builder (M8)."""
     log("Kart menus")
     ok = step("Title (kart)", "Kart")
     ok = ok and step("Kart: race", "Next")
-    ok = ok and step("Kart: class", "Kart Medium", prefix=True)
-    ok = ok and back_from("Kart: players", "Ready")
-    ok = ok and back_from("Kart: class again", "Kart Medium")
+    ok = ok and back_from("Kart: players", "Ready")  # each card picks its class (D149)
     ok = ok and step("Kart: to battle", "Play: Race")
     ok = ok and step("Kart: battle", "Next")
-    ok = ok and back_from("Kart: battle class", "Kart Medium")
+    ok = ok and back_from("Kart: battle players", "Ready")
     ok = ok and step("Kart: to cup", "Play: Battle")
     ok = ok and step("Kart: cup", "New cup")
     ok = ok and back_from("Kart: cup builder", "Save")

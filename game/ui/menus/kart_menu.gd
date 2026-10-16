@@ -2,7 +2,7 @@ class_name KartMenu
 extends Control
 ## Kart (docs/GAMEMODES.md §2, MODE-05, D144, D145): a race (track, laps, AI, items), a battle
 ## (arena, rule, minutes, AI) or a cup (pick one, or make, change or delete your own; AI, items).
-## Then the class (kart classes) and the players. Every choice is a spinner or a button, named and
+## Then the players, who each pick their car and kart class (D149). Every choice is a spinner or a button, named and
 ## in the focus order; the last setup is remembered.
 
 ## `kind`: "race", "battle" or "cup"; `track`: the track or arena (races and battles); `cup`: the
@@ -110,7 +110,7 @@ func _build(focus := "") -> void:
 			_add(UiKit.button("New cup", func() -> void: _open_builder({}), "Pick four tracks and their laps"))
 			_add_ai()
 			_add(UiKit.spinner("Items", [[true, "On"], [false, "Off"]], event.items, func(v: bool) -> void: event.items = v))
-	var next := UiKit.button("Next", _next, "Pick the class")
+	var next := UiKit.button("Next", _next, "The players: each picks a car and a class")
 	next.disabled = not _ready_to_go()
 	_add(next)
 	_add(UiKit.button("Back", func() -> void: closed.emit()))

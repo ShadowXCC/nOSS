@@ -301,6 +301,14 @@ func _place_arena(r: Racer, i: int) -> void:
 	r.vehicle.reset_to(at)
 
 
+## The car in the results: in a kart session with its class too ("nOSS Kart · Heavy").
+func _car_text(r: Racer) -> String:
+	if r.vehicle == null or r.vehicle.package == null:
+		return "-"
+	var car := r.vehicle.package.display_name()
+	return "%s · %s" % [car, r.platform.platform.name] if session.kart and r.platform else car
+
+
 func now() -> float:
 	return clock_source.call() if clock_source.is_valid() else 0.0
 
@@ -496,7 +504,7 @@ func end_session() -> void:
 			leader_laps = laps
 		var row := {
 			"racer": r, "position": i + 1, "name": r.display_name, "number": r.number,
-			"car": r.vehicle.package.display_name() if r.vehicle and r.vehicle.package else "-",
+			"car": _car_text(r),
 			"time": total, "best": r.timer.best_lap, "laps": laps, "penalty": r.penalty_s,
 			"dnf": r.dnf, "gap": "", "flagged": String(r.get_meta(&"flagged", "")) != "",
 		}

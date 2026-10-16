@@ -25,7 +25,13 @@ func after() -> void:
 func before_test() -> void:
 	Players.clear()
 	_requested.clear()
+	# The last setup is remembered per profile (and profiles load again as players join).
 	Settings.profile.erase("last_kart")
+	for id in Settings.profile_ids():
+		var p := Settings.get_profile(id)
+		p.data.erase("last_kart")
+		p.data.erase("kart_class")
+		p.save() # (it loads again from its file when a player joins)
 
 
 func _on_event(e: RaceEvent, platform_id: String) -> void:
@@ -62,6 +68,16 @@ func _named(root: Node) -> void:
 			assert_str(String(c.accessibility_name)).override_failure_message("Unnamed %s" % c).is_not_empty()
 
 
+## Right on the focused spinner until it reads `want` (an injected key can go missing while the
+## menu settles under load; at most three tries).
+func _right_until(runner: GdUnitSceneRunner, want: String) -> void:
+	for i in 3:
+		await _key(KEY_RIGHT)
+		await _frames(2)
+		if _focused(runner) == want:
+			return
+
+
 ## From the title into the Kart menu, its first row focused.
 func _to_kart_menu(runner: GdUnitSceneRunner) -> KartMenu:
 	await _frames(4)
@@ -74,13 +90,10 @@ func _to_kart_menu(runner: GdUnitSceneRunner) -> KartMenu:
 	return runner.scene().find_child("KartMenu", true, false) as KartMenu
 
 
-## On from Next: the class (a kart one), a player joins, Ready.
+## On from Next: the players (no class step: each picks on their card), a player joins, Ready.
 func _class_players_ready(runner: GdUnitSceneRunner) -> void:
 	while _focused(runner) != "Next":
 		await _key(KEY_DOWN)
-	await _key(KEY_ENTER)
-	await _frames(4)
-	assert_str(_focused(runner)).starts_with("Kart Medium")
 	await _key(KEY_ENTER)
 	await _frames(4)
 	await _key(KEY_ENTER) # joins
@@ -116,8 +129,7 @@ func test_keyboard_only_to_a_kart_race() -> void:
 func test_keyboard_only_to_a_battle() -> void:
 	var runner := scene_runner(TITLE_SCENE)
 	var menu := await _to_kart_menu(runner)
-	await _key(KEY_RIGHT)
-	await _frames(2)
+	await _right_until(runner, "Play: Battle")
 	assert_str(_focused(runner)).is_equal("Play: Battle")
 	_named(menu)
 	await _key(KEY_DOWN)
@@ -136,9 +148,8 @@ func test_keyboard_only_to_a_battle() -> void:
 func test_a_cup_starts_its_first_race() -> void:
 	var runner := scene_runner(TITLE_SCENE)
 	var menu := await _to_kart_menu(runner)
-	await _key(KEY_RIGHT)
-	await _key(KEY_RIGHT)
-	await _frames(2)
+	await _right_until(runner, "Play: Battle")
+	await _right_until(runner, "Play: Cup")
 	assert_str(_focused(runner)).is_equal("Play: Cup")
 	await _key(KEY_DOWN)
 	assert_str(_focused(runner)).is_equal("Cup: Spark Cup")

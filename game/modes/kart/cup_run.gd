@@ -19,7 +19,7 @@ var platform_id := ""
 var template := RaceEvent.new()
 ## The race running or next (0-3).
 var index := 0
-## The AI field by AI index: [{car, paint, skill}], filled from the first race.
+## The AI field by AI index: [{car, paint, skill, class}], filled from the first race.
 var roster: Array = []
 ## Racer key -> {name, points, wins, places: [int]}.
 var table := {}
@@ -176,7 +176,7 @@ func keep_roster(session: TrackSession) -> void:
 		var i := a.number - 5
 		while roster.size() <= i:
 			roster.append({})
-		roster[i] = { "car": a.vehicle.package.path, "paint": a.paint, "skill": a.skill }
+		roster[i] = { "car": a.vehicle.package.path, "paint": a.paint, "skill": a.skill, "class": a.platform.platform.id }
 
 
 ## The table in order: [{key, name, points, wins, places}], points first, then wins, then the

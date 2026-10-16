@@ -15,6 +15,7 @@ var _event: EventMenu
 var _free: FreeDriveMenu
 var _online: OnlineMenu
 var _lobby: LobbyMenu
+var _kart_menu: KartMenu
 ## What the class picker leads to: "free", "race", "time_trial", "highway" or "kart".
 var _mode := "free"
 
@@ -236,28 +237,20 @@ func _open_highway_menu(track: String) -> void:
 	add_child(menu)
 
 
-## Kart (M8): race, battle or cup and its setup (KartMenu), then a kart class, then the players.
+## Kart (M8): race, battle or cup and its setup (KartMenu), then the players, who each pick their
+## kart's class on their card (D149).
 func _open_kart() -> void:
 	_mode = "kart"
 	var menu := KartMenu.new()
 	menu.name = "KartMenu"
+	_kart_menu = menu
 	menu.picked.connect(func(kind: String, e: RaceEvent, track: String, cup: String) -> void:
 		menu.visible = false
-		_classes = ClassPicker.new()
-		_classes.mode_filter = "kart"
-		_classes.current = String(Settings.profile.get("last_kart_platform", "official.kart.medium"))
-		_classes.picked.connect(func(id: String) -> void:
-			_classes.visible = false
-			Settings.profile.last_kart_platform = id
-			if kind == "cup":
-				_open_players(id, e, "", func() -> void: Game.start_cup_race(CupRun.start(CupRun.load_file(cup), id, e)))
-			else:
-				_open_players(id, e, track))
-		_classes.closed.connect(func() -> void:
-			_classes.queue_free()
-			menu.visible = true
-			menu.grab_focus_first())
-		add_child(_classes))
+		var id := String(Settings.profile.get("last_kart_platform", "official.kart.medium"))
+		if kind == "cup":
+			_open_players(id, e, "", func() -> void: Game.start_cup_race(CupRun.start(CupRun.load_file(cup), id, e)))
+		else:
+			_open_players(id, e, track))
 	menu.closed.connect(func() -> void:
 		menu.queue_free()
 		_drive_button.get_parent().get_node(^"KartButton").grab_focus())
@@ -292,7 +285,10 @@ func _open_players(platform_id: String, event: RaceEvent = null, track := "", st
 			Game.start_free_drive("", platform_id, false, false, track, event))
 	_players.closed.connect(func() -> void:
 		_players.queue_free()
-		if _mode in ["highway", "kart"] and is_instance_valid(_classes): # highway or kart: menu, class, players
+		if _mode == "kart" and is_instance_valid(_kart_menu): # kart: its menu, then the players
+			_kart_menu.visible = true
+			_kart_menu.grab_focus_first()
+		elif _mode == "highway" and is_instance_valid(_classes): # highway: menu, class, players
 			_classes.visible = true
 			_classes.grab_focus_first()
 		elif is_instance_valid(_event):
