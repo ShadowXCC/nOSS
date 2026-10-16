@@ -9,18 +9,25 @@ const SCHEMA_DIR := "res://data/schemas/"
 
 static var _cache := {}
 static var _regex_cache := {}
+## Packages load on worker threads (several cars at once): the caches are shared.
+static var _lock := Mutex.new()
 
 
 ## Loads data/schemas/<name>.schema.json. Returns {} if it's missing or broken.
 static func load_schema(name: String) -> Dictionary:
-	if _cache.has(name):
-		return _cache[name]
+	_lock.lock()
+	var cached: Variant = _cache.get(name)
+	_lock.unlock()
+	if cached != null:
+		return cached
 	var text := FileAccess.get_file_as_string(SCHEMA_DIR + name + ".schema.json")
 	var schema: Variant = JSON.parse_string(text) if text else null
 	if not schema is Dictionary:
 		push_error("Schema missing or invalid: " + name)
 		return {}
+	_lock.lock()
 	_cache[name] = schema
+	_lock.unlock()
 	return schema
 
 
@@ -175,6 +182,9 @@ static func _equal(a: Variant, b: Variant) -> bool:
 
 
 static func _regex(pattern: String) -> RegEx:
+	_lock.lock()
 	if not _regex_cache.has(pattern):
 		_regex_cache[pattern] = RegEx.create_from_string(pattern)
-	return _regex_cache[pattern]
+	var re: RegEx = _regex_cache[pattern]
+	_lock.unlock()
+	return re
