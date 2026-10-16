@@ -5,7 +5,8 @@ extends RefCounted
 ## the race rules. The last race set up is remembered in settings.cfg. A highway event (§3) runs
 ## as one free session with its own rules (HighwayControl).
 
-## "free" (free drive), "race" (a race weekend), "time_trial" or "highway".
+## "free" (free drive), "race" (a race weekend), "time_trial", "highway" or "battle" (kart, an
+## arena).
 var kind := "free"
 ## Highway: "cruise", "score" (score attack), "run" or "loop"; police on; traffic cars (-1: the
 ## track's own count); the run's id; the direction players start in (1 or -1; 0: both ways,
@@ -33,16 +34,25 @@ var collisions := true
 var track_limits := "lenient"
 ## AI cars: "garage" (garage and built-in cars the class takes) or "builtin".
 var ai_cars := "garage"
+## Kart (D139, D144): item boxes on; a battle's rule ("standing": last one standing, "hits": most
+## hits) and its length in minutes.
+var items := true
+var battle_rule := "standing"
+var battle_min := 5
 
 ## The values each text field may take; the first is the default.
 const CHOICES := {
-	"kind": ["free", "race", "time_trial", "highway"], "start": ["standing", "rolling"], "grid": ["qualifying", "reverse", "random"],
+	"kind": ["free", "race", "time_trial", "highway", "battle"], "start": ["standing", "rolling"], "grid": ["qualifying", "reverse", "random"],
 	"track_limits": ["lenient", "off", "strict"], "ai_cars": ["garage", "builtin"], "sub": ["cruise", "score", "run", "loop"],
+	"battle_rule": ["standing", "hits"],
 }
 const KEYS := ["kind", "practice_min", "qualifying_min", "race_laps", "race_min", "ai_count", "ai_skill",
-	"start", "grid", "collisions", "track_limits", "ai_cars", "sub", "police", "traffic", "run", "direction"]
+	"start", "grid", "collisions", "track_limits", "ai_cars", "sub", "police", "traffic", "run", "direction",
+	"items", "battle_rule", "battle_min"]
 ## Written only for highway events (circuit events stay as older games and servers know them).
 const HIGHWAY_KEYS := ["sub", "police", "traffic", "run", "direction"]
+## Written only for battles, or with items off.
+const KART_KEYS := ["items", "battle_rule", "battle_min"]
 ## Traffic cars at most.
 const TRAFFIC_MAX := 400
 
@@ -58,6 +68,16 @@ static func time_trial() -> RaceEvent:
 	var e := RaceEvent.new()
 	e.kind = "time_trial"
 	e.ai_count = 0
+	return e
+
+
+static func battle(rule := "standing", minutes := 5) -> RaceEvent:
+	var e := RaceEvent.new()
+	e.kind = "battle"
+	e.ai_count = 7
+	e.battle_rule = rule
+	e.battle_min = minutes
+	e.track_limits = "off"
 	return e
 
 
@@ -77,6 +97,8 @@ static func highway(sub_mode := "cruise", with_police := false, traffic_cars := 
 func sessions() -> PackedStringArray:
 	if kind == "highway":
 		return PackedStringArray(["free"])
+	if kind == "battle":
+		return PackedStringArray(["battle"])
 	if kind != "race":
 		return PackedStringArray([kind])
 	var out := PackedStringArray()
@@ -91,8 +113,11 @@ func sessions() -> PackedStringArray:
 func to_dict() -> Dictionary:
 	var d := {}
 	for key: String in KEYS:
-		if kind == "highway" or key not in HIGHWAY_KEYS:
-			d[key] = get(key)
+		if key in HIGHWAY_KEYS and kind != "highway":
+			continue
+		if key in KART_KEYS and kind != "battle" and items:
+			continue
+		d[key] = get(key)
 	return d
 
 
@@ -111,6 +136,7 @@ static func from_dict(d: Dictionary) -> RaceEvent:
 	e.traffic = clampi(e.traffic, -1, TRAFFIC_MAX)
 	e.direction = clampi(e.direction, -1, 1)
 	e.run = e.run.left(32)
+	e.battle_min = clampi(e.battle_min, 1, 15)
 	# Text fields only take their known values (events also come from servers).
 	for key: String in CHOICES:
 		if e.get(key) not in CHOICES[key]:

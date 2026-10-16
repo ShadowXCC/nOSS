@@ -1,7 +1,8 @@
 class_name ResultsMenu
 extends Control
 ## Session results (docs/GAMEMODES.md §1 "Results"; ACC-07): position, driver, car, time or gap,
-## best lap, laps, penalties and the assists each player drove with. Each row is one focusable
+## best lap, laps, penalties and the assists each player drove with; a battle's lives, hits dealt
+## and hits taken. Each row is one focusable
 ## line whose accessible name reads the whole row, so a screen reader can step through them.
 ## Shown on the main window; any device can use it.
 
@@ -11,7 +12,7 @@ signal quit_to_title
 ## Online host: back to the lobby.
 signal to_lobby
 
-## "race", "qualifying" or "practice".
+## "race", "qualifying", "practice" or "battle".
 var kind := "race"
 ## RaceControl.results rows.
 var results: Array = []
@@ -32,9 +33,10 @@ const ASSIST_NAMES := { "abs": "ABS", "tcs": "TCS", "stability": "SC", "auto_gea
 func _ready() -> void:
 	theme = UiKit.theme()
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	var title: String = { "race": "Race results", "qualifying": "Qualifying", "practice": "Practice" }.get(kind, "Results")
+	var title: String = { "race": "Race results", "qualifying": "Qualifying", "practice": "Practice", "battle": "Battle results" }.get(kind, "Results")
 	var list := UiKit.panel(self, title, 1500)
-	var head := _line(["Pos", "Driver", "Car", "Time" if kind == "race" else "Best", "Gap", "Laps", "Pen", "Assists"])
+	var head := _line(["Pos", "Driver", "Car", "Lives", "Hits", "Taken", "", "Assists"] if kind == "battle" else
+		["Pos", "Driver", "Car", "Time" if kind == "race" else "Best", "Gap", "Laps", "Pen", "Assists"])
 	head.modulate = UiKit.ACCENT
 	list.add_child(head)
 	var scroll := ScrollContainer.new()
@@ -83,6 +85,8 @@ func row_text(i: int) -> String:
 
 
 func _row_button(row: Dictionary) -> Button:
+	if kind == "battle":
+		return _battle_row(row)
 	var r: Racer = row.racer
 	var time := Hud.format_time(row.time) if kind == "race" else Hud.format_time(row.best)
 	if kind == "race" and row.dnf:
@@ -102,6 +106,27 @@ func _row_button(row: Dictionary) -> Button:
 		", penalty %d seconds" % roundi(row.penalty) if row.penalty > 0.0 else "",
 		", assists: " + assists if assists != "" else ""]
 	b.accessibility_name = spoken
+	if r.is_human:
+		b.add_theme_stylebox_override("normal", UiKit._box(Color(1, 1, 1, 0.06), Color(0, 0, 0, 0), 0, 6))
+	return b
+
+
+func _battle_row(row: Dictionary) -> Button:
+	var r: Racer = row.racer
+	var assists := String(row.assists) if row.has("assists") else assists_text(r)
+	var lives := int(row.get("lives", -1))
+	var lives_text := "Out" if row.get("out", false) else (str(lives) if lives >= 0 else "")
+	var cells := ["P%d" % row.position, "%s%s" % ["#%d " % row.number if not r.is_human else "", row.name], row.car,
+		lives_text, str(row.get("hits", 0)), str(row.get("taken", 0)), "", assists]
+	var b := Button.new()
+	b.flat = true
+	b.focus_mode = Control.FOCUS_ALL
+	b.custom_minimum_size = Vector2(0, 52)
+	b.add_child(_line(cells))
+	var spoken_lives := "out" if lives_text == "Out" else ("%d %s" % [lives, "life" if lives == 1 else "lives"] if lives >= 0 else "")
+	b.accessibility_name = "P%d, %s, %s%s, %d hits, %d taken%s" % [row.position, row.name, row.car,
+		(", " + spoken_lives) if spoken_lives != "" else "", int(row.get("hits", 0)), int(row.get("taken", 0)),
+		", assists: " + assists if assists != "" else ""]
 	if r.is_human:
 		b.add_theme_stylebox_override("normal", UiKit._box(Color(1, 1, 1, 0.06), Color(0, 0, 0, 0), 0, 6))
 	return b

@@ -2,8 +2,9 @@ class_name KartPanel
 extends Control
 ## A kart's HUD (D146, docs/ACCESSIBILITY.md): the item held (a swatch in its kind's colour, and
 ## its name: words carry the meaning), the roulette while it rolls, the uses left of a triple; the
-## drift's tier as pips and a word; a bar for a boost. With Reduce flashing the roulette doesn't
-## cycle through names, it says "Rolling".
+## drift's tier as pips and a word; a bar for a boost; in a battle, lives as pips and a number
+## (or "Out") and hits. With Reduce flashing the roulette doesn't cycle through names, it says
+## "Rolling".
 
 const ROLL_HZ := 8.0
 const KINDS := {
@@ -16,6 +17,7 @@ var calm := false
 var _swatch := ColorRect.new()
 var _item := Label.new()
 var _drift := Label.new()
+var _battle := Label.new()
 var _boost := ColorRect.new()
 var _boost_back := ColorRect.new()
 var _time := 0.0
@@ -30,7 +32,7 @@ func _init() -> void:
 	_swatch.size = Vector2(56, 56)
 	_swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_swatch)
-	for row: Array in [[_item, 40, Vector2(72, 4)], [_drift, 30, Vector2(0, 70)]]:
+	for row: Array in [[_item, 40, Vector2(72, 4)], [_drift, 30, Vector2(0, 70)], [_battle, 30, Vector2(0, 132)]]:
 		var l: Label = row[0]
 		l.add_theme_font_size_override("font_size", row[1])
 		l.add_theme_color_override("font_color", Hud.TEXT)
@@ -76,6 +78,21 @@ func show_kart(slot: Dictionary, flags: int, state: Dictionary, delta: float) ->
 	_boost.size.x = 240.0 * clampf(boost / 1.5, 0.0, 1.0)
 	_boost.color = palette.get("item_speed", Color.ORANGE)
 	accessibility_name = "Item: " + _item.text
+
+
+## A battle's line: lives left (-1: a most-hits match, no lives), hits dealt, out.
+func show_battle(lives: int, hits: int, out: bool) -> void:
+	if out:
+		_battle.text = "Out  ·  Hits %d" % hits
+	elif lives >= 0:
+		_battle.text = "Lives %s %d  ·  Hits %d" % ["●".repeat(lives) + "○".repeat(maxi(BattleControl.LIVES - lives, 0)), lives, hits]
+	else:
+		_battle.text = "Hits %d" % hits
+	accessibility_name = "Item: %s. %s" % [_item.text, _battle.text]
+
+
+func battle_text() -> String:
+	return _battle.text
 
 
 func item_text() -> String:

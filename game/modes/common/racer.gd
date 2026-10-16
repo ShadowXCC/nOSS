@@ -381,6 +381,8 @@ func reset_car() -> void:
 
 ## Online: the server ghosts this car while its link is bad (D86).
 var forced_ghost := false
+## Out of a battle (D144): it drives on as a ghost, with no items.
+var out := false
 
 
 ## Ghosted for `seconds`, then solid again once clear of other cars.
@@ -389,9 +391,9 @@ func ghost_for(seconds: float) -> void:
 	set_ghost(true)
 
 
-## No collisions with other cars, and drawn see-through.
+## No collisions with other cars, and drawn see-through (always, out of a battle).
 func set_ghost(on: bool) -> void:
-	on = on or forced_ghost
+	on = on or forced_ghost or out
 	ghosted = on
 	if vehicle:
 		vehicle.set_ghost(on, on and not session.ghosted)

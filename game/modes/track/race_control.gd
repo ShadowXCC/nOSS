@@ -40,7 +40,7 @@ const PENALTY_S := { "lenient": 2.0, "strict": 5.0 }
 
 var session: TrackSession
 var event: RaceEvent
-## The current session: "free", "time_trial", "practice", "qualifying" or "race".
+## The current session: "free", "time_trial", "practice", "qualifying", "race" or "battle".
 var kind := "free"
 var index := 0
 var phase := Phase.LOADING
@@ -69,6 +69,8 @@ var go_at := -1.0
 var net_positions := {}
 ## Online: the last grid, front first (car ids).
 var grid_ids: Array = []
+## Where the standings come from when the session keeps its own (a battle's BattleControl).
+var standings_source := Callable()
 
 var _countdown := 0.0
 var _out_delay := 0.0
@@ -138,6 +140,10 @@ func session_text(r: Racer) -> String:
 		"practice", "qualifying":
 			var left := maxf((event.practice_min if kind == "practice" else event.qualifying_min) * 60.0 - clock, 0.0)
 			return "%s  %s" % ["Practice" if kind == "practice" else "Qualifying", _clock_text(left)]
+		"battle":
+			if phase in [Phase.LOADING, Phase.COUNTDOWN]:
+				return "Ready"
+			return _clock_text(maxf(event.battle_min * 60.0 - clock, 0.0))
 	return ""
 
 
@@ -170,13 +176,20 @@ func begin(session_kind: String) -> void:
 		r.dnf = false
 		_laps[r] = 0
 		r.held = false
-	session.hotswap_allowed = kind != "race" and session.hotswap_rule != "never" or session.hotswap_rule == "always"
-	Players.joining = not session.solo and kind != "race" and not session.is_online()
+	var fixed := kind in ["race", "battle"]
+	session.hotswap_allowed = not fixed and session.hotswap_rule != "never" or session.hotswap_rule == "always"
+	Players.joining = not session.solo and not fixed and not session.is_online()
 	match kind:
 		"race":
 			phase = Phase.LOADING
 			for i in order.size():
 				_place(order[i], i, event.start == "rolling")
+				order[i].held = true
+		"battle":
+			# Round the arena's middle (D144), held until the lights go out.
+			phase = Phase.LOADING
+			for i in order.size():
+				_place_arena(order[i], i)
 				order[i].held = true
 		"practice", "qualifying":
 			phase = Phase.RUNNING
@@ -261,6 +274,23 @@ func _place(r: Racer, i: int, rolling: bool) -> void:
 	r.last_valid = proj.distance
 	r.track_index = -1
 	r.timer.teleported(session.track.from_start(proj.distance))
+
+
+## Racer `r` on the arena's spawn `i` (more racers than spawns: round again).
+func _place_arena(r: Racer, i: int) -> void:
+	var spawns := session.track.arena.spawns
+	var at: Transform3D = spawns[i % spawns.size()]
+	at.origin.y += 0.05
+	r.spawn_at = at
+	r.last_valid_xform = at
+	if r.vehicle == null or r is NetRacer:
+		return
+	if r.waiting:
+		r.waiting = false
+		r.vehicle.freeze = false
+		r.vehicle.visible = true
+	r.set_ghost(session.ghosted or _online_grid())
+	r.vehicle.reset_to(at)
 
 
 func now() -> float:
@@ -362,7 +392,7 @@ func _go() -> void:
 
 ## An online race's grid (ghosted while cars are placed).
 func _online_grid() -> bool:
-	return session.is_online() and kind == "race"
+	return session.is_online() and kind in ["race", "battle"]
 
 
 func _release_cars() -> void:
@@ -462,6 +492,8 @@ func end_session() -> void:
 			"time": total, "best": r.timer.best_lap, "laps": laps, "penalty": r.penalty_s,
 			"dnf": r.dnf, "gap": "", "flagged": String(r.get_meta(&"flagged", "")) != "",
 		}
+		if session.battle:
+			row.merge(session.battle.row(r))
 		if kind == "race":
 			if r.dnf:
 				row.gap = "DNF"
@@ -485,6 +517,8 @@ func standings() -> Array[Racer]:
 		racers.sort_custom(func(a: Racer, b: Racer) -> bool:
 			return int(net_positions.get(a.net_id, 99)) < int(net_positions.get(b.net_id, 99)))
 		return racers
+	if standings_source.is_valid():
+		return standings_source.call()
 	if kind == "race":
 		racers.sort_custom(_race_before)
 	else:
@@ -569,7 +603,7 @@ func gap_seconds(r: Racer, ahead: Racer) -> float:
 
 
 func _update_flags() -> void:
-	if kind == "free" or kind == "time_trial":
+	if kind in ["free", "time_trial", "battle"]:
 		for r in session.racers:
 			r.flag = ""
 		return

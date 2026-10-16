@@ -58,8 +58,13 @@ func local(r: Racer) -> bool:
 	return r.vehicle != null and is_instance_valid(r.vehicle) and not r.vehicle.remote
 
 
+## A battle's grace after a hit (D144): items pass it by.
+func _protected(r: Racer) -> bool:
+	return session.battle != null and session.battle.protected(r)
+
+
 func _usable(r: Racer) -> bool:
-	return r.vehicle != null and not r.waiting and not r.towed and not r.held and r.vehicle.kart_bits & CarState.KART_OUT == 0
+	return r.vehicle != null and not r.waiting and not r.towed and not r.held and not r.out and r.vehicle.kart_bits & CarState.KART_OUT == 0
 
 
 func _physics_process(delta: float) -> void:
@@ -80,8 +85,9 @@ func _physics_process(delta: float) -> void:
 		if box >= 0:
 			boxes.take(box)
 			pick(r, box)
-		for e in entities.touching(r, com):
-			hit(r, e)
+		if not _protected(r):
+			for e in entities.touching(r, com):
+				hit(r, e)
 	_magnets(delta)
 
 
@@ -157,7 +163,7 @@ func use(r: Racer, back := false) -> void:
 			s.shield = SHIELD_S
 		"emp":
 			for o: Racer in session.racers:
-				if o != r and o.vehicle and not o.towed and o.com().distance_to(com) <= EMP_RADIUS_M:
+				if o != r and o.vehicle and not o.towed and not o.out and not _protected(o) and o.com().distance_to(com) <= EMP_RADIUS_M:
 					hit_by(o, "emp", r)
 		"magnet":
 			s.magnet = MAGNET_S
@@ -176,7 +182,7 @@ func _ahead_of(r: Racer, reach: float) -> Racer:
 		var best_d := reach
 		var fwd := r.vehicle.global_basis.z
 		for o: Racer in session.racers:
-			if o == r or o.vehicle == null or o.towed or o.vehicle.kart_bits & CarState.KART_OUT:
+			if o == r or o.vehicle == null or o.towed or o.out:
 				continue
 			var to := o.com() - r.com()
 			var d := to.length()
@@ -186,7 +192,7 @@ func _ahead_of(r: Racer, reach: float) -> Racer:
 		return best
 	for c in session.field.around(r, reach, 0.0):
 		var o: Racer = c.racer
-		if c.gap > 0.0 and not o.towed and o.vehicle:
+		if c.gap > 0.0 and not o.towed and not o.out and o.vehicle:
 			return o
 	return null
 

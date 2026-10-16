@@ -162,6 +162,14 @@ func _ready() -> void:
 		safe_rejoin = true
 	elif event.kind == "free":
 		ai_racers = clampi(ai_racers, 0, maxi(int(track.grid.slots) - maxi(Players.count(), 1), 0))
+	elif event.kind == "battle":
+		if track.arena == null or arcade.is_empty():
+			push_warning("A battle needs an arena and a kart class: free drive instead")
+			event = RaceEvent.free_drive()
+		else:
+			ai_racers = clampi(event.ai_count, 0, maxi(track.arena.spawns.size() - maxi(Players.count(), 1), 0))
+			ai_skill = event.ai_skill
+			ai_builtin_cars = event.ai_cars == "builtin"
 	ghosted = not event.collisions
 	if event.kind == "time_trial":
 		solo = true
@@ -172,6 +180,8 @@ func _ready() -> void:
 		_ready_highway()
 	elif not arcade.is_empty() and event.kind != "time_trial":
 		_ready_kart()
+		if event.kind == "battle":
+			_ready_battle()
 
 	add_child(views)
 	var map := TrackMap.new()
@@ -404,6 +414,15 @@ func _ready_kart() -> void:
 	add_child(kart)
 
 
+## Battles (D144): lives and hits, and the standings RaceControl shows.
+func _ready_battle() -> void:
+	battle = BattleControl.new()
+	battle.name = "BattleControl"
+	battle.session = self
+	add_child(battle)
+	race.standings_source = battle.standings
+
+
 ## Highways: racer `i`'s starting direction.
 func direction_for(i: int) -> int:
 	if i < directions.size():
@@ -414,13 +433,18 @@ func direction_for(i: int) -> int:
 
 
 ## The node that drives `r` (an AI racer, a dev player): the racing AI on circuits, the lane
-## driver on highways.
+## driver on highways, the battle AI in an arena.
 func make_driver(r: Racer) -> Node:
 	if highway:
 		var d := HighwayDriver.new()
 		d.racer = r
 		return d
-	var ai := RacingAI.new()
+	if track.arena:
+		var b := BattleAI.new()
+		b.racer = r
+		b.skill = ai_skill
+		return b
+	var ai: RacingAI = KartAI.new() if kart else RacingAI.new()
 	ai.racer = r
 	ai.skill = ai_skill
 	return ai
@@ -433,7 +457,12 @@ func make_guide(r: Racer) -> Node:
 		d.racer = r
 		d.as_guide = true
 		return d
-	var ai := RacingAI.new()
+	if track.arena:
+		var b := BattleAI.new()
+		b.racer = r
+		b.as_guide = true
+		return b
+	var ai: RacingAI = KartAI.new() if kart else RacingAI.new()
 	ai.racer = r
 	ai.as_guide = true
 	return ai

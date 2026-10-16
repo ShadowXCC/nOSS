@@ -2,7 +2,8 @@ class_name KartHud
 extends Node
 ## Each player's kart HUD (KartPanel) and its news (D146): the item they got once the roulette
 ## stops, a hit ("Hit by Rook", "Shield took it"), a Shield up, a Seeker or the Hunter coming for
-## them. Captions always; spoken with race narration.
+## them; a battle's lives and hits. Captions always; spoken with race narration (the battle's
+## "Lost a life", "Out" and "Winner" come from BattleControl).
 
 const INCOMING_M := 150.0
 
@@ -36,6 +37,9 @@ func _process(delta: float) -> void:
 		panel.calm = bool(p.slot.profile.data.get("reduce_flashing", false))
 		var slot := items.slot(p)
 		panel.show_kart(slot, p.vehicle.kart_flags(), p.vehicle.sim.get_kart_state(), delta)
+		var battle := session.battle
+		if battle:
+			panel.show_battle(battle.lives(p) if battle.rule() == "standing" else -1, battle.hits(p), p.out)
 		var rolling: bool = slot.item != "" and float(slot.roulette) > 0.0
 		if _rolling.get(p, false) and not rolling and slot.item != "":
 			_news(p, ItemOdds.item_name(slot.item))
