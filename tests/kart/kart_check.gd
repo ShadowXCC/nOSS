@@ -1,11 +1,11 @@
 extends Node
 ## Kart soak check (M8, D143): a field of karts races with items, headless at a fixed 120 Hz and
 ## faster than real time. Fails on a kart not classified, a kart stuck over 5 s (not while spun,
-## slowed or towed), a pile-up (4 or more karts linked by knocks of 2 m/s or more within 2 s and 20 m),
-## fewer than 3 items used for every 4 kart-laps (a kart holds what it picked up late, or keeps a
-## Shield for a Seeker), fewer than half the AI (skill 50+) drift-boosting each lap, loops taken
-## less than 90% of the time (not counting karts knocked off by items), too many tows (1 a
-## kart-lap on a stunt track, 0.2 elsewhere), or items left out past their time.
+## slowed or towed), a pile-up (4 or more karts linked by knocks of 2 m/s or more within 2 s and
+## 20 m), fewer than 3 items used for every 4 kart-laps (a kart holds what it picked up late, or
+## keeps a Shield for a Seeker), fewer than half the AI (skill 50+) drift-boosting each lap, loops
+## failed more than once and more than 10% of the time (not counting karts knocked off by items),
+## too many tows (1 a kart-lap on a stunt track, 0.2 elsewhere), or items left out past their time.
 ## A battle (--battle=standing|hits, D144; on the arena fixture unless --track says) fails on no
 ## winner within the time limit and a minute, lives lost that don't match the hits taken, a kart
 ## stuck, fewer items used than karts, or more than two tows a kart.
@@ -256,7 +256,8 @@ func _pileups() -> void:
 			for p: Vector3 in spots:
 				far = maxf(far, p.distance_to(spots[0]))
 			if far <= PILEUP_M:
-				_report(["a pile-up of %d karts at %.0f s" % [g.size(), time]])
+				var where := session.track.project(spots[0] as Vector3)
+				_report(["a pile-up of %d karts at %.0f s, %.0f m" % [g.size(), time, float(where.distance)]])
 				return
 
 
@@ -332,7 +333,7 @@ func _report(problems: Array) -> void:
 	var tow_limit := (1.0 if stunts else 0.2) * karts * laps if not battle() else 2.0 * karts
 	if tows > tow_limit:
 		out.append("%d tows (most %.1f), and %d after hits" % [tows, tow_limit, tows_after_hits])
-	if loops_entered > 0 and float(loops_done) / loops_entered < 0.9:
+	if loops_entered > 0 and float(loops_done) / loops_entered < 0.9 and loops_entered - loops_done > 1:
 		out.append("loops: %d of %d round" % [loops_done, loops_entered])
 	for e: Dictionary in session.kart.entities.list.values():
 		if float(e.age) > float(e.life) + 1.0:

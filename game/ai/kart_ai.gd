@@ -52,6 +52,7 @@ func _ready() -> void:
 	# Stuck, a kart backs out sooner and calls the tow sooner (towing costs little, D132).
 	stuck_reverse_s = 1.5
 	stuck_reset_s = 4.0
+	stuck_behind = true
 	var arcade: Dictionary = racer.vehicle.arcade
 	if not arcade.is_empty():
 		var grip := lerpf(GRIP.x, GRIP.y, _skill()) * float(arcade.grip)

@@ -60,6 +60,9 @@ var _rng := RandomNumberGenerator.new()
 ## Stuck this long: back out; this long: reset (a kart AI is quicker with both).
 var stuck_reverse_s := 2.5
 var stuck_reset_s := 7.0
+## Stopped behind a car counts as stuck too (a kart jammed behind another; off for cars, which
+## queue at a start).
+var stuck_behind := false
 
 
 func _ready() -> void:
@@ -425,7 +428,7 @@ func _recover(out: Dictionary, delta: float) -> bool:
 		_trouble_time += delta
 	else:
 		_trouble_time = maxf(_trouble_time - delta * 2.0, 0.0)
-	if v < 1.0 and not racer.held and _speed_cap > 1.0:
+	if v < 1.0 and not racer.held and (_speed_cap > 1.0 or stuck_behind):
 		_stuck_time += delta
 	else:
 		_stuck_time = 0.0
