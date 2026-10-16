@@ -110,6 +110,8 @@ var police: PoliceControl
 var kart: KartControl
 ## Battles (D144): lives and hits. Null otherwise.
 var battle: BattleControl
+## A kart cup's race (D145): its standings after the results, its AI field. Null otherwise.
+var cup: CupRun
 var traffic: TrafficManager
 ## Dev and tests: the traffic's seed (-1: the track's).
 var traffic_seed := -1
@@ -623,11 +625,15 @@ func _add_racer(r: Racer) -> void:
 ## An AI racer on the next grid spot, with a random car from `pool`.
 func _add_ai(index: int, pool: PackedStringArray, skill: float) -> AiRacer:
 	var a := AiRacer.new()
-	a.configure(index, skill)
+	# A cup keeps its field from race to race: the same car, paint and skill.
+	var kept: Dictionary = cup.roster[index] if cup and index < cup.roster.size() else {}
+	a.configure(index, float(kept.get("skill", skill)))
+	if kept.has("paint"):
+		a.paint = kept.paint
 	var i := racers.size()
 	a.spawn_at = track.transform_at(_grid_distance(i), _grid_lateral(i)) if _spot_clear(_grid_distance(i), _grid_lateral(i)) else _free_grid_spot()
 	_add_racer(a)
-	a.load_car(pool[randi() % pool.size()] if not pool.is_empty() else _default_car)
+	a.load_car(String(kept.car) if kept.has("car") else pool[randi() % pool.size()] if not pool.is_empty() else _default_car)
 	return a
 
 
@@ -758,8 +764,16 @@ func _on_session_ended(kind: String, results: Array) -> void:
 	results_menu.mode = "client" if race.mirror else "host" if is_online() else "local"
 	results_menu.has_next = race.has_next()
 	results_menu.next_name = race.event.sessions()[race.index + 1].capitalize() if race.has_next() else ""
+	if cup and kind == "race":
+		cup.keep_roster(self)
+		cup.add_results(results)
+		results_menu.has_next = true
+		results_menu.next_name = "Cup standings"
 	results_menu.continued.connect(func() -> void:
 		_close_results()
+		if cup and kind == "race":
+			_open_cup_standings()
+			return
 		_drop_leavers()
 		race.next_session())
 	results_menu.restarted.connect(func() -> void:
@@ -780,6 +794,20 @@ func _on_session_ended(kind: String, results: Array) -> void:
 	layer.scale = Vector2(s, s)
 	results_menu.size = window / s
 	layer.add_child(results_menu)
+
+
+## A cup's table after its race; on to the next race, or back to the title after the last.
+func _open_cup_standings() -> void:
+	var menu := CupStandingsMenu.new()
+	menu.run = cup
+	menu.next_race.connect(func() -> void: Game.start_cup_race(cup))
+	menu.quit_to_title.connect(func() -> void: Game.go_title())
+	var layer: CanvasLayer = $ResultsLayer
+	var window := get_viewport().get_visible_rect().size
+	var s := window.y / 1080.0 * Players.menu_text_scale()
+	layer.scale = Vector2(s, s)
+	menu.size = window / s
+	layer.add_child(menu)
 
 
 ## The results go (the server began the next session).

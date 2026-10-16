@@ -232,6 +232,14 @@ func _grid_order() -> Array[Racer]:
 		return ordered
 	if kind != "race":
 		return racers
+	if session.cup and session.cup.index > 0 and event.grid == "reverse":
+		# A cup's later races: the standings reversed, the leader at the back (D145).
+		var keys := session.cup.grid_keys()
+		racers.sort_custom(func(a: Racer, b: Racer) -> bool:
+			var ia := keys.find(CupRun.key_of(a))
+			var ib := keys.find(CupRun.key_of(b))
+			return (ia if ia >= 0 else 999) < (ib if ib >= 0 else 999))
+		return racers
 	match event.grid:
 		"random":
 			racers.shuffle()

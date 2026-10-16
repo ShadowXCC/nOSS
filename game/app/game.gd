@@ -25,12 +25,15 @@ extends Node
 ##                        every 30 s and at exit (M7 acceptance runs)
 ##   --fullscreen         fullscreen for this run; --no-vsync: no vsync (measurements)
 ##   --pause-at=<s>       open the last player's pause menu
-##   --menu=<m>           title: open classes, event, free, players, settings, online, online-players or tracks
+##   --menu=<m>           title: open classes, event, free, players, settings, online, online-players, tracks or kart
 ##                        (--join=<n>: n devices join)
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
 ##   --track=<ref>        the track for --drive, --race and --time-trial: an id, a path or a hash
 ##   --highway            a highway session right away (the first highway, or --track): --sub=cruise|score|run|loop,
 ##                        --traffic=<cars>, --traffic-seed=<n>, --police, --direction=-1|both, --run=<id>, --players=<n>
+##   --kart               a kart race right away (the first kart track, or --track; --race-laps, --race-ai, --platform)
+##   --battle[=hits]      a battle right away (the first arena, or --track; --battle-min, --race-ai)
+##   --cup[=<id>]         a cup right away (the Spark Cup, or <id>; --race-ai)
 ##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5; a list like 5,30,90 takes several), one per window
 ##   --quit-at=<s>        quit after this many seconds
 ##   --bay                open the Fitting Bay
@@ -81,6 +84,8 @@ var dedicated := false
 var bay_draft: Variant = null
 ## The track editor's draft (TrackDraft), kept while the player test-drives it.
 var track_draft: Variant = null
+## A kart cup in progress (CupRun), kept between its races; null otherwise.
+var cup: Variant = null
 var _time := 0.0
 var _shots_taken := 0
 var _dev_import_used := false
@@ -159,12 +164,20 @@ static func parse_args(engine_args: PackedStringArray, user_args: PackedStringAr
 
 ## First scene after boot.
 func first_scene() -> String:
-	return "" if dedicated or dev.has("drive") or dev.has("bay") or dev.has("garage") or dev.has("race") or dev.has("time-trial") or dev.has("highway") or dev.has("editor") else TITLE
+	return "" if dedicated or dev.has("drive") or dev.has("bay") or dev.has("garage") or dev.has("race") or dev.has("time-trial") or dev.has("highway") or dev.has("editor") or dev_kart() else TITLE
+
+
+## Dev: a kart race, battle or cup asked for on the command line.
+func dev_kart() -> bool:
+	return dev.has("kart") or dev.has("battle") or dev.has("cup")
 
 
 ## Dev: --race starts the last race set up, with --race-laps, --race-ai, --race-practice,
 ## --race-quali (minutes), --race-start=rolling and --race-grid overrides; --time-trial a time trial.
 func start_dev_event() -> void:
+	if dev_kart():
+		_start_dev_kart()
+		return
 	if dev.has("highway"):
 		var h := RaceEvent.highway(String(dev.get("sub", "cruise")), dev.has("police"), int(dev.get("traffic", "-1")))
 		h.direction = 0 if dev.get("direction") == "both" else -1 if int(dev.get("direction", "1")) < 0 else 1
@@ -173,6 +186,41 @@ func start_dev_event() -> void:
 		return
 	var e := Settings.last_event() if dev.has("race") else RaceEvent.time_trial()
 	start_event(e, String(dev.get("platform", Settings.profile.get("last_platform", "official.track.gt"))))
+
+
+func _start_dev_kart() -> void:
+	var platform := String(dev.get("platform", Settings.profile.get("last_kart_platform", "official.kart.medium")))
+	var e := RaceEvent.new()
+	e.kind = "race"
+	e.practice_min = 0
+	e.qualifying_min = 0
+	e.race_laps = 3
+	e.ai_count = 7
+	e.ai_cars = "builtin"
+	e.grid = "random"
+	apply_dev_event(e)
+	if dev.has("cup"):
+		var id := String(dev.cup) if String(dev.cup) != "true" else "spark_cup"
+		var path := CupRun.BUILTIN_DIR + id + ".cup.json"
+		var c := CupRun.load_file(path if FileAccess.file_exists(path) else CupRun.USER_DIR + id + ".cup.json")
+		if c.is_empty() or CupRun.missing_track(c) >= 0:
+			push_error("No cup %s (or a track of it is missing)" % id)
+			return
+		start_cup_race(CupRun.start(c, platform, e))
+		return
+	if dev.has("battle"):
+		var b := RaceEvent.battle("hits" if String(dev.battle) == "hits" else "standing", int(dev.get("battle-min", "5")))
+		b.ai_count = e.ai_count
+		b.ai_skill = e.ai_skill
+		b.ai_cars = "builtin"
+		var arena := selected_track("arena")
+		start_event(b, platform, arena)
+		return
+	var track := selected_track("circuit") if dev.has("track") else ""
+	if track.is_empty():
+		var karts := TrackLibrary.list(true, true, "circuit").filter(func(t: Dictionary) -> bool: return "kart" in t.get("tags", []))
+		track = String(karts[0].path) if not karts.is_empty() else selected_track("circuit")
+	start_event(e, platform, track)
 
 
 ## Dev overrides for a race (--race-laps, --race-ai, --race-practice, --race-quali, --race-start,
@@ -258,7 +306,7 @@ func start_event(event: RaceEvent, platform_id: String, track := "") -> void:
 		return
 	get_tree().paused = false
 	var session := TrackSession.new()
-	session.track_path = track if track else selected_track("highway" if event.kind == "highway" else "circuit")
+	session.track_path = track if track else selected_track("highway" if event.kind == "highway" else "arena" if event.kind == "battle" else "circuit")
 	session.event = event
 	session.solo = event.kind == "time_trial"
 	session.platform_id = platform_id
@@ -267,6 +315,23 @@ func start_event(event: RaceEvent, platform_id: String, track := "") -> void:
 		session.ai_players = maxi(int(dev.get("players", "1")) - maxi(Players.count(), 1), 0)
 	if dev.has("camera"):
 		Settings.profile.camera = dev.camera
+	open_session(session)
+
+
+## Starts cup `run`'s next race (D145): its track, laps and the same AI field.
+func start_cup_race(run: CupRun) -> void:
+	cup = run
+	var e := run.event_for(run.index)
+	event_requested.emit(e, run.platform_id)
+	if hold_events:
+		return
+	get_tree().paused = false
+	var session := TrackSession.new()
+	session.track_path = run.track_for(run.index)
+	session.event = e
+	session.platform_id = run.platform_id
+	session.cup = run
+	session.autodrive = dev.has("autodrive")
 	open_session(session)
 
 
@@ -454,6 +519,7 @@ func _switch(scene: Node) -> void:
 
 
 func go_title() -> void:
+	cup = null # leaving a cup ends it
 	get_tree().paused = false
 	get_tree().change_scene_to_file.call_deferred(TITLE)
 

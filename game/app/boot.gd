@@ -17,7 +17,7 @@ func _ready() -> void:
 		Game.open_garage.call_deferred()
 	elif Game.dev.has("editor"):
 		Game.open_dev_editor.call_deferred()
-	elif Game.dev.has("race") or Game.dev.has("time-trial") or Game.dev.has("highway"):
+	elif Game.dev.has("race") or Game.dev.has("time-trial") or Game.dev.has("highway") or Game.dev_kart():
 		Game.start_dev_event.call_deferred()
 	elif Game.first_scene().is_empty():
 		Game.start_free_drive.call_deferred()

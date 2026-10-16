@@ -15,7 +15,7 @@ var _event: EventMenu
 var _free: FreeDriveMenu
 var _online: OnlineMenu
 var _lobby: LobbyMenu
-## What the class picker leads to: "free", "race" or "time_trial".
+## What the class picker leads to: "free", "race", "time_trial", "highway" or "kart".
 var _mode := "free"
 
 
@@ -65,13 +65,20 @@ func _ready() -> void:
 	race_button.custom_minimum_size = _drive_button.custom_minimum_size
 	race_button.pressed.connect(_open_classes.bind("race"))
 	_drive_button.add_sibling(race_button)
+	var kart_button := Button.new()
+	kart_button.name = "KartButton"
+	kart_button.text = "Kart"
+	kart_button.accessibility_description = "Kart races with items, battles and cups"
+	kart_button.custom_minimum_size = _drive_button.custom_minimum_size
+	kart_button.pressed.connect(_open_kart)
+	race_button.add_sibling(kart_button)
 	var highway_button := Button.new()
 	highway_button.name = "HighwayButton"
 	highway_button.text = "Highway"
 	highway_button.accessibility_description = "Cruise, score attack, runs and laps through traffic"
 	highway_button.custom_minimum_size = _drive_button.custom_minimum_size
 	highway_button.pressed.connect(_open_highway)
-	race_button.add_sibling(highway_button)
+	kart_button.add_sibling(highway_button)
 	var online_button := Button.new()
 	online_button.name = "OnlineButton"
 	online_button.text = "Online"
@@ -104,6 +111,7 @@ func _ready() -> void:
 		"online": _open_online()
 		"tracks": _open_tracks(func(_t: String) -> void: pass, true)
 		"highway": _open_highway()
+		"kart": _open_kart()
 		"online-players":
 			_open_online()
 			_online._open_players()
@@ -228,6 +236,34 @@ func _open_highway_menu(track: String) -> void:
 	add_child(menu)
 
 
+## Kart (M8): race, battle or cup and its setup (KartMenu), then a kart class, then the players.
+func _open_kart() -> void:
+	_mode = "kart"
+	var menu := KartMenu.new()
+	menu.name = "KartMenu"
+	menu.picked.connect(func(kind: String, e: RaceEvent, track: String, cup: String) -> void:
+		menu.visible = false
+		_classes = ClassPicker.new()
+		_classes.mode_filter = "kart"
+		_classes.current = String(Settings.profile.get("last_kart_platform", "official.kart.medium"))
+		_classes.picked.connect(func(id: String) -> void:
+			_classes.visible = false
+			Settings.profile.last_kart_platform = id
+			if kind == "cup":
+				_open_players(id, e, "", func() -> void: Game.start_cup_race(CupRun.start(CupRun.load_file(cup), id, e)))
+			else:
+				_open_players(id, e, track))
+		_classes.closed.connect(func() -> void:
+			_classes.queue_free()
+			menu.visible = true
+			menu.grab_focus_first())
+		add_child(_classes))
+	menu.closed.connect(func() -> void:
+		menu.queue_free()
+		_drive_button.get_parent().get_node(^"KartButton").grab_focus())
+	add_child(menu)
+
+
 func _open_event(platform_id: String) -> void:
 	_event = EventMenu.new()
 	_event.picked.connect(func(e: RaceEvent) -> void:
@@ -243,17 +279,20 @@ func _open_event(platform_id: String) -> void:
 	add_child(_event)
 
 
-func _open_players(platform_id: String, event: RaceEvent = null, track := "") -> void:
+## The players, then the session (`start` instead, if given: a cup).
+func _open_players(platform_id: String, event: RaceEvent = null, track := "", start := Callable()) -> void:
 	_players = PlayersMenu.new()
 	_players.platform_id = platform_id
 	_players.started.connect(func() -> void:
-		if event and event.kind != "free":
+		if start.is_valid():
+			start.call()
+		elif event and event.kind != "free":
 			Game.start_event(event, platform_id, track)
 		else:
 			Game.start_free_drive("", platform_id, false, false, track, event))
 	_players.closed.connect(func() -> void:
 		_players.queue_free()
-		if _mode == "highway" and is_instance_valid(_classes): # highway, menu, class, players
+		if _mode in ["highway", "kart"] and is_instance_valid(_classes): # highway or kart: menu, class, players
 			_classes.visible = true
 			_classes.grab_focus_first()
 		elif is_instance_valid(_event):

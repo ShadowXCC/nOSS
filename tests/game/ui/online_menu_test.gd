@@ -68,6 +68,7 @@ func test_host_a_game_and_leave_by_keys() -> void:
 	assert_str(_focused(runner)).is_equal("Free Drive")
 	await _key(KEY_DOWN)
 	await _key(KEY_DOWN)
+	await _key(KEY_DOWN) # Race, Kart, Highway
 	assert_str(_focused(runner)).is_equal("Highway")
 	await _key(KEY_DOWN)
 	assert_str(_focused(runner)).is_equal("Online")

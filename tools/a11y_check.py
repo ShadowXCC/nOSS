@@ -3,7 +3,8 @@
 
 Runs the game with accessibility on and walks title -> Race -> class -> event -> Players -> a
 1-lap race -> results -> title, then Online -> Host -> the lobby -> Leave (M5), then Highway ->
-a highway -> its menu -> the class -> Players and back out (M7), then the track editor: every
+a highway -> its menu -> the class -> Players and back out (M7), then Kart -> a race, a battle
+and the cup builder -> the class -> Players and back out (M8), then the track editor: every
 tool, a new oval, its race setup and checks, a new highway loop and its ramps, the Stunts tool on
 a kart circuit and an arena, and out (M6-M8);
 then, in a second run, a highway session's pause menu (opened with --pause-at: keys can't be
@@ -19,6 +20,7 @@ display. Writes no settings or profiles (--no-save).
     tools/a11y_check.py                # exit code 0 = pass
     tools/a11y_check.py --editor-only  # just the track editor
     tools/a11y_check.py --highway-only # just the highway menus and a highway session's pause
+    tools/a11y_check.py --kart-only    # just the kart menus (race, battle, cup builder)
 """
 import os
 import subprocess
@@ -258,6 +260,24 @@ def highway_menus():
     return ok
 
 
+def kart_menus():
+    """Title -> Kart -> a race -> a kart class -> Players and back; a battle's; a cup's builder (M8)."""
+    log("Kart menus")
+    ok = step("Title (kart)", "Kart")
+    ok = ok and step("Kart: race", "Next")
+    ok = ok and step("Kart: class", "Kart Medium", prefix=True)
+    ok = ok and back_from("Kart: players", "Ready")
+    ok = ok and back_from("Kart: class again", "Kart Medium")
+    ok = ok and step("Kart: to battle", "Play: Race")
+    ok = ok and step("Kart: battle", "Next")
+    ok = ok and back_from("Kart: battle class", "Kart Medium")
+    ok = ok and step("Kart: to cup", "Play: Battle")
+    ok = ok and step("Kart: cup", "New cup")
+    ok = ok and back_from("Kart: cup builder", "Save")
+    ok = ok and back_from("Kart: menu", "Play: Cup")
+    return ok
+
+
 def back_from(label, anchor):
     """Waits for the screen with `anchor` (a name prefix), checks it, and presses its Back."""
     if find(anchor, "button", timeout=30.0, prefix=True) is None:
@@ -360,6 +380,10 @@ def main():
                 highway_menus()
             stop_game(game)  # before the second run starts
             return finish()
+        if "--kart-only" in sys.argv:
+            if find("Kart", "button", timeout=60.0) is not None:
+                kart_menus()
+            raise SystemExit(report())
         log("Title")
         ok = step("Title", "Race")
         ok = ok and step("Class", "Track GT", prefix=True)
@@ -392,6 +416,10 @@ def main():
                     highway_menus()
                 else:
                     problems.append("Back at the title: no Highway button")
+                if find("Kart", "button", timeout=20.0) is not None:
+                    kart_menus()
+                else:
+                    problems.append("Back at the title: no Kart button")
                 if find("Track Editor", "button", timeout=20.0) is not None:
                     editor_walk()
                 else:
@@ -402,7 +430,7 @@ def main():
 
 
 def finish():
-    if "--editor-only" not in sys.argv:
+    if "--editor-only" not in sys.argv and "--kart-only" not in sys.argv:
         highway_pause_walk()
     return report()
 

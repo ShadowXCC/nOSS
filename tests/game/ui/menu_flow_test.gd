@@ -159,6 +159,7 @@ func test_keyboard_only_boot_to_a_highway() -> void:
 	await _frames(4)
 	await _key(KEY_DOWN)
 	await _key(KEY_DOWN)
+	await _key(KEY_DOWN) # Race, Kart, Highway
 	assert_str(_focused(runner)).is_equal("Highway")
 	await _key(KEY_ENTER)
 	await _frames(4)
@@ -210,6 +211,7 @@ func test_keyboard_back_out_of_the_highway_menus() -> void:
 	await _frames(4)
 	await _key(KEY_DOWN)
 	await _key(KEY_DOWN)
+	await _key(KEY_DOWN) # Race, Kart, Highway
 	await _key(KEY_ENTER)
 	await _frames(4)
 	await _key(KEY_ENTER) # the Lumen Ring
