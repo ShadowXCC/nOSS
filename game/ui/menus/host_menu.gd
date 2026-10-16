@@ -14,6 +14,7 @@ var config := ServerConfig.defaults()
 var _kind := "free"
 var _battle_rule := "standing"
 var _battle_min := 5
+var _battle_hits := 10
 var _track := TrackLibrary.DEFAULT
 var _traffic := 150
 var _police := false
@@ -43,6 +44,7 @@ func _ready() -> void:
 	if _kind == "battle":
 		_battle_rule = config.event(0).battle_rule
 		_battle_min = config.event(0).battle_min if config.event(0).battle_min in [3, 5, 7, 10] else 5
+		_battle_hits = config.event(0).battle_hits if config.event(0).battle_hits in [5, 10, 15, 20, 0] else 10
 	_track = TrackLibrary.resolve(String(config.rotation[0].get("track", "")))
 	_list = UiKit.panel(self, "Host", 860)
 	_build()
@@ -100,7 +102,12 @@ func _build(focus := "") -> void:
 		func(path: String) -> void: _track = path, "Players without it get it from you"))
 	if _kind == "battle":
 		_add(rows, UiKit.spinner("Rule", [["standing", "Last one standing"], ["hits", "Most hits"]], _battle_rule,
-			func(v: String) -> void: _battle_rule = v, "Three lives each, or the most hits"))
+			func(v: String) -> void:
+				_battle_rule = v
+				_build.call_deferred("Rule"), "Three lives each, or the most hits"))
+		if _battle_rule == "hits":
+			_add(rows, UiKit.spinner("Hits to win", KartMenu.HITS_TO_WIN, _battle_hits, func(v: int) -> void: _battle_hits = v,
+				"The first to this many wins; None: the most when time's up"))
 		_add(rows, UiKit.spinner("Minutes", [[3, "3"], [5, "5"], [7, "7"], [10, "10"]], _battle_min, func(v: int) -> void: _battle_min = v))
 	elif _kind == "highway":
 		_add(rows, UiKit.spinner("Traffic", TRAFFIC, _traffic, func(n: int) -> void: _traffic = n, "Cars on the road"))
@@ -145,6 +152,8 @@ func _open_event() -> void:
 func _host() -> void:
 	var e := Settings.last_event() if _kind == "race" else RaceEvent.highway("cruise", _police, _traffic) if _kind == "highway" \
 		else RaceEvent.battle(_battle_rule, _battle_min) if _kind == "battle" else RaceEvent.free_drive()
+	if _kind == "battle":
+		e.battle_hits = _battle_hits
 	config.rotation[0]["track"] = _track
 	config.rotation[0]["event"] = e.to_dict()
 	var saved := config.to_dict()

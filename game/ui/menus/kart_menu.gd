@@ -12,6 +12,7 @@ signal closed
 
 const KINDS := [["race", "Race"], ["battle", "Battle"], ["cup", "Cup"]]
 const RULES := [["standing", "Last one standing"], ["hits", "Most hits"]]
+const HITS_TO_WIN := [[5, "5"], [10, "10"], [15, "15"], [20, "20"], [0, "None"]]
 
 var kind := "race"
 var event := RaceEvent.new()
@@ -70,8 +71,12 @@ func _build(focus := "") -> void:
 				_add(UiKit.label("No arenas yet. Build one in the Track Editor.", 24))
 			else:
 				_add(UiKit.spinner("Arena", arenas, arena, func(v: String) -> void: arena = v))
-			_add(UiKit.spinner("Rule", RULES, event.battle_rule, func(v: String) -> void: event.battle_rule = v,
-				"Last one standing: three lives each. Most hits: hits count, nobody goes out"))
+			_add(UiKit.spinner("Rule", RULES, event.battle_rule, func(v: String) -> void:
+				event.battle_rule = v
+				_build.call_deferred("Rule"), "Last one standing: three lives each. Most hits: hits count, nobody goes out"))
+			if event.battle_rule == "hits":
+				_add(UiKit.spinner("Hits to win", HITS_TO_WIN, event.battle_hits if event.battle_hits in [5, 10, 15, 20, 0] else 10,
+					func(v: int) -> void: event.battle_hits = v, "The first to this many wins; None: the most when time's up"))
 			_add(UiKit.spinner("Minutes", [[3, "3"], [5, "5"], [7, "7"], [10, "10"]], event.battle_min if event.battle_min in [3, 5, 7, 10] else 5,
 				func(v: int) -> void: event.battle_min = v))
 			_add_ai()
@@ -172,10 +177,14 @@ func _next() -> void:
 			e.ai_cars = "builtin"
 		"battle":
 			e = RaceEvent.battle(event.battle_rule, event.battle_min)
+			e.battle_hits = event.battle_hits
 			e.ai_count = event.ai_count
 			e.ai_skill = event.ai_skill
 			e.ai_cars = "builtin"
-	Settings.set_value("last_kart", { "kind": kind, "event": event.to_dict(), "track": track, "arena": arena, "cup": cup_path })
+	var saved := event.to_dict()
+	for key: String in RaceEvent.KART_KEYS: # a race's dict leaves the battle's settings out
+		saved[key] = event.get(key)
+	Settings.set_value("last_kart", { "kind": kind, "event": saved, "track": track, "arena": arena, "cup": cup_path })
 	picked.emit(kind, e, arena if kind == "battle" else track, cup_path)
 
 

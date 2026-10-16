@@ -6,7 +6,8 @@ extends Node
 ## and counts as a hit for whoever's item it was (not a kart's own). "Last one standing": a kart
 ## with no lives left is out (it drives on ghosted, with no items); the match ends with one kart
 ## left or at the time limit, ranked by lives, then hits, then who went out last. "Most hits":
-## nobody goes out; at the time limit, ranked by hits dealt, then fewest taken.
+## nobody goes out; the first to the event's target wins (`battle_hits`; 0: none), or at the time
+## limit it's ranked by hits dealt, then fewest taken.
 ## The authority decides (offline: this game); RaceControl runs the lights and the results.
 
 signal life_lost(r: Racer, lives: int)
@@ -76,6 +77,11 @@ func protected(r: Racer) -> bool:
 	return float(_grace.get(r, 0.0)) > 0.0
 
 
+## A most-hits match's target (0: none, or not that rule).
+func target_hits() -> int:
+	return session.event.battle_hits if rule() == "hits" else 0
+
+
 func time_left() -> float:
 	return maxf(session.event.battle_min * 60.0 - session.race.clock, 0.0)
 
@@ -140,7 +146,9 @@ func _physics_process(delta: float) -> void:
 	if not authority or ended or session.race.phase != RaceControl.Phase.RUNNING:
 		return
 	var last_one := rule() == "standing" and session.racers.size() > 1 and standing().size() <= 1
-	if last_one or time_left() <= 0.0:
+	var target := target_hits()
+	var reached := target > 0 and session.racers.any(func(r: Racer) -> bool: return hits(r) >= target)
+	if last_one or reached or time_left() <= 0.0:
 		ended = true
 		var order := standings()
 		if not order.is_empty():

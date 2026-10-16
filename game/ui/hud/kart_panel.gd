@@ -18,6 +18,7 @@ var _swatch := ColorRect.new()
 var _item := Label.new()
 var _drift := Label.new()
 var _battle := Label.new()
+var _board := Label.new()
 var _boost := ColorRect.new()
 var _boost_back := ColorRect.new()
 var _time := 0.0
@@ -32,7 +33,7 @@ func _init() -> void:
 	_swatch.size = Vector2(56, 56)
 	_swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_swatch)
-	for row: Array in [[_item, 40, Vector2(72, 4)], [_drift, 30, Vector2(0, 70)], [_battle, 30, Vector2(0, 132)]]:
+	for row: Array in [[_item, 40, Vector2(72, 4)], [_drift, 30, Vector2(0, 70)], [_battle, 30, Vector2(0, 132)], [_board, 24, Vector2(0, 172)]]:
 		var l: Label = row[0]
 		l.add_theme_font_size_override("font_size", row[1])
 		l.add_theme_color_override("font_color", Hud.TEXT)
@@ -80,15 +81,29 @@ func show_kart(slot: Dictionary, flags: int, state: Dictionary, delta: float) ->
 	accessibility_name = "Item: " + _item.text
 
 
-## A battle's line: lives left (-1: a most-hits match, no lives), hits dealt, out.
-func show_battle(lives: int, hits: int, out: bool) -> void:
+## A battle's line: lives left (-1: a most-hits match, no lives), hits dealt, out; in a most-hits
+## match also the target (0: none), the place and the leaders (`board`: "1 Rook 5 · 2 You 3").
+func show_battle(lives: int, hits: int, out: bool, place := 0, karts := 0, target := 0, board := "") -> void:
 	if out:
 		_battle.text = "Out  ·  Hits %d" % hits
 	elif lives >= 0:
 		_battle.text = "Lives %s %d  ·  Hits %d" % ["●".repeat(lives) + "○".repeat(maxi(BattleControl.LIVES - lives, 0)), lives, hits]
 	else:
-		_battle.text = "Hits %d" % hits
-	accessibility_name = "Item: %s. %s" % [_item.text, _battle.text]
+		_battle.text = "Hits %d%s  ·  %s of %d" % [hits, " of %d" % target if target > 0 else "", ordinal(place), karts]
+	_board.text = board
+	accessibility_name = "Item: %s. %s%s" % [_item.text, _battle.text, (". " + board) if board else ""]
+
+
+## 1st, 2nd, 3rd, 4th...
+static func ordinal(n: int) -> String:
+	var suffix := "th"
+	if n % 100 < 11 or n % 100 > 13:
+		suffix = ["th", "st", "nd", "rd", "th", "th", "th", "th", "th", "th"][n % 10]
+	return "%d%s" % [n, suffix]
+
+
+func board_text() -> String:
+	return _board.text
 
 
 func battle_text() -> String:

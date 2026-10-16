@@ -35,10 +35,11 @@ var track_limits := "lenient"
 ## AI cars: "garage" (garage and built-in cars the class takes) or "builtin".
 var ai_cars := "garage"
 ## Kart (D139, D144): item boxes on; a battle's rule ("standing": last one standing, "hits": most
-## hits) and its length in minutes.
+## hits), its length in minutes, and a most-hits match's target (first to it wins; 0: time only).
 var items := true
 var battle_rule := "standing"
 var battle_min := 5
+var battle_hits := 10
 
 ## The values each text field may take; the first is the default.
 const CHOICES := {
@@ -48,11 +49,11 @@ const CHOICES := {
 }
 const KEYS := ["kind", "practice_min", "qualifying_min", "race_laps", "race_min", "ai_count", "ai_skill",
 	"start", "grid", "collisions", "track_limits", "ai_cars", "sub", "police", "traffic", "run", "direction",
-	"items", "battle_rule", "battle_min"]
+	"items", "battle_rule", "battle_min", "battle_hits"]
 ## Written only for highway events (circuit events stay as older games and servers know them).
 const HIGHWAY_KEYS := ["sub", "police", "traffic", "run", "direction"]
 ## Written only for battles, or with items off.
-const KART_KEYS := ["items", "battle_rule", "battle_min"]
+const KART_KEYS := ["items", "battle_rule", "battle_min", "battle_hits"]
 ## Traffic cars at most.
 const TRAFFIC_MAX := 400
 
@@ -137,6 +138,7 @@ static func from_dict(d: Dictionary) -> RaceEvent:
 	e.direction = clampi(e.direction, -1, 1)
 	e.run = e.run.left(32)
 	e.battle_min = clampi(e.battle_min, 1, 15)
+	e.battle_hits = clampi(e.battle_hits, 0, 50)
 	# Text fields only take their known values (events also come from servers).
 	for key: String in CHOICES:
 		if e.get(key) not in CHOICES[key]:

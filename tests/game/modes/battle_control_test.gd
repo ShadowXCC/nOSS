@@ -2,7 +2,8 @@ extends GdUnitTestSuite
 ## Battles (D144) on the arena fixture with four karts: they start on the arena's spawns, held
 ## until three lights go out; a hit takes a life (one per spin-out) and a Shield blocks it; a kart
 ## with none left is out (a ghost, no items, no EMP); the last one standing wins and the results
-## carry lives and hits; a most-hits match ranks by hits, then fewest taken, and ends at its time.
+## carry lives and hits; a most-hits match ranks by hits, then fewest taken, and ends at its time
+## or when a kart reaches its target; its HUD line shows the target, the place and the leaders.
 
 const ARENA := "res://tests/fixtures/tracks/arena_small.json"
 
@@ -25,13 +26,14 @@ func after() -> void:
 	Settings.use_folder("user://")
 
 
-func _start(rule: String, minutes := 5) -> void:
+func _start(rule: String, minutes := 5, target := 10) -> void:
 	Players.clear()
 	ended = []
 	s = TrackSession.new()
 	s.track_path = ARENA
 	s.platform_id = "official.kart.medium"
 	s.event = RaceEvent.battle(rule, minutes)
+	s.event.battle_hits = target
 	s.event.ai_count = 3
 	s.event.ai_cars = "builtin"
 	add_child(s)
@@ -163,7 +165,7 @@ func test_out_karts_are_left_alone() -> void:
 
 
 func test_most_hits_ranks_by_hits_then_fewest_taken() -> void:
-	await _start("hits", 1)
+	await _start("hits", 1, 0)
 	await _running()
 	_hit(b, a)
 	_hit(c, a)
@@ -209,3 +211,25 @@ func test_the_results_read_lives_and_hits() -> void:
 	assert_str(menu.row_text(0)).contains("3 hits")
 	assert_str(menu.row_text(3)).contains("out")
 	menu.queue_free()
+
+
+func test_most_hits_ends_at_its_target_and_shows_the_board() -> void:
+	await _start("hits", 5, 3)
+	await _running()
+	_hit(b, a)
+	_hit(c, a)
+	_hit(a, d)
+	assert_bool(ended.is_empty()).is_true()
+	var panel := KartPanel.new()
+	var order := battle.standings()
+	panel.show_battle(-1, battle.hits(d), false, order.find(d) + 1, order.size(), battle.target_hits(), s.kart.get_node("Hud")._board(battle, order, d) if s.kart.has_node("Hud") else "")
+	assert_str(panel._battle.text).is_equal("Hits 1 of 3  ·  2nd of 4")
+	if s.kart.has_node("Hud"):
+		assert_str(panel.board_text()).starts_with("1 %s 2  ·  2 You 1" % a.display_name)
+	panel.free()
+	_hit(d, a)
+	await get_tree().physics_frame
+	assert_int(ended.size()).is_equal(1)
+	assert_object((ended[0][1] as Array)[0].racer).is_same(a)
+	assert_str(KartPanel.ordinal(11)).is_equal("11th")
+	assert_str(KartPanel.ordinal(22)).is_equal("22nd")

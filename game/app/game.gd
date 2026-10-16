@@ -32,7 +32,7 @@ extends Node
 ##   --highway            a highway session right away (the first highway, or --track): --sub=cruise|score|run|loop,
 ##                        --traffic=<cars>, --traffic-seed=<n>, --police, --direction=-1|both, --run=<id>, --players=<n>
 ##   --kart               a kart race right away (the first kart track, or --track; --race-laps, --race-ai, --platform)
-##   --battle[=hits]      a battle right away (the first arena, or --track; --battle-min, --race-ai)
+##   --battle[=hits]      a battle right away (the first arena, or --track; --battle-min, --battle-hits, --race-ai)
 ##   --cup[=<id>]         a cup right away (the Spark Cup, or <id>; --race-ai)
 ##   --kart-debug         online kart items: log every item more than 1 m off the server's
 ##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5; a list like 5,30,90 takes several), one per window
@@ -211,6 +211,7 @@ func _start_dev_kart() -> void:
 		return
 	if dev.has("battle"):
 		var b := RaceEvent.battle("hits" if String(dev.battle) == "hits" else "standing", int(dev.get("battle-min", "5")))
+		b.battle_hits = int(dev.get("battle-hits", "10"))
 		b.ai_count = e.ai_count
 		b.ai_skill = e.ai_skill
 		b.ai_cars = "builtin"
