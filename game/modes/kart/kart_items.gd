@@ -8,6 +8,8 @@ signal got(racer: Racer, item: String)
 signal used(racer: Racer, item: String)
 ## An item hit `victim` (a Shield took it if `blocked`).
 signal hit_landed(victim: Racer, attacker: Racer, kind: String, blocked: bool)
+## An EMP went off (for its ring; online clients hear of it from the server).
+signal pulse_shown(owner: Racer, pos: Vector3)
 
 const ROULETTE_S := 1.2
 const NITRO_S := 1.0
@@ -32,6 +34,8 @@ var boxes: KartBoxes
 var entities: KartEntities
 var odds: ItemOdds
 var rng := RandomNumberGenerator.new()
+## Online (D141): the server's word on boxes, uses and hits; null offline (this game decides).
+var net: KartNet
 ## Racer -> {item, count, roulette, shield, magnet, magnet_target, nitro_gap}.
 var slots := {}
 var _since_hunter := INF
@@ -51,6 +55,11 @@ func slot(r: Racer) -> Dictionary:
 func item_of(r: Racer) -> String:
 	var s := slot(r)
 	return s.item if s.roulette <= 0.0 else ""
+
+
+## This game decides what boxes give and rules on hits: offline, or the server.
+func authority() -> bool:
+	return net == null or net.is_server()
 
 
 ## This game drives `r`'s car: it takes boxes and is hit here.
@@ -84,7 +93,10 @@ func _physics_process(delta: float) -> void:
 		var box := boxes.near(com)
 		if box >= 0:
 			boxes.take(box)
-			pick(r, box)
+			if authority():
+				pick(r, box)
+			else:
+				net.report_pick(r, box) # the server's roll comes back (the roulette covers the trip)
 		if not _protected(r):
 			for e in entities.touching(r, com):
 				hit(r, e)
@@ -130,7 +142,8 @@ func _held(item: String) -> int:
 
 # --- using ---------------------------------------------------------------------------------
 
-## `r` uses what it holds; `back`: the Bolt backwards, the Slick thrown ahead (D135).
+## `r` uses what it holds; `back`: the Bolt backwards, the Slick thrown ahead (D135). Online, a
+## client shows it at once and tells the server, whose word stands.
 func use(r: Racer, back := false) -> void:
 	var s := slot(r)
 	var item: String = s.item
@@ -141,37 +154,85 @@ func use(r: Racer, back := false) -> void:
 	fwd.y = 0.0
 	fwd = fwd.normalized()
 	var com := r.com()
+	if item in ["nitro", "nitro_x3"] and s.nitro_gap > 0.0:
+		return
+	var target := _target_for(r, item)
+	var e := _use_at(r, item, com, fwd, back, target, 0)
+	if net and not net.is_server():
+		net.report_use(r, item, com, fwd, back, e)
+
+
+## Server: a client's use of what car `r` holds, from where and when its game says (KartNet
+## checked it).
+func use_from(r: Racer, pos: Vector3, dir: Vector3, back: bool, seq: int, target: Racer, at_time: float) -> void:
+	var item: String = slot(r).item
+	if item == "":
+		return
+	var flat := Vector3(dir.x, 0.0, dir.z).normalized()
+	var e := _use_at(r, item, pos, flat, back, target, seq, at_time)
+	if not e.is_empty():
+		entities.advance(e, clampf(net.now() - at_time, 0.0, KartNet.MAX_CATCH_UP_S))
+
+
+## Who a Seeker or the Leader Hunter goes for (null for other items).
+func _target_for(r: Racer, item: String) -> Racer:
+	match item:
+		"seeker":
+			return _ahead_of(r, session.track.length / 2.0)
+		"leader_hunter":
+			return _leader_for(r)
+	return null
+
+
+## Uses `item` for `r` from `com` along `fwd`; the entity it lets go ({} for none). Online the
+## server passes it on (`seq`: the client's use number); a client's own shows at once.
+func _use_at(r: Racer, item: String, com: Vector3, fwd: Vector3, back: bool, target: Racer, seq: int, at_time := -1.0) -> Dictionary:
+	var s := slot(r)
+	var v := r.vehicle
+	var e := {}
+	var id := net.predict_id() if net and not net.is_server() else (net.server_id() if net else 0)
+	var remote := net != null and net.is_server() and not local(r)
 	match item:
 		"nitro", "nitro_x3":
-			if s.nitro_gap > 0.0:
-				return
-			v.sim.kart_effect(VehicleSim.KART_BOOST, NITRO_S)
+			if not remote:
+				v.sim.kart_effect(VehicleSim.KART_BOOST, NITRO_S)
 			s.nitro_gap = NITRO_GAP_S
 		"oil_slick":
 			if back:
-				entities.spawn("oil_slick", r, com + Vector3.UP * 0.6, fwd, null, 0, true)
+				e = entities.spawn("oil_slick", r, com + Vector3.UP * 0.6, fwd, null, id, true)
 			else:
-				entities.spawn("oil_slick", r, com - fwd * SLICK_BEHIND_M, fwd)
+				e = entities.spawn("oil_slick", r, com - fwd * SLICK_BEHIND_M, fwd, null, id)
 		"bolt":
 			var dir := -fwd if back else fwd
-			entities.spawn("bolt", r, com + dir * AHEAD_M, dir)
-		"seeker":
-			entities.spawn("seeker", r, com + fwd * AHEAD_M, fwd, _ahead_of(r, session.track.length / 2.0))
-		"leader_hunter":
-			entities.spawn("leader_hunter", r, com + fwd * AHEAD_M, fwd, _leader_for(r))
+			e = entities.spawn("bolt", r, com + dir * AHEAD_M, dir, null, id)
+		"seeker", "leader_hunter":
+			e = entities.spawn(item, r, com + fwd * AHEAD_M, fwd, target, id)
 		"shield":
 			s.shield = SHIELD_S
 		"emp":
-			for o: Racer in session.racers:
-				if o != r and o.vehicle and not o.towed and not o.out and not _protected(o) and o.com().distance_to(com) <= EMP_RADIUS_M:
-					hit_by(o, "emp", r)
+			pulse_shown.emit(r, com)
+			if authority():
+				# Offline, or the server's call in its view (D141): who it reaches.
+				var reached := []
+				for o: Racer in session.racers:
+					if o != r and o.vehicle and not o.towed and not o.out and not _protected(o) and o.com().distance_to(com) <= EMP_RADIUS_M:
+						reached.append(o)
+						if local(o) or net == null:
+							hit_by(o, "emp", r)
+						else:
+							land(o, r, "emp", slot(o).shield > 0.0)
+				if net:
+					net.pulse(r, com, reached.filter(func(o: Racer) -> bool: return not local(o)))
 		"magnet":
 			s.magnet = MAGNET_S
 			s.magnet_target = _ahead_of(r, MAGNET_RANGE_M)
 	s.count -= 1
 	if s.count <= 0:
 		s.item = ""
+	if net and net.is_server() and not e.is_empty():
+		net.spawned(e, r, seq, at_time) # as let go: where and when (every game catches it up)
 	used.emit(r, item)
+	return e
 
 
 ## The next car ahead of `r` within `reach` m: along the road on a track, the nearest within a
@@ -208,10 +269,25 @@ func _leader_for(r: Racer) -> Racer:
 
 # --- hits ----------------------------------------------------------------------------------
 
-## Entity `e` reached `victim`'s car.
+## Entity `e` reached `victim`'s car (one this game drives). Online a client tells the server.
 func hit(victim: Racer, e: Dictionary) -> void:
 	entities.remove(e.id)
+	var blocked: bool = slot(victim).shield > 0.0
 	hit_by(victim, String(e.kind), e.owner, e.vel)
+	if net:
+		if net.is_server():
+			net.gone(int(e.id))
+		else:
+			net.report_hit(victim, e, String(e.kind), blocked)
+
+
+## A hit on a car another game drives, as the server rules it: counted here (a battle's lives),
+## the effect is its own game's.
+func land(victim: Racer, attacker: Racer, kind: String, blocked: bool) -> void:
+	var s := slot(victim)
+	if blocked:
+		s.shield = 0.0
+	hit_landed.emit(victim, attacker, kind, blocked)
 
 
 ## What an item does to `victim` (D139): a Shield takes the hit and goes; else a spin-out (and a
@@ -235,6 +311,7 @@ func hit_by(victim: Racer, kind: String, attacker: Racer, from_vel := Vector3.ZE
 				var dir := from_vel.normalized()
 				dir.y = 0.0
 				v.apply_central_impulse(dir.normalized() * v.mass * KNOCK)
+				v.knocked_at = Time.get_ticks_msec() / 1000.0 # a knock its states say (Plausibility)
 	s.magnet = 0.0
 	hit_landed.emit(victim, attacker, kind, false)
 

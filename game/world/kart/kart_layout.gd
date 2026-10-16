@@ -33,7 +33,14 @@ const LOOP_DIVIDER_M := 6.0
 ## Every loop gets a boost pad this far before it, in its entry lane (D137).
 const LOOP_PAD_M := 25.0
 
-var track: TrackData
+## The track it's on, held weakly: the track holds this (its kart or arena), so a strong link
+## back would keep both for ever.
+var track: TrackData:
+	get:
+		return _track.get_ref() if _track else null
+	set(value):
+		_track = weakref(value) if value else null
+var _track: WeakRef
 ## "auto", "placed" or "none".
 var boxes := "auto"
 ## Every piece, defaults filled in, with "frame": Transform3D (circuits: the road's frame at
@@ -152,6 +159,16 @@ func loop_progress(pos: Vector3) -> Dictionary:
 
 
 ## The loop `distance` (along the road) is at or just before, within `before` m: {} if none.
+## Within a loop's reach of `pos` (in it, or turning into or out of it).
+func by_a_loop(pos: Vector3) -> bool:
+	for p in pieces:
+		if p.kind == "loop":
+			var at := (p.frame as Transform3D).origin
+			if pos.distance_to(at) < 2.0 * float(p.radius_m) + 12.0:
+				return true
+	return false
+
+
 func loop_near(distance: float, before := 60.0, after := 0.0) -> Dictionary:
 	for p in pieces:
 		if p.kind != "loop":

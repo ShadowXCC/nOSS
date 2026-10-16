@@ -12,6 +12,8 @@ const TRAFFIC := [[0, "Off"], [75, "75"], [150, "150"], [250, "250"], [400, "400
 
 var config := ServerConfig.defaults()
 var _kind := "free"
+var _battle_rule := "standing"
+var _battle_min := 5
 var _track := TrackLibrary.DEFAULT
 var _traffic := 150
 var _police := false
@@ -38,6 +40,9 @@ func _ready() -> void:
 	if _kind == "highway" and config.event(0).traffic >= 0:
 		_traffic = config.event(0).traffic
 	_police = _kind == "highway" and config.event(0).police
+	if _kind == "battle":
+		_battle_rule = config.event(0).battle_rule
+		_battle_min = config.event(0).battle_min if config.event(0).battle_min in [3, 5, 7, 10] else 5
 	_track = TrackLibrary.resolve(String(config.rotation[0].get("track", "")))
 	_list = UiKit.panel(self, "Host", 860)
 	_build()
@@ -54,7 +59,7 @@ func _build(focus := "") -> void:
 			_list.remove_child(child)
 			child.queue_free()
 	_rows.clear()
-	var type := "highway" if _kind == "highway" else "circuit"
+	var type := "highway" if _kind == "highway" else "arena" if _kind == "battle" else "circuit"
 	var tracks := TrackLibrary.list(true, false, type) # personal-use tracks stay offline
 	if not tracks.any(func(e: Dictionary) -> bool: return e.path == _track):
 		_track = tracks[0].path if not tracks.is_empty() else TrackLibrary.DEFAULT
@@ -77,23 +82,27 @@ func _build(focus := "") -> void:
 	_add(rows, UiKit.spinner("Players", sizes, clampi(config.max_players, 2, 16), func(n: int) -> void: config.max_players = n, "Most players, splitscreen included"))
 	var classes := []
 	for mode in GameModes.list():
-		if (mode.id == "highway") != (_kind == "highway"):
+		if (mode.id == "highway") != (_kind == "highway") or (_kind == "battle" and mode.id != "kart"):
 			continue
 		for r: PlatformLoader.Result in GameModes.classes(mode):
 			classes.append([r.platform.id, "%s %s" % [mode.name, r.platform.name]])
 	if not classes.any(func(c: Array) -> bool: return c[0] == config.rotation[0].get("class", "")) and not classes.is_empty():
 		config.rotation[0]["class"] = classes[0][0]
-	_add(rows, UiKit.spinner("Event", [["free", "Free drive"], ["race", "Race weekend"], ["highway", "Highway cruise"]], _kind,
+	_add(rows, UiKit.spinner("Event", [["free", "Free drive"], ["race", "Race weekend"], ["highway", "Highway cruise"], ["battle", "Kart battle"]], _kind,
 		func(k: String) -> void:
-			var was_highway := _kind == "highway"
+			var was := _kind
 			_kind = k
-			if (k == "highway") != was_highway:
-				_build.call_deferred("Event"), "A highway has its own tracks and classes"))
+			if (k in ["highway", "battle"]) or (was in ["highway", "battle"]):
+				_build.call_deferred("Event"), "Highways and kart battles have their own tracks and classes"))
 	_add(rows, UiKit.spinner("Class", classes, config.rotation[0].get("class", "official.track.gt"),
 		func(id: String) -> void: config.rotation[0]["class"] = id, "How every car drives"))
 	_add(rows, UiKit.spinner("Track", tracks.map(func(e: Dictionary) -> Array: return [e.path, TrackLibrary.label(e)]), _track,
 		func(path: String) -> void: _track = path, "Players without it get it from you"))
-	if _kind == "highway":
+	if _kind == "battle":
+		_add(rows, UiKit.spinner("Rule", [["standing", "Last one standing"], ["hits", "Most hits"]], _battle_rule,
+			func(v: String) -> void: _battle_rule = v, "Three lives each, or the most hits"))
+		_add(rows, UiKit.spinner("Minutes", [[3, "3"], [5, "5"], [7, "7"], [10, "10"]], _battle_min, func(v: int) -> void: _battle_min = v))
+	elif _kind == "highway":
 		_add(rows, UiKit.spinner("Traffic", TRAFFIC, _traffic, func(n: int) -> void: _traffic = n, "Cars on the road"))
 		_add(rows, UiKit.spinner("Police", [[false, "Off"], [true, "On"]], _police, func(v: bool) -> void: _police = v, "Speed traps and chases"))
 	else:
@@ -134,7 +143,8 @@ func _open_event() -> void:
 
 
 func _host() -> void:
-	var e := Settings.last_event() if _kind == "race" else RaceEvent.highway("cruise", _police, _traffic) if _kind == "highway" else RaceEvent.free_drive()
+	var e := Settings.last_event() if _kind == "race" else RaceEvent.highway("cruise", _police, _traffic) if _kind == "highway" \
+		else RaceEvent.battle(_battle_rule, _battle_min) if _kind == "battle" else RaceEvent.free_drive()
 	config.rotation[0]["track"] = _track
 	config.rotation[0]["event"] = e.to_dict()
 	var saved := config.to_dict()

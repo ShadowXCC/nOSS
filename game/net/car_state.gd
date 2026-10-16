@@ -1,14 +1,14 @@
 class_name CarState
 extends RefCounted
-## One car's state on the wire (docs/NETWORKING.md §6, D84, D112): 46 bytes.
+## One car's state on the wire (docs/NETWORKING.md §6, D84, D112, D142): 48 bytes.
 ##   id u16 · time u32 (server clock, ms) · position i32 ×3 (mm) · rotation (smallest three, 32
 ##   bits) · linear and angular velocity (half floats) · front steer i8 · wheel lift i8 ×4 (cm)
-##   · throttle u8 · brake u8 · gear i8 · rpm u16 · flags u8 · flags2 u8
+##   · throttle u8 · brake u8 · gear i8 · rpm u16 · flags u8 · flags2 u8 · kart u16
 ## The pose is the ground reference (what Vehicle.reset_to takes), so a placeholder and the real
 ## car line up whatever their models. Ids: players 1-199, the server's AI 200-299, police
 ## 300-399, highway traffic 1000 + its lane-sim index (NetProtocol).
 
-const SIZE := 46
+const SIZE := 48
 const STEER_RANGE := 0.8 # rad, both ways
 const FLAG_BRAKE := 1
 const FLAG_GHOSTED := 2
@@ -47,6 +47,8 @@ var gear := 0
 var rpm := 0.0
 var flags := 0
 var flags2 := 0
+## Kart sessions: the kart word (drift, tier, boost, shield, spun, towed, out...); 0 otherwise.
+var kart := 0
 
 
 ## The state of `vehicle` now (`time` in server seconds).
@@ -71,6 +73,7 @@ static func of(vehicle: Vehicle, car_id: int, server_time: float) -> CarState:
 	s.flags2 = (FLAG2_HORN if vehicle.horn else 0) | (FLAG2_HEAD_FLASH if vehicle.head_flash else 0) \
 		| (FLAG2_INDICATOR_L if vehicle.indicators & 1 else 0) | (FLAG2_INDICATOR_R if vehicle.indicators & 2 else 0) \
 		| (FLAG2_SIREN if vehicle.siren else 0) | (FLAG2_LIGHT_BAR if vehicle.light_bar else 0)
+	s.kart = vehicle.kart_flags() & 0xFFFF
 	return s
 
 
@@ -101,6 +104,7 @@ func encode(out: PackedByteArray, at: int) -> void:
 	out.encode_u16(at + 42, clampi(roundi(rpm), 0, 65535))
 	out.encode_u8(at + 44, flags)
 	out.encode_u8(at + 45, flags2)
+	out.encode_u16(at + 46, kart & 0xFFFF)
 
 
 ## A state from `bytes` at `at`; `time_base` is the server clock (s) now, to unwrap the 32-bit
@@ -133,6 +137,7 @@ static func decode(bytes: PackedByteArray, at: int, time_base := 0.0) -> CarStat
 	s.rpm = bytes.decode_u16(at + 42)
 	s.flags = bytes.decode_u8(at + 44)
 	s.flags2 = bytes.decode_u8(at + 45)
+	s.kart = bytes.decode_u16(at + 46)
 	return s
 
 

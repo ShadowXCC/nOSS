@@ -92,7 +92,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "kind": { "enum": ["free", "race", "highway"] },
+        "kind": { "description": "battle: a kart class on an arena (D144).", "enum": ["free", "race", "highway", "battle"] },
         "practice_min": { "type": "integer", "minimum": 0, "maximum": 120 },
         "qualifying_min": { "type": "integer", "minimum": 0, "maximum": 120 },
         "race_laps": { "type": "integer", "minimum": 1, "maximum": 99 },
@@ -108,7 +108,10 @@
         "police": { "type": "boolean" },
         "traffic": { "description": "Highway events: traffic cars (-1: the track's own count).", "type": "integer", "minimum": -1, "maximum": 400 },
         "run": { "description": "Highway events: the run's id (\"\": the first).", "type": "string", "maxLength": 32 },
-        "direction": { "description": "Highway events: the way players start (0: both ways, turn about).", "enum": [-1, 0, 1] }
+        "direction": { "description": "Highway events: the way players start (0: both ways, turn about).", "enum": [-1, 0, 1] },
+        "items": { "description": "Kart events: item boxes on.", "type": "boolean" },
+        "battle_rule": { "description": "Battles: last one standing or most hits.", "enum": ["standing", "hits"] },
+        "battle_min": { "description": "Battles: minutes at most.", "type": "integer", "minimum": 1, "maximum": 15 }
       }
     }
   }

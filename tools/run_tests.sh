@@ -56,6 +56,12 @@ step "Online check (3 bots and an AI car race a lap, 150 ms)"
 step "Online highway check (3 bots, 60 traffic cars, 150 ms, one put out of step)"
 .venv/bin/python tools/net_check.py --event highway --clients 3 --traffic 60 --duration 40 --rtt 150 --jitter 10 --loss 1 --desync | grep -E "^(net_check|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("highway net check")
 
+step "Kart net check (3 bots, 1 AI, 1 lap of Gearworks, 150 ms, 1% loss)"
+.venv/bin/python tools/net_check.py --event kart --clients 3 --ai 1 --laps 1 --rtt 150 --jitter 10 --loss 1 | grep -E "^(net_check|server items|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("kart net check")
+
+step "Battle net check (3 bots, 1 AI, the Crate Yard, 150 ms)"
+.venv/bin/python tools/net_check.py --event battle --clients 3 --ai 1 --rtt 150 --jitter 10 --loss 1 | grep -E "^(net_check|server items|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("battle net check")
+
 step "Track check (3 km track: built in the editor, raced, sent online)"
 tools/track_check.sh | grep -E "^(track_check|Race|Time|net_check|bot00 got|fresh|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("track check")
 

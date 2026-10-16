@@ -9,7 +9,9 @@ extends RefCounted
 ## - moving further between two states than its speed allows (a teleport not marked as a reset)
 ## - a reset that jumps ahead along the track
 ## - states stamped far from the server's clock
-## - a lap faster than the racing line's ideal for the platform
+## - a lap faster than the racing line's ideal for the platform (not karts: their boosts beat it)
+## Karts (D142): their top speed is the class's geared top boosted; a kart under the tow drone
+## isn't driving; jumps, landings and loops jolt them; their bumps bounce.
 ## A car gets strikes; STRIKES within WINDOW_S trigger the server's response (warn, flag, kick).
 
 const STRIKES := 3
@@ -30,16 +32,23 @@ const AIR_DENSITY := 1.225
 var top_speed := 100.0
 ## The racing line's ideal lap for the platform here, s (0: unknown).
 var ideal_lap := 0.0
+## How much a knock may speed a car up (m/s): karts bounce off each other (D132).
+var knock_gain := KNOCK_GAIN
+const KART_KNOCK_GAIN := 6.0
 var _last: CarState
 var _strikes: Array[Dictionary] = [] # {time, reason}
 var _grace_until := 0.0
 
 
-static func for_platform(platform: Dictionary, track: TrackData) -> Plausibility:
+static func for_platform(platform: Dictionary, track: TrackData, arcade := {}) -> Plausibility:
 	var p := Plausibility.new()
 	var power := GameModes.peak_power_kw(platform) * 1000.0
 	var cd_a := maxf(float(platform.get("aero", {}).get("cd_a", 0.8)), 0.05)
 	p.top_speed = pow(2.0 * power / (AIR_DENSITY * cd_a), 1.0 / 3.0)
+	if not arcade.is_empty():
+		p.top_speed = maxf(p.top_speed, geared_top(platform) * float(arcade.boost.cap))
+		p.knock_gain = KART_KNOCK_GAIN
+		return p # no lap check: boosts beat the line
 	if track and track.arena == null: # an arena has no laps
 		var line := RacingLine.for_track(track)
 		p.ideal_lap = line.lap_time(line.speed_profile(platform, 1.0))
@@ -52,6 +61,11 @@ func check(s: CarState, now: float, track: TrackData, contact := false) -> Packe
 	var out := PackedStringArray()
 	if s.time - now > CLOCK_AHEAD_S or now - s.time > CLOCK_BEHIND_S:
 		out.append("clock")
+	if s.kart & CarState.KART_TOWED:
+		# Under the tow drone: carried, not driven.
+		_grace_until = now + ACCEL_GRACE_S
+		_last = null
+		return out
 	if s.velocity.length() > top_speed * SPEED_MARGIN + SPEED_EXTRA:
 		out.append("speed")
 	if contact:
@@ -63,17 +77,35 @@ func check(s: CarState, now: float, track: TrackData, contact := false) -> Packe
 			out.append("reset ahead")
 	elif _last and s.time > _last.time:
 		var dt := s.time - _last.time
-		if s.flags & CarState.FLAG_KNOCK and s.velocity.length() <= _last.velocity.length() + KNOCK_GAIN:
+		if s.flags & CarState.FLAG_KNOCK and s.velocity.length() <= _last.velocity.length() + knock_gain:
 			_grace_until = now + ACCEL_GRACE_S # a knock stops a car hard; it never speeds one up much
 		var moved := _last.xform.origin.distance_to(s.xform.origin)
 		var could := maxf(_last.velocity.length(), s.velocity.length()) * dt + JUMP_SLACK_M
 		if moved > could and s.flags & CarState.FLAG_WAITING == 0:
 			out.append("teleport")
 		var dv := s.velocity - _last.velocity
+		# Round a kart's loop the way it's going turns over and over (D137).
+		var looping := track != null and track.kart != null and track.kart.by_a_loop(s.xform.origin)
+		# Taking off or landing (a kart off a jump) jolts it.
+		var air := (s.kart | _last.kart) & VehicleSim.KART_FLAG_AIRBORNE != 0
+		if looping or air:
+			_grace_until = now + ACCEL_GRACE_S
 		if dt > 0.01 and now >= _grace_until and Vector2(dv.x, dv.z).length() / dt > MAX_ACCEL:
 			out.append("acceleration")
+			if Game.dev.has("net-stats"): # what it was doing (checks)
+				print("PLAUSIBILITY car %d acceleration %.0f m/s² at %s: %.1f -> %.1f m/s, flags %d, kart %d, dt %.3f" % [s.id,
+					Vector2(dv.x, dv.z).length() / dt, s.xform.origin.snapped(Vector3.ONE * 0.1), _last.velocity.length(), s.velocity.length(), s.flags, s.kart, dt])
 	_last = s
 	return out
+
+
+## The platform's top speed in its top gear at the limiter (m/s).
+static func geared_top(platform: Dictionary) -> float:
+	var ratios: Array = platform.get("gearbox", {}).get("ratios", [1.0])
+	var ratio := float(ratios.back()) * float(platform.get("gearbox", {}).get("final_drive", 1.0))
+	var rpm := float(platform.get("engine", {}).get("limiter_rpm", 7000.0))
+	var r := float(platform.get("geometry", {}).get("wheel_radius_m", {}).get("ref", 0.3))
+	return rpm / maxf(ratio, 0.01) * TAU / 60.0 * r
 
 
 ## A lap of `seconds` was timed for the car: too fast to be true?

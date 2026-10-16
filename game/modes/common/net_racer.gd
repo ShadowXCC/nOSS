@@ -168,6 +168,10 @@ func _apply(delta: float, snap: bool) -> void:
 		_no_contact = TELEPORT_GHOST_TICKS
 	vehicle.move_remote(p.xform, p.velocity, p.angular, snap or placed)
 	CarState.show_on(vehicle, s.flags2)
+	# A kart's word (D142): its sparks, flame and shield show; a towed or out kart is let be.
+	vehicle.kart_bits = s.kart
+	towed = s.kart & CarState.KART_TOWED != 0
+	out = s.kart & CarState.KART_OUT != 0
 	if placed: # its timer shouldn't see the jump as a shortcut
 		var proj := track.project(vehicle.global_transform * vehicle.center_of_mass)
 		distance = proj.distance
@@ -193,6 +197,10 @@ func _apply(delta: float, snap: bool) -> void:
 ## Where the car is on the track, and its lap timer. Its own game resets it; the server rules on
 ## its track limits (penalties reach the driver as notes).
 func update_track(delta: float) -> void:
+	if track.arena:
+		speed = vehicle.speed()
+		on_track = track.arena.inside(vehicle.global_transform * vehicle.center_of_mass, 0.5)
+		return
 	var com_world := vehicle.global_transform * vehicle.center_of_mass
 	var proj := track.project(com_world, track_index)
 	track_index = proj.index

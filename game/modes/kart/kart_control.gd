@@ -67,6 +67,18 @@ func _ready() -> void:
 		add_child(sounds)
 
 
+## Drops the kart classes' shared meshes, materials and sounds (a session's end: nothing holds
+## them at exit).
+static func clear_caches() -> void:
+	KartBoxes._mesh = null
+	KartBoxes._material = null
+	KartEffects._materials.clear()
+	KartEntities._meshes.clear()
+	KartSounds._streams.clear()
+	StuntBuilder._materials.clear()
+	ArenaNav._cache.clear()
+
+
 ## `r` uses its item (its player's button, the AI or the item assist).
 func use(r: Racer, back := false) -> void:
 	items.use(r, back)

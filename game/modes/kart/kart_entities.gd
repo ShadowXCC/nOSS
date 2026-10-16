@@ -57,6 +57,30 @@ func spawn(kind: String, owner: Racer, pos: Vector3, dir: Vector3, target: Racer
 	return e
 
 
+## Entity `old` (shown at once on its user's game) takes the server's id `new` (KartNet).
+func rekey(old: int, new: int) -> void:
+	var e: Dictionary = list.get(old, {})
+	if e.is_empty() or old == new:
+		return
+	list.erase(old)
+	if list.has(new):
+		remove(new)
+	e.id = new
+	list[new] = e
+
+
+## Moves `e` on by `seconds` (one let go a moment ago on another game), in physics-tick steps.
+func advance(e: Dictionary, seconds: float) -> void:
+	var dt := 1.0 / Engine.physics_ticks_per_second
+	var t := 0.0
+	while t + dt * 0.5 <= seconds and list.has(e.id): # to the nearest tick
+		e.age = float(e.age) + dt
+		_step_one(e, dt)
+		t += dt
+	if visual and list.has(e.id):
+		_place(e)
+
+
 func remove(id: int) -> void:
 	var e: Dictionary = list.get(id, {})
 	if e.is_empty():
@@ -103,17 +127,21 @@ func step(delta: float) -> void:
 		if e.age >= float(e.life):
 			remove(e.id)
 			continue
-		match String(e.kind):
-			"bolt":
-				_bolt(e, delta)
-			"seeker", "leader_hunter":
-				_chaser(e, delta)
-			"oil_slick":
-				_slick(e, delta)
+		_step_one(e, delta)
 	_collide()
 	if visual:
 		for e: Dictionary in list.values():
 			_place(e)
+
+
+func _step_one(e: Dictionary, delta: float) -> void:
+	match String(e.kind):
+		"bolt":
+			_bolt(e, delta)
+		"seeker", "leader_hunter":
+			_chaser(e, delta)
+		"oil_slick":
+			_slick(e, delta)
 
 
 func _bolt(e: Dictionary, delta: float) -> void:

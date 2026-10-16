@@ -21,7 +21,7 @@ const CONTACT_NEAR_M := 8.0
 ## Contact times older than this are let go (every window that reads them is shorter).
 const CONTACT_KEEP_S := 5.0
 const RELAY_HZ := 60.0
-## Most states in one packet (46 bytes each): stays under ENet's fragment size.
+## Most states in one packet (48 bytes each): stays under ENet's fragment size.
 const PER_PACKET := 24
 ## Traffic cars this game drives are sent this many times a second.
 const TRAFFIC_HZ := 20.0
@@ -189,7 +189,7 @@ func _check(peer: int, s: CarState, t: float) -> void:
 		return
 	var p: Plausibility = _plaus.get(s.id)
 	if p == null:
-		p = Plausibility.for_platform(session.platform.platform, session.track)
+		p = Plausibility.for_platform(session.platform.platform, session.track, session.arcade)
 		_plaus[s.id] = p
 	var contact := t - float(_touched_at.get(s.id, -INF)) < 0.5
 	if not contact and session.traffic:

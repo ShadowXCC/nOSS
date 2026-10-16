@@ -8,7 +8,9 @@ extends Node
 ## throttle it saw (below 32, ENet drops car states). A track it had to fetch prints
 ## "NETCHECK_TRACK <ms>" when it's here. On a highway it also reports its traffic (D109):
 ## checksums that disagreed, full states taken, late events, handovers, the most physics cars it
-## drove at once, and the slowest its lane sim kept up (ticks a second).
+## drove at once, and the slowest its lane sim kept up (ticks a second). In a kart session it
+## reports its items (D141): uses, hits on its cars, the server's corrections and how far its
+## items were from the server's (p95).
 
 const CONTACT_IMPULSE := 150.0 # N·s in one tick counts as contact (as race_check)
 
@@ -31,6 +33,12 @@ var _owned_max := 0
 var _tick_last := -1
 var _tick_rate_min := INF
 var _traffic_errors := PackedFloat32Array()
+var _kart := {}
+var _kart_errors := PackedFloat32Array()
+var _chaser_errors := PackedFloat32Array()
+var _kart_uses := 0
+var _kart_hits := 0
+var _kart_hooked: KartItems
 
 
 func _ready() -> void:
@@ -68,6 +76,7 @@ func _physics_process(delta: float) -> void:
 				(r as NetRacer).errors.clear()
 		_remote_cars = maxi(_remote_cars, remote) # the most seen at once
 		_traffic_sample(session)
+		_kart_sample(session)
 	for id: int in session.net.owned:
 		var r: Racer = session.net.owned[id]
 		var v := r.vehicle
@@ -102,6 +111,32 @@ func _traffic_sample(session: TrackSession) -> void:
 	_traffic = { "mismatches": hn.mismatches, "resyncs": hn.resyncs, "late": hn.late, "handovers": hn.handovers, "beats": hn.beats,
 		"owned_max": _owned_max, "tick_rate_min": _tick_rate_min if _tick_rate_min < INF else -1.0, "physics_max": session.traffic.cars.size(),
 		"err_n": e.size(), "err_p95": e[int(e.size() * 0.95)] if not e.is_empty() else 0.0 }
+
+
+## Once a second: the kart items' counters.
+func _kart_sample(session: TrackSession) -> void:
+	var kn := session.get_node_or_null(^"KartNet") as KartNet
+	if kn == null:
+		return
+	if _kart_hooked != session.kart.items:
+		_kart_hooked = session.kart.items
+		_kart_hooked.used.connect(func(r: Racer, _item: String) -> void:
+			if session.net.owned.has(r.net_id):
+				_kart_uses += 1)
+		_kart_hooked.hit_landed.connect(func(victim: Racer, _a: Racer, _kind: String, _blocked: bool) -> void:
+			if session.net.owned.has(victim.net_id):
+				_kart_hits += 1)
+	_kart_errors.append_array(PackedFloat32Array(kn.entity_errors))
+	kn.entity_errors.clear()
+	_chaser_errors.append_array(PackedFloat32Array(kn.chaser_errors))
+	kn.chaser_errors.clear()
+	var e := Array(_kart_errors)
+	e.sort()
+	var c := Array(_chaser_errors)
+	c.sort()
+	_kart = { "uses": _kart_uses, "hits": _kart_hits, "corrections": kn.corrections, "err_n": e.size(),
+		"err_p95": e[int(e.size() * 0.95)] if not e.is_empty() else 0.0,
+		"chaser_p95": c[int(c.size() * 0.95)] if not c.is_empty() else 0.0 }
 
 
 func _on_track(h: String) -> void:
@@ -160,7 +195,7 @@ func _exit_tree() -> void:
 		"err_p95": e[int(e.size() * 0.95)] if not e.is_empty() else 0.0, "err_max": e.back() if not e.is_empty() else 0.0,
 		"contacts": _contacts, "remote_cars": _remote_cars, "throttle_min": _throttle_min,
 		"rtt_ms": Net.client.rtt_ms() if Net.client else 0.0,
-		"cars": _cars, "preview_s": _preview_s, "full_s": _full_s, "traffic": _traffic,
+		"cars": _cars, "preview_s": _preview_s, "full_s": _full_s, "traffic": _traffic, "kart": _kart,
 	}))
 
 

@@ -34,6 +34,7 @@ extends Node
 ##   --kart               a kart race right away (the first kart track, or --track; --race-laps, --race-ai, --platform)
 ##   --battle[=hits]      a battle right away (the first arena, or --track; --battle-min, --race-ai)
 ##   --cup[=<id>]         a cup right away (the Spark Cup, or <id>; --race-ai)
+##   --kart-debug         online kart items: log every item more than 1 m off the server's
 ##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5; a list like 5,30,90 takes several), one per window
 ##   --quit-at=<s>        quit after this many seconds
 ##   --bay                open the Fitting Bay
@@ -202,7 +203,7 @@ func _start_dev_kart() -> void:
 	if dev.has("cup"):
 		var id := String(dev.cup) if String(dev.cup) != "true" else "spark_cup"
 		var path := CupRun.BUILTIN_DIR + id + ".cup.json"
-		var c := CupRun.load_file(path if FileAccess.file_exists(path) else CupRun.USER_DIR + id + ".cup.json")
+		var c := CupRun.load_file(path if FileAccess.file_exists(path) else CupRun.user_dir + id + ".cup.json")
 		if c.is_empty() or CupRun.missing_track(c) >= 0:
 			push_error("No cup %s (or a track of it is missing)" % id)
 			return

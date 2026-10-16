@@ -369,6 +369,8 @@ func _kart_bounce(state: PhysicsDirectBodyState3D, j: Vector3, other: Object) ->
 ## The kart's flags (CarState's kart word, D142): the sim's drift, tier, boost, spin, slow, trick
 ## and airborne, and the game's own bits.
 func kart_flags() -> int:
+	if remote:
+		return kart_bits # as its own game sent them
 	return (sim.get_kart_flags() if not arcade.is_empty() else 0) | kart_bits
 
 

@@ -265,6 +265,7 @@ func _exit_tree() -> void:
 	Engine.physics_ticks_per_second = PHYSICS_HZ
 	CarVisual.lod_scale = 1.0
 	PackageLoader.clear_shared()
+	KartControl.clear_caches()
 	Players.joining = false
 	Players.joined.disconnect(_on_joined)
 	Players.left.disconnect(_on_left)
@@ -482,6 +483,13 @@ func _ready_online() -> void:
 			Net.host_logic.board_requested.connect(_on_board_requested)
 		Net.board_received.connect(_on_board_received)
 		Net.highway_event.connect(_on_highway_event)
+	if kart:
+		# Items online (D141): the server's word on boxes, uses, hits and lives.
+		var kn := KartNet.new()
+		kn.name = "KartNet"
+		kn.session = self
+		kn.kart = kart
+		add_child(kn)
 	if traffic:
 		var hn := HighwayNet.new()
 		hn.name = "HighwayNet"
@@ -740,7 +748,12 @@ func _on_session_ended(kind: String, results: Array) -> void:
 	if dedicated:
 		print("%s results: %s" % [kind.capitalize(), ", ".join(PackedStringArray(results.map(func(row: Dictionary) -> String: return "%d %s" % [row.position, row.name])))])
 		print("NETCHECK_RESULTS " + JSON.stringify({ "kind": kind, "rows": results.map(func(row: Dictionary) -> Dictionary:
-			return { "position": row.position, "name": row.name, "laps": row.laps, "dnf": row.dnf, "time": row.time, "best": row.best, "ai": not (row.racer as Racer).is_human }) }))
+			return { "position": row.position, "name": row.name, "laps": row.laps, "dnf": row.dnf, "time": row.time, "best": row.best,
+				"ai": not (row.racer as Racer).is_human, "lives": row.get("lives", -1), "hits": row.get("hits", 0) }) }))
+		var kn := get_node_or_null(^"KartNet") as KartNet
+		if kn:
+			print("NETCHECK_KART_SERVER " + JSON.stringify({ "validated": kn.validated, "rejected": kn.rejected, "forced": kn.forced,
+				"rejected_picks": kn.rejected_picks, "rejected_uses": kn.rejected_uses }))
 		get_tree().create_timer(DEDICATED_RESULTS_S).timeout.connect(func() -> void:
 			if not is_inside_tree() or race.phase != RaceControl.Phase.DONE:
 				return

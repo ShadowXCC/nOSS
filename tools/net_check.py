@@ -16,6 +16,8 @@ and exits 0 (PASS) or 1 (FAIL).
   tools/net_check.py --track my.nosstrack --fresh --ai 3 --laps 1   # ...and the server's own track
   tools/net_check.py --event highway --clients 12 --quad 1 --traffic 150   # M7: highway traffic
   tools/net_check.py --event highway --clients 2 --dirs opposite --speed-factor 1.6 --duration 600   # M7 acceptance 3
+  tools/net_check.py --event kart --clients 4 --ai 4 --track gearworks --laps 3 --rtt 150 --jitter 10 --loss 1   # M8
+  tools/net_check.py --event battle --clients 4 --ai 4 --track crate_yard --rule hits   # M8
 
 On a highway (--event highway, the Lumen Ring and the Street class unless given) every bot also
 reports its traffic: checksums that disagreed with the server's (must be 0), full states taken
@@ -23,6 +25,12 @@ reports its traffic: checksums that disagreed with the server's (must be 0), ful
 server reports promotions and handovers (NETCHECK_SERVER). With --dirs opposite the server also
 watches the first player each way round (NETCHECK_LOOP): they must pass every lap, and at least 60%
 of the traffic the first meets on the other carriageway one lap must come round the next.
+
+A kart race (--event kart: Gearworks and the Medium kart unless given) or battle (--event battle:
+the Crate Yard) also checks the items (D141): every bot's Bolts and Slicks within 0.5 m of the server's (p95; Seekers home on each game's own
+view, so theirs is shown, not checked),
+under 5% of reported hits turned down, a classified race or a battle with a winner. With
+KART_DEBUG=1 the bots log every item more than 1 m off (KARTDBG lines in their logs).
 
 With --fresh, the server's AI cars are this machine's garage cars (every one before any twice), and
 one bot with an empty cache fetches them all whole; it reports when every car was there as a
@@ -51,6 +59,8 @@ PILEUP_M = 30.0
 PILEUP_CARS = 3
 MAX_DOWN_KB = 64.0
 MAX_TRAFFIC_ERR_M = 1.0
+MAX_ITEM_ERR_M = 0.5
+MAX_REJECTED = 0.05
 HIGHWAY_MISSES = 3  # HighwayNet.MISSES: checksums that disagree before a game asks again
 LOOP_AGAIN_MIN = 0.6  # acceptance 3: the share of the traffic met one lap that comes round the next
 
@@ -111,7 +121,9 @@ def main(argv=None):
     p.add_argument("--clients", type=int, default=3, help="bots with one player each")
     p.add_argument("--quad", type=int, default=0, help="bots with four players each (splitscreen guests)")
     p.add_argument("--duration", type=float, default=60.0, help="seconds of driving (free drive)")
-    p.add_argument("--event", choices=["free", "race", "highway"], default="free")
+    p.add_argument("--event", choices=["free", "race", "highway", "kart", "battle"], default="free")
+    p.add_argument("--rule", choices=["standing", "hits"], default="standing", help="battle: last one standing or most hits")
+    p.add_argument("--minutes", type=int, default=5, help="battle: its length at most")
     p.add_argument("--traffic", type=int, default=150, help="highway: traffic cars")
     p.add_argument("--dirs", choices=["same", "opposite"], default="same", help="highway: players start one way, or turn about")
     p.add_argument("--sub", choices=["cruise", "score", "loop"], default="cruise", help="highway: the sub-mode")
@@ -142,8 +154,9 @@ def main(argv=None):
     # The game's LAN list only asks the standard ports (47800-47815), so an open server uses one.
     args.port = args.port or (47800 if args.open else 47850)
     highway = args.event == "highway"
-    args.klass = args.klass or ("official.highway.street" if highway else "official.track.gt")
-    args.track = args.track or ("lumen_ring" if highway else "proving_ground")
+    karts = args.event in ["kart", "battle"]
+    args.klass = args.klass or ("official.highway.street" if highway else "official.kart.medium" if karts else "official.track.gt")
+    args.track = args.track or ("lumen_ring" if highway else "gearworks" if args.event == "kart" else "crate_yard" if args.event == "battle" else "proving_ground")
 
     logs = Path(args.logs) if args.logs else ROOT / "reports" / "net_check" / time.strftime("%Y%m%d_%H%M%S")
     logs.mkdir(parents=True, exist_ok=True)
@@ -156,10 +169,12 @@ def main(argv=None):
     if Path(track).exists():  # a path here, not an id: the config lives in the logs' folder
         track = str(Path(track).resolve())
     builtin_track = (ROOT / "content" / "tracks" / args.track).is_dir()
-    event = {"kind": args.event}
+    event = {"kind": "race" if args.event == "kart" else args.event}
     if highway:
         event.update({"sub": args.sub, "traffic": args.traffic, "direction": 0 if args.dirs == "opposite" else 1, "police": args.police})
-    if args.event == "race":
+    if args.event == "battle":
+        event.update({"battle_rule": args.rule, "battle_min": args.minutes, "ai_count": args.ai, "ai_cars": "builtin"})
+    if args.event in ["race", "kart"]:
         event.update({"practice_min": 5 if args.fresh else 0, "qualifying_min": 0, "race_laps": args.laps,
                       "ai_count": args.ai, "grid": "random", "start": "standing",
                       "ai_cars": "garage" if args.fresh else "builtin"})
@@ -210,7 +225,7 @@ def main(argv=None):
         threading.Thread(target=sim.run, daemon=True).start()
         port = sim.port
 
-    quit_flag = ["--quit-after-results"] if args.event == "race" else [f"--quit-at={args.duration + 15}"]
+    quit_flag = ["--quit-after-results"] if args.event in ["race", "kart", "battle"] else [f"--quit-at={args.duration + 15}"]
     if args.fresh:
         cache = logs / "fresh_cache"
         import shutil
@@ -223,12 +238,14 @@ def main(argv=None):
         cheat += ["--traffic-desync"] if args.desync and i == 0 else []
         factor = args.speed_factor or (1.4 if args.police else 0.0)
         cheat += [f"--speed-factor={factor:g}"] if factor else []
+        cheat += ["--kart-debug"] if os.environ.get("KART_DEBUG") else []
         bots.append(start(f"bot{i:02d}", ["--bot", f"--connect=127.0.0.1:{port}", f"--players={n}",
                                           f"--bot-fps={args.bot_fps}"] + quit_flag + cheat))
         time.sleep(0.2)
 
     peak = {}
-    deadline = time.monotonic() + (args.within + 80 if args.fresh else args.duration + 60 if args.event != "race" else 60 + args.laps * 150)
+    deadline = time.monotonic() + (args.within + 80 if args.fresh else 120 + args.minutes * 60 if args.event == "battle"
+                                   else 60 + args.laps * 150 if args.event in ["race", "kart"] else args.duration + 60)
     try:
         while time.monotonic() < deadline and any(b.poll() is None for b in bots):
             for name, proc, _ in procs:
@@ -243,6 +260,7 @@ def main(argv=None):
     # Gather the bots' reports.
     reports, contacts, fails, results, checks = {}, [], [], None, []
     server_stats = {}
+    kart_server = None
     loop = None
     track_ms = {}
     for name, proc, _ in procs:
@@ -262,6 +280,8 @@ def main(argv=None):
                 loop = json.loads(line[len("NETCHECK_LOOP "):])
             elif line.startswith("NETCHECK_RESULTS "):
                 results = json.loads(line[len("NETCHECK_RESULTS "):])
+            elif line.startswith("NETCHECK_KART_SERVER "):
+                kart_server = json.loads(line[len("NETCHECK_KART_SERVER "):])
             elif line.startswith("NETCHECK_CONTACT "):
                 t, a, b, x, y, z = line.split()[1:]
                 contacts.append({"t": float(t), "a": int(a), "b": int(b), "pos": (float(x), float(y), float(z))})
@@ -348,7 +368,18 @@ def main(argv=None):
             r.get("cars", 0), r.get("preview_s", -1), r.get("full_s", -1), args.within))
         if r.get("full_s", -1) < 0 or r["full_s"] > args.within:
             fails.append("not every car whole within %g s" % args.within)
-    elif args.event == "race":
+    elif args.event == "battle":
+        if results is None:
+            fails.append("no battle results")
+        else:
+            rows = results["rows"]
+            print("battle results (%s):" % args.rule)
+            for r in rows:
+                print("  P%-2d %-16s lives %s, hits %d%s" % (r["position"], r["name"], r["lives"] if r["lives"] >= 0 else "-", r["hits"],
+                      "  (AI)" if r["ai"] else ""))
+            if len(rows) != players + args.ai:
+                fails.append("%d karts in the results, not %d" % (len(rows), players + args.ai))
+    elif args.event in ["race", "kart"]:
         if results is None:
             fails.append("no race results")
         else:
@@ -362,6 +393,28 @@ def main(argv=None):
             for r in rows:
                 if r["dnf"] or r["laps"] < args.laps:
                     fails.append("%s not classified (%d laps%s)" % (r["name"], r["laps"], ", DNF" if r["dnf"] else ""))
+    if karts:
+        print("%-7s %6s %6s %11s %9s %11s" % ("items", "uses", "hits", "corrections", "err p95", "seekers p95"))
+        for name in sorted(n for n in reports if n.startswith("bot")):
+            k = reports[name].get("kart", {})
+            if not k:
+                fails.append(f"{name}: no kart items")
+                continue
+            print("%-7s %6d %6d %11d %8.2fm %10.2fm" % (name, k["uses"], k["hits"], k["corrections"], k["err_p95"], k.get("chaser_p95", 0.0)))
+            if k["err_p95"] > MAX_ITEM_ERR_M:
+                fails.append(f"{name}: items {k['err_p95']:.2f} m off the server's (p95)")
+        if kart_server is None:
+            fails.append("the server reported no items")
+        else:
+            print("server items: %d hits validated, %d turned down, %d forced; picks turned down %d, uses %d" % (
+                kart_server["validated"], kart_server["rejected"], kart_server["forced"], kart_server.get("rejected_picks", 0),
+                kart_server.get("rejected_uses", 0)))
+            reported = kart_server["validated"] + kart_server["rejected"]
+            # A hit turned down now and then is the system working; most of them is sync going wrong.
+            if reported >= 10 and kart_server["rejected"] / reported > MAX_REJECTED or kart_server["rejected"] > max(1, reported // 10):
+                fails.append("%d of %d hit reports turned down" % (kart_server["rejected"], reported))
+            if kart_server.get("rejected_uses", 0) > 0:
+                fails.append("%d item uses turned down" % kart_server["rejected_uses"])
     for c in checks:
         print("check: " + c)
     if args.cheat:
@@ -375,7 +428,7 @@ def main(argv=None):
         fails.append("%.1f KB/s down, over %g" % (worst_down, MAX_DOWN_KB))
     if highway:  # knocks with traffic happen offline too; a pile-up of players' cars says sync is off
         contacts = [c for c in contacts if c["a"] < 1000 and c["b"] < 1000]
-    piles = pileups(contacts)
+    piles = pileups(contacts) if args.event != "battle" else []  # karts in an arena meet head on: what a battle is
     for pile in piles:
         fails.append("pile-up: " + pile)
     print("contacts %d, pile-ups %d" % (len(contacts), len(piles)))

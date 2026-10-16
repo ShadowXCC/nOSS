@@ -8,7 +8,7 @@ extends Node
 
 const MSG_STATE := 103
 const STATE_HZ := 10.0
-const KINDS := ["free", "time_trial", "practice", "qualifying", "race"]
+const KINDS := ["free", "time_trial", "practice", "qualifying", "race", "battle"]
 const FLAGS := ["", "green", "yellow", "blue", "checkered"]
 const HEADER := 32
 const CAR_SIZE := 21
@@ -279,6 +279,12 @@ func _rows(raw: Array) -> Array:
 				"flagged": TYPE_BOOL }):
 			continue
 		var row: Dictionary = v.duplicate()
+		# A battle's columns (D144), when there.
+		for key: String in ["lives", "hits", "taken"]:
+			if row.has(key) and typeof(row[key]) != TYPE_INT:
+				row.erase(key)
+		if row.has("out") and typeof(row.out) != TYPE_BOOL:
+			row.erase("out")
 		var r: Racer = net.racers.get(row.id)
 		if r == null:
 			r = Racer.new()

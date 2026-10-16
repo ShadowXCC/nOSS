@@ -13,7 +13,14 @@ const CLUSTER_RING := 0.5
 ## Spawns and boxes keep this far from the wall.
 const WALL_MARGIN_M := 1.5
 
-var track: TrackData
+## The track it's on, held weakly: the track holds this (its kart or arena), so a strong link
+## back would keep both for ever.
+var track: TrackData:
+	get:
+		return _track.get_ref() if _track else null
+	set(value):
+		_track = weakref(value) if value else null
+var _track: WeakRef
 var settings := {}
 ## The outline in the ground plane (x, z), counter-clockwise.
 var outline := PackedVector2Array()

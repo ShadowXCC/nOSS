@@ -126,6 +126,12 @@ func _set_out(r: Racer, on: bool) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	# A kart that left the game leaves the tables (still counted in the results it was in).
+	_out_order.assign(_out_order.filter(func(r: Variant) -> bool: return is_instance_valid(r)))
+	for d: Dictionary in [_grace, _lost, _hits, _taken]:
+		for k: Variant in d.keys():
+			if not is_instance_valid(k):
+				d.erase(k)
 	for r: Racer in _grace.keys():
 		_grace[r] = maxf(0.0, float(_grace[r]) - delta)
 	for r: Racer in _out_order:
@@ -140,6 +146,17 @@ func _physics_process(delta: float) -> void:
 		if not order.is_empty():
 			order[0].notify("Winner", 4.0)
 		session.race.end_session()
+
+
+## Online client: car `r`'s lives, hits and out as the server has them (KartNet).
+func apply_net(r: Racer, lives_left: int, hits_dealt: int, is_out: bool) -> void:
+	if rule() == "standing":
+		_lost[r] = clampi(LIVES - lives_left, 0, LIVES)
+	_hits[r] = hits_dealt
+	if is_out and not r.out:
+		_knock_out(r)
+	elif not is_out and r.out:
+		_set_out(r, false)
 
 
 ## The order now (RaceControl's standings in a battle).

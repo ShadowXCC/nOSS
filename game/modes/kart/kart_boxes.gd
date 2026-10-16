@@ -10,6 +10,9 @@ const PICK_RADIUS := 1.6
 const SIZE := 0.8
 const SPIN := 1.2 # rad/s
 
+## A box went (`on` false) or came back: the online authority passes it on (KartNet).
+signal changed(i: int, on: bool)
+
 var points := PackedVector3Array()
 var alive := PackedByteArray()
 var visual := true
@@ -63,7 +66,10 @@ func take(i: int) -> void:
 func set_alive(i: int, on: bool) -> void:
 	if i < 0 or i >= alive.size():
 		return
+	var was := alive[i] != 0
 	alive[i] = 1 if on else 0
+	if was != on:
+		changed.emit(i, on)
 	if visual and i < _nodes.size():
 		_nodes[i].visible = on
 		if on:
