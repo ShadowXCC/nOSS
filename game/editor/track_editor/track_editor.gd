@@ -11,7 +11,7 @@ signal closed
 const AUTOSAVE_S := 120.0
 const PANEL_WIDTH := 640
 const FONT_SIZE := 24
-const TOOL_ORDER := ["Road", "Ramps", "Surfaces", "Terrain", "Paint", "Props", "Race", "Check", "File"]
+const TOOL_ORDER := ["Road", "Ramps", "Stunts", "Surfaces", "Terrain", "Paint", "Props", "Race", "Check", "File"]
 ## The AI line and the checks run this long after the last change (sooner while dragging a pin).
 const ANALYSE_S := 0.6
 const ANALYSE_LIVE_S := 0.05
@@ -172,7 +172,8 @@ func _extra_tools() -> Array:
 	for path: String in ["res://game/editor/track_editor/tools/road_tool.gd", "res://game/editor/track_editor/tools/terrain_tool.gd",
 			"res://game/editor/track_editor/tools/paint_tool.gd", "res://game/editor/track_editor/tools/props_tool.gd",
 			"res://game/editor/track_editor/tools/race_tool.gd", "res://game/editor/track_editor/tools/check_tool.gd",
-			"res://game/editor/track_editor/tools/surfaces_tool.gd", "res://game/editor/track_editor/tools/ramps_tool.gd"]:
+			"res://game/editor/track_editor/tools/surfaces_tool.gd", "res://game/editor/track_editor/tools/ramps_tool.gd",
+			"res://game/editor/track_editor/tools/stunts_tool.gd"]:
 		if ResourceLoader.exists(path):
 			out.append((load(path) as GDScript).new())
 	return out
@@ -261,8 +262,9 @@ func _on_draft_changed(what: StringName, info: Dictionary) -> void:
 	var wait := ANALYSE_LIVE_S if info.get("live", false) and what == &"race" else ANALYSE_S
 	_analyse_in = minf(_analyse_in, wait) if _analyse_in >= 0.0 else wait
 	_update_title()
-	if tools.has("Ramps") != (draft.is_highway() and draft.scene == null):
-		# A circuit became a highway (or back): the Ramps tool comes or goes.
+	if tools.has("Ramps") != (draft.is_highway() and draft.scene == null) or tools.has("Race") == draft.is_arena() \
+			or tools.has("Stunts") == (draft.is_highway() or draft.scene != null):
+		# A circuit became a highway or an arena (or back): its tools come or go.
 		var title := tool.title()
 		_make_tools()
 		show_tool(title)

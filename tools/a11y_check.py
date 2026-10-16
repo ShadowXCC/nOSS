@@ -4,7 +4,8 @@
 Runs the game with accessibility on and walks title -> Race -> class -> event -> Players -> a
 1-lap race -> results -> title, then Online -> Host -> the lobby -> Leave (M5), then Highway ->
 a highway -> its menu -> the class -> Players and back out (M7), then the track editor: every
-tool, a new oval, its race setup and checks, a new highway loop and its ramps, and out (M6, M7);
+tool, a new oval, its race setup and checks, a new highway loop and its ramps, the Stunts tool on
+a kart circuit and an arena, and out (M6-M8);
 then, in a second run, a highway session's pause menu (opened with --pause-at: keys can't be
 sent on Wayland) and joining a friend from it (M7), through AT-SPI,
 the interface screen readers (Orca) use: it finds controls by their accessible names, presses
@@ -326,7 +327,19 @@ def editor_walk():
     step("Highway: ramp", "Deselect")
     for tool in ["Race", "Check"]:
         step(f"Highway: {tool}", tool, role="toggle button", prefix=(tool == "Check"))
-    step("Highway: leave", "Exit")
+    # Kart pieces (M8): the Stunts tool on the kart template (pick the loop) and on an arena.
+    for template, piece in [("Kart circuit", "Loop"), ("Arena", None)]:
+        step(f"{template}: File", "File", role="toggle button")
+        step(f"{template}: new track", "New track")
+        if find("Don't save", "button", timeout=3.0) is not None:
+            step("Unsaved prompt", "Don't save")
+        step("New track", template, prefix=True)
+        step(f"{template}: Stunts", "Stunts", role="toggle button")
+        if piece:
+            step(f"{template}: pick a piece", piece, prefix=True)
+            step(f"{template}: piece", "Deselect")
+        step(f"{template}: Check", "Check", role="toggle button", prefix=True)
+    step("Editor: leave", "Exit")
     if find("Don't save", "button", timeout=3.0) is not None:
         step("Unsaved prompt", "Don't save")
     if find("Race", "button", timeout=20.0) is None:

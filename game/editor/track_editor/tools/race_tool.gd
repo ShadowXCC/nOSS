@@ -26,6 +26,10 @@ var _run := -1
 var _zone := -1
 
 
+func available() -> bool:
+	return not draft.is_arena() # an arena has no laps (D138)
+
+
 func title() -> String:
 	return "Race"
 

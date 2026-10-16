@@ -244,7 +244,9 @@ func flip_direction() -> void:
 		var grid: Dictionary = race.get("grid", {})
 		grid.pole = "right" if grid.get("pole", "left") == "left" else "left"
 		if layout.has("highway"):
-			_flip_highway(layout.highway, mirror), &"all")
+			_flip_highway(layout.highway, mirror)
+		if layout.has("kart") and layout.get("type", "circuit") != "arena":
+			_flip_kart(layout.kart, mirror), &"all")
 
 
 ## Race setup: `key` in layout.race (a "/"-separated path for nested ones, like "grid/slots").
@@ -406,16 +408,26 @@ func highway() -> Dictionary:
 ## Makes the track a highway, or a circuit again. A highway's road takes its widths, lines and
 ## barriers from its lanes; a circuit loses its ramps, portals and runs.
 func set_type(type: String) -> void:
-	if type == layout.get("type", "circuit") or type not in TrackFormat.TYPES:
+	var was := String(layout.get("type", "circuit"))
+	if type == was or type not in TrackFormat.TYPES:
 		return
-	_edit("Make a " + type, "highway", func() -> void:
+	_edit("Make an " + type if type == "arena" else "Make a " + type, "type", func() -> void:
 		layout.type = type
 		if type == "highway":
 			layout.highway = TrackFormat.HIGHWAY_DEFAULTS.duplicate(true)
 			layout.road.defaults = TrackFormat.highway_road_defaults(highway(), layout.road.defaults)
+			layout.erase("kart")
 		else:
 			layout.erase("highway")
-			layout.road.defaults = TrackFormat.DEFAULTS.duplicate(), &"road")
+			if was == "highway":
+				layout.road.defaults = TrackFormat.DEFAULTS.duplicate()
+		# An arena (D138): its own section; its pieces sit anywhere, so a circuit's along the road go.
+		if type == "arena":
+			layout.arena = {}
+			layout.race.gantry = false
+			layout.erase("kart")
+		else:
+			layout.erase("arena"), &"road")
 
 
 ## A highway setting: lanes, lane_m, median_m, shoulder_in_m, shoulder_out_m, median_barrier,
@@ -799,6 +811,168 @@ static func _write_snapshot(dir: String, snap: Dictionary) -> String:
 	return ""
 
 
+# --- kart pieces and arenas (EDT-04, D136-D138) --------------------------------------------
+
+
+func is_arena() -> bool:
+	return layout.get("type", "circuit") == "arena"
+
+
+## The kart section as stored ({} if there is none).
+func kart() -> Dictionary:
+	return layout.get("kart", {})
+
+
+## Adds a `kind` piece (KartLayout.KINDS) at `at`: a distance along the road (circuits), or a
+## point (Vector3, arenas), with `params` over its defaults. Returns its id ("" if it can't go).
+func add_stunt(kind: String, at: Variant, params := {}) -> String:
+	if kind not in KartLayout.KINDS or (is_arena() and kind not in KartLayout.ARENA_KINDS) or is_highway():
+		return ""
+	var n := 1
+	while stunt("%s_%d" % [kind, n]) != null:
+		n += 1
+	var id := "%s_%d" % [kind, n]
+	var piece := { "id": id, "kind": kind }
+	if at is Vector3:
+		piece.p = _vec(at)
+	else:
+		piece.at_m = snappedf(fposmod(float(at), maxf(track().length, 1.0)), 0.1)
+	piece.merge(params, true)
+	_edit("Add " + kind.replace("_", " "), "kart", func() -> void:
+		if not layout.has("kart"):
+			layout.kart = { "boxes": "auto", "stunts": [] }
+		var stunts: Array = layout.kart.get("stunts", [])
+		stunts.append(piece)
+		layout.kart.stunts = stunts, &"kart", { "stunts": [id] })
+	return id
+
+
+## The piece `id` as stored (null if none).
+func stunt(id: String) -> Variant:
+	for p: Dictionary in kart().get("stunts", []):
+		if p.id == id:
+			return p
+	return null
+
+
+## Sets `key` of piece `id` (lateral_m, length_m, width_m, height_m, count, side, radius_m,
+## yaw_deg).
+func set_stunt(id: String, key: String, value: Variant) -> void:
+	if stunt(id) == null:
+		return
+	_edit("Set " + key.trim_suffix("_m").trim_suffix("_deg").replace("_", " "), "kart", func() -> void: stunt(id)[key] = value, &"kart", { "stunts": [id] })
+
+
+## Moves piece `id` to `at` (a distance, or a point in an arena) without recording, while
+## dragging; end_stunt_move() records it.
+func drag_stunt(id: String, at: Variant, lateral := NAN) -> void:
+	var p: Variant = stunt(id)
+	if p == null:
+		return
+	if not _dragging.has("kart"):
+		_dragging.kart = _section("kart")
+	_dragging.stunt = id
+	if at is Vector3:
+		p.p = _vec(at)
+	else:
+		p.at_m = snappedf(fposmod(float(at), maxf(track().length, 1.0)), 0.1)
+		if not is_nan(lateral) and p.has("lateral_m"):
+			p.lateral_m = snappedf(lateral, 0.05)
+	_changed(&"kart", { "stunts": [id], "live": true })
+
+
+func end_stunt_move(name := "Move piece") -> void:
+	if not _dragging.has("kart"):
+		return
+	var before: Dictionary = _dragging.kart
+	var info := { "stunts": [String(_dragging.get("stunt", ""))] }
+	_dragging.erase("kart")
+	_dragging.erase("stunt")
+	history.act(name, _set_section.bind("kart", _section("kart"), &"kart", info), _set_section.bind("kart", before, &"kart", info), false)
+	_changed(&"kart", info)
+
+
+func delete_stunt(id: String) -> void:
+	if stunt(id) == null:
+		return
+	_edit("Delete piece", "kart", func() -> void:
+		layout.kart.stunts = (layout.kart.stunts as Array).filter(func(p: Dictionary) -> bool: return p.id != id), &"kart", { "stunts": [id] })
+
+
+## Item boxes: "auto" (rows every third of a lap unless rows are placed), "placed" or "none".
+func set_boxes(mode: String) -> void:
+	if mode not in ["auto", "placed", "none"] or is_highway():
+		return
+	_edit("Item boxes " + mode, "kart", func() -> void:
+		if not layout.has("kart"):
+			layout.kart = { "stunts": [] }
+		layout.kart.boxes = mode, &"kart")
+
+
+## An arena setting: floor (a surface), wall (a barrier), wall_m.
+func set_arena(key: String, value: Variant) -> void:
+	if not is_arena():
+		return
+	_edit("Set " + key.trim_suffix("_m"), "arena", func() -> void: layout.arena[key] = value, &"road")
+
+
+func add_spawn(p: Vector3, yaw_deg: float) -> void:
+	if not is_arena():
+		return
+	_edit("Add spawn", "arena", func() -> void:
+		var spawns: Array = layout.arena.get("spawns", [])
+		spawns.append({ "p": _vec(p), "yaw_deg": snappedf(yaw_deg, 1.0) })
+		layout.arena.spawns = spawns, &"road")
+
+
+func move_spawn(i: int, p: Vector3, yaw_deg := NAN) -> void:
+	var spawns: Array = layout.get("arena", {}).get("spawns", [])
+	if i < 0 or i >= spawns.size():
+		return
+	_edit("Move spawn", "arena", func() -> void:
+		layout.arena.spawns[i].p = _vec(p)
+		if not is_nan(yaw_deg):
+			layout.arena.spawns[i].yaw_deg = snappedf(yaw_deg, 1.0), &"road")
+
+
+func delete_spawn(i: int) -> void:
+	var spawns: Array = layout.get("arena", {}).get("spawns", [])
+	if i < 0 or i >= spawns.size():
+		return
+	_edit("Delete spawn", "arena", func() -> void: (layout.arena.spawns as Array).remove_at(i), &"road")
+
+
+func add_box_cluster(p: Vector3, count := ArenaLayout.CLUSTER_BOXES) -> void:
+	if not is_arena():
+		return
+	_edit("Add item boxes", "arena", func() -> void:
+		var boxes: Array = layout.arena.get("boxes", [])
+		boxes.append({ "p": _vec(p), "count": count })
+		layout.arena.boxes = boxes, &"road")
+
+
+func delete_box_cluster(i: int) -> void:
+	var boxes: Array = layout.get("arena", {}).get("boxes", [])
+	if i < 0 or i >= boxes.size():
+		return
+	_edit("Delete item boxes", "arena", func() -> void: (layout.arena.boxes as Array).remove_at(i), &"road")
+
+
+## Pieces after the track turns round: along the other way, the other side.
+static func _flip_kart(k: Dictionary, mirror: Callable) -> void:
+	for p: Dictionary in k.get("stunts", []):
+		if not p.has("at_m"):
+			continue
+		if p.kind == "wall_ride":
+			# Its stretch runs forward from at_m: turned round, it starts at the other end.
+			p.at_m = snappedf(mirror.call(float(p.at_m) + float(p.get("length_m", KartLayout.STUNT_DEFAULTS.wall_ride.length_m))), 0.1)
+			p.side = "right" if p.get("side", "left") == "left" else "left"
+		else:
+			p.at_m = snappedf(mirror.call(float(p.at_m)), 0.1)
+		if p.has("lateral_m"):
+			p.lateral_m = -float(p.lateral_m)
+
+
 # --- internals ----------------------------------------------------------------------------
 
 
@@ -822,12 +996,20 @@ func _section(section: String) -> Dictionary:
 	match section:
 		"all":
 			var out := { "road": layout.road.duplicate(true), "race": layout.race.duplicate(true) }
-			if layout.has("highway"):
-				out.highway = (layout.highway as Dictionary).duplicate(true)
+			for key in ["highway", "kart"]:
+				if layout.has(key):
+					out[key] = (layout[key] as Dictionary).duplicate(true)
 			return out
 		"highway":
 			return { "type": layout.get("type", "circuit"), "road": layout.road.duplicate(true),
 				"highway": (layout.highway as Dictionary).duplicate(true) if layout.has("highway") else null }
+		"type":
+			var out := { "type": layout.get("type", "circuit"), "road": layout.road.duplicate(true), "race": layout.race.duplicate(true) }
+			for key in ["highway", "kart", "arena"]:
+				out[key] = (layout[key] as Dictionary).duplicate(true) if layout.has(key) else null
+			return out
+	if not layout.has(section):
+		return { section: null }
 	return { section: (layout[section] as Dictionary).duplicate(true) }
 
 
@@ -874,7 +1056,7 @@ func _set_scatter(prop: String, xf: Array, notify := true) -> void:
 
 
 func _changed(what: StringName, change_info: Dictionary) -> void:
-	if what in [&"race", &"highway"] and _track:
+	if what in [&"race", &"highway", &"kart"] and _track:
 		_track = _track.with_race(layout) # the road is the same: no resampling
 	elif what in [&"road", &"race", &"terrain", &"all"]:
 		_track = null

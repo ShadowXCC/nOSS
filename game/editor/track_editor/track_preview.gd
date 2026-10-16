@@ -4,7 +4,8 @@ extends Node3D
 ## gantry and props (a node per item), kept up with the draft in parts. Changes are gathered and
 ## applied once a frame; while a drag goes on, at most every LIVE_S, and only the segments it
 ## moves (the ground's bed under them included). A highway's ramps come again one by one, with
-## the stretches of road where they leave and join it (EDT-10).
+## the stretches of road where they leave and join it (EDT-10); kart pieces one by one too
+## (EDT-04), and an arena's floor and wall stand in for the road.
 
 const LIVE_S := 1.0 / 30.0
 
@@ -13,6 +14,7 @@ var _ground: Node3D
 var _road: Node3D
 var _start: Node3D
 var _props: Node3D
+var _stunts: Node3D
 var _built: TrackData
 var _pending := {}
 var _since := 0.0
@@ -42,7 +44,9 @@ func rebuild_all() -> void:
 	else:
 		TrackBuilder.add_ground(_ground, t, draft.terrain)
 	_road = _part("Road")
-	RoadBuilder.new(t, draft.terrain).build_all(_road, true)
+	_build_road(t)
+	_stunts = _part("Stunts")
+	StuntBuilder.build(t, _stunts)
 	_start = _part("Start")
 	TrackBuilder.add_gantry(_start, t)
 	_props = _part("Props")
@@ -65,6 +69,14 @@ func item_node(i: int) -> Node3D:
 	return _props.get_node_or_null("Item_%d" % i) as Node3D if _props else null
 
 
+## The road, or an arena's floor and wall.
+func _build_road(t: TrackData) -> void:
+	if t.arena:
+		ArenaBuilder.build(t, _road)
+	else:
+		RoadBuilder.new(t, draft.terrain).build_all(_road, true)
+
+
 func _part(part_name: String) -> Node3D:
 	var n := Node3D.new()
 	n.name = part_name
@@ -74,6 +86,22 @@ func _part(part_name: String) -> Node3D:
 
 func _on_changed(what: StringName, info: Dictionary) -> void:
 	var p: Dictionary = _pending.get(what, {})
+	if what == &"kart":
+		# Pieces by id; none named: all of them.
+		if info.has("stunts") and not p.has("all"):
+			var ids: Array = p.get("stunts", [])
+			for id: String in info.stunts:
+				if id not in ids:
+					ids.append(id)
+			p.stunts = ids
+		elif not info.has("stunts"):
+			p.erase("stunts")
+			p.all = true
+		p.live = bool(info.get("live", false))
+		_pending[what] = p
+		if not p.live:
+			_flush()
+		return
 	if what == &"highway":
 		# Ramps by id; none named: all of them.
 		if info.has("ramps") and not p.has("all"):
@@ -138,6 +166,11 @@ func _flush_parts() -> void:
 			bool(pending.road.get("live", false)))
 	elif pending.has(&"highway"):
 		_rebuild_ramps(t, pending.highway)
+	if pending.has(&"road") or pending.has(&"terrain"):
+		_clear(_stunts)
+		StuntBuilder.build(t, _stunts) # they stand on the road
+	elif pending.has(&"kart"):
+		_rebuild_stunts(t, pending.kart)
 	if pending.has(&"race") or pending.has(&"road") or pending.has(&"terrain"):
 		_clear(_start)
 		TrackBuilder.add_gantry(_start, t)
@@ -177,12 +210,43 @@ func _rebuild_road(t: TrackData, segments: PackedInt32Array, ground_rect: Rect2i
 			var changed := draft.terrain.conform(t, rect)
 			terrain_view().update_rect(changed)
 			terrain_collision().update_rect(changed)
-	if partial:
+	if partial and t.arena == null:
 		builder.rebuild_segments(_road, segments)
 		builder.rebuild_highway(_road) # ramps share the road's samples where they leave and join it
 	else:
 		_clear(_road)
-		builder.build_all(_road, true)
+		_build_road(t)
+
+
+## Kart pieces again (`p.stunts`: those; else all). A wall-ride opens the barrier beside it: the
+## road comes again with it.
+func _rebuild_stunts(t: TrackData, p: Dictionary) -> void:
+	var ids: Array = p.get("stunts", [])
+	var walls := p.has("all")
+	for id: String in ids:
+		for layout: KartLayout in [_built.kart if _built else null, t.kart]:
+			if layout:
+				for piece in layout.pieces:
+					walls = walls or (piece.id == id and piece.kind == "wall_ride")
+	if walls and not bool(p.get("live", false)):
+		_clear(_road)
+		_build_road(t)
+	if p.has("all") or t.kart == null:
+		_clear(_stunts)
+		StuntBuilder.build(t, _stunts)
+		return
+	var b := StuntBuilder.new()
+	b.track = t
+	b.layout = t.kart
+	for id: String in ids:
+		for n: String in ["Stunt_" + id, "Stunt_" + id + "_pad"]:
+			var old := _stunts.get_node_or_null(n)
+			if old:
+				_stunts.remove_child(old)
+				old.queue_free()
+		for piece in t.kart.pieces:
+			if piece.id == id or piece.id == id + "_pad":
+				b.build_piece(piece, _stunts)
 
 
 ## A highway's ramps again (`p.ramps`: those; else all), with the road's segments where they

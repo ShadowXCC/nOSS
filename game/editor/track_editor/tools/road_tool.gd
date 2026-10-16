@@ -370,12 +370,23 @@ func _highway_defaults() -> Array:
 func _defaults(widths_only := false) -> Array:
 	var out := []
 	if not widths_only:
-		out.append(UiKit.spinner("Track type", [["circuit", "Circuit"], ["highway", "Highway"]], String(draft.layout.get("type", "circuit")),
+		out.append(UiKit.spinner("Track type", [["circuit", "Circuit"], ["highway", "Highway"], ["arena", "Arena"]], String(draft.layout.get("type", "circuit")),
 			func(v: String) -> void:
 				draft.set_type(v)
-				editor.say("Now a " + v), "A highway has a carriageway each way and ramps"))
+				editor.say("Now an arena" if v == "arena" else "Now a " + v),
+			"A highway has a carriageway each way and ramps; an arena is the floor inside the points, for kart battles"))
 	if draft.is_highway():
 		out.append_array(_highway_defaults())
+		return out
+	if draft.is_arena():
+		var a: Dictionary = draft.layout.get("arena", {})
+		out.append(UiKit.spinner("Floor", _surfaces(["asphalt", "concrete", "dirt", "sand", "snow", "ice"]), String(a.get("floor", ArenaLayout.DEFAULTS.floor)),
+			func(v: String) -> void: draft.set_arena("floor", v)))
+		out.append(UiKit.spinner("Wall", [["tyres", "Tyres"], ["armco", "Armco"], ["concrete", "Concrete"]], String(a.get("wall", ArenaLayout.DEFAULTS.wall)),
+			func(v: String) -> void: draft.set_arena("wall", v)))
+		out.append(UiKit.number("Wall height", float(a.get("wall_m", ArenaLayout.DEFAULTS.wall_m)), 0.5, 4.0, 0.1, "%.1f m",
+			func(v: float) -> void: draft.set_arena("wall_m", v)))
+		out.append(_text("The points are the arena's outline; spawns and item boxes are in Stunts."))
 		return out
 	var d: Dictionary = draft.layout.road.defaults
 	var set_default := func(v: Variant, key: String) -> void: draft.set_default(key, v)

@@ -7,7 +7,7 @@ extends RefCounted
 ## [[id, name]] for menus.
 static func list() -> Array:
 	return [["empty", "Empty"], ["oval", "Oval (1.2 km)"], ["circuit", "Circuit (2.5 km)"], ["figure8", "Figure 8 with a bridge"],
-		["highway", "Highway loop (4 km)"]]
+		["highway", "Highway loop (4 km)"], ["kart", "Kart circuit (1.2 km)"], ["arena", "Arena (100 m)"]]
 
 
 static func make(id: String) -> TrackDraft:
@@ -35,7 +35,55 @@ static func make(id: String) -> TrackDraft:
 			return d
 		"highway":
 			return highway_loop()
+		"kart":
+			return kart_circuit()
+		"arena":
+			return arena()
 	return TrackDraft.blank()
+
+
+## A kart circuit about 1.2 km round on flat ground with one of each piece (EDT-04, D137): a
+## boost pad, a row of boxes and a jump on the start straight, a wall-ride round the outside of
+## the first corner, the loop in the middle of the back straight, more boxes after it.
+static func kart_circuit() -> TrackDraft:
+	var d := TrackDraft.blank("Kart circuit")
+	d.terrain = null
+	d.layout.erase("ground")
+	d.layout.ground = { "flat_y": -0.03, "surface": "grass" }
+	d.layout.road.points = rounded_rect(220.0, 100.0, 55.0, 60.0).map(func(p: Vector3) -> Dictionary: return { "p": TrackDraft._vec(p) })
+	d._track = null
+	var t := d.track()
+	var at := func(p: Vector3) -> float: return float(t.project(p).distance)
+	var start := snappedf(at.call(Vector3(60, 0, -100)), 0.1)
+	d.set_race("start_m", start)
+	d.set_race("sectors_m", [snappedf(fposmod(start + t.length / 3.0, t.length), 0.1), snappedf(fposmod(start + t.length * 2.0 / 3.0, t.length), 0.1)])
+	d.set_race("grid/slots", 12)
+	d.add_stunt("boost_pad", at.call(Vector3(80, 0, -100)))
+	d.add_stunt("item_row", at.call(Vector3(100, 0, -100)))
+	d.add_stunt("jump", at.call(Vector3(122, 0, -100)), { "height_m": 1.2, "length_m": 8.0 })
+	d.add_stunt("wall_ride", at.call(Vector3(168, 0, -99)), { "length_m": 90.0, "side": "left", "height_m": 5.0 })
+	d.add_stunt("loop", at.call(Vector3(0, 0, 100)))
+	d.add_stunt("item_row", at.call(Vector3(-220, 0, 0)))
+	d.history = EditHistory.new()
+	d.saved_version = d.history.version()
+	return d
+
+
+## An arena 100 by 80 m with rounded corners on flat ground (D138): automatic spawns and item
+## boxes, a jump either side of the middle.
+static func arena() -> TrackDraft:
+	var d := TrackDraft.blank("Arena")
+	d.terrain = null
+	d.layout.erase("ground")
+	d.layout.ground = { "flat_y": -0.03, "surface": "grass" }
+	d.set_type("arena")
+	d.layout.road.points = rounded_rect(50.0, 40.0, 12.0, 25.0, 30.0).map(func(p: Vector3) -> Dictionary: return { "p": TrackDraft._vec(p) })
+	d._track = null
+	d.add_stunt("jump", Vector3(-24, 0, 0), { "yaw_deg": 90.0, "width_m": 5.0, "height_m": 1.0, "length_m": 7.0 })
+	d.add_stunt("jump", Vector3(24, 0, 0), { "yaw_deg": -90.0, "width_m": 5.0, "height_m": 1.0, "length_m": 7.0 })
+	d.history = EditHistory.new()
+	d.saved_version = d.history.version()
+	return d
 
 
 ## A highway loop about 4.4 km round on flat concrete, 3 lanes each way (D106, D122): an exit and
@@ -78,6 +126,41 @@ static func rounded_rect(half_x: float, half_z: float, r: float, step := 150.0, 
 			pts.append(corners[c] + Vector2(cos(a), sin(a)) * r)
 	_straight(pts, pts[pts.size() - 1], Vector2(0, -half_z), step)
 	pts.pop_back() # the last point is the first
+	return pts.map(func(p: Vector2) -> Vector3: return Vector3(snappedf(p.x, 0.01), 0.0, snappedf(p.y, 0.01)))
+
+
+## A closed road round the corners `verts` (x, z), each rounded to its radius in `radii`: an arc
+## through every corner (points every `corner_deg`), straights between (points every ~`step` m),
+## from the end of the first corner. The corners' radii must fit their sides (it pushes an error
+## and returns [] if they don't).
+static func rounded_polygon(verts: Array, radii: Array, step := 50.0, corner_deg := 15.0) -> Array:
+	var n := verts.size()
+	var arcs := []
+	for i in n:
+		var p: Vector2 = verts[(i - 1 + n) % n]
+		var v: Vector2 = verts[i]
+		var q: Vector2 = verts[(i + 1) % n]
+		var d1 := (v - p).normalized()
+		var d2 := (q - v).normalized()
+		var turn := atan2(d1.cross(d2), d1.dot(d2)) # + turns from x toward z
+		var r := float(radii[i])
+		var t := r * tan(absf(turn) / 2.0)
+		var a := v - d1 * t
+		var centre := a + Vector2(-d1.y, d1.x) * signf(turn) * r
+		arcs.append({ "a": a, "b": v + d2 * t, "c": centre, "r": r, "turn": turn, "t": t })
+	var pts: Array[Vector2] = []
+	for i in n:
+		var arc: Dictionary = arcs[i]
+		var next: Dictionary = arcs[(i + 1) % n]
+		if float(arc.t) + float(next.t) > (verts[i] as Vector2).distance_to(verts[(i + 1) % n]):
+			push_error("Corners %d and %d don't fit their side" % [i, (i + 1) % n])
+			return []
+		var from := ((arc.a as Vector2) - (arc.c as Vector2)).angle()
+		var steps := maxi(roundi(rad_to_deg(absf(float(arc.turn))) / corner_deg), 1)
+		for k in steps + 1:
+			pts.append((arc.c as Vector2) + Vector2.from_angle(from + float(arc.turn) * k / steps) * float(arc.r))
+		_straight(pts, arc.b, next.a, step)
+		pts.pop_back() # the next corner starts there
 	return pts.map(func(p: Vector2) -> Vector3: return Vector3(snappedf(p.x, 0.01), 0.0, snappedf(p.y, 0.01)))
 
 

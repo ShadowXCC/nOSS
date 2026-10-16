@@ -204,9 +204,9 @@ func selected_track(type := "") -> String:
 	var found := TrackLibrary.resolve(last) if last else ""
 	if found and (type.is_empty() or TrackLibrary.type_of(found) == type):
 		return found
-	if type == "highway":
-		var highways := TrackLibrary.list(true, true, "highway")
-		return highways[0].path if not highways.is_empty() else ""
+	if type in ["highway", "arena"]:
+		var of_type := TrackLibrary.list(true, true, type)
+		return of_type[0].path if not of_type.is_empty() else ""
 	return TrackLibrary.DEFAULT
 
 
@@ -427,6 +427,10 @@ func test_drive_session(draft: TrackDraft, at: Variant = null) -> TrackSession:
 		session.event = RaceEvent.highway("cruise", false, -1)
 		if GameModes.mode_for(session.platform_id).get("id", "") != "highway":
 			session.platform_id = "official.highway.street"
+	elif draft.is_arena() or not (draft.kart().get("stunts", []) as Array).is_empty():
+		# Kart pieces and arenas drive in a kart class: the last one, else Medium (D137).
+		if GameModes.mode_for(session.platform_id).get("id", "") != "kart":
+			session.platform_id = String(Settings.profile.get("last_kart_platform", "official.kart.medium"))
 	session.autodrive = dev.has("autodrive")
 	return session
 

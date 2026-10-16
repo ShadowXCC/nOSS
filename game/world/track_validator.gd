@@ -40,6 +40,18 @@ const MAX_EACH := 3
 const RAMP_STEEP := 0.08
 const RUN_MIN_M := 500.0
 const RAMP_INTO_M := 0.3
+## Kart pieces and arenas (EDT-04, D137, D138): a loop's straight and road, a jump's landing,
+## the shortest wall-ride, the tightest corner for a row of boxes, the narrowest kart road; an
+## arena's smallest floor and fewest spawns.
+const LOOP_RUN_EXTRA_M := 40.0
+const LOOP_STRAIGHT := 1.0 / 400.0
+const JUMP_LANDING_M := 30.0
+const JUMP_LANDING_CURVE := 1.0 / 60.0
+const WALL_MIN_M := 30.0
+const ROW_TIGHT := 1.0 / 60.0
+const KART_NARROW_M := 8.0
+const ARENA_MIN_M2 := 2500.0
+const ARENA_SPAWNS := 8
 ## The car the AI line's speeds are checked with (and the editor's "AI lap" is timed with).
 const REFERENCE_PLATFORM := "official.track.gt"
 const LEVELS := ["error", "warning", "info"]
@@ -90,11 +102,14 @@ func _check(line: RacingLine) -> void:
 	if _in.license == "personal-use-only":
 		_add("info", "Personal-use tracks stay offline")
 	var n := t.samples.size()
-	if n < 3 or t.length < MIN_LENGTH_M:
+	if n < 3 or (t.length < MIN_LENGTH_M and t.arena == null): # an arena goes by its area
 		_add("error", "Track too short")
 		return
 	if not (_in.race as Dictionary).has("start_m"):
 		_add("error", "No start line", 0.0)
+	if t.arena:
+		_arena() # props in an arena are its obstacles (spawns keep clear of them)
+		return
 	_overlaps()
 	_folds()
 	_heights()
@@ -102,6 +117,8 @@ func _check(line: RacingLine) -> void:
 		_highway()
 	else:
 		_grid()
+	if t.kart:
+		_kart()
 	_sectors()
 	_terrain_edge()
 	_props()
@@ -442,6 +459,121 @@ func _spots(hits: PackedInt32Array, level: String, text: String) -> void:
 
 
 ## A problem at along-track distance `at_m` (null: nowhere in particular) or `point`.
+## Kart pieces on a road (D137).
+func _kart() -> void:
+	var k := t.kart
+	var spans := []
+	var boxes := 0
+	for p in k.pieces:
+		if not p.has("at_m"):
+			continue
+		var at := float(p.at_m)
+		var i := t.index_at(at)
+		var width := t.half_l[i] + t.half_r[i]
+		match String(p.kind):
+			"boost_pad", "jump":
+				var half := (float(p.width_m) if float(p.width_m) > 0.0 else 0.0) / 2.0
+				var lat := float(p.get("lateral_m", 0.0))
+				if lat + half > t.half_l[i] + 0.01 or lat - half < -t.half_r[i] - 0.01:
+					_add("error", "Piece off the road", at)
+				if p.kind == "jump":
+					for d in range(0, int(JUMP_LANDING_M), 5):
+						if absf(t.curvature[t.index_at(at + float(p.length_m) / 2.0 + d)]) > JUMP_LANDING_CURVE:
+							_add("warning", "Jump needs 30 m of road after it", at)
+							break
+			"wall_ride":
+				if float(p.length_m) < WALL_MIN_M:
+					_add("error", "Wall-ride too short", at)
+				for d in range(0, int(float(p.length_m)) + 1, 2):
+					var j := t.index_at(at + d)
+					if t.lifted[j] or (t.highway and t.highway.gap(j, 1.0 if p.side == "left" else -1.0)):
+						_add("error", "Wall-ride over a bridge or ramp", at + d)
+						break
+			"loop":
+				var r := float(p.radius_m)
+				if width < 2.0 * float(p.width_m) + KartLayout.LOOP_GAP_M:
+					_add("error", "Loop needs a road twice its width", at)
+				var reach := r + LOOP_RUN_EXTRA_M / 2.0
+				var y0 := t.point_at(at).y
+				for d in range(-int(reach), int(reach) + 1, 4):
+					var j := t.index_at(at + d)
+					if absf(t.curvature[j]) > LOOP_STRAIGHT or absf(t.samples[j].y - y0) > 0.5:
+						_add("error", "Loop needs a straight (%d m)" % roundi(2.0 * r + LOOP_RUN_EXTRA_M), at)
+						break
+			"item_row":
+				if absf(t.curvature[i]) > ROW_TIGHT:
+					_add("warning", "Item row on a tight corner", at)
+		if p.kind != "item_row" and not p.get("auto", false):
+			spans.append([at - k._extent(p) * (0.0 if p.kind == "wall_ride" else 1.0), at + k._extent(p) * (2.0 if p.kind == "wall_ride" else 1.0), p])
+	for r in k.rows:
+		boxes += (r.points as PackedVector3Array).size()
+	if boxes > KartLayout.MAX_BOXES:
+		_add("error", "More than %d item boxes" % KartLayout.MAX_BOXES)
+	for a in spans.size():
+		for b in range(a + 1, spans.size()):
+			var x: Array = spans[a]
+			var y: Array = spans[b]
+			var gap := fposmod(float(y[0]) - float(x[0]) + t.length / 2.0, t.length) - t.length / 2.0
+			var x_len := float(x[1]) - float(x[0])
+			var y_len := float(y[1]) - float(y[0])
+			if (gap >= 0.0 and gap < x_len) or (gap < 0.0 and -gap < y_len):
+				_add("error", "Pieces overlap", float(x[0]))
+	var narrowest := INF
+	for i in range(0, t.samples.size(), 5):
+		narrowest = minf(narrowest, t.half_l[i] + t.half_r[i])
+	if narrowest < KART_NARROW_M:
+		_add("warning", "Narrow for karts (%.0f m)" % narrowest)
+
+
+## An arena (D138): an outline that doesn't cross itself, room enough, spawns and boxes inside.
+func _arena() -> void:
+	var a := t.arena
+	var n := a.outline.size()
+	var crossed := false
+	for i in n:
+		for j in range(i + 2, n):
+			if i == 0 and j == n - 1:
+				continue
+			if Geometry2D.segment_intersects_segment(a.outline[i], a.outline[(i + 1) % n], a.outline[j], a.outline[(j + 1) % n]) != null:
+				crossed = true
+				break
+		if crossed:
+			break
+	if crossed:
+		_add("error", "Arena outline crosses itself")
+		return
+	if a.area < ARENA_MIN_M2:
+		_add("error", "Arena too small (%d m²)" % roundi(a.area))
+	var clear := 0
+	for s in a.spawns:
+		if not a.inside(s.origin, ArenaLayout.WALL_MARGIN_M):
+			_add("error", "Spawn outside the arena", null, s.origin)
+		elif _free_of_props(s.origin):
+			clear += 1
+	if clear < ARENA_SPAWNS:
+		_add("error", "Fewer than %d clear spawns" % ARENA_SPAWNS)
+	for c in a.clusters:
+		if not a.inside(c.p, ArenaLayout.WALL_MARGIN_M):
+			_add("error", "Item boxes outside the arena", null, c.p)
+	if t.kart:
+		for p in t.kart.pieces:
+			var at: Vector3 = (p.frame as Transform3D).origin
+			if not a.inside(at, 1.0):
+				_add("error", "Piece outside the arena", null, at)
+
+
+## No solid prop within a kart's length of `p`.
+func _free_of_props(p: Vector3) -> bool:
+	for item: Dictionary in (_in.props as Dictionary).get("items", []):
+		var type: Dictionary = PropLibrary.TYPES.get(item.get("prop", ""), {})
+		if not type.get("collide", false) or type.get("category") == "ground":
+			continue
+		var at: Array = item.p
+		if Vector2(p.x - float(at[0]), p.z - float(at[2])).length() < 3.0 + float(item.get("scale", 1.0)) * float(type.get("clear_m", 2.0)):
+			return false
+	return true
+
+
 func _add(level: String, text: String, at_m: Variant = null, point: Variant = null) -> void:
 	var kind := text.get_slice(" at ", 0)
 	_counts[kind] = int(_counts.get(kind, 0)) + 1

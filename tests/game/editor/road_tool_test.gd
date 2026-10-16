@@ -119,12 +119,16 @@ func test_templates_build() -> void:
 		if t[0] == "empty":
 			assert_int(track.samples.size()).is_equal(0)
 			continue
-		assert_float(track.length).override_failure_message(String(t[0])).is_greater(800.0)
 		assert_bool(d.dirty()).is_false()
+		if d.is_arena():
+			assert_object(track.arena).is_not_null() # no laps (stunts_tool_test)
+			continue
+		assert_float(track.length).override_failure_message(String(t[0])).is_greater(800.0)
 		if d.is_highway():
 			continue # flat ground, no sectors (highway_draft_test)
 		assert_int(track.sectors_m.size()).is_equal(2)
-		assert_bool(d.terrain.area().encloses(Rect2(track.samples[0].x - 1, track.samples[0].z - 1, 2, 2))).is_true()
+		if d.terrain: # the kart circuit is on flat ground
+			assert_bool(d.terrain.area().encloses(Rect2(track.samples[0].x - 1, track.samples[0].z - 1, 2, 2))).is_true()
 	var eight := TrackTemplates.make("figure8")
 	var t8 := eight.track()
 	eight.terrain.conform(t8)
