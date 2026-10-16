@@ -8,10 +8,12 @@ const FIXTURE := "res://tests/fixtures/tracks/kart_small.json"
 
 func before() -> void:
 	Settings.use_folder("user://tests/cup_run")
+	CupRun.user_dir = "user://tests/cup_run/cups/"
 
 
 func after() -> void:
 	Players.clear()
+	CupRun.user_dir = "user://cups/"
 	Settings.use_folder("user://")
 
 
@@ -117,7 +119,7 @@ func test_a_cup_saves_loads_and_is_checked() -> void:
 		{ "track": "gearworks", "laps": 3 }, { "track": "marble_mile", "laps": 2 }, { "track": "skyhop_ridge", "laps": 1 }, { "track": "proving_ground", "laps": 2 }] }
 	assert_str(CupRun.save(c)).is_empty()
 	assert_str(String(c.id)).is_equal("my_cup")
-	var back := CupRun.load_file(CupRun.USER_DIR + "my_cup.cup.json")
+	var back := CupRun.load_file(CupRun.user_dir + "my_cup.cup.json")
 	assert_str(String(back.name)).is_equal("My Cup!")
 	assert_bool(CupRun.list().any(func(e: Dictionary) -> bool: return e.id == "my_cup" and not e.builtin)).is_true()
 	assert_bool(CupRun.list().any(func(e: Dictionary) -> bool: return e.id == "spark_cup" and e.builtin)).is_true()
@@ -139,7 +141,7 @@ func test_a_cup_saves_loads_and_is_checked() -> void:
 	assert_int(CupRun.missing_track(c)).is_equal(2)
 	CupRun.delete("my_cup")
 	CupRun.delete("my_cup_2")
-	assert_bool(FileAccess.file_exists(CupRun.USER_DIR + "my_cup.cup.json")).is_false()
+	assert_bool(FileAccess.file_exists(CupRun.user_dir + "my_cup.cup.json")).is_false()
 
 
 func test_the_standings_screen_reads_the_table() -> void:

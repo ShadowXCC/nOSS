@@ -8,7 +8,8 @@ extends RefCounted
 
 const POINTS := [15, 12, 10, 8, 6, 4, 2, 1]
 const BUILTIN_DIR := "res://data/cups/"
-const USER_DIR := "user://cups/"
+## The player's own cups (tests point it at their own folder).
+static var user_dir := "user://cups/"
 const SCHEMA := "noss.cup/1"
 
 ## The cup ({schema, id, name, races: [{track, laps}]}).
@@ -35,7 +36,7 @@ static func start(c: Dictionary, platform: String, base: RaceEvent) -> CupRun:
 ## Built-in cups, then the player's own: [{id, name, path, builtin}].
 static func list() -> Array:
 	var out := []
-	for dir: String in [BUILTIN_DIR, USER_DIR]:
+	for dir: String in [BUILTIN_DIR, user_dir]:
 		if not DirAccess.dir_exists_absolute(dir):
 			continue
 		var files := Array(DirAccess.get_files_at(dir))
@@ -85,8 +86,8 @@ static func save(c: Dictionary) -> String:
 		return why
 	if String(c.get("id", "")).is_empty():
 		c.id = _id_for(String(c.name))
-	DirAccess.make_dir_recursive_absolute(USER_DIR)
-	var f := FileAccess.open(USER_DIR + String(c.id) + ".cup.json", FileAccess.WRITE)
+	DirAccess.make_dir_recursive_absolute(user_dir)
+	var f := FileAccess.open(user_dir + String(c.id) + ".cup.json", FileAccess.WRITE)
 	if f == null:
 		return "Can't save"
 	f.store_string(JSON.stringify(c, "  ", false))
@@ -94,7 +95,7 @@ static func save(c: Dictionary) -> String:
 
 
 static func delete(id: String) -> void:
-	DirAccess.remove_absolute(USER_DIR + id + ".cup.json")
+	DirAccess.remove_absolute(user_dir + id + ".cup.json")
 
 
 ## A free id from a name: "My Cup" -> "my_cup", "my_cup_2"...
@@ -110,7 +111,7 @@ static func _id_for(cup_name: String) -> String:
 		out = "cup"
 	var id := out
 	var n := 2
-	while FileAccess.file_exists(USER_DIR + id + ".cup.json") or FileAccess.file_exists(BUILTIN_DIR + id + ".cup.json"):
+	while FileAccess.file_exists(user_dir + id + ".cup.json") or FileAccess.file_exists(BUILTIN_DIR + id + ".cup.json"):
 		id = "%s_%d" % [out, n]
 		n += 1
 	return id

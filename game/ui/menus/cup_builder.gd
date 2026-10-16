@@ -58,7 +58,7 @@ func _save() -> void:
 	if why:
 		_status.text = why
 		return
-	saved.emit(CupRun.USER_DIR + String(cup.id) + ".cup.json")
+	saved.emit(CupRun.user_dir + String(cup.id) + ".cup.json")
 
 
 func _unhandled_input(e: InputEvent) -> void:
