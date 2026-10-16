@@ -3,12 +3,12 @@
   "author": "nOSS contributors",
   "created": "2026-10-16",
   "files": {
-    "track.json": "sha256:521ffbc0151b33342769a70e04ebaf5d77bf2c2ab6f6e4a73e7335a08385483a"
+    "track.json": "sha256:f7c2ed4f79332199302537daaabbbb1263dfc5506f555388815a69f4c2a4b03d"
   },
   "game_min_version": "0.8.0",
   "id": "gearworks",
   "kind": "road",
-  "layout": "sha256:2a01ce4e132a7a787c2e19ab9a991c7f6e28bdb74c44ab19d8d42ccb93b64825",
+  "layout": "sha256:f8ad934520811808f65dce36ac5c7fbfe0bfea47263741c32e09a7551297ddfc",
   "length_m": 1534.5,
   "license": "CC-BY-SA-4.0",
   "name": "Gearworks",

@@ -92,6 +92,10 @@ static func gearworks() -> TrackDraft:
 	var verts := [Vector2(-300, -150), Vector2(170, -150), Vector2(250, -30), Vector2(100, 20), Vector2(330, 240), Vector2(-120, 210),
 		Vector2(-200, 90), Vector2(-310, 40)].map(func(v: Vector2) -> Vector2: return v * 0.9)
 	var d := _circuit("gearworks", "Gearworks", verts, [40, 40, 25, 25, 60, 40, 30, 35], Callable(), "concrete")
+	# A yard: concrete to the barriers, not grass.
+	for side in ["l", "r"]:
+		d.set_default("runoff_" + side, "concrete")
+		d.set_default("runoff_%s_m" % side, 8.0)
 	_start(d, Vector2(-160, -135))
 	var t := d.track()
 	var at := func(p: Vector2) -> float: return snappedf(float(t.project(Vector3(p.x, 0, p.y)).distance), 0.1)

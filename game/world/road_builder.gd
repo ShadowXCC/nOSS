@@ -7,6 +7,7 @@ extends RefCounted
 ## In the game every kind is one piece for the whole track ("Road", "Curbs", "Barriers", ...);
 ## the editor builds a node per control segment, so a drag rebuilds only the segments it moved.
 
+const RUNOFF_OVER_GROUND := 0.02 # m, run-off over flat ground
 const CURB_WIDTH := TrackData.CURB_WIDTH
 const CURB_HEIGHT := 0.045
 ## Across the curb, from the road's edge: [out, up].
@@ -252,7 +253,8 @@ func _runoff(b: MeshBatch, i: int, j: int, side: float) -> void:
 	var start_j := CURB_WIDTH if (track.curb_l if side > 0.0 else track.curb_r)[j] else 0.0
 	var end_i: float = (track.runoff_l_m if side > 0.0 else track.runoff_r_m)[i]
 	var end_j: float = (track.runoff_l_m if side > 0.0 else track.runoff_r_m)[j]
-	var drop := Vector3.UP * (_ground_y if terrain == null else -0.03)
+	# On flat ground, a little over it (the same height flickered through it), still under the road.
+	var drop := Vector3.UP * (_ground_y + RUNOFF_OVER_GROUND if terrain == null else -0.03)
 	var q := [_edge(i, side, start_i) + drop, _edge(i, side, end_i) + drop, _edge(j, side, end_j) + drop, _edge(j, side, start_j) + drop]
 	b.quad(q if side < 0.0 else [q[1], q[0], q[3], q[2]], [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
 
