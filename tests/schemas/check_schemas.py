@@ -6,7 +6,7 @@ valid_*.json must pass <name>.schema.json and invalid_*.json must fail it.
 Every official platform in data/platforms/ must pass the platform schema, every mode in
 data/modes/ the mode schema, every preset in data/input_presets/ the input preset schema, and
 data/server.example.json the server schema, every tire sound in data/tire_sounds/ the tire
-profile schema, and every built-in track in content/tracks/ the track and track package schemas.
+profile schema, every cup in data/cups/ the cup schema, and every built-in track in content/tracks/ the track and track package schemas.
 """
 
 import json
@@ -51,7 +51,7 @@ def main() -> int:
 
     for schema_name, pattern in [("mode", "modes/*.mode.json"), ("input_preset", "input_presets/*.json"), ("server", "server.example.json"),
                                  ("tire_profile", "tire_sounds/*.json"), ("traffic_types", "traffic/types.json"),
-                                 ("item_odds", "items/odds.json")]:
+                                 ("item_odds", "items/odds.json"), ("cup", "cups/*.cup.json")]:
         validator = Draft202012Validator(json.loads((SCHEMAS / f"{schema_name}.schema.json").read_text()))
         for path in sorted((ROOT / "data").glob(pattern)):
             errors = list(validator.iter_errors(json.loads(path.read_text())))

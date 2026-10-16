@@ -1,0 +1,26 @@
+{
+  "attributions": [],
+  "author": "nOSS contributors",
+  "created": "2026-10-16",
+  "files": {
+    "terrain/height.png": "sha256:bd0c69b03b0e1feac585bf3fe4d2d569ea0d748ee26670e1d378184df321741e",
+    "terrain/meta.json": "sha256:db7a6a7a49bb86689a6e75ef66f0374f7aa588675eb1b23cbb9bf868cfd726f7",
+    "terrain/splat_0.png": "sha256:81329acf94c1da6e649006631946bfc68a2558956c0c5311c4fde41433d2882a",
+    "terrain/splat_1.png": "sha256:41e6a93e13ad7e6dd60dfdbded233ee4089f707e1d6cd07206904464532498ff",
+    "track.json": "sha256:3fe9fdf19fe5ae1a2f074d5146bef7e67722f6f7f9ac3ef218722007d3fbc1b7"
+  },
+  "game_min_version": "0.7.0",
+  "id": "skyhop_ridge",
+  "kind": "road",
+  "layout": "sha256:0423dadc67a0d38391018ba3385e64bdd8ec6bd687ccd96724173ce11550edb4",
+  "length_m": 1774.9,
+  "license": "CC-BY-SA-4.0",
+  "name": "Skyhop Ridge",
+  "schema": "noss.track_package/1",
+  "source": "nOSS",
+  "tags": [
+    "kart"
+  ],
+  "type": "circuit",
+  "version": 1
+}

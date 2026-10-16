@@ -41,7 +41,7 @@ static func entry(path: String) -> Dictionary:
 		"path": path, "id": String(m.get("id", "")), "name": String(m.get("name", path.get_file())),
 		"author": String(m.get("author", "")), "license": String(m.get("license", "")),
 		"length_m": float(m.get("length_m", 0.0)), "kind": String(m.get("kind", "road")), "type": String(m.get("type", "circuit")),
-		"builtin": path.begins_with("res://"), "hash": manifest_hash(path),
+		"builtin": path.begins_with("res://"), "hash": manifest_hash(path), "tags": m.get("tags", []),
 	}
 
 
@@ -96,12 +96,15 @@ static func type_of(path: String) -> String:
 	return String(m.get("type", "circuit")) if not m.is_empty() else ""
 
 
-## "Name · 2.5 km · author" (lists).
+## "Name · 2.5 km · author" for lists: "Gearworks · 1.5 km · Kart", "Crate Yard" (arenas have no
+## length).
 static func label(e: Dictionary) -> String:
 	var km := float(e.get("length_m", 0.0)) / 1000.0
 	var bits := [String(e.name)]
-	if km > 0.0:
+	if km > 0.0 and String(e.get("type", "circuit")) != "arena":
 		bits.append("%.1f km" % km)
+	if "kart" in e.get("tags", []) and String(e.get("type", "circuit")) == "circuit":
+		bits.append("Kart") # made for karts (any class may race it)
 	if not e.get("builtin", false) and String(e.author):
 		bits.append(String(e.author))
 	return " · ".join(bits)

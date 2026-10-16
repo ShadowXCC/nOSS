@@ -15,6 +15,10 @@ const DRIFT_SPEED := 12.0
 const DRIFT_END_RADIUS := 70.0
 const DRIFT_OFF_M := 1.8
 const DRIFT_STEER_GAIN := 0.3 # tightness per metre off the line
+## How far ahead (s at its speed) the corner's tightest part is looked for.
+const DRIFT_LOOK_S := 1.2
+const DRIFT_THROTTLE := 0.7
+const DRIFT_BRAKE := 0.25
 const NEAR_PIECE_M := 15.0
 const BOX_LOOK_M := 70.0
 ## Just out of a drift the kart is still settling: no hard braking unless the line needs it.
@@ -45,6 +49,9 @@ var _loop_time := 0.0
 
 func _ready() -> void:
 	super()
+	# Stuck, a kart backs out sooner and calls the tow sooner (towing costs little, D132).
+	stuck_reverse_s = 1.5
+	stuck_reset_s = 4.0
 	var arcade: Dictionary = racer.vehicle.arcade
 	if not arcade.is_empty():
 		var grip := lerpf(GRIP.x, GRIP.y, _skill()) * float(arcade.grip)
@@ -132,7 +139,7 @@ func _drift(vehicle: Vehicle, c: Dictionary) -> void:
 	var want_lat := _line.offset_at(racer.distance) + offset
 	var off := racer.lateral - want_lat # + = left of its line
 	if _drift_dir == 0:
-		var need := v * v * absf(kappa) / 9.81
+		var need := v * v * _peak_curvature(racer.distance, v * DRIFT_LOOK_S) / 9.81
 		if skill >= 20.0 and v >= DRIFT_SPEED and need > DRIFT_G and need < DRIFT_MAX_G and c.brake < 0.3 and not _near_piece() and not racer.towed:
 			_drift_dir = -1 if kappa > 0.0 else 1 # turning left: drift left (steer -)
 			_corner_seen = true
@@ -151,8 +158,20 @@ func _drift(vehicle: Vehicle, c: Dictionary) -> void:
 	var turn: Array = vehicle.arcade.drift.turn_g
 	var tight := clampf((a - 0.4 - float(turn[0])) / (float(turn[1]) - float(turn[0])) + DRIFT_STEER_GAIN * off * _drift_dir, 0.0, 1.0)
 	vehicle.steer = _drift_dir * (2.0 * tight - 1.0)
-	vehicle.throttle = 1.0
-	vehicle.brake = 0.0
+	# The line's pace through the corner: on the power unless it wants the kart slower, then off
+	# it and a touch of brake (more would spin it).
+	vehicle.throttle = 0.0 if c.brake > 0.05 else maxf(float(c.throttle), DRIFT_THROTTLE)
+	vehicle.brake = minf(float(c.brake), DRIFT_BRAKE)
+
+
+## The tightest |curvature| of the line from `from` over the next `span` m.
+func _peak_curvature(from: float, span: float) -> float:
+	var peak := 0.0
+	var d := 0.0
+	while d <= span:
+		peak = maxf(peak, absf(_line.curvature_at(from + d)))
+		d += 2.0
+	return peak
 
 
 func _end_drift(vehicle: Vehicle) -> void:

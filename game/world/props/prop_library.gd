@@ -36,6 +36,10 @@ const TYPES := {
 	"crash_cushion": { "name": "Crash cushion", "category": "trackside", "collide": true },
 	"lamp_double": { "name": "Double lamp", "category": "trackside", "collide": true },
 	"layby": { "name": "Layby", "category": "ground", "collide": true, "size": [6.0, 0.0, 40.0] },
+	# Yards and arenas (kart, M8).
+	"crate": { "name": "Crate", "category": "trackside", "collide": true },
+	"container": { "name": "Container", "category": "buildings", "collide": true },
+	"crane": { "name": "Yard crane", "category": "buildings", "collide": true },
 }
 const CATEGORIES := ["nature", "buildings", "city", "trackside", "ground"]
 
@@ -148,6 +152,16 @@ static func parts(id: String, size := Vector3.ZERO) -> Array:
 				pole.box(Vector3(side * 1.4, 11.8, 0), Basis(), Vector3(2.8, 0.18, 0.18))
 				pole.box(Vector3(side * 2.6, 11.6, 0), Basis(), Vector3(1.0, 0.22, 0.5))
 			return [_part("", "metal", pole, VehicleSim.SURFACE_CONCRETE)]
+		"crate":
+			var b := MeshBatch.new()
+			b.box(Vector3(0, 0.9, 0), Basis(), Vector3(1.8, 1.8, 1.8), Vector2(1, 1))
+			return [_part("", "crate", b, VehicleSim.SURFACE_CONCRETE)]
+		"container":
+			var b := MeshBatch.new()
+			b.box(Vector3(0, 1.3, 0), Basis(), Vector3(2.4, 2.6, 12.2), Vector2(4, 1))
+			return [_part("", "container", b, VehicleSim.SURFACE_CONCRETE)]
+		"crane":
+			return _crane()
 		"layby":
 			var pad := MeshBatch.new()
 			pad.quad([Vector3(-s.x / 2, 0.02, -s.z / 2), Vector3(-s.x / 2, 0.02, s.z / 2), Vector3(s.x / 2, 0.02, s.z / 2), Vector3(s.x / 2, 0.02, -s.z / 2)],
@@ -261,6 +275,12 @@ static func material(key: String) -> Material:
 			return WorldMaterials.get_material("sign_green", null, 0.6, 0.2, false, Vector2.ONE, Color(0.1, 0.42, 0.24))
 		"cushion":
 			return WorldMaterials.get_material("cushion", RetroTextures.checker(), 0.6, 0.2, false, Vector2(1, 4), Color(1.0, 0.85, 0.1))
+		"crate":
+			return WorldMaterials.get_material("crate", RetroTextures.dirt(), 0.9, 0.1, false, Vector2.ONE, Color(0.72, 0.55, 0.34))
+		"container":
+			return WorldMaterials.get_material("container", RetroTextures.building(), 0.6, 0.4, false, Vector2.ONE, Color(0.75, 0.3, 0.2))
+		"crane":
+			return WorldMaterials.get_material("crane", null, 0.5, 0.5, false, Vector2.ONE, Color(0.95, 0.72, 0.12))
 	return WorldMaterials.get_material("concrete_world", RetroTextures.concrete(), 0.8, 0.25, true, Vector2.ONE / 6.0)
 
 
@@ -318,6 +338,18 @@ static func _landmark() -> Array:
 	_cylinder(pod, Vector3(0, 182, 0), 11.0, 10.0, 16)
 	return [_part("", "building", base, VehicleSim.SURFACE_CONCRETE), _part("Shaft", "concrete", shaft, VehicleSim.SURFACE_CONCRETE),
 		_part("Pod", "glass", pod, VehicleSim.SURFACE_CONCRETE)]
+
+
+## A yard's gantry crane: two A-frame legs 26 m apart and a beam 18 m up with a trolley, along x.
+static func _crane() -> Array:
+	var b := MeshBatch.new()
+	for x: float in [-13.0, 13.0]:
+		for z: float in [-4.0, 4.0]:
+			b.box(Vector3(x, 9.0, z), Basis(), Vector3(0.8, 18.0, 0.8))
+		b.box(Vector3(x, 0.5, 0), Basis(), Vector3(1.2, 1.0, 10.0))
+	b.box(Vector3(0, 18.6, 0), Basis(), Vector3(30.0, 1.4, 9.0))
+	b.box(Vector3(4.0, 17.2, 0), Basis(), Vector3(3.0, 1.6, 3.0))
+	return [_part("", "crane", b, VehicleSim.SURFACE_CONCRETE)]
 
 
 ## A street bridge over the road: a deck `span` long across (x) and `width` wide, its top

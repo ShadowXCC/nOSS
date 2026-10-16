@@ -1,0 +1,22 @@
+{
+  "attributions": [],
+  "author": "nOSS contributors",
+  "created": "2026-10-16",
+  "files": {
+    "track.json": "sha256:521ffbc0151b33342769a70e04ebaf5d77bf2c2ab6f6e4a73e7335a08385483a"
+  },
+  "game_min_version": "0.7.0",
+  "id": "gearworks",
+  "kind": "road",
+  "layout": "sha256:2a01ce4e132a7a787c2e19ab9a991c7f6e28bdb74c44ab19d8d42ccb93b64825",
+  "length_m": 1534.5,
+  "license": "CC-BY-SA-4.0",
+  "name": "Gearworks",
+  "schema": "noss.track_package/1",
+  "source": "nOSS",
+  "tags": [
+    "kart"
+  ],
+  "type": "circuit",
+  "version": 1
+}

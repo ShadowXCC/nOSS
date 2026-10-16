@@ -57,6 +57,9 @@ var _stuck_time := 0.0
 var _reverse_time := 0.0
 var _trouble_time := 0.0
 var _rng := RandomNumberGenerator.new()
+## Stuck this long: back out; this long: reset (a kart AI is quicker with both).
+var stuck_reverse_s := 2.5
+var stuck_reset_s := 7.0
 
 
 func _ready() -> void:
@@ -426,14 +429,14 @@ func _recover(out: Dictionary, delta: float) -> bool:
 		_stuck_time += delta
 	else:
 		_stuck_time = 0.0
-	if _trouble_time > 3.0 or _stuck_time > 7.0:
+	if _trouble_time > 3.0 or _stuck_time > stuck_reset_s:
 		_trouble_time = 0.0
 		_stuck_time = 0.0
 		_reverse_time = 0.0
 		racer.reset_car()
 		return false
 	# Stuck against something: back out for a moment, steering away from where the line is.
-	if _stuck_time > 2.5 and _reverse_time <= 0.0:
+	if _stuck_time > stuck_reverse_s and _reverse_time <= 0.0:
 		_reverse_time = 1.6
 	if _reverse_time > 0.0:
 		_reverse_time -= delta

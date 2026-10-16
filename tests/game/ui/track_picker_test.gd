@@ -24,16 +24,19 @@ func test_both_tracks_are_offered_and_the_pick_is_kept() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var names := picker._buttons.map(func(b: Button) -> String: return UiKit.text_of(b))
-	assert_str(String(names[0])).starts_with("Proving Ground · 2.5 km")
-	assert_str(String(names[1])).starts_with("Hills · 1.")
-	assert_str(String(names[1])).ends_with("Tester")
+	# The built-in circuits (the kart ones too), then the player's own.
+	var builtin := TrackLibrary.list(false, false, "circuit").size()
+	assert_bool(names.slice(0, builtin).any(func(n: String) -> bool: return n.begins_with("Proving Ground · 2.5 km"))).is_true()
+	var mine := builtin
+	assert_str(String(names[mine])).starts_with("Hills · 1.")
+	assert_str(String(names[mine])).ends_with("Tester")
 	assert_str(String(names[-1])).is_equal("Back")
-	(picker._buttons[1] as Button).grab_focus()
+	(picker._buttons[mine] as Button).grab_focus()
 	await get_tree().process_frame
 	assert_object(picker._preview.track).is_not_null()
 	var got := [""]
 	picker.picked.connect(func(p: String) -> void: got[0] = p)
-	(picker._buttons[1] as Button).pressed.emit()
+	(picker._buttons[mine] as Button).pressed.emit()
 	assert_str(got[0]).ends_with("hills.nosstrack")
 	assert_str(Game.selected_track()).is_equal(got[0])
 	picker.queue_free()
@@ -50,7 +53,10 @@ func test_the_race_menu_offers_the_tracks() -> void:
 	var right := InputEventAction.new()
 	right.action = "ui_right"
 	right.pressed = true
-	track_row.gui_input.emit(right)
+	for i in 10: # on past the built-in ones to the player's own
+		track_row.gui_input.emit(right)
+		if String(Settings.profile.last_track).ends_with("hills.nosstrack"):
+			break
 	assert_str(String(Settings.profile.last_track)).ends_with("hills.nosstrack")
 	menu.queue_free()
 	Settings.profile.last_track = ""

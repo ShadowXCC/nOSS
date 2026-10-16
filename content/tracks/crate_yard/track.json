@@ -1,0 +1,476 @@
+{
+  "arena": {
+    "floor": "concrete",
+    "wall": "tyres"
+  },
+  "environment": {},
+  "ground": {
+    "flat_y": -0.03,
+    "surface": "grass"
+  },
+  "id": "crate_yard",
+  "kart": {
+    "boxes": "auto",
+    "stunts": [
+      {
+        "height_m": 1.0,
+        "id": "jump_1",
+        "kind": "jump",
+        "length_m": 7.0,
+        "p": [
+          0.0,
+          0.0,
+          -30.0
+        ],
+        "width_m": 5.0,
+        "yaw_deg": 90.0
+      },
+      {
+        "height_m": 1.0,
+        "id": "jump_2",
+        "kind": "jump",
+        "length_m": 7.0,
+        "p": [
+          0.0,
+          0.0,
+          30.0
+        ],
+        "width_m": 5.0,
+        "yaw_deg": -90.0
+      },
+      {
+        "id": "boost_pad_1",
+        "kind": "boost_pad",
+        "p": [
+          -38.0,
+          0.0,
+          0.0
+        ],
+        "yaw_deg": 0.0
+      },
+      {
+        "id": "boost_pad_2",
+        "kind": "boost_pad",
+        "p": [
+          38.0,
+          0.0,
+          0.0
+        ],
+        "yaw_deg": 180.0
+      }
+    ]
+  },
+  "name": "Crate Yard",
+  "props": {
+    "items": [
+      {
+        "p": [
+          -14.0,
+          0.0,
+          -9.0
+        ],
+        "prop": "crate",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          -12.0,
+          0.0,
+          -9.0
+        ],
+        "prop": "crate",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          14.0,
+          0.0,
+          9.0
+        ],
+        "prop": "crate",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          12.0,
+          0.0,
+          9.0
+        ],
+        "prop": "crate",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          12.0,
+          0.0,
+          11.0
+        ],
+        "prop": "crate",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          -14.0,
+          0.0,
+          12.0
+        ],
+        "prop": "crate",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          14.0,
+          0.0,
+          -12.0
+        ],
+        "prop": "crate",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          -38.0,
+          0.0,
+          -22.0
+        ],
+        "prop": "crate",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          38.0,
+          0.0,
+          22.0
+        ],
+        "prop": "crate",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          -36.0,
+          0.0,
+          24.0
+        ],
+        "prop": "crate",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          36.0,
+          0.0,
+          -24.0
+        ],
+        "prop": "crate",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          -44.0,
+          0.0,
+          -34.0
+        ],
+        "prop": "tyre_stack",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          -43.2,
+          0.0,
+          -34.0
+        ],
+        "prop": "tyre_stack",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          -42.4,
+          0.0,
+          -34.0
+        ],
+        "prop": "tyre_stack",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          44.0,
+          0.0,
+          -34.0
+        ],
+        "prop": "tyre_stack",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          43.2,
+          0.0,
+          -34.0
+        ],
+        "prop": "tyre_stack",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          42.4,
+          0.0,
+          -34.0
+        ],
+        "prop": "tyre_stack",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          -44.0,
+          0.0,
+          34.0
+        ],
+        "prop": "tyre_stack",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          -43.2,
+          0.0,
+          34.0
+        ],
+        "prop": "tyre_stack",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          -42.4,
+          0.0,
+          34.0
+        ],
+        "prop": "tyre_stack",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          44.0,
+          0.0,
+          34.0
+        ],
+        "prop": "tyre_stack",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          43.2,
+          0.0,
+          34.0
+        ],
+        "prop": "tyre_stack",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      },
+      {
+        "p": [
+          42.4,
+          0.0,
+          34.0
+        ],
+        "prop": "tyre_stack",
+        "scale": 1.0,
+        "yaw_deg": 0.0
+      }
+    ],
+    "scatter": []
+  },
+  "race": {
+    "ai": {
+      "caution_until_m": -1.0,
+      "pins": []
+    },
+    "checkpoint_spacing_m": 100.0,
+    "gantry": false,
+    "grid": {
+      "front_m": 12.0,
+      "pole": "left",
+      "row_m": 13.0,
+      "slots": 20,
+      "stagger": 0.5
+    },
+    "rolling_back_m": 220.0,
+    "sectors_m": [],
+    "start_m": 0.0
+  },
+  "road": {
+    "defaults": {
+      "bank_deg": 0.0,
+      "barrier_l": "auto",
+      "barrier_r": "auto",
+      "curb_l": "auto",
+      "curb_r": "auto",
+      "height": "ground",
+      "lanes": 1,
+      "lines": "edges",
+      "runoff_l": "grass",
+      "runoff_l_m": 16.0,
+      "runoff_r": "grass",
+      "runoff_r_m": 16.0,
+      "surface": "asphalt",
+      "width_l": 6.0,
+      "width_r": 6.0
+    },
+    "mode": "road",
+    "points": [
+      {
+        "p": [
+          0.0,
+          0.0,
+          -40.0
+        ]
+      },
+      {
+        "p": [
+          20.0,
+          0.0,
+          -40.0
+        ]
+      },
+      {
+        "p": [
+          40.0,
+          0.0,
+          -40.0
+        ]
+      },
+      {
+        "p": [
+          47.07,
+          0.0,
+          -37.07
+        ]
+      },
+      {
+        "p": [
+          50.0,
+          0.0,
+          -30.0
+        ]
+      },
+      {
+        "p": [
+          50.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "p": [
+          50.0,
+          0.0,
+          30.0
+        ]
+      },
+      {
+        "p": [
+          47.07,
+          0.0,
+          37.07
+        ]
+      },
+      {
+        "p": [
+          40.0,
+          0.0,
+          40.0
+        ]
+      },
+      {
+        "p": [
+          13.33,
+          0.0,
+          40.0
+        ]
+      },
+      {
+        "p": [
+          -13.33,
+          0.0,
+          40.0
+        ]
+      },
+      {
+        "p": [
+          -40.0,
+          0.0,
+          40.0
+        ]
+      },
+      {
+        "p": [
+          -47.07,
+          0.0,
+          37.07
+        ]
+      },
+      {
+        "p": [
+          -50.0,
+          0.0,
+          30.0
+        ]
+      },
+      {
+        "p": [
+          -50.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "p": [
+          -50.0,
+          0.0,
+          -30.0
+        ]
+      },
+      {
+        "p": [
+          -47.07,
+          0.0,
+          -37.07
+        ]
+      },
+      {
+        "p": [
+          -40.0,
+          0.0,
+          -40.0
+        ]
+      },
+      {
+        "p": [
+          -20.0,
+          0.0,
+          -40.0
+        ]
+      }
+    ]
+  },
+  "scene": null,
+  "schema": "noss.track/1",
+  "style": "retro_ps2",
+  "type": "arena"
+}

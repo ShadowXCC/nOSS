@@ -1,0 +1,23 @@
+{
+  "attributions": [],
+  "author": "nOSS contributors",
+  "created": "2026-10-16",
+  "files": {
+    "track.json": "sha256:88ce20e3591a2b6c0b9eb45685766c6022a321f562cbccabc4c8a693a778401d"
+  },
+  "game_min_version": "0.7.0",
+  "id": "crate_yard",
+  "kind": "road",
+  "layout": "sha256:a0bcf57a129411cb18e3f07a285898de843059720339630c6b8d7f1164a63bbb",
+  "length_m": 342.4,
+  "license": "CC-BY-SA-4.0",
+  "name": "Crate Yard",
+  "schema": "noss.track_package/1",
+  "source": "nOSS",
+  "tags": [
+    "kart",
+    "arena"
+  ],
+  "type": "arena",
+  "version": 1
+}

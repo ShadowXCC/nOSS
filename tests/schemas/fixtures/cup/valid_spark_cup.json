@@ -1,0 +1,11 @@
+{
+  "schema": "noss.cup/1",
+  "id": "spark_cup",
+  "name": "Spark Cup",
+  "races": [
+    { "track": "proving_ground", "laps": 2 },
+    { "track": "marble_mile", "laps": 3 },
+    { "track": "gearworks", "laps": 3 },
+    { "track": "skyhop_ridge", "laps": 3 }
+  ]
+}

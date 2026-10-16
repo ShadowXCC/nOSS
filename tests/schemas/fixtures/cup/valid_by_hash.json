@@ -1,0 +1,3 @@
+{ "schema": "noss.cup/1", "id": "mine", "name": "Mine",
+  "races": [ { "track": "sha256:0000000000000000000000000000000000000000000000000000000000000000", "laps": 1 },
+             { "track": "gearworks", "laps": 10 }, { "track": "marble_mile", "laps": 3 }, { "track": "dust_bowl_x", "laps": 2 } ] }

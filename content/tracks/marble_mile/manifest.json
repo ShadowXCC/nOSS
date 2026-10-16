@@ -1,0 +1,26 @@
+{
+  "attributions": [],
+  "author": "nOSS contributors",
+  "created": "2026-10-16",
+  "files": {
+    "terrain/height.png": "sha256:a5af122249793b6fcb7ca1da98c2df558e77ef2cd4ace76038bb7152fb3226e9",
+    "terrain/meta.json": "sha256:cc8424a13eca9b1e5ee72ca85859b005b294ea44153533cbe76093c2ac48ea28",
+    "terrain/splat_0.png": "sha256:81329acf94c1da6e649006631946bfc68a2558956c0c5311c4fde41433d2882a",
+    "terrain/splat_1.png": "sha256:41e6a93e13ad7e6dd60dfdbded233ee4089f707e1d6cd07206904464532498ff",
+    "track.json": "sha256:2fadf19298882ea4cef23efaf42929a14549ee7907501d3fd3765b6d9f15fd16"
+  },
+  "game_min_version": "0.7.0",
+  "id": "marble_mile",
+  "kind": "road",
+  "layout": "sha256:2c9cf1469233079e4bcae4fc1e26330c6e3713c3f5723d17be478d72fb66ba0e",
+  "length_m": 1262.1,
+  "license": "CC-BY-SA-4.0",
+  "name": "Marble Mile",
+  "schema": "noss.track_package/1",
+  "source": "nOSS",
+  "tags": [
+    "kart"
+  ],
+  "type": "circuit",
+  "version": 1
+}

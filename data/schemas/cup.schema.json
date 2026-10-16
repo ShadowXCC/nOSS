@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noss:schema:cup:1",
+  "title": "nOSS kart cup",
+  "description": "A cup (D145): four races, points by finishing place (15, 12, 10, 8, 6, 4, 2, 1). Built-in cups in data/cups/<id>.cup.json; players' own in user://cups/<id>.cup.json. A race's track is a track id or a layout hash (\"sha256:...\"). See docs/GAMEMODES.md §2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "name", "races"],
+  "properties": {
+    "schema": { "const": "noss.cup/1" },
+    "id": { "type": "string", "pattern": "^[a-z0-9_]{1,40}$" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 40 },
+    "races": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["track", "laps"],
+        "properties": {
+          "track": { "type": "string", "pattern": "^([a-z0-9_]{1,64}|sha256:[0-9a-f]{64})$" },
+          "laps": { "type": "integer", "minimum": 1, "maximum": 10 }
+        }
+      }
+    }
+  }
+}
