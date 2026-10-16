@@ -105,7 +105,7 @@ The surface type comes from the collider (track material tag).
 
 - **Drag:** `½ρ · CdA · v²` at the CoG.
 - **Downforce:** `½ρ · ClA · v²`, front and rear, applied at the axles (fixed balance).
-- **Slipstream:** if another car is within a cone behind it (≤ 30 m, ±1.5 m lateral), drag is reduced by up to 30%. The effect fades with distance. On or off per mode.
+- **Slipstream:** if another car is within a cone behind it (≤ 30 m, ±1.5 m lateral), drag is reduced by up to 30%. The effect fades with distance. On or off per mode. Built for karts in M8 (`KartControl`, 30 times a second; a Magnet triples it, D139); other modes later.
 
 ## 8. Steering and assists
 
@@ -127,13 +127,14 @@ The surface type comes from the collider (track material tag).
 
 ## 9. Mode layers
 
-**`kart_arcade`** (M8). Modifiers on the same core, not a separate sim:
+**`kart_arcade`** (M8, D130–D133). Modifiers on the same core, not a separate sim: `native/src/vehicle/kart_layer.{h,cpp}`, an optional `KartLayer` in VehicleModel that gives `KartMods` each tick (grip, side force, the slip angle the tires see, wheel steer, drive power, drag, a free clutch, extra force and torque). With no layer the model runs exactly as before (a pinned trajectory hash). Every force is the car's mass × an acceleration or the reference yaw inertia × an angular acceleration, so the kart classes pass conformance at ±2% with it on. Its numbers are in `data/modes/kart.mode.json` (`arcade`).
 - Grip × 1.25 and a stronger steer aid.
-- **Drift:** holding the drift button lowers rear lateral grip and adds controllable yaw torque. Charge tiers at 0.6 / 1.2 / 2.0 s give a boost on release.
-- **Boost:** extra drive force, capped by a speed limit.
-- **Air control:** pitch, roll and yaw torque while airborne. Trick input on ramps gives a landing boost.
-- **Self-righting** after 1.5 s upside down. Walls bounce elastically.
-- **Item effects:** spin-out (temporary grip loss plus a yaw impulse), slow (power cut), knock-back impulse.
+- **Drift** (hold at 8 m/s or more, steering 0.3 or more one way; the side locks): an arcade slide. A centripetal pull of 0.15–1.0 g set by the steering adds to the tires'; the tires see 0.3 of their slip angle, side grip × 0.35 and wheel steer × 0.3; the body is yawed toward the path's rate plus a slip of 0.25–0.45 rad (at most 12 rad/s²). Charge (2 wheels down, 8 m/s) reaches tiers at 0.6 / 1.2 / 2.0 s, giving boosts of 0.5 / 0.9 / 1.4 s on release; letting go blends grip and steer back over 0.4 s with the yaw steadied toward the path.
+- **Boost:** +6 m/s² up to × 1.25 the class's geared top speed, the clutch free above the limiter. Boost pads (tag 1) give 0.8 s.
+- **Air control** after 0.1 s with no wheel down: pitch, roll and yaw (3, 3, 2 rad/s²), levelled and damped. A trick (drift pressed within 0.35 s of leaving a jump, tag 2) gives a 0.6 s boost on an upright landing.
+- **Stick gravity** (tag 4: wall-rides, loops): at 7 m/s or more gravity points into the surface, held 0.25 s after contact is lost (D133).
+- **Self-righting** after 1.5 s on the roof or side. Walls bounce at 0.6 and karts at 0.3 (mass decides); stunt pieces don't bounce.
+- **Item effects:** spin-out (1.2 s, grip × 0.35, about 1.3 turns, braking at 10 m/s²), slow (power cut), boost, cancel; a 3 m/s knock comes from the item.
 
 **Highway and endless** use the core unchanged. Endless defaults to assists on.
 

@@ -56,12 +56,13 @@ nOSS/
 │  │                      cameras; import/ (model import, analysis, LODs)
 │  ├─ modes/              common/, track/, kart/, highway/, endless/
 │  ├─ world/              track data and format, track packages (load, write, library), the
-│  │                      track builder (road, props, scenes), terrain/, props/, checks;
+│  │                      track builder (road, props, scenes), terrain/, props/, checks,
+│  │                      kart/ (kart pieces: layout, stunt builder), arena/ (outline, floor, wall);
 │  │                      later procedural gen, weather, time of day
-│  ├─ ai/                 racing, traffic, police
+│  ├─ ai/                 racing, kart, battle (arena nav), item policy, traffic, police
 │  ├─ net/                server, client, lobby, chat, content transfer, car states, race sync
 │  ├─ editor/             track_editor/ (draft and history, view, gizmos, preview, tools/:
-│  │                      road, surfaces, terrain, paint, props, race, check), fitting_bay/
+│  │                      road, ramps, stunts, surfaces, terrain, paint, props, race, check), fitting_bay/
 │  ├─ audio/              engine sound player, SFX, music
 │  └─ ui/                 menus, HUD, themes, garage
 ├─ native/                C++ GDExtension "noss_core"
@@ -72,7 +73,8 @@ nOSS/
 ├─ data/
 │  ├─ platforms/<mode>/<class>.platform.json   official platforms
 │  ├─ modes/<mode>.mode.json                   mode rules and overrides
-│  ├─ items/                                   kart items
+│  ├─ items/                                   kart item odds
+│  ├─ cups/                                    built-in kart cups
 │  ├─ sound_profiles/                          built-in engine sounds
 │  ├─ input_presets/                           device presets
 │  ├─ tire_sounds/                             built-in tire profiles
@@ -153,6 +155,7 @@ Vehicle (RigidBody3D, Jolt)       mass, inertia, CoG from platform (never from t
 - **Racer** (`game/modes/common/`, M4): one car in a session: car loading and hotswap, lap timer, reset spot and safe rejoin, race state (held, finished, penalties, flag). **SessionPlayer** adds a player's controller, camera rig, HUD and menus; **AiRacer** is a computer driver (RacingAI) with no view. The **TrackSession** keeps the shared parts (track, platform, views, grid, pause) and handles drop-in and drop-out.
 - **RaceField** projects every car onto the track once per tick before anyone drives; drivers, the spotter, flags and standings read it. **RaceControl** runs the event's sessions (practice, qualifying, race, time trial, free drive): grid, countdown, standings, flags, track limits, finish and results (D63, D67).
 - **Physics order per tick:** player input (−90) → RaceField (−60) → RaceControl (−55) → drivers (−50) → vehicles (0).
+- **Karts** (`game/modes/kart/`, M8, D129): a class whose mode has the `kart_arcade` layer adds **KartControl** (tow drone, slipstream, beached karts) with **KartBoxes**, **KartItems** (slots, roulette, uses, hits; the authority offline), **KartEntities** (Bolts, Seekers, the Hunter, Slicks), **KartEffects**, **KartHud** and **KartSounds**; a battle adds **BattleControl** (lives, hits, out, the end); a cup is a **CupRun** kept by Game between its races. The layer itself is native (`native/src/vehicle/kart_layer.*`, PHYSICS.md §9). AI: **KartAI** (the racing AI with drifts, loops, boxes and Slicks) and **BattleAI** (ArenaNav paths), both using **ItemPolicy** (also the item assist). Order: KartControl and KartItems (−57) → BattleControl (−53) → drivers (−50).
 - **Highways** (`game/modes/highway/`, M7, D113): a highway event adds **HighwayField** (where each car is: road or ramp, carriageway, lane; wrong way), **TrafficManager** (the native lane sim `NossTraffic` in `native/src/traffic/`: stepping it, drawing distant traffic with one MultiMesh per type, turning cars near players into physics **TrafficCar**s and back, wrecks and tows, solid boxes past the cap), **HighwayControl** (starts, portals, resets, turning round, Join, loop boards, name plates) and, by sub-mode, **HighwayScore** (ScoreAttack rules and NearMiss), **RunControl** and **PoliceControl** (Heat; PoliceRacer units driven by PoliceAI, which drives the lanes like the autodrive's **HighwayDriver**). Order: HighwayField (−59) → TrafficManager (−58) → HighwayControl (−56) → drivers and traffic cars (−50) → RunControl (−45) → PoliceControl (−44) → HighwayScore (−40).
 
 ## 6b. Online
@@ -164,7 +167,8 @@ Vehicle (RigidBody3D, Jolt)       mass, inertia, CoG from platform (never from t
 - **In a session**, the TrackSession gets a **NetSession** (car states out and in, clock sync, contact relay, plausibility on the server) and a **NetRace** (the server's race state, grid, results and notes to clients, whose RaceControl only follows). Every car not driven here is a **NetRacer**: a kinematic Vehicle moved by its **MotionBuffer** to where its states put it now.
 - **The dedicated server** (`ServerMain`) runs the same code with no players of its own, no views, no sound and no car models.
 - **Highways online:** a **HighwayNet** (−59) keeps every game's lane sim on the server's ticks: the server's events and heartbeats out, and on clients the full state when they join or fall out of step (D109); traffic cars a game drives go out with its car states, and other games' show as proxies (D110). **RelayScheduler** picks which states each client gets, nearest first within a byte budget (D111).
-- **Physics order per tick** online: devices (−100) → network poll (−95) → lobby (−94) → content (−93) → player input (−90) → car states (−80) → remote cars (−70) → RaceField (−60) → highway traffic sync (−59) → RaceControl (−55) → NetRace (−54) → drivers (−50) → vehicles (0).
+- **Karts online:** a **KartNet** (−56, after the items move) carries the server's word on boxes, uses, hits and lives, and its 5 Hz snapshot of how things stand; each game shows its own items at once (D141, NETWORKING.md §11).
+- **Physics order per tick** online: devices (−100) → network poll (−95) → lobby (−94) → content (−93) → player input (−90) → car states (−80) → remote cars (−70) → RaceField (−60) → highway traffic sync (−59) → kart items (−57) → kart sync (−56) → RaceControl (−55) → NetRace (−54) → drivers (−50) → vehicles (0).
 
 ## 7. Render style profiles
 

@@ -14,7 +14,7 @@ Each local player has their own set of actions:
 | Gears | `shift_up`, `shift_down`, `gear_r`, `gear_n`, `gear_1`…`gear_7` (H-shifter) |
 | View | `camera_next`, `look_back`, free look: `look_left`, `look_right`, `look_up`, `look_down` (0…1; the view turns while held and swings back to the camera when let go) |
 | Car | `horn`, `lights`, `reset_car`, `hotswap_menu` |
-| Kart | `use_item`, `throw_back` (hold), `drift` |
+| Kart | `use_item`, `throw_back` (hold), `drift` (hold) (M8, D135) |
 | UI | `pause`, `chat`, `scoreboard`, `confirm`, `cancel`, `editor_back` (a test drive back to the track editor, M6) |
 
 **Defaults** come from presets (§7); every action, menus included, can be rebound per player on every device.
@@ -33,12 +33,13 @@ Each local player has their own set of actions:
 | Pause | Esc | Esc | Backspace | Start |
 | Back to editor (test drives) | F5 | F5 | F8 | D-pad down |
 | Horn, flash lights (M7) | H, L | V, T | M, L | L3, X |
+| Kart: drift, use item, throw back (M8) | Space, E, B | Space, E, X | /, `.`, ' | RB, LB, R3 |
 | Menu confirm, back | Enter or Space, Esc or Backspace | Space or F, Esc or G | Enter, Backspace | A, B |
 | Frame rate | F3 (any keyboard) | | | — |
 
 One-handed controller layouts (`pad_left_hand`, `pad_right_hand`) put driving on one half of the pad; reset, change car and back to editor are then in the pause menu, and the horn, lights and free look are unbound (D119).
 
-**Free look:** at full deflection a chase camera orbits up to 120° round the car (up to 10° lower, 25° higher), and the hood, bumper and cockpit views turn up to 100° to the side and 30° up or down. The stick uses the player's stick deadzone, straight. It works with Look back. Keyboards have it unbound; any keys can be bound to it. No two driving actions share an input on any preset (a test checks it).
+**Free look:** at full deflection a chase camera orbits up to 120° round the car (up to 10° lower, 25° higher), and the hood, bumper and cockpit views turn up to 100° to the side and 30° up or down. The stick uses the player's stick deadzone, straight. It works with Look back. Keyboards have it unbound; any keys can be bound to it. No two driving actions share an input on any preset (a test checks it), except the kart actions: they share with what kart sessions ignore (handbrake, the shifts, and look back for throw back), so the Kart row above reuses those keys. One-handed pads: drift L3, use item D-pad up, throw back D-pad left (left hand); R3, Y and B (right hand). The wheel preset binds none; bind them yourself. In a kart session the handbrake and shifts do nothing (the karts' gearbox is automatic).
 
 The **track editor** has its own controls for its view (mouse, keyboard or controller with a crosshair; [TRACK_EDITOR.md §2](TRACK_EDITOR.md#2-editor-tools)). They can't be rebound yet (D103).
 

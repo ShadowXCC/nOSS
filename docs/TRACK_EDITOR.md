@@ -11,7 +11,7 @@ An in-game editor, built with Godot's UI (not the Godot editor), for building, i
 | `circuit` | Track, Kart | Closed loop |
 | `p2p` | Track, Highway runs, Kart | Point to point |
 | `highway` | Highway | A carriageway each way either side of a median, with ramps to portals and flyovers between the carriageways (EDT-10, M7, D106). In M7 the main road is always a closed loop, so one map serves every sub-mode; open highways come with Endless (M9). |
-| `arena` | Kart battle | Open area, no lap logic |
+| `arena` | Kart battle | Open area, no lap logic (M8, D138): the closed spline is the outline, a flat floor inside it and a wall round it (floor surface, wall kind and height in the Road tool). Spawns and item box clusters are automatic unless placed (the Stunts tool). No Race tool. |
 
 Endless mode generates its roads procedurally and doesn't use editor tracks. It shares the same road and terrain mesh code.
 
@@ -27,11 +27,12 @@ Endless mode generates its roads procedurally and doesn't use editor tracks. It 
 | **Terrain** | Raise, lower, smooth, flatten (with "Pick height") and noise brushes; size, strength, falloff. "Fit terrain to track". |
 | **Paint** | Eight layers: grass, dirt, sand, gravel, rock, snow, concrete, asphalt. Wheels drive on what's painted. |
 | **Props** | Place (by kind: nature, buildings, trackside, ground), move, turn, scale, size; scatter and erase with a brush (kept off the road, spaced, random turns and sizes). |
+| **Stunts** | Kart pieces (M8, D136–D138), on road circuits and arenas: Add at cursor (boost pad, item boxes, jump, wall-ride, loop; in an arena boost pads and jumps anywhere), the list of pieces, pick one and drag it along the road (pads also sideways; in an arena anywhere) or step it 10 m, its fields by kind, Delete; item boxes Automatic (rows every third of a lap unless you place rows), Placed or None. In an arena: Add spawn at cursor (facing the middle), Add item boxes at cursor (a cluster of four), delete the last of each. A drag rebuilds only that piece. |
 | **Race** | Start line, sectors, checkpoints, grid, rolling start, gantry, AI caution, and the AI line: drag it sideways to pin it (§4). On a highway: the lap line, runs (click where one starts, then where it ends), speed traps, zones (speed limit, tunnel, which way) and the traffic (cars, share taking exits); no grid or AI line. |
 | **Check** | What the checks found (§6), errors first; each one shows where it is. |
 | **File** | Name, author, license; Save, Save as a copy, New track (from a template), Open track, Import scene, Show track files. |
 
-Templates: Empty, Oval (1.2 km), Circuit (2.5 km), Figure 8 with a bridge, each on terrain sized round it with its start, grid and sectors set; and Highway loop (4 km): flat concrete, 3 lanes each way, an exit and an entry each way and a flyover each way. A highway's test drive is Cruise with its traffic.
+Templates: Empty, Oval (1.2 km), Circuit (2.5 km), Figure 8 with a bridge, each on terrain sized round it with its start, grid and sectors set; Highway loop (4 km): flat concrete, 3 lanes each way, an exit and an entry each way and a flyover each way; Kart circuit (1.2 km, flat: a boost pad, a row of boxes and a jump on the start straight, a wall-ride round the outside of the first corner, the loop on the back straight); Arena (100 m, two jumps). A highway's test drive is Cruise with its traffic; any track's test drive with a kart class (the last one picked) is a kart free drive, an arena's a battle.
 
 **Controls** (D95). Every view action is also a panel button, and every value has a field:
 
@@ -76,15 +77,17 @@ Our own, not the Terrain3D addon (D91, closes Q4).
 
 ## 3. Stunt pieces (Kart, M8)
 
-Pieces snap to the road at a distance along the spline:
+Pieces snap to the road at a distance along the spline (`at_m`, and `lateral_m` for pads); in an arena they stand where they're put (`p`, `yaw_deg`). Each is a static body with its surface and a tag (`noss_tag`: 1 boost, 2 jump, 4 stick) the kart layer reads (D133, D137):
 
 | Piece | Behavior |
 |---|---|
-| Boost pad | A short boost on contact |
-| Item box row | 3–5 item boxes across the road. They respawn after 3 s. |
-| Jump ramp | Height and length set by parameters. Trick input in the air gives a landing boost. |
-| Wall-ride | A 90° banked wall segment |
-| Loop *(stretch)* | Uses an `Area3D` gravity override to keep cars on the surface |
+| Boost pad | A 2 cm slab with scrolling chevrons (no flashing): 0.8 s of boost on contact |
+| Item box row | 3–5 item boxes across the road, 1 m up (no collision). They come back 3 s after a kart takes one. Without placed rows, rows go every third of a lap at the flattest place near. |
+| Jump ramp | Height, length and width (0: the road's) set by parameters, its foot meeting the road. Drift just after take-off for a trick; an upright landing boosts. Needs 30 m of road after it (a warning). |
+| Wall-ride | A quarter-pipe from the road's edge to vertical, with a lip along the top; its height and curve narrow at each end, back to the road. It stands where the barrier was, on the side you pick (round the outside of a corner). Karts stick to it above 7 m/s. At least 30 m long. |
+| Loop | A circle of radius 7–14 m: in from the left half of the road, out on the right. Needs a road twice its width and a straight of 2 × radius + 40 m; a boost pad 25 m before it comes with it. Karts stick to it above 7 m/s (stick gravity, which replaced the planned `Area3D` override); the AI takes it from its lanes. |
+
+The checks add: piece off the road, pieces overlapping, a loop round a corner or on a narrow road, a short wall-ride, a wall-ride over a bridge or ramp, an item row on a tight corner, over 64 boxes, a road under 8 m for karts (a warning); for arenas, an outline crossing itself, under 2500 m², fewer than 8 spawns clear of props, spawns, boxes or pieces outside.
 
 ## 4. Race setup
 
@@ -158,8 +161,25 @@ my_track.nosstrack
 ```
 
   Direction 1 drives along the road's line on its right side, −1 the other way on its left; lanes count from the outside; `race.start_m` is the lap line. Flip direction swaps the directions and mirrors the distances; the ramps stay where they are.
+- Kart pieces (D136) go in a `kart` section on circuits and arenas; an arena (`"type":"arena"`, D138) adds an `arena` section:
+
+```jsonc
+"kart": { "boxes":"auto",                       // "auto": rows every third of a lap unless rows are placed; "placed"; "none"
+  "stunts":[
+    { "id":"boost_pad_1", "kind":"boost_pad", "at_m":420.0, "lateral_m":0.0, "length_m":5.0, "width_m":3.0 },
+    { "id":"item_row_1",  "kind":"item_row",  "at_m":640.0, "count":4 },           // 0: as many as the road takes
+    { "id":"jump_1",      "kind":"jump",      "at_m":910.0, "height_m":1.4, "length_m":9.0, "width_m":0.0 },
+    { "id":"wall_ride_1", "kind":"wall_ride", "at_m":1210.0, "length_m":120.0, "side":"left", "height_m":6.0 },
+    { "id":"loop_1",      "kind":"loop",      "at_m":1500.0, "radius_m":9.0, "width_m":5.0 } ] },
+// In an arena, pieces stand anywhere: { "kind":"jump", "p":[x,y,z], "yaw_deg":90, … }
+"arena": { "floor":"asphalt", "wall":"tyres", "wall_m":1.2,
+           "spawns":[{ "p":[x,0,z], "yaw_deg":45 }],    // none: 12 round the middle, facing it
+           "boxes":[{ "p":[x,0,z], "count":4 }] }        // none: the middle and four half way out
+```
+
+  At most 64 boxes. Flip direction mirrors the pieces' distances and swaps wall-rides' sides.
 - **Content hash** = SHA-256 of `manifest.json`, the same scheme as cars ([VEHICLE_PACKAGE.md §2](VEHICLE_PACKAGE.md#2-manifestjson)).
-- **Layout hash** = SHA-256 of the road and race setup (AI pins left out), and a highway's section (its traffic settings left out). Records for a track you made are kept under its id and layout, so changing the layout starts them afresh; built-in tracks keep theirs under the id (D97).
+- **Layout hash** = SHA-256 of the road and race setup (AI pins left out), a highway's section (its traffic settings left out), and the `kart` and `arena` sections when a track has them (so tracks without them keep their hashes). Records for a track you made are kept under its id and layout, so changing the layout starts them afresh; built-in tracks keep theirs under the id (D97).
 - **Limits:** 100 MB zipped, 250 MB unpacked, 512 files; scenes up to 2 M triangles, 20 000 nodes and 4096² textures. Servers can lower them.
 - **Safety:** the same rules as car packages ([VEHICLE_PACKAGE.md §9](VEHICLE_PACKAGE.md#9-limits-and-safety)): every file is checked against the manifest's hash before any is used, sizes before anything is decompressed or decoded. Never Godot resource files or scripts.
 - **Where:** your tracks are `user://tracks/*.nosstrack` (File → Show track files); built-in tracks are folders in `content/tracks/`.

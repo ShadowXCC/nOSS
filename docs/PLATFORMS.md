@@ -132,11 +132,16 @@ Example: an official Track/GT platform. All values are illustrative and get tune
   "id": "kart",
   "classes": ["official.kart.light", "official.kart.medium", "official.kart.heavy"],
   "tuning": { "allow": [] },
-  "assists": { "allowed": ["auto_gearbox", "steer_aid"], "defaults": ["auto_gearbox"] },
+  "assists": { "allowed": ["auto_gearbox", "steer_aid", "item_assist"], "defaults": ["auto_gearbox"] },
   "damage": { "cosmetic": true, "mechanical": false },
-  "physics_layer": "kart_arcade"
+  "default_car": "res://content/cars/noss_kart",
+  "physics_layer": "kart_arcade",
+  "arcade": { "grip": 1.25, "drift": { "min_speed": 8.0, "tiers_s": [0.6, 1.2, 2.0], "boost_s": [0.5, 0.9, 1.4] },
+              "boost": { "accel": 6.0, "cap": 1.25, "pad_s": 0.8 }, "…": "air, stick, bounce, spin, slow, slipstream, tow" }
 }
 ```
+
+A mode's `default_car` is the car its classes start with (and the built-in AI field drives); `arcade` is the kart layer's numbers (`GameModes.arcade` fills defaults and clamps; PHYSICS.md §9).
 
 **Precedence (narrowest wins):** platform `tunable` → mode `tuning.allow` → server settings (`allow`, `lock`). Each layer can only remove or narrow options; it can never widen them.
 
@@ -236,7 +241,7 @@ Rough targets, tuned during development. Power figures are peak.
 | Track | GT | car | RWD | 380 kW | 1300 kg | Semi-slicks, moderate aero |
 | Track | Prototype | car | RWD | 480 kW | 1000 kg | Slicks, high aero |
 | Track | Formula | open | RWD | 450 kW | 700 kg | Open-wheel, very high aero |
-| Kart | Light / Medium / Heavy | car, open, truck | RWD | arcade | 0.8× / 1× / 1.3× | Light accelerates fastest; Heavy wins bumps and has the highest top speed |
+| Kart | Light / Medium / Heavy | car, open, truck | RWD | arcade | 160 / 200 / 260 kg | Top speeds within 1% (99.5 / 100 / 100.5 km/h geared); Light pulls 10% harder, Heavy 10% softer and wins the bumps (D134) |
 | Highway | Street | car | AWD | 300 kW | 1500 kg | Stable at speed, street tires |
 | Highway | Super | car | AWD | 500 kW | 1450 kg | Fast, demanding through traffic |
 | Highway | Interceptor | car | AWD | 450 kW | 1700 kg | Police only (AI, and later players) |
@@ -244,6 +249,6 @@ Rough targets, tuned during development. Power figures are peak.
 | Endless | Sport | car | RWD | 260 kW | 1350 kg | Spirited |
 | Track (M10) | Race Truck | truck | RWD | 750 kW | 5300 kg | Truck racing |
 
-**Shipped in M2:** Track Touring, GT, Prototype and Formula, Kart Medium (a prototype on the core sim; the `kart_arcade` layer comes in M8), and Highway Street. **M7:** Highway Super (about 506 kW, 1450 kg) and Interceptor (about 449 kW, 1700 kg, police only), and the traffic platforms `official.traffic.car`, `van`, `truck` and `bus` (family car, highway only; trucks 9 t and buses 12 t), which drive the traffic near players (D117). Every one passes conformance across its geometry grid (§5). The kart's ranges are wide (wheelbase 1.1–2.8 m) so cars, karts and trucks all fit without much scaling. Formula only takes `open` models; the built-in **nOSS Open** is its default car.
+**Shipped in M2:** Track Touring, GT, Prototype and Formula, Kart Medium (a prototype on the core sim), and Highway Street. **M8:** Kart Light and Heavy, and the `kart_arcade` layer on all three; they pass conformance with it on, with the `drift` and `boost` maneuvers too; their default car is the built-in **nOSS Kart**. **M7:** Highway Super (about 506 kW, 1450 kg) and Interceptor (about 449 kW, 1700 kg, police only), and the traffic platforms `official.traffic.car`, `van`, `truck` and `bus` (family car, highway only; trucks 9 t and buses 12 t), which drive the traffic near players (D117). Every one passes conformance across its geometry grid (§5). The kart's ranges are wide (wheelbase 1.1–2.8 m) so cars, karts and trucks all fit without much scaling. Formula only takes `open` models; the built-in **nOSS Open** is its default car.
 
 Free Drive asks for the class first (how the car drives), then the car (how it looks); the car list only shows models the class accepts.

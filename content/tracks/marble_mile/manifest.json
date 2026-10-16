@@ -9,7 +9,7 @@
     "terrain/splat_1.png": "sha256:41e6a93e13ad7e6dd60dfdbded233ee4089f707e1d6cd07206904464532498ff",
     "track.json": "sha256:2fadf19298882ea4cef23efaf42929a14549ee7907501d3fd3765b6d9f15fd16"
   },
-  "game_min_version": "0.7.0",
+  "game_min_version": "0.8.0",
   "id": "marble_mile",
   "kind": "road",
   "layout": "sha256:2c9cf1469233079e4bcae4fc1e26330c6e3713c3f5723d17be478d72fb66ba0e",

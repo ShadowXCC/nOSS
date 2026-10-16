@@ -5,7 +5,7 @@
   "files": {
     "track.json": "sha256:fc85699b7570a6b4041e2e22e1329adab5f5635e7b0b130b8dfbe9fcc52093c0"
   },
-  "game_min_version": "0.7.0",
+  "game_min_version": "0.8.0",
   "id": "dust_bowl",
   "kind": "road",
   "layout": "sha256:54718f66161697097d0ea4dd18aa789b84118e8ab17d5d13ff3173a7ce21d71e",

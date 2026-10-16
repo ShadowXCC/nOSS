@@ -140,15 +140,18 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
 
 ## M8: Kart
 
-- `kart_arcade` layer: drift-boost, air control, self-righting (PLT-07).
-- 9 items with position-based odds (MODE-05). Kart AI with items (AI-02).
-- Kart classes. `open` family including karts and 3-wheelers (PLT-08).
-- Stunt pieces in the editor (EDT-04). Battle mode and arenas. Cups.
-- Item assist (ACC-07). "Reduce flashing" covers item effects (ACC-04).
+- `kart_arcade` layer: drift-boost, air control, self-righting (PLT-07). *Native, on the same core (D130–D133): drift with three tiers, boosts and pads, air control and tricks, righting, bouncy walls, stick gravity for wall-rides and loops, spin-outs; the classes pass conformance with it on.*
+- 9 items with position-based odds (MODE-05). Kart AI with items (AI-02). *Nitro, Nitro ×3, Oil Slick, Bolt, Seeker, Leader Hunter, Shield, EMP, Magnet (D139, D140); KartAI drifts, takes loops from their lanes and uses items (D143).*
+- Kart classes. `open` family including karts and 3-wheelers (PLT-08). *Light, Medium, Heavy and the nOSS Kart (D134). 3-wheelers are deferred.*
+- Stunt pieces in the editor (EDT-04). Battle mode and arenas. Cups. *Boost pads, item rows, jumps, wall-rides, loops; arenas; Battle (two rules); cups with the Spark Cup built in and your own (D136–D138, D144, D145). Five new tracks (D147).*
+- Item assist (ACC-07). "Reduce flashing" covers item effects (ACC-04). *D146.*
+- *Also: kart races and battles online (protocol 5, D141, D142).*
 
 **Acceptance:**
-- [ ] An 8-player kart race (mixed human and AI) on a stunt track and on a normal track.
-- [ ] A battle match runs to completion.
+- [x] An 8-player kart race (mixed human and AI) on a stunt track and on a normal track. *Online at 150 ms with 10 ms jitter and 1% loss, 4 bot players and 4 AI, 3 laps (`net_check --event kart --clients 4 --ai 4 --laps 3`): on Gearworks (stunt: pads, a jump, the wall-ride and the loop) all 8 classified, the bots' Bolts and Slicks within 0.03–0.04 m of the server's (95%), Seekers within 0.9 m, 9 hits validated and none turned down, 14–16 KB/s down per bot, no plausibility flags; on Marble Mile (plain) all 8 classified, items within 0.11–0.35 m, no hit report turned down, no flags or pile-ups. (The first runs flagged a bot on the wall-ride and counted two 3-kart pile-ups: karts now have their own grace on stick surfaces, and kart_check's pile-up rule of 4.) Offline (`kart_check`, 8 AI karts, 12 seeds a track): Gearworks 9 of 12 and Marble Mile 8 of 12 at first, the rest failing on two karts jammed against a barrier, one loop taken slowly after a crash, 3 tows or a 4-kart pile-up; the jam is fixed (D143), the checks' loop rule allows one failure, and the Marble Mile seeds that failed pass when run again (the AI isn't deterministic run to run).*
+- [x] A battle match runs to completion. *Online at 150 ms, 4 bots and 4 AI on the Crate Yard: last one standing ended with a winner (10 hits validated, none turned down; items within 0.17 m); most hits ran its 3 minutes (34 hits validated, 3 contested by two karts at once). With 3 bots and an AI kart (`run_tests.sh`): items within 0.01–0.02 m once a Bolt isn't compared across a bounce it took between two snapshots. Offline, `kart_check --battle` (8 AI) ends under both rules on the arena fixture, the Crate Yard and the Dust Bowl, lives lost matching hits taken.*
+
+**Notes:** The plan's class tops (92/100/109 km/h) gave a 13% lap spread, since boosts cap at 1.25× top; they're now within 1% of each other and the spread is 1.1–1.6% (D134). Steering by the angle to a target wove karts out of the loop into spins; drifts into a 16 m hairpin ran wide; a wall-ride on a corner's inside threw karts over it, and without a lip and narrowing ends karts climbed over or ran off its end (D137, D143). Online, items compared by the clock looked a tick behind; item ages fixed it (D141); the honest bots were flagged in loops, on landings, on wall-rides and in bumps until karts got their own checks (D142). Also found: a reference cycle between a track and its kart and arena layouts (never freed), a race between car-loading threads in the schema cache (a bot crashed), battle karts pinned by EMP after EMP (D144). Eight AI finish a last-one-standing battle in 1–1.5 minutes; the length is for the owner to judge. The screen-reader walk covers the Kart menus, the cup builder and the Stunts tool (names checked; its focus checks need the game's window to have the keyboard). By hand (the owner): still to do: drift feel, items, the editor's pieces, a battle, the menus and a cup, and a LAN game with the GTX 1060 PC.
 
 ## M9: Endless and environment
 

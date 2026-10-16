@@ -37,6 +37,7 @@ The world look is a swappable **style profile** ([ARCHITECTURE.md §7](ARCHITECT
   - **"nOSS Box":** a simple low-poly default car that follows the package conventions.
   - **"Proving Ground":** a ~2 km test circuit with a skidpad and a long straight, used for conformance tests ([PLATFORMS.md §5](PLATFORMS.md#5-conformance-tests)).
   - Procedural and simple textures in the retro style.
+- **M8 kart content (original, made in code):** the **nOSS Kart** (`tools/make_noss_box.gd --kart`: a low frame, side pods, a driver, paint slots and presets); five kart tracks (`tools/make_kart_tracks.gd`: Marble Mile, Gearworks, Skyhop Ridge, Crate Yard, Dust Bowl, D147); props for yards and arenas (crate, shipping container, yard crane); item boxes (a turning crate with an original glyph whose colours shift slowly), the items themselves, drift sparks, boost flame, shield, the EMP ring, spin stars and the tow drone. No item effect flashes the whole screen; with Reduce flashing they keep under 3 flashes a second (D146).
 
 ## 4. Cameras
 
@@ -75,7 +76,8 @@ Players can customize every car's engine sound, and the result is saved inside t
 
 ### Built-in profiles
 - **M2 starter set:** I4, cross-plane V8 (firing order 1-8-4-3-6-5-7-2: each bank fires unevenly, hence the burble), flat-6, EV. Data in `data/sound_profiles/<id>.json`.
-- **Later:** I3, I5, I6, flat-4, V6, flat-plane V8, V10, V12, 2-rotor rotary, diesel (truck), 2-stroke (kart), single and twin (moto), V-twin.
+- **M8:** 2-stroke (kart): one firing a turn, a bright expansion-chamber exhaust; the nOSS Kart's sound.
+- **Later:** I3, I5, I6, flat-4, V6, flat-plane V8, V10, V12, 2-rotor rotary, diesel (truck), single and twin (moto), V-twin.
 - **Sources:** synthesized (original). Recordings (original or CC0/CC-BY, tracked in `CREDITS.md`) can replace a profile later with the same player.
 
 ### Player customization
@@ -98,7 +100,7 @@ Every car carries its own engine sound inside its `.noss` (`sound/`, format in [
 |---|---|
 | Tires | Squeal by slip, scrub, skid, surface layers (gravel spray, grass, curb rumble) |
 | Car | Wind (by speed), suspension bottoming, transmission clunk, horn set, collisions (light, heavy, scrape), glass break |
-| Modes | Kart items, police sirens (with Doppler), traffic pass-bys, countdown and finish stings |
+| Modes | Kart items (M8, synthesized by `NossAudio.render_fx`: pickup, roulette tick, fire, hit, shield, EMP, boost, drift tier step), police sirens (with Doppler), traffic pass-bys, countdown and finish stings |
 | World | Ambience per biome and track, rain, thunder |
 | UI | Short, retro-styled clicks and confirms |
 | Music | Original or CC-licensed menu and endless playlists, plus an optional user music folder (local OGG/MP3) |

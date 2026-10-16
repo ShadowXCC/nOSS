@@ -9,7 +9,7 @@
     "terrain/splat_1.png": "sha256:41e6a93e13ad7e6dd60dfdbded233ee4089f707e1d6cd07206904464532498ff",
     "track.json": "sha256:3fe9fdf19fe5ae1a2f074d5146bef7e67722f6f7f9ac3ef218722007d3fbc1b7"
   },
-  "game_min_version": "0.7.0",
+  "game_min_version": "0.8.0",
   "id": "skyhop_ridge",
   "kind": "road",
   "layout": "sha256:0423dadc67a0d38391018ba3385e64bdd8ec6bd687ccd96724173ce11550edb4",

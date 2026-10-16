@@ -5,7 +5,7 @@
   "files": {
     "track.json": "sha256:88ce20e3591a2b6c0b9eb45685766c6022a321f562cbccabc4c8a693a778401d"
   },
-  "game_min_version": "0.7.0",
+  "game_min_version": "0.8.0",
   "id": "crate_yard",
   "kind": "road",
   "layout": "sha256:a0bcf57a129411cb18e3f07a285898de843059720339630c6b8d7f1164a63bbb",

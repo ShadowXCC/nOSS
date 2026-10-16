@@ -46,32 +46,49 @@ Rules and flow for each mode. Every mode uses the same vehicle core ([PHYSICS.md
 
 ## 2. Kart
 
-*MODE-05, AI-02, EDT-04. Milestone M8.*
+*MODE-05, AI-02, EDT-04. Milestone M8 (D129–D148).*
 
-Your own cars, with an arcade physics layer and items. It plays on **any track**; if a track has no item boxes, rows are placed automatically about every third of a lap. It also plays on purpose-built **stunt tracks** that use editor pieces.
+Your own cars on the kart classes, with an arcade physics layer and items. It plays on **any track**; if a track has no item boxes, rows go about every third of a lap. It also plays on purpose-built **stunt tracks** (Gearworks, Skyhop Ridge) and plain kart tracks (Marble Mile), and battles on **arenas** (Crate Yard, Dust Bowl). From the title: **Kart**, then Race, Battle or Cup, then a kart class, then the players.
+
+- **Classes:** Light (160 kg, pulls hardest), Medium (200 kg), Heavy (260 kg, wins the bumps). Their top speeds are within 1% of each other, so lap times are within 2% at the same skill (D134). The built-in car is the nOSS Kart.
+- **Drift:** hold Drift while steering into a corner at 8 m/s or more. The longer it's held, the bigger the boost when you let go: blue at 0.6 s, orange at 1.2 s, purple at 2.0 s (0.5, 0.9 and 1.4 s of boost). Boost pads give 0.8 s.
+- **Air:** off a jump, steer to turn and lean; press Drift just after take-off for a trick (a boost if you land upright). A kart left on its roof rights itself.
+- **Falling off:** the tow drone takes you back to the road in 1.5 s and puts you down rolling, for a moment a ghost. So does Reset, and a kart left stuck on another.
+- **Walls** bounce karts back; karts bump each other (the heavier wins).
 
 ### Items
 
-Original names and effects. Each racer holds one item, and triple items count as one slot.
+Original names and effects. Each racer holds one item, and triple items count as one slot. A box rolls for 1.2 s; driving through one while holding an item breaks it for nothing; boxes come back after 3 s.
 
 | Item | Effect |
 |---|---|
-| **Nitro** | Short boost |
-| **Nitro ×3** | Three short boosts |
-| **Oil Slick** | Dropped behind. Anyone who drives over it spins out. |
-| **Bolt** | Fires straight ahead. Bounces off walls up to 3 times. Spins out the car it hits. |
-| **Seeker** | Homes in on the next car ahead along the track spline |
-| **Leader Hunter** | Travels the racing line to the race leader (rare; only for the back of the field) |
-| **Shield** | Blocks one hit. Lasts 8 s. |
-| **EMP** | A pulse around you. Nearby cars lose power for 2 s. |
-| **Magnet** | Pulls you toward the car ahead (×3 slipstream) for 3 s |
+| **Nitro** | A 1 s boost |
+| **Nitro ×3** | Three 1 s boosts |
+| **Oil Slick** | Dropped behind (with Throw back: thrown 15 m ahead). Anyone who drives over it spins out. |
+| **Bolt** | Fires straight ahead (with Throw back: behind). Bounces off walls up to 3 times. Spins out the kart it hits; after a bounce, that can be yours. |
+| **Seeker** | Follows the road to the next kart ahead and homes in on it |
+| **Leader Hunter** | Travels the racing line to the leader, passing the rest (rare; only for the back half of a field of 4 or more; one at a time) |
+| **Shield** | Blocks one hit of any kind. Lasts 8 s. |
+| **EMP** | A pulse 18 m round you. Karts in it lose power for 2 s. |
+| **Magnet** | Pulls you toward the kart ahead (×3 slipstream) for 3 s |
 
-- **Item odds** depend on race position (stronger items for those further back). They are defined in `data/items/odds.json`. This is the only catch-up mechanic: no grip or speed rubber-banding (AI-05).
-- **Drift-boost** tiers: blue at 0.6 s, orange at 1.2 s, purple at 2.0 s.
-- **Falling off the track:** the tow drone returns you to the last spline point, costing 1.5 s.
-- **Classes:** Light, Medium, Heavy. Trade-offs between acceleration, top speed and weight (heavier wins bumps).
-- **Battle mode:** arena tracks (editor type `arena`). Each player has 3 lives, and only items deal damage. Last one standing wins, or most hits in a timed match.
-- **Cups:** 4-track playlists with points (career).
+- **Item odds** depend on race position (stronger items further back), in `data/items/odds.json`. This is the only catch-up: no grip or speed rubber-banding (AI-05).
+- A hit spins a kart out for 1.2 s. Karts behind another within 30 m get its slipstream.
+- **Item assist** (Player settings): the game uses your item when it pays, as the AI would.
+
+### Battle
+
+On an arena (track type `arena`). Each kart has 3 lives; a Bolt, Seeker, Oil Slick or EMP hit takes one, and after a hit items pass the kart by for 2 s.
+- **Last one standing:** a kart with no lives left is out (it drives on as a ghost, with no items). It ends with one kart left, or at the time limit; ranked by lives, then hits.
+- **Most hits:** nobody goes out; at the time limit (3 minutes by default), ranked by hits, then fewest taken.
+
+### Cups
+
+Four races for points (15, 12, 10, 8, 6, 4, 2, 1); ties go to the most wins, then the better last race. The first race's grid is random, then the standings reversed. The AI field stays the same through a cup. The built-in **Spark Cup**: Proving Ground (2 laps), Marble Mile, Gearworks, Skyhop Ridge (3 each). Make your own from any circuits under Kart → Cup → New cup (saved in `user://cups/`). Cups are offline (splitscreen too).
+
+### Online
+
+Kart races and battles run on servers (protocol 5): the server rules on boxes, items and hits, and each game shows its own items at once (D141, NETWORKING.md §11). Host → Event offers Kart battle.
 
 ## 3. Highway
 
