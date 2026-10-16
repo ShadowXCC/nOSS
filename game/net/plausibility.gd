@@ -68,6 +68,8 @@ func check(s: CarState, now: float, track: TrackData, contact := false) -> Packe
 		return out
 	if s.velocity.length() > top_speed * SPEED_MARGIN + SPEED_EXTRA:
 		out.append("speed")
+		if Game.dev.has("net-stats"): # what it was doing (checks)
+			print("PLAUSIBILITY car %d speed %.1f m/s (top %.1f) at %s, flags %d, kart %d" % [s.id, s.velocity.length(), top_speed, s.xform.origin.snapped(Vector3.ONE * 0.1), s.flags, s.kart])
 	if contact:
 		_grace_until = now + ACCEL_GRACE_S
 	var placed := s.flags & CarState.FLAG_TELEPORT != 0
@@ -87,7 +89,7 @@ func check(s: CarState, now: float, track: TrackData, contact := false) -> Packe
 		# Round a kart's loop the way it's going turns over and over (D137).
 		var looping := track != null and track.kart != null and track.kart.by_a_loop(s.xform.origin)
 		# Taking off or landing (a kart off a jump) jolts it.
-		var air := (s.kart | _last.kart) & VehicleSim.KART_FLAG_AIRBORNE != 0
+		var air := (s.kart | _last.kart) & (VehicleSim.KART_FLAG_AIRBORNE | CarState.KART_STICK) != 0 # or on a wall-ride
 		if looping or air:
 			_grace_until = now + ACCEL_GRACE_S
 		if dt > 0.01 and now >= _grace_until and Vector2(dv.x, dv.z).length() / dt > MAX_ACCEL:

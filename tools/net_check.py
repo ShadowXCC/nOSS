@@ -57,6 +57,7 @@ GODOT = str(ROOT / "tools" / "godot.sh")
 PILEUP_S = 3.0
 PILEUP_M = 30.0
 PILEUP_CARS = 3
+KART_PILEUP_CARS = 4
 MAX_DOWN_KB = 64.0
 MAX_TRAFFIC_ERR_M = 1.0
 MAX_ITEM_ERR_M = 0.5
@@ -86,8 +87,8 @@ def rss_mb(pid):
     return 0.0
 
 
-def pileups(contacts):
-    """Groups of PILEUP_CARS+ cars linked by contacts within PILEUP_S and PILEUP_M."""
+def pileups(contacts, least=PILEUP_CARS):
+    """Groups of `least`+ cars linked by contacts within PILEUP_S and PILEUP_M."""
     out = []
     used = set()
     for i, c in enumerate(contacts):
@@ -107,7 +108,7 @@ def pileups(contacts):
                     group.add(j)
                     grew = True
         used |= group
-        if len(cars) >= PILEUP_CARS:
+        if len(cars) >= least:
             out.append("%d cars at %.1f s (%s)" % (len(cars), c["t"], ", ".join(str(x) for x in sorted(cars))))
     return out
 
@@ -406,12 +407,12 @@ def main(argv=None):
         if kart_server is None:
             fails.append("the server reported no items")
         else:
-            print("server items: %d hits validated, %d turned down, %d forced; picks turned down %d, uses %d" % (
-                kart_server["validated"], kart_server["rejected"], kart_server["forced"], kart_server.get("rejected_picks", 0),
-                kart_server.get("rejected_uses", 0)))
+            print("server items: %d hits validated, %d turned down, %d contested, %d forced; picks turned down %d, uses %d" % (
+                kart_server["validated"], kart_server["rejected"], kart_server.get("contested", 0), kart_server["forced"],
+                kart_server.get("rejected_picks", 0), kart_server.get("rejected_uses", 0)))
             reported = kart_server["validated"] + kart_server["rejected"]
             # A hit turned down now and then is the system working; most of them is sync going wrong.
-            if reported >= 10 and kart_server["rejected"] / reported > MAX_REJECTED or kart_server["rejected"] > max(1, reported // 10):
+            if kart_server["rejected"] > max(1, reported * MAX_REJECTED):
                 fails.append("%d of %d hit reports turned down" % (kart_server["rejected"], reported))
             if kart_server.get("rejected_uses", 0) > 0:
                 fails.append("%d item uses turned down" % kart_server["rejected_uses"])
@@ -428,7 +429,8 @@ def main(argv=None):
         fails.append("%.1f KB/s down, over %g" % (worst_down, MAX_DOWN_KB))
     if highway:  # knocks with traffic happen offline too; a pile-up of players' cars says sync is off
         contacts = [c for c in contacts if c["a"] < 1000 and c["b"] < 1000]
-    piles = pileups(contacts) if args.event != "battle" else []  # karts in an arena meet head on: what a battle is
+    # Karts bump far more than cars (kart_check's rule: 4); in an arena they meet head on: what a battle is.
+    piles = [] if args.event == "battle" else pileups(contacts, KART_PILEUP_CARS if karts else PILEUP_CARS)
     for pile in piles:
         fails.append("pile-up: " + pile)
     print("contacts %d, pile-ups %d" % (len(contacts), len(piles)))

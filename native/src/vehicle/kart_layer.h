@@ -46,6 +46,7 @@ enum KartFlag {
 	KART_FLAG_SLOWED = 128,
 	KART_FLAG_TRICK = 512,
 	KART_FLAG_AIRBORNE = 4096,
+	KART_FLAG_STICK = 8192, // held to a wall-ride or loop by stick gravity
 };
 
 // The mode's "arcade" block (data/modes/kart.mode.json).

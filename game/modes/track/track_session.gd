@@ -753,7 +753,7 @@ func _on_session_ended(kind: String, results: Array) -> void:
 		var kn := get_node_or_null(^"KartNet") as KartNet
 		if kn:
 			print("NETCHECK_KART_SERVER " + JSON.stringify({ "validated": kn.validated, "rejected": kn.rejected, "forced": kn.forced,
-				"rejected_picks": kn.rejected_picks, "rejected_uses": kn.rejected_uses }))
+				"rejected_picks": kn.rejected_picks, "rejected_uses": kn.rejected_uses, "contested": kn.contested }))
 		get_tree().create_timer(DEDICATED_RESULTS_S).timeout.connect(func() -> void:
 			if not is_inside_tree() or race.phase != RaceControl.Phase.DONE:
 				return

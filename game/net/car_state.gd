@@ -26,7 +26,8 @@ const FLAG2_LIGHT_BAR := 32
 const FLAG2_WRECKED := 64 # traffic: a wreck where it stands
 const FLAG2_LANE_OK := 128 # traffic: on its lane's line, the right way, upright
 ## The kart word (D142): the sim's bits (VehicleSim.KART_FLAG_*: drift side and tier, boost, spun,
-## slowed, trick, airborne) and the game's.
+## slowed, trick, airborne, stuck to a wall-ride or loop) and the game's.
+const KART_STICK := 8192 # VehicleSim.KART_FLAG_STICK
 const KART_SHIELD := 32
 const KART_MAGNET := 256
 const KART_TOWED := 1024

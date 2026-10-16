@@ -47,6 +47,9 @@ var kart: KartControl
 ## Counters (net_check): reports turned down (picks: often two karts at one box; uses; hits),
 ## forced hits, corrections, hits validated.
 var rejected := 0
+## Hits on an item the server had just ruled had hit another kart: two karts' games each saw it
+## hit theirs, the server's first word stands (not a disagreement).
+var contested := 0
 var rejected_picks := 0
 var rejected_uses := 0
 var forced := 0
@@ -66,6 +69,7 @@ var _applied := {} # client: entity id -> true (each hits this game's car at mos
 var _last_use := {} # server: car id -> time
 var _overlaps := {} # server: "entity:car" -> {checks, since}
 var _reported := {} # server: entity id -> time a hit on it was reported
+var _hit_gone := {} # server: entity id -> time a hit took it
 var _state_time := 0.0
 var _states: Array[PackedByteArray] = [] # client: snapshots in, read at its next tick
 
@@ -167,7 +171,9 @@ func spawned(e: Dictionary, owner: Racer, seq: int, at_time := -1.0) -> void:
 
 
 ## Server: entity `id` is gone (a hit, a crash into another item, its time up).
-func gone(id: int) -> void:
+func gone(id: int, by_hit := true) -> void:
+	if by_hit:
+		_hit_gone[id] = now()
 	_broadcast([_record(Ev.GONE, 0, id)])
 
 
@@ -233,6 +239,9 @@ func _server_hit(r: Racer, rec: Dictionary) -> void:
 		return # EMPs are the server's to call (pulse)
 	var e: Dictionary = kart.entities.list.get(id, {})
 	if e.is_empty():
+		if _hit_gone.has(id):
+			contested += 1
+			return
 		rejected += 1
 		_why("hit on car %d by entity %d (%s): gone here" % [r.net_id, id, kind])
 		return
@@ -242,6 +251,7 @@ func _server_hit(r: Racer, rec: Dictionary) -> void:
 		_why("hit on car %d by %s: %.1f m apart here" % [r.net_id, kind, (e.pos as Vector3).distance_to(r.com())])
 		return
 	_reported[id] = now()
+	_hit_gone[id] = now()
 	validated += 1
 	kart.entities.remove(id)
 	items.land(r, e.owner, kind, blocked)
@@ -268,6 +278,7 @@ func _backstop() -> void:
 			var wait := Net.server.rtt_ms(peer) / 1000.0 + BACKSTOP_SLACK_S
 			if int(o.checks) >= BACKSTOP_CHECKS and t - float(o.since) > wait and not _reported.has(int(e.id)):
 				forced += 1
+				_hit_gone[int(e.id)] = t
 				var kind := String(e.kind)
 				kart.entities.remove(int(e.id))
 				kart.items.land(r, e.owner, kind, kart.items.slot(r).shield > 0.0)
@@ -279,6 +290,9 @@ func _backstop() -> void:
 	for id: int in _reported.keys():
 		if t - float(_reported[id]) > 5.0:
 			_reported.erase(id)
+	for id: int in _hit_gone.keys():
+		if t - float(_hit_gone[id]) > 5.0:
+			_hit_gone.erase(id)
 
 
 ## Why a report was turned down (the server's log under --net-stats).
@@ -477,6 +491,8 @@ func _on_state(bytes: PackedByteArray) -> void:
 				e.age = server_age + age # as old as the server's, now
 				e.bounces = bytes[c + 25]
 			continue
+		if int(e.bounces) != bytes[c + 25]:
+			continue # a wall between the two (moving one on to the other's age crosses a bounce)
 		var err := (e.pos as Vector3).distance_to(pos)
 		(chaser_errors if e.kind in ["seeker", "leader_hunter"] else entity_errors).append(err)
 		if err > 1.0 and Game.dev.has("kart-debug"):

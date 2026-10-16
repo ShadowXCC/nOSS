@@ -87,6 +87,7 @@ int KartLayer::flags() const {
 	f |= slow > 0.0 ? KART_FLAG_SLOWED : 0;
 	f |= trick ? KART_FLAG_TRICK : 0;
 	f |= grounded == 0 ? KART_FLAG_AIRBORNE : 0;
+	f |= stick > 0.0 ? KART_FLAG_STICK : 0;
 	return f;
 }
 
