@@ -15,6 +15,7 @@
     ]
   },
 
+  "fit": { "wheelbase_max_m": 1.35 },
   "geometry": {
     "wheelbase_m": { "ref": 1.80, "min": 1.10, "max": 2.80 },
     "track_m": { "ref": 1.30, "min": 1.00, "max": 1.70 },

@@ -1,7 +1,8 @@
 class_name Fitting
 extends RefCounted
 ## Mounts a package's fit.json on a platform (docs/PLATFORMS.md §4.1, §4.3): scale if the
-## wheelbase is out of range, clamp the track, clamp the collision envelope.
+## wheelbase is out of range (or past the platform's `fit.wheelbase_max_m`: a car on a kart class
+## comes down to a kart's size, D150), clamp the track, clamp the collision envelope.
 ## The vehicle body's frame is the fitted model frame: +Y up, +Z forward, +X left, metres.
 
 
@@ -58,7 +59,11 @@ static func fit(platform: Dictionary, fit_data: Dictionary, mode := "normal") ->
 
 	# 2. Uniform scale if the wheelbase is out of range.
 	var lb: Dictionary = geo.wheelbase_m
-	if wheelbase > 0.0 and (wheelbase < lb.min or wheelbase > lb.max):
+	var fit_max := float(platform.get("fit", {}).get("wheelbase_max_m", INF))
+	if wheelbase > fit_max and fit_max < float(lb.max):
+		r.scale = maxf(fit_max, float(lb.min)) / wheelbase
+		r.notes.append("Kart size (%d%%)" % roundi(r.scale * 100.0))
+	elif wheelbase > 0.0 and (wheelbase < lb.min or wheelbase > lb.max):
 		r.scale = clampf(wheelbase, lb.min, lb.max) / wheelbase
 		r.notes.append("Scaled to %d%%" % roundi(r.scale * 100.0))
 	r.model_xform = Transform3D(Basis.from_scale(Vector3.ONE * r.scale), Vector3.ZERO) * base

@@ -25,6 +25,22 @@ func test_long_model_is_scaled_down() -> void:
 	assert_float(r.wheels[0].radius).is_equal_approx(0.3 * r.scale, 0.0001)
 
 
+## A car on a kart class comes down to a kart's size (D150); a kart-sized model stays as it is.
+func test_a_car_on_a_kart_class_is_kart_sized() -> void:
+	var kart := PlatformLoader.load_official("official.kart.medium").platform
+	var r := Fitting.fit(kart, _fit(2.6, 1.57))
+	var cap := float(kart.fit.wheelbase_max_m)
+	assert_float(r.scale).is_equal_approx(cap / 2.6, 0.0001)
+	assert_float(r.wheelbase).is_equal_approx(cap, 0.001)
+	assert_bool(Array(r.notes).any(func(n: String) -> bool: return n.begins_with("Kart size ("))).is_true()
+	var small := Fitting.fit(kart, _fit(1.25, 1.15))
+	assert_float(small.scale).is_equal(1.0)
+	assert_bool(Array(small.notes).any(func(n: String) -> bool: return n.begins_with("Kart size"))).is_false()
+	# The nOSS Kart itself fits as it is.
+	var pkg: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://content/cars/noss_kart/fit.json"))
+	assert_float(Fitting.fit(kart, pkg).scale).is_equal(1.0)
+
+
 func test_narrow_track_moves_wheels_out() -> void:
 	var r := Fitting.fit(_platform, _fit(2.6, 1.37))
 	assert_float(r.track).is_equal_approx(1.45, 0.0001)

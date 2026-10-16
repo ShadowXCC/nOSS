@@ -56,6 +56,14 @@
       }
     },
 
+    "fit": {
+      "description": "How models are mounted beyond the geometry ranges.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "wheelbase_max_m": { "description": "Models with a longer wheelbase are scaled down to this (karts: cars come down to a kart's size, D150); the physics ranges stay as they are.", "type": "number", "minimum": 0.5, "maximum": 10 }
+      }
+    },
     "geometry": {
       "type": "object",
       "additionalProperties": false,
