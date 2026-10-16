@@ -15,6 +15,9 @@ signal changed(i: int, on: bool)
 
 var points := PackedVector3Array()
 var alive := PackedByteArray()
+## Each box's place on the road (distance along it, and across), once (the AI heads for them).
+var along := PackedFloat32Array()
+var across := PackedFloat32Array()
 var visual := true
 var _timers := PackedFloat32Array()
 var _nodes: Array[Node3D] = []
@@ -38,6 +41,16 @@ func setup(at: PackedVector3Array, with_visuals: bool) -> void:
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			add_child(mi)
 			_nodes.append(mi)
+
+
+## Works out each box's place on `track`'s road (not in an arena).
+func place_on(track: TrackData) -> void:
+	along.resize(points.size())
+	across.resize(points.size())
+	for i in points.size():
+		var proj := track.project(points[i])
+		along[i] = float(proj.distance)
+		across[i] = float(proj.lateral)
 
 
 func count() -> int:

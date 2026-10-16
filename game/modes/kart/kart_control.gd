@@ -36,6 +36,8 @@ func _ready() -> void:
 	boxes.name = "ItemBoxes"
 	add_child(boxes)
 	boxes.setup(layout.box_points() if session.event.items else PackedVector3Array(), visual)
+	if session.track.arena == null:
+		boxes.place_on(session.track)
 	entities = KartEntities.new()
 	entities.name = "ItemsOut"
 	entities.session = session

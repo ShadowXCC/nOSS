@@ -49,6 +49,7 @@ func spawn(kind: String, owner: Racer, pos: Vector3, dir: Vector3, target: Racer
 			e.fly = THROW_S
 		else:
 			e.pos = _ground(pos, pos.y)
+			place_on_road(e)
 	list[e.id] = e
 	if visual:
 		e.node = _node(kind)
@@ -79,6 +80,14 @@ func advance(e: Dictionary, seconds: float) -> void:
 		t += dt
 	if visual and list.has(e.id):
 		_place(e)
+
+
+## A Slick's place on the road (`road_s`, `road_lat`), once it lies there (the AI steers round it).
+func place_on_road(e: Dictionary) -> void:
+	if session.track.arena == null:
+		var proj := session.track.project(e.pos)
+		e.road_s = float(proj.distance)
+		e.road_lat = float(proj.lateral)
 
 
 func remove(id: int) -> void:
@@ -206,6 +215,7 @@ func _slick(e: Dictionary, delta: float) -> void:
 	if e.fly <= 0.0:
 		e.pos = to
 		e.erase("fly")
+		place_on_road(e)
 
 
 ## A Bolt and a Seeker, another Bolt or a Slick: both go. The Hunter passes everything.

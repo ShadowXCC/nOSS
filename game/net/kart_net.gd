@@ -503,6 +503,8 @@ func _on_state(bytes: PackedByteArray) -> void:
 			e.pos = pos
 			e.vel = vel
 			e.bounces = bytes[c + 25]
+			if e.kind == "oil_slick" and not e.has("fly"):
+				kart.entities.place_on_road(e)
 			if e.kind in ["seeker", "leader_hunter"] and session.track.arena == null:
 				# A chaser goes by its place along the road: that moves too.
 				var proj := session.track.project(pos)

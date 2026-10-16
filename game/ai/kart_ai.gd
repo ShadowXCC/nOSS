@@ -220,22 +220,22 @@ func _plan() -> void:
 	if kart.items.item_of(racer) == "" and kart.items.slot(racer).item == "" and _passing == null:
 		var best := INF
 		var lat := NAN
-		for i in kart.boxes.count():
-			if not kart.boxes.alive[i]:
+		var boxes := kart.boxes
+		for i in mini(boxes.count(), boxes.along.size()):
+			if not boxes.alive[i]:
 				continue
-			var proj := racer.track.project(kart.boxes.points[i], racer.track_index)
-			var d := fposmod(float(proj.distance) - racer.distance, racer.track.length)
+			var d := fposmod(boxes.along[i] - racer.distance, racer.track.length)
 			if d < BOX_LOOK_M and d > 4.0 and d < best:
 				best = d
-				lat = float(proj.lateral)
+				lat = boxes.across[i]
 		if not is_nan(lat):
 			_want = clampf(lat - line_here, corridor.y - line_here, corridor.x - line_here)
 	for e: Dictionary in kart.entities.list.values():
-		if e.kind != "oil_slick":
-			continue
-		var proj := racer.track.project(e.pos, racer.track_index)
-		var d := fposmod(float(proj.distance) - racer.distance, racer.track.length)
+		if e.kind != "oil_slick" or not e.has("road_s"):
+			continue # (still flying)
+		var d := fposmod(float(e.road_s) - racer.distance, racer.track.length)
+		var slick_lat := float(e.road_lat)
 		var mine := line_here + _want
-		if d < SLICK_LOOK_M and absf(float(proj.lateral) - mine) < SLICK_CLEAR_M:
-			var side := 1.0 if float(proj.lateral) <= mine else -1.0
-			_want = clampf(float(proj.lateral) + side * SLICK_CLEAR_M - line_here, corridor.y - line_here, corridor.x - line_here)
+		if d < SLICK_LOOK_M and absf(slick_lat - mine) < SLICK_CLEAR_M:
+			var side := 1.0 if slick_lat <= mine else -1.0
+			_want = clampf(slick_lat + side * SLICK_CLEAR_M - line_here, corridor.y - line_here, corridor.x - line_here)
