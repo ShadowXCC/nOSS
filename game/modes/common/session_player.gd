@@ -18,7 +18,7 @@ var overlay: Control
 
 var _paused_tree := false
 ## Drives the car home after the flag (players' cars take a cool-down lap too).
-var _cool_down: RacingAI
+var _cool_down: Node
 ## This player's setup for the class and track (PLT-04).
 var car_setup: Setup
 ## The racing line assist, while it's on.
@@ -339,12 +339,14 @@ func setup_changed() -> void:
 	notify("Setup saved" if custom_setup else "Default setup", 1.5)
 
 
-## After the flag the RacingAI brings the car round at an easy pace.
+## After the flag the session's AI (the kart AI in a kart race) brings the car round at an easy
+## pace. In an arena the player drives on.
 func _start_cool_down() -> void:
+	if session.track.arena:
+		return
 	controller.set_physics_process(false)
 	controller.release()
-	_cool_down = RacingAI.new()
-	_cool_down.racer = self
+	_cool_down = session.make_driver(self)
 	add_child(_cool_down)
 
 

@@ -42,7 +42,7 @@
       "min_speed": 8.0,
       "min_steer": 0.3,
       "turn_g": [
-        0.4,
+        0.15,
         1.0
       ],
       "slip": [
@@ -54,6 +54,7 @@
       "wheel_steer": 0.3,
       "yaw_accel": 12.0,
       "hop": 0.8,
+      "exit_s": 0.4,
       "tiers_s": [
         0.6,
         1.2,
@@ -90,7 +91,8 @@
     "spin": {
       "s": 1.2,
       "grip": 0.35,
-      "yaw_rate": 7.0
+      "yaw_rate": 7.0,
+      "brake": 10.0
     },
     "slow": {
       "power": 0.0

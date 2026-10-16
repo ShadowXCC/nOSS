@@ -31,7 +31,7 @@
   },
 
   "engine": {
-    "torque_curve_nm": [[2000, 21.2], [6000, 30.7], [9000, 28.3], [11000, 23.6]],
+    "torque_curve_nm": [[2000, 21.2], [6000, 30.6], [9000, 28.2], [11000, 23.5]],
     "idle_rpm": 1800,
     "redline_rpm": 10500,
     "limiter_rpm": 11000,
@@ -42,7 +42,7 @@
     "type": "auto",
     "ratios": [1.0],
     "reverse": 1.0,
-    "final_drive": 7.6,
+    "final_drive": 8.26,
     "shift_time_s": 0.0
   },
   "differential": { "type": "spool" },

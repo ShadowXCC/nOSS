@@ -38,6 +38,7 @@ func _car_changed() -> void:
 
 
 func _make_driver() -> Node:
-	var ai := super() as RacingAI
-	ai.skill = skill
+	var ai := super()
+	if "skill" in ai:
+		ai.skill = skill
 	return ai

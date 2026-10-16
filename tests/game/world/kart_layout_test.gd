@@ -77,7 +77,7 @@ func test_automatic_rows_every_third_of_a_lap() -> void:
 func test_placed_rows_replace_automatic_ones() -> void:
 	var t := TrackData.load_file(KART)
 	assert_object(t.kart).is_not_null()
-	assert_int(t.kart.rows.size()).is_equal(2)
+	assert_int(t.kart.rows.size()).is_equal(3)
 	assert_float(float(t.kart.rows[0].at_m)).is_equal_approx(100.0, 0.01)
 
 
@@ -85,9 +85,9 @@ func test_a_wall_ride_stands_where_the_barrier_was() -> void:
 	var t := TrackData.load_file(KART)
 	var wall: Dictionary = t.kart.pieces.filter(func(p: Dictionary) -> bool: return p.kind == "wall_ride")[0]
 	var mid := t.index_at(float(wall.at_m) + 40.0)
-	assert_bool(t.kart.gap(mid, -1.0)).is_true()
-	assert_bool(t.kart.gap(mid, 1.0)).is_false()
-	assert_bool(t.kart.gap(t.index_at(float(wall.at_m) + 200.0), -1.0)).is_false()
+	assert_bool(t.kart.gap(mid, 1.0)).is_true() # on the left, round the outside of the corner
+	assert_bool(t.kart.gap(mid, -1.0)).is_false()
+	assert_bool(t.kart.gap(t.index_at(float(wall.at_m) + 200.0), 1.0)).is_false()
 
 
 func test_a_loop_has_an_entry_lane_and_an_exit_lane() -> void:

@@ -8,7 +8,14 @@ extends RefCounted
 const PAD_UP := 0.008 # the pad's top over the road: under a centimetre, no step to feel
 const JUMP_STEP := 0.5
 const WALL_STEP := 2.0
-const WALL_TAPER_M := 12.0 # a wall-ride's height grows over this at either end
+## A wall-ride's height, and its curve's reach from the road, grow over this at either end: a kart
+## riding it is turned back onto the road as it ends, not let off it.
+const WALL_TAPER_M := 12.0
+const WALL_END_CURVE_M := 0.5
+## The lip along a wall-ride's top, out over the road: a kart that climbs the face hits it and
+## stays in (stick gravity has nothing to pull it back down).
+const LIP_M := 1.2
+const LIP_THICK := 0.3
 const LOOP_SEGMENTS := 96
 const DIVIDER_H := 0.8
 const POST_W := 0.6
@@ -103,33 +110,40 @@ func _jump_half_widths(p: Dictionary, f: Transform3D) -> Vector2:
 	return Vector2(track.half_l[i] - lat, track.half_r[i] + lat)
 
 
-## A quarter-pipe from the road's edge to vertical, then straight up (D137); it tapers in height
-## at its ends. Its face looks at the road.
+## A quarter-pipe from the road's edge to vertical, then straight up (D137), with a lip along
+## the top; it tapers in height and reach at its ends. Its face looks at the road.
 func _wall_ride(p: Dictionary, node: Node3D) -> void:
 	var side := 1.0 if p.side == "left" else -1.0
 	var length := float(p.length_m)
 	var height := float(p.height_m)
 	var b := MeshBatch.new()
+	var lip := MeshBatch.new()
 	var steps := maxi(2, ceili(length / WALL_STEP))
 	var prev: Array = []
 	for s in steps + 1:
 		var d := float(p.at_m) + length * s / steps
 		var taper := clampf(minf(length * s / steps, length - length * s / steps) / WALL_TAPER_M, 0.0, 1.0)
-		var cur := _wall_profile(d, side, lerpf(KartLayout.WALL_CURVE_M, height, taper))
+		var curve := lerpf(WALL_END_CURVE_M, KartLayout.WALL_CURVE_M, taper)
+		var cur := _wall_profile(d, side, lerpf(KartLayout.WALL_CURVE_M, height, taper), curve)
 		if not prev.is_empty():
 			for m in cur.size() - 1:
 				var q := [prev[m + 1], prev[m], cur[m], cur[m + 1]] if side > 0.0 else [prev[m], prev[m + 1], cur[m + 1], cur[m]]
 				b.quad(q, [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
+			var top: Vector3 = (prev[-1] + cur[-1]) / 2.0
+			var f := track.transform_at(d - length / steps / 2.0)
+			var along := (cur[-1] - prev[-1]) as Vector3
+			var basis := Basis(f.basis.x, f.basis.y, along.normalized()).orthonormalized()
+			lip.box(top - f.basis.x * side * (LIP_M - 0.1) / 2.0 + f.basis.y * LIP_THICK / 2.0, basis, Vector3(LIP_M + 0.1, LIP_THICK, along.length() + 0.05))
 		prev = cur
 	_body(node, "Wall", b, _material("stick", Color(0.16, 0.46, 0.86), true), VehicleSim.SURFACE_CONCRETE, VehicleSim.TAG_STICK)
+	_body(node, "WallLip", lip, _material("frame", Color(0.85, 0.85, 0.82)), VehicleSim.SURFACE_CONCRETE, 0)
 
 
-## The wall's cross-section at `d`: from the road's edge out round the curve, then up.
-func _wall_profile(d: float, side: float, height: float) -> Array:
+## The wall's cross-section at `d`: from the road's edge out round a curve of radius `r`, then up.
+func _wall_profile(d: float, side: float, height: float, r: float) -> Array:
 	var i := track.index_at(d)
 	var f := track.transform_at(d)
 	var edge := (track.half_l[i] if side > 0.0 else track.half_r[i]) + 0.02
-	var r := KartLayout.WALL_CURVE_M
 	var out := []
 	for k in 7:
 		var a := PI / 2.0 * k / 6.0

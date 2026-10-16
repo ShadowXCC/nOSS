@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs every test suite: native (doctest), JSON schemas, tools (unittest), GDScript (gdUnit4, headless),
-# platform conformance, a short AI race check, a short highway check, short online checks (a race,
+# platform conformance, a short AI race check, a short kart check, a short highway check, short online checks (a race,
 # a highway with traffic), the track editor's 3 km acceptance build (raced and sent online), boot
 # smoke test.
 # Exits non-zero if any fails. Run tools/setup_dev.sh once first.
@@ -40,6 +40,12 @@ tools/run_conformance.sh || failed+=("conformance")
 
 step "Race check (12 cars, 1 lap)"
 tools/race_check.sh --cars=12 --laps=1 --seed=1 --builtin --bad=stall | grep -E "^(Race|Time|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("race check")
+
+step "Kart check (8 karts with items, 1 lap of the stunt fixture)"
+tools/kart_check.sh --karts=8 --laps=1 --seed=1 | grep -E "^(kart_check|Race|Time|PASS|FAIL|  )" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("kart check")
+
+step "Battle check (8 karts, last one standing, the arena fixture)"
+tools/kart_check.sh --battle --karts=8 --seed=1 | grep -E "^(kart_check|Battle|Race|PASS|FAIL|  )" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("battle check")
 
 step "Highway check (2 players, 400 traffic, 60 s)"
 tools/highway_check.sh --players=2 --traffic=400 --seconds=60 | grep -E "^(Highway|Time|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("highway check")

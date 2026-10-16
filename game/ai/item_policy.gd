@@ -15,7 +15,7 @@ const EMP_NEAR_M := 14.0
 const MAGNET_RANGE := Vector2(15.0, 55.0)
 const THREAT_M := 50.0
 ## The most an item is held, by kind, before it's used anyway.
-const HOLD_MAX := { "shield": 8.0, "oil_slick": 12.0, "emp": 10.0, "bolt": 15.0, "magnet": 10.0, "nitro": 6.0, "nitro_x3": 6.0 }
+const HOLD_MAX := { "shield": 5.0, "oil_slick": 6.0, "emp": 6.0, "bolt": 8.0, "magnet": 6.0, "nitro": 4.0, "nitro_x3": 4.0 }
 
 var racer: Racer
 var skill := 80.0
@@ -90,7 +90,7 @@ func _lined_up(reach: float, width: float) -> bool:
 	var me := racer.vehicle.global_transform
 	var slack := width + (1.0 - skill / 100.0) * 1.5
 	for o: Racer in racer.session.racers:
-		if o == racer or o.vehicle == null or o.towed:
+		if o == racer or o.vehicle == null or o.towed or o.out:
 			continue
 		var local := me.affine_inverse() * o.com()
 		if local.z > 2.0 and local.z < reach and absf(local.x) < slack + local.z * 0.02:
@@ -101,7 +101,7 @@ func _lined_up(reach: float, width: float) -> bool:
 func _behind_within(reach: float, width: float) -> bool:
 	var me := racer.vehicle.global_transform
 	for o: Racer in racer.session.racers:
-		if o == racer or o.vehicle == null or o.towed:
+		if o == racer or o.vehicle == null or o.towed or o.out:
 			continue
 		var local := me.affine_inverse() * o.com()
 		if local.z < -1.0 and local.z > -reach and absf(local.x) < width:
@@ -112,7 +112,7 @@ func _behind_within(reach: float, width: float) -> bool:
 func _near_count(reach: float) -> int:
 	var n := 0
 	for o: Racer in racer.session.racers:
-		if o != racer and o.vehicle and not o.towed and o.com().distance_to(racer.com()) < reach:
+		if o != racer and o.vehicle and not o.towed and not o.out and o.com().distance_to(racer.com()) < reach:
 			n += 1
 	return n
 

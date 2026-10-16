@@ -149,22 +149,25 @@ func _steer(vehicle: Vehicle, v: float, out: Dictionary) -> void:
 	var lateral := clampf(_line.offset_at(d) + offset, _line.corridor(d).y, _line.corridor(d).x)
 	# Pure pursuit cuts corners by about look² κ / 8; aim that much wide.
 	lateral -= _line.curvature_at(racer.distance + look * 0.5) * look * look / 8.0
-	var target := racer.track.transform_at(d, lateral).origin
+	out.steer = _pursue(vehicle, racer.track.transform_at(d, lateral).origin, v)
+	out.handbrake = 0.0
+
+
+## Pure pursuit: the arc through `target`, steered through the reference wheelbase, catching
+## slides by steering toward where the car is going.
+func _pursue(vehicle: Vehicle, target: Vector3, v: float) -> float:
 	var local := vehicle.global_basis.inverse() * (target - racer.com())
-	# Pure pursuit: the arc through the target point, steered through the reference wheelbase.
 	var dist2 := maxf(local.x * local.x + local.z * local.z, 1.0)
 	var kappa := 2.0 * local.x / dist2 # + = left
 	var wheelbase := float(vehicle.platform.geometry.wheelbase_m.ref)
 	var max_steer := deg_to_rad(float(vehicle.platform.steering.max_road_angle_deg))
 	var steer := -atan(wheelbase * kappa) / max_steer
-	# Catch slides: steer toward where the car is going.
 	var local_v := vehicle.global_basis.inverse() * vehicle.linear_velocity
 	if v > 6.0:
 		var slip := atan2(local_v.x, absf(local_v.z)) # + = sliding left
 		if absf(slip) > deg_to_rad(2.0):
 			steer += clampf(-slip * 0.8 / max_steer, -0.5, 0.5)
-	out.steer = clampf(steer, -1.0, 1.0)
-	out.handbrake = 0.0
+	return clampf(steer, -1.0, 1.0)
 
 
 func _pedals(vehicle: Vehicle, v: float, out: Dictionary) -> void:

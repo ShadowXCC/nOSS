@@ -8,12 +8,17 @@ const SLIP_HZ := 30.0
 const SLIP_MIN_SPEED := 10.0 # m/s: the car ahead must be going
 const TOW_LIFT := 6.0 # m above the higher end, at the middle of the carry
 const GHOST_AFTER_TOW := 1.0
+## Beached (upright, no wheel down, yet neither rising nor falling: on another kart's back, on
+## an edge) this long: the tow. A flight off a jump keeps changing its vertical speed.
+const BEACHED_S := 2.0
+const BEACHED_VY := 1.0
 
 var session: TrackSession
 var arcade := {}
 ## Racers being carried: racer -> {t, from: Transform3D, to: Transform3D, drone: Node3D, freeze_mode}.
 var _tows := {}
 var _slip_time := 0.0
+var _beached := {} # racer -> seconds
 ## Magnet (items): racer -> how many times stronger its slipstream is (D139).
 var slip_boost := {}
 var layout: KartLayout
@@ -30,7 +35,7 @@ func _ready() -> void:
 	boxes = KartBoxes.new()
 	boxes.name = "ItemBoxes"
 	add_child(boxes)
-	boxes.setup(layout.box_points(), visual)
+	boxes.setup(layout.box_points() if session.event.items else PackedVector3Array(), visual)
 	entities = KartEntities.new()
 	entities.name = "ItemsOut"
 	entities.session = session
@@ -73,7 +78,7 @@ func tow(r: Racer) -> void:
 	if _tows.has(r) or r.vehicle == null or r.waiting:
 		return
 	var v := r.vehicle
-	var to := r.last_valid_xform if session.track.arena else session.track.transform_at(r.last_valid)
+	var to := r.last_valid_xform if session.track.arena else layout.tow_spot(r.last_valid)
 	_tows[r] = { "t": 0.0, "from": v.global_transform, "to": to, "freeze_mode": v.freeze_mode, "drone": _drone(v) }
 	r.towed = true
 	v.kart_bits |= CarState.KART_TOWED
@@ -91,10 +96,28 @@ func towing(r: Racer) -> bool:
 func _physics_process(delta: float) -> void:
 	for r: Racer in _tows.keys():
 		_carry(r, delta)
+	_check_beached(delta)
 	_slip_time += delta
 	if _slip_time >= 1.0 / SLIP_HZ:
 		_slip_time = 0.0
 		_slipstream()
+
+
+## Karts this game drives that rest on something with no wheel down are towed (D132).
+func _check_beached(delta: float) -> void:
+	for r: Racer in session.racers:
+		var v := r.vehicle
+		if v == null or v.remote or r.towed or r.waiting or r.held:
+			_beached.erase(r)
+			continue
+		# (Upright: one on its roof or side is the righting's to deal with.)
+		if v.kart_flags() & VehicleSim.KART_FLAG_AIRBORNE and absf(v.linear_velocity.y) < BEACHED_VY and v.global_basis.y.y > 0.5:
+			_beached[r] = float(_beached.get(r, 0.0)) + delta
+			if _beached[r] >= BEACHED_S:
+				_beached.erase(r)
+				tow(r)
+		else:
+			_beached.erase(r)
 
 
 func _carry(r: Racer, delta: float) -> void:
@@ -123,6 +146,8 @@ func _carry(r: Racer, delta: float) -> void:
 	v.kart_bits &= ~CarState.KART_TOWED
 	r.towed = false
 	if session.track.arena == null:
+		var proj := session.track.project(to.origin)
+		r.last_valid = float(proj.distance)
 		r.distance = r.last_valid
 		r.track_index = -1
 		r.timer.teleported(r.lap_pos(r.last_valid))

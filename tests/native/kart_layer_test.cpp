@@ -115,9 +115,9 @@ TEST_CASE("kart layer: a drift keeps its speed and turns its way, whatever the s
 		run(h, 2.5);
 		CAPTURE(steer);
 		CHECK(layer(h).drift_dir == 1); // locked: steering the other way only widens it
-		CHECK(h.yaw_rate() < -0.3);
+		CHECK(h.yaw_rate() < (steer < 0.0 ? -0.15 : -0.3));
 		CHECK(h.forward_speed() > 0.95 * v0);
-		CHECK(h.heading() - heading0 < -0.7);
+		CHECK(h.heading() - heading0 < (steer < 0.0 ? -0.4 : -0.7));
 	}
 	// Into the drift turns tighter than against it.
 	double yaw[2];

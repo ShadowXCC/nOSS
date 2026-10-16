@@ -30,6 +30,8 @@ const WALL_CURVE_M := 3.0
 ## before it (the loop comes down there).
 const LOOP_GAP_M := 0.5
 const LOOP_DIVIDER_M := 6.0
+## Every loop gets a boost pad this far before it, in its entry lane (D137).
+const LOOP_PAD_M := 25.0
 
 var track: TrackData
 ## "auto", "placed" or "none".
@@ -55,6 +57,12 @@ static func build(t: TrackData, section: Dictionary) -> KartLayout:
 		k.pieces.append(p)
 		if p.kind == "wall_ride":
 			k._mark_wall(p)
+	for p in k.pieces.duplicate():
+		if p.kind == "loop" and p.has("at_m"):
+			var pad := filled({ "id": String(p.id) + "_pad", "kind": "boost_pad", "at_m": fposmod(float(p.at_m) - LOOP_PAD_M, t.length),
+				"lateral_m": k.loop_lanes(p).x, "auto": true })
+			pad.frame = k._frame(pad)
+			k.pieces.append(pad)
 	k._rows()
 	return k
 
@@ -141,6 +149,27 @@ func loop_progress(pos: Vector3) -> Dictionary:
 			continue
 		return { "piece": p, "t": t }
 	return {}
+
+
+## The loop `distance` (along the road) is at or just before, within `before` m: {} if none.
+func loop_near(distance: float, before := 60.0, after := 0.0) -> Dictionary:
+	for p in pieces:
+		if p.kind != "loop":
+			continue
+		var d := _wrapped(float(p.at_m) - distance)
+		if d > -float(p.radius_m) - after and d < before:
+			return p
+	return {}
+
+
+## Where a tow puts a kart that fell at `distance` (D132): before a loop, in its entry lane, if
+## it fell near one (the road under a loop is no place to land); else on the road there.
+func tow_spot(distance: float) -> Transform3D:
+	var loop := loop_near(distance, float(STUNT_DEFAULTS.loop.radius_m) + LOOP_DIVIDER_M + 15.0, 10.0)
+	if not loop.is_empty():
+		var back := float(loop.at_m) - float(loop.radius_m) - LOOP_DIVIDER_M - 20.0
+		return track.transform_at(fposmod(back, track.length), loop_lanes(loop).x)
+	return track.transform_at(distance)
 
 
 ## Pins for the racing line (D143): into a loop's entry lane before it, out of its exit lane

@@ -56,6 +56,7 @@ double KartLayer::geared_top(const Config &p_config) {
 void KartLayer::reset() {
 	drift_dir = 0;
 	charge = 0.0;
+	drift_exit = 0.0;
 	boost = boost_length = 0.0;
 	spin = slow = 0.0;
 	air_time = 0.0;
@@ -66,6 +67,7 @@ void KartLayer::reset() {
 	pull = V3();
 	drag_scale = 1.0;
 	_prev_drift = drift;
+	_has_last_velocity = false;
 }
 
 int KartLayer::tier() const {
@@ -140,6 +142,13 @@ KartMods KartLayer::begin(const Config &p_config, const Chassis &p_chassis, cons
 	const V3 w_body = R.transposed() * p_chassis.angular_velocity;
 	m.grip = p.grip;
 	m.drag = drag_scale;
+	// How fast the path turns (+ = left): the velocity's own rotation since last tick.
+	double path_rate = 0.0;
+	if (_has_last_velocity && speed > 1.0) {
+		path_rate = dot(cross(_last_velocity, p_chassis.velocity), up) / (speed * speed * p_dt);
+	}
+	_last_velocity = p_chassis.velocity;
+	_has_last_velocity = true;
 
 	// What the wheels touch.
 	grounded = 0;
@@ -185,9 +194,11 @@ KartMods KartLayer::begin(const Config &p_config, const Chassis &p_chassis, cons
 			}
 			drift_dir = 0;
 			charge = 0.0;
+			drift_exit = p.drift_exit;
 		} else if (v < DRIFT_DROP * p.drift_min_speed || spin > 0.0) {
 			drift_dir = 0;
 			charge = 0.0;
+			drift_exit = p.drift_exit;
 		} else {
 			if (grounded >= 2 && v >= p.drift_min_speed) {
 				charge += p_dt;
@@ -215,11 +226,33 @@ KartMods KartLayer::begin(const Config &p_config, const Chassis &p_chassis, cons
 		}
 	}
 
+	// Just out of a drift: the tires get their grip back over a moment, not at once (no snap),
+	// and the nose swings back in line with the path instead of spinning on.
+	if (drift_dir == 0 && drift_exit > 0.0) {
+		drift_exit = tick_down(drift_exit, p_dt);
+		double k = p.drift_exit > 0.0 ? 1.0 - drift_exit / p.drift_exit : 1.0;
+		m.lateral = lerpd(p.drift_side_grip, 1.0, k);
+		m.slip_seen = lerpd(p.drift_tire_slip, 1.0, k);
+		m.steer = lerpd(p.drift_wheel_steer, 1.0, k);
+		if (grounded >= 2) {
+			V3 vb = R.transposed() * p_chassis.velocity;
+			double beta = std::atan2(vb.x, std::max(std::abs(vb.z), 1.0)); // + = sliding left
+			double target = path_rate + DRIFT_SLIP_GAIN * beta;
+			double alpha = clampd(DRIFT_YAW_GAIN * (target - w_body.y), -p.drift_yaw_accel, p.drift_yaw_accel);
+			m.torque += body_torque(p_config, R, V3(0, alpha, 0));
+		}
+	}
+
 	// --- Spin-out and power cut ----------------------------------------------------------
 	if (spin > 0.0) {
 		m.grip *= p.spin_grip;
 		double alpha = clampd(SPIN_GAIN * (spin_dir * p.spin_yaw_rate - w_body.y), -SPIN_ACCEL, SPIN_ACCEL);
 		m.torque += body_torque(p_config, R, V3(0, alpha, 0));
+		if (!air && speed > 0.5) {
+			V3 n = normalized(normal_sum, up);
+			V3 along = p_chassis.velocity - n * dot(p_chassis.velocity, n);
+			m.force += normalized(along, forward) * (-mass * std::min(p.spin_brake, speed / p_dt));
+		}
 	}
 	if (slow > 0.0) {
 		m.power = slow_power;

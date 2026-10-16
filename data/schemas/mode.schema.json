@@ -94,6 +94,7 @@
             "wheel_steer": { "type": "number", "minimum": 0, "maximum": 1 },
             "yaw_accel": { "type": "number", "minimum": 0, "maximum": 50 },
             "hop": { "type": "number", "minimum": 0, "maximum": 3 },
+            "exit_s": { "type": "number", "minimum": 0, "maximum": 2 },
             "tiers_s": { "$ref": "#/$defs/triple" },
             "boost_s": { "$ref": "#/$defs/triple" }
           }
@@ -137,7 +138,8 @@
           "properties": {
             "s": { "type": "number", "minimum": 0, "maximum": 5 },
             "grip": { "type": "number", "minimum": 0, "maximum": 1 },
-            "yaw_rate": { "type": "number", "minimum": 0, "maximum": 20 }
+            "yaw_rate": { "type": "number", "minimum": 0, "maximum": 20 },
+            "brake": { "type": "number", "minimum": 0, "maximum": 30 }
           }
         },
         "slow": {

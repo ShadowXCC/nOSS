@@ -266,9 +266,10 @@ func _solve() -> void:
 		limit_r[i] = _limit(i, track.half_r, track.curb_r)
 	offsets.resize(n)
 	offsets.fill(0.0)
-	# The editor's pins: fixed offsets the line bends through, inside the road.
+	# The editor's pins: fixed offsets the line bends through, inside the road. A kart track's
+	# loops add theirs: into the entry lane, out of the exit lane (D143).
 	var pins := {}
-	for pin: Dictionary in track.ai_pins:
+	for pin: Dictionary in track.ai_pins + (track.kart.ai_pins() if track.kart else []):
 		var k := track.index_at(float(pin.at_m))
 		pins[k] = clampf(float(pin.offset_m), -limit_r[k], limit_l[k])
 		offsets[k] = pins[k]

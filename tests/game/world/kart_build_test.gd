@@ -29,7 +29,7 @@ func _tag(hit: Dictionary) -> int:
 func test_every_piece_is_built_with_its_tag() -> void:
 	var built: Array = await _build(KART)
 	var root: Node3D = built[1]
-	var tags := { "Stunt_pad_1/PadBody": VehicleSim.TAG_BOOST, "Stunt_jump_1/RampBody": VehicleSim.TAG_JUMP,
+	var tags := { "Stunt_pad_1/PadBody": VehicleSim.TAG_BOOST, "Stunt_loop_1_pad/PadBody": VehicleSim.TAG_BOOST, "Stunt_jump_1/RampBody": VehicleSim.TAG_JUMP,
 		"Stunt_wall_1/WallBody": VehicleSim.TAG_STICK, "Stunt_loop_1/LoopBody": VehicleSim.TAG_STICK }
 	for path: String in tags:
 		var body := root.get_node_or_null("Stunts/" + path)
@@ -72,7 +72,7 @@ func test_pieces_meet_the_road_without_a_step() -> void:
 	var wall: Dictionary = pieces.wall_1
 	var d := float(wall.at_m) + 45.0
 	var i := t.index_at(d)
-	var edge := t.transform_at(d, -(t.half_r[i] + 0.1))
+	var edge := t.transform_at(d, t.half_l[i] + 0.1) # on the left
 	var on_wall := _down(edge.origin + edge.basis.y * 0.3, edge.basis.y)
 	assert_int(_tag(on_wall)).is_equal(VehicleSim.TAG_STICK)
 	assert_float(absf(on_wall.position.y - edge.origin.y)).is_less(0.02)

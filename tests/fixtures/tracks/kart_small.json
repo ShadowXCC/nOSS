@@ -360,7 +360,7 @@
         "kind": "wall_ride",
         "at_m": 168.1,
         "length_m": 90.0,
-        "side": "right",
+        "side": "left",
         "height_m": 5.0
       },
       {
@@ -372,6 +372,11 @@
       },
       {
         "id": "row_2",
+        "kind": "item_row",
+        "at_m": 472.8
+      },
+      {
+        "id": "row_3",
         "kind": "item_row",
         "at_m": 889.1
       }

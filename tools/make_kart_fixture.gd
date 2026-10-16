@@ -3,7 +3,7 @@ extends Node
 ##   tests/fixtures/tracks/kart_small.json: a 1.2 km rounded rectangle on flat ground with one of
 ##   every piece: a boost pad and an item row and a jump on the south straight (the start is
 ##   there too), a wall-ride round the outside of the south-east corner, the loop in the middle of
-##   the north straight, another item row on the west straight.
+##   the north straight, more item rows on the north and west straights.
 ##   tests/fixtures/tracks/arena_small.json: a 100 x 80 m arena with rounded corners, a boost
 ##   pad and a jump; automatic spawns and box clusters.
 ##   tools/godot.sh --headless res://tools/make_kart_fixture.tscn
@@ -43,9 +43,10 @@ func _kart_small() -> Dictionary:
 		{ "id": "pad_1", "kind": "boost_pad", "at_m": at.call(Vector3(80, 0, -100)), "lateral_m": 0.0 },
 		{ "id": "row_1", "kind": "item_row", "at_m": at.call(Vector3(100, 0, -100)) },
 		{ "id": "jump_1", "kind": "jump", "at_m": at.call(Vector3(122, 0, -100)), "height_m": 1.2, "length_m": 8.0 },
-		{ "id": "wall_1", "kind": "wall_ride", "at_m": at.call(Vector3(168, 0, -99)), "length_m": 90.0, "side": "right", "height_m": 5.0 },
+		{ "id": "wall_1", "kind": "wall_ride", "at_m": at.call(Vector3(168, 0, -99)), "length_m": 90.0, "side": "left", "height_m": 5.0 },
 		{ "id": "loop_1", "kind": "loop", "at_m": at.call(Vector3(0, 0, 100)), "radius_m": 9.0, "width_m": 5.0 },
-		{ "id": "row_2", "kind": "item_row", "at_m": at.call(Vector3(-220, 0, 0)) },
+		{ "id": "row_2", "kind": "item_row", "at_m": at.call(Vector3(120, 0, 100)) },
+		{ "id": "row_3", "kind": "item_row", "at_m": at.call(Vector3(-220, 0, 0)) },
 	] }
 	return d
 

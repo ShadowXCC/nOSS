@@ -161,6 +161,7 @@ KartParams parse_kart(const Dictionary &p) {
 	k.drift_wheel_steer = num(p, "drift.wheel_steer", k.drift_wheel_steer);
 	k.drift_yaw_accel = num(p, "drift.yaw_accel", k.drift_yaw_accel);
 	k.drift_hop = num(p, "drift.hop", k.drift_hop);
+	k.drift_exit = num(p, "drift.exit_s", k.drift_exit);
 	triple("drift.tiers_s", k.drift_tiers);
 	triple("drift.boost_s", k.drift_boost);
 	k.boost_accel = num(p, "boost.accel", k.boost_accel);
@@ -177,6 +178,7 @@ KartParams parse_kart(const Dictionary &p) {
 	k.spin_s = num(p, "spin.s", k.spin_s);
 	k.spin_grip = num(p, "spin.grip", k.spin_grip);
 	k.spin_yaw_rate = num(p, "spin.yaw_rate", k.spin_yaw_rate);
+	k.spin_brake = num(p, "spin.brake", k.spin_brake);
 	k.slow_power = num(p, "slow.power", k.slow_power);
 	return k;
 }

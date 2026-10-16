@@ -87,20 +87,21 @@ func test_the_loop_round_and_out_in_the_exit_lane() -> void:
 func test_the_wall_ride_round_the_corner() -> void:
 	var wall := _piece("wall_1")
 	var d0 := float(wall.at_m) + 20.0
+	var side := 1.0 if wall.side == "left" else -1.0 # the road's +x is its left
 	var face := func(d: float, up: float) -> Transform3D:
 		var f := s.track.transform_at(d)
 		var i := s.track.index_at(d)
-		var out := s.track.half_r[i] + 0.02 + KartLayout.WALL_CURVE_M
-		# On the wall's upright face, which looks at the road (the road's left): the kart's up.
-		var b := Basis(-f.basis.y, f.basis.x, f.basis.z)
-		return Transform3D(b, f.origin - f.basis.x * out + f.basis.y * up)
+		var out := (s.track.half_l[i] if side > 0.0 else s.track.half_r[i]) + 0.02 + KartLayout.WALL_CURVE_M
+		# On the wall's upright face, which looks back at the road: the kart's up.
+		var b := Basis(side * f.basis.y, -side * f.basis.x, f.basis.z)
+		return Transform3D(b, f.origin + f.basis.x * side * out + f.basis.y * up)
 	var place: Transform3D = face.call(d0, 4.0) # on its upright part (it curves up to 3 m)
 	p.vehicle.reset_to(place, place.basis.z * 18.0)
 	var rode := 0.0
 	for i in 120 * 4:
 		await get_tree().physics_frame
 		var v := p.vehicle
-		var on_wall := int(v.sim.get_kart_state().grounded) >= 2 and v.global_basis.y.dot(s.track.transform_at(p.distance).basis.x) > 0.7
+		var on_wall := int(v.sim.get_kart_state().grounded) >= 2 and v.global_basis.y.dot(s.track.transform_at(p.distance).basis.x) * -side > 0.7
 		if not on_wall:
 			break
 		rode = p.distance - d0
