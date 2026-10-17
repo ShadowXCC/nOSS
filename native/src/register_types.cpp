@@ -6,6 +6,7 @@
 
 #include "audio/gd_audio.h"
 #include "core/noss_core.h"
+#include "endless/gd_road_gen.h"
 #include "input/gd_input.h"
 #include "mesh/gd_mesh.h"
 #include "package/gd_package.h"
@@ -30,6 +31,7 @@ static void initialize_noss_core(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(noss::NossSurfaceMap);
 	GDREGISTER_CLASS(noss::NossTerrain);
 	GDREGISTER_CLASS(noss::NossTraffic);
+	GDREGISTER_CLASS(noss::NossRoadGen);
 }
 
 static void uninitialize_noss_core(ModuleInitializationLevel p_level) {

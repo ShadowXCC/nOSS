@@ -122,6 +122,10 @@ func _ready() -> void:
 		print(TrafficTypes.selftest(String(dev["traffic-selftest"])))
 		get_tree().quit.call_deferred()
 		return
+	if dev.has("endless-selftest"):
+		print(EndlessGen.selftest(String(dev["endless-selftest"])))
+		get_tree().quit.call_deferred()
+		return
 	PlayerProfile.read_only = dev.has("no-save")
 	# Dev: --p1-profile='{"assists": {"racing_line": true}}' sets P1's options for this run (use
 	# with --no-save to keep them out of the profile).
