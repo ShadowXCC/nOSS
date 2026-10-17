@@ -1,5 +1,5 @@
 extends GdUnitTestSuite
-## Kart from the title by keys alone (M8, D144, D145): title -> Kart -> a race on a kart track
+## Kart from the title by keys alone (M8, D144, D145): title -> Solo Drive -> Kart -> a race on a kart track
 ## (laps, AI, items) -> a kart class -> Players -> Ready; and a battle (an arena, most hits); and a
 ## cup goes to its first race. Every control on the Kart menu and the cup builder is named.
 
@@ -81,8 +81,10 @@ func _right_until(runner: GdUnitSceneRunner, want: String) -> void:
 ## From the title into the Kart menu, its first row focused.
 func _to_kart_menu(runner: GdUnitSceneRunner) -> KartMenu:
 	await _frames(4)
-	await _key(KEY_DOWN)
-	await _key(KEY_DOWN)
+	await _key(KEY_ENTER) # Solo Drive
+	await _frames(4)
+	for i in 4: # Race, Time Trial, Highway, Kart
+		await _key(KEY_DOWN)
 	assert_str(_focused(runner)).is_equal("Kart")
 	await _key(KEY_ENTER)
 	await _frames(4)

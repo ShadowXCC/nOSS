@@ -2,7 +2,7 @@ extends Control
 ## Title screen.
 
 @onready var _version_label: Label = %VersionLabel
-@onready var _drive_button: Button = %FreeDriveButton
+@onready var _drive_button: Button = %SoloDriveButton
 @onready var _settings_button: Button = %SettingsButton
 @onready var _quit_button: Button = %QuitButton
 @onready var _buttons: ScrollContainer = %Buttons
@@ -16,6 +16,7 @@ var _free: FreeDriveMenu
 var _online: OnlineMenu
 var _lobby: LobbyMenu
 var _kart_menu: KartMenu
+var _solo: SoloMenu
 ## What the class picker leads to: "free", "race", "time_trial", "highway" or "kart".
 var _mode := "free"
 
@@ -27,8 +28,8 @@ func _ready() -> void:
 	Settings.changed.connect(_apply_text_scale)
 	Players.slots_changed.connect(_apply_text_scale)
 	_version_label.text = "v%s" % ProjectSettings.get_setting("application/config/version")
-	_drive_button.accessibility_description = "Drive any track"
-	_drive_button.pressed.connect(_open_classes.bind("free"))
+	_drive_button.accessibility_description = "Free drive, races, time trials, highway, kart and endless"
+	_drive_button.pressed.connect(_open_solo)
 	_settings_button.pressed.connect(_open_settings)
 	_quit_button.pressed.connect(get_tree().quit)
 	var bay_button := Button.new()
@@ -52,41 +53,13 @@ func _ready() -> void:
 	garage_button.custom_minimum_size = _drive_button.custom_minimum_size
 	garage_button.pressed.connect(func() -> void: Game.open_garage())
 	_drive_button.add_sibling(garage_button)
-	var trial_button := Button.new()
-	trial_button.name = "TimeTrialButton"
-	trial_button.text = "Time Trial"
-	trial_button.accessibility_description = "Solo laps against your ghost"
-	trial_button.custom_minimum_size = _drive_button.custom_minimum_size
-	trial_button.pressed.connect(_open_classes.bind("time_trial"))
-	_drive_button.add_sibling(trial_button)
-	var race_button := Button.new()
-	race_button.name = "RaceButton"
-	race_button.text = "Race"
-	race_button.accessibility_description = "Practice, qualifying and a race against AI"
-	race_button.custom_minimum_size = _drive_button.custom_minimum_size
-	race_button.pressed.connect(_open_classes.bind("race"))
-	_drive_button.add_sibling(race_button)
-	var kart_button := Button.new()
-	kart_button.name = "KartButton"
-	kart_button.text = "Kart"
-	kart_button.accessibility_description = "Kart races with items, battles and cups"
-	kart_button.custom_minimum_size = _drive_button.custom_minimum_size
-	kart_button.pressed.connect(_open_kart)
-	race_button.add_sibling(kart_button)
-	var highway_button := Button.new()
-	highway_button.name = "HighwayButton"
-	highway_button.text = "Highway"
-	highway_button.accessibility_description = "Cruise, score attack, runs and laps through traffic"
-	highway_button.custom_minimum_size = _drive_button.custom_minimum_size
-	highway_button.pressed.connect(_open_highway)
-	kart_button.add_sibling(highway_button)
 	var online_button := Button.new()
 	online_button.name = "OnlineButton"
 	online_button.text = "Online"
 	online_button.accessibility_description = "Host or join a game over the network"
 	online_button.custom_minimum_size = _drive_button.custom_minimum_size
 	online_button.pressed.connect(_open_online)
-	highway_button.add_sibling(online_button)
+	_drive_button.add_sibling(online_button)
 	# Focus goes down the buttons as they're shown (one list, so the two can't differ).
 	var order := _drive_button.get_parent().get_children()
 	for b: Button in order:
@@ -104,6 +77,7 @@ func _ready() -> void:
 		add_child(first)
 		return
 	match Game.dev.get("menu", ""): # dev: open a menu directly
+		"solo": _open_solo()
 		"classes": _open_classes("free")
 		"event": _open_event(String(Settings.profile.get("last_platform", "official.track.gt")))
 		"free": _open_free(String(Settings.profile.get("last_platform", "official.track.gt")))
@@ -137,6 +111,37 @@ func _ready() -> void:
 		_online._join(String(Game.dev.connect), String(Game.dev.get("password", "")))
 
 
+## Solo Drive: the drive modes on this machine (SoloMenu). Shown again on `focus` (a mode) when
+## that mode's first screen is backed out of.
+func _open_solo(focus := "") -> void:
+	if is_instance_valid(_solo):
+		_solo.visible = true
+		_solo.focus(focus)
+		return
+	_solo = SoloMenu.new()
+	_solo.name = "SoloMenu"
+	_solo.chosen.connect(_on_solo_chosen)
+	_solo.closed.connect(func() -> void:
+		_solo.queue_free()
+		_drive_button.grab_focus())
+	add_child(_solo)
+	if focus:
+		_solo.focus(focus)
+
+
+func _on_solo_chosen(mode: String) -> void:
+	_solo.visible = false
+	match mode:
+		"highway": _open_highway()
+		"kart": _open_kart()
+		_: _open_classes(mode)
+
+
+## Back out of a mode's first screen: Solo Drive, on that mode.
+func _back_to_solo() -> void:
+	_open_solo(_mode)
+
+
 ## Free Drive: class first (how it drives), then its setup (track, AI, rules), then the players,
 ## who each pick a car (how it looks). Race: class, then the event (track included), then the players. Time Trial:
 ## class, then the track, then P1 drives.
@@ -149,7 +154,7 @@ func _open_classes(mode: String) -> void:
 	_classes.picked.connect(_on_class_picked)
 	_classes.closed.connect(func() -> void:
 		_classes.queue_free()
-		_drive_button.grab_focus())
+		_back_to_solo())
 	add_child(_classes)
 
 
@@ -176,7 +181,7 @@ func _open_free(platform_id: String) -> void:
 			_classes.visible = true
 			_classes.grab_focus_first()
 		else:
-			_drive_button.grab_focus())
+			_back_to_solo())
 	add_child(_free)
 
 
@@ -195,7 +200,7 @@ func _open_tracks(then: Callable, always := false) -> void:
 			_classes.visible = true
 			_classes.grab_focus_first()
 		else:
-			_drive_button.grab_focus())
+			_back_to_solo())
 	add_child(_tracks)
 
 
@@ -209,7 +214,7 @@ func _open_highway() -> void:
 		_open_highway_menu(path))
 	_tracks.closed.connect(func() -> void:
 		_tracks.queue_free()
-		_drive_button.get_parent().get_node(^"HighwayButton").grab_focus()) # back where it was
+		_back_to_solo())
 	add_child(_tracks)
 
 
@@ -253,7 +258,7 @@ func _open_kart() -> void:
 			_open_players(id, e, track))
 	menu.closed.connect(func() -> void:
 		menu.queue_free()
-		_drive_button.get_parent().get_node(^"KartButton").grab_focus())
+		_back_to_solo())
 	add_child(menu)
 
 
@@ -268,7 +273,7 @@ func _open_event(platform_id: String) -> void:
 			_classes.visible = true
 			_classes.grab_focus_first()
 		else:
-			_drive_button.grab_focus())
+			_back_to_solo())
 	add_child(_event)
 
 
@@ -304,7 +309,7 @@ func _open_players(platform_id: String, event: RaceEvent = null, track := "", st
 			_classes.visible = true
 			_classes.grab_focus_first()
 		else:
-			_drive_button.grab_focus())
+			_back_to_solo())
 	add_child(_players)
 
 

@@ -15,10 +15,31 @@ func test_shows_game_version() -> void:
 	assert_str(version.text).is_equal("v" + ProjectSettings.get_setting("application/config/version"))
 
 
-func test_free_drive_button_has_focus() -> void:
+func test_solo_drive_button_has_focus() -> void:
 	var runner := scene_runner(TITLE_SCENE)
 	await runner.simulate_frames(2)
-	var drive: Button = runner.find_child("FreeDriveButton")
+	var drive: Button = runner.find_child("SoloDriveButton")
+	assert_bool(drive.has_focus()).is_true()
+
+
+## Solo Drive (Changes.md) holds the drive modes: each named and in the focus order, and Back
+## (or cancel) comes back to Solo Drive on the title.
+func test_solo_drive_lists_the_modes() -> void:
+	var runner := scene_runner(TITLE_SCENE)
+	await runner.simulate_frames(2)
+	var drive: Button = runner.find_child("SoloDriveButton")
+	drive.pressed.emit()
+	await runner.simulate_frames(3)
+	var solo: SoloMenu = runner.find_child("SoloMenu")
+	assert_object(solo).is_not_null()
+	var names: Array = []
+	for b: Button in solo.find_children("*", "Button", true, false):
+		assert_str(String(b.accessibility_name)).is_not_empty()
+		names.append(String(b.accessibility_name))
+	assert_array(names).contains_exactly(["Free Drive", "Race", "Time Trial", "Highway", "Kart", "Back"])
+	assert_str(String(solo.get_viewport().gui_get_focus_owner().accessibility_name)).is_equal("Free Drive")
+	solo.closed.emit()
+	await runner.simulate_frames(3)
 	assert_bool(drive.has_focus()).is_true()
 
 
@@ -26,7 +47,7 @@ func test_free_drive_button_has_focus() -> void:
 ## Garage to Fitting Bay, past Track Editor above it).
 func test_buttons_have_accessible_names_and_focus_order() -> void:
 	var runner := scene_runner(TITLE_SCENE)
-	var names := ["FreeDriveButton", "RaceButton", "KartButton", "HighwayButton", "OnlineButton", "TimeTrialButton", "GarageButton", "TrackEditorButton", "FittingBayButton", "SettingsButton", "QuitButton"]
+	var names := ["SoloDriveButton", "OnlineButton", "GarageButton", "TrackEditorButton", "FittingBayButton", "SettingsButton", "QuitButton"]
 	for i in names.size():
 		var b: Button = runner.find_child(names[i])
 		assert_str(b.accessibility_name).is_not_empty()

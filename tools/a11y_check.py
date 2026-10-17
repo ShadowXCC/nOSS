@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Screen-reader check (ACC-03; M4 acceptance: boot -> race -> results with a screen reader).
 
-Runs the game with accessibility on and walks title -> Race -> class -> event -> Players -> a
-1-lap race -> results -> title, then Online -> Host -> the lobby -> Leave (M5), then Highway ->
-a highway -> its menu -> the class -> Players and back out (M7), then Kart -> a race, a battle
-and the cup builder -> the class -> Players and back out (M8), then the track editor: every
+Runs the game with accessibility on and walks title -> Solo Drive -> Race -> class -> event ->
+Players -> a 1-lap race -> results -> title, then Online -> Host -> the lobby -> Leave (M5), then
+Solo Drive -> Highway -> a highway -> its menu -> the class -> Players and back out (M7), then
+Solo Drive -> Kart -> a race, a battle and the cup builder -> the class -> Players and back out
+(M8), then the track editor: every
 tool, a new oval, its race setup and checks, a new highway loop and its ramps, the Stunts tool on
 a kart circuit and an arena, and out (M6-M8);
 then, in a second run, a highway session's pause menu (opened with --pause-at: keys can't be
@@ -249,13 +250,15 @@ def step(label, name, role="button", prefix=False, timeout=20.0, last=False):
 def highway_menus():
     """Title -> Highway -> a highway -> its menu -> its class -> Players, and back out (M7)."""
     log("Highway menus")
-    ok = step("Title (highway)", "Highway")
+    ok = step("Title (highway)", "Solo Drive")
+    ok = ok and step("Solo Drive (highway)", "Highway")
     ok = ok and step("Highway: tracks", "Lumen Ring", prefix=True)
     ok = ok and step("Highway: menu", "Next")
     ok = ok and step("Highway: class", "Highway Street", prefix=True)
     # Back out a screen at a time, each one known by something only it has.
     for label, anchor in (("Highway: players", "Ready"), ("Highway: class again", "Highway Street"),
-                          ("Highway: menu again", "Next"), ("Highway: tracks again", "Lumen Ring")):
+                          ("Highway: menu again", "Next"), ("Highway: tracks again", "Lumen Ring"),
+                          ("Solo Drive (after highway)", "Kart")):
         ok = ok and back_from(label, anchor)
     return ok
 
@@ -263,7 +266,8 @@ def highway_menus():
 def kart_menus():
     """Title -> Kart -> a race -> Players and back; a battle's; a cup's builder (M8)."""
     log("Kart menus")
-    ok = step("Title (kart)", "Kart")
+    ok = step("Title (kart)", "Solo Drive")
+    ok = ok and step("Solo Drive (kart)", "Kart")
     ok = ok and step("Kart: race", "Next")
     ok = ok and back_from("Kart: players", "Ready")  # each card picks its class (D149)
     ok = ok and step("Kart: to battle", "Play: Race")
@@ -273,6 +277,7 @@ def kart_menus():
     ok = ok and step("Kart: cup", "New cup")
     ok = ok and back_from("Kart: cup builder", "Save")
     ok = ok and back_from("Kart: menu", "Play: Cup")
+    ok = ok and back_from("Solo Drive (after kart)", "Highway")
     return ok
 
 
@@ -374,16 +379,17 @@ def main():
                 editor_walk()
             raise SystemExit(report())
         if "--highway-only" in sys.argv:
-            if find("Highway", "button", timeout=60.0) is not None:
+            if find("Solo Drive", "button", timeout=60.0) is not None:
                 highway_menus()
             stop_game(game)  # before the second run starts
             return finish()
         if "--kart-only" in sys.argv:
-            if find("Kart", "button", timeout=60.0) is not None:
+            if find("Solo Drive", "button", timeout=60.0) is not None:
                 kart_menus()
             raise SystemExit(report())
         log("Title")
-        ok = step("Title", "Race")
+        ok = step("Title", "Solo Drive")
+        ok = ok and step("Solo Drive", "Race")
         ok = ok and step("Class", "Track GT", prefix=True)
         ok = ok and step("Event", "Next")
         ok = ok and step("Players", "Ready", timeout=30.0)
@@ -396,8 +402,8 @@ def main():
                 rows = [n for n in walk(app()) if (n.get_name() or "").startswith("P") and ", " in (n.get_name() or "") and showing(n)]
                 log(f"  {len(rows)} result rows, e.g. '{row.get_name()}'")
                 step("Results", "Title")
-                if find("Race", "button", timeout=20.0) is None:
-                    problems.append("Back at the title: no Race button")
+                if find("Solo Drive", "button", timeout=20.0) is None:
+                    problems.append("Back at the title: no Solo Drive button")
                 else:
                     log("Online")
                     ok = step("Title again", "Online")
@@ -410,14 +416,14 @@ def main():
                         step("Online again", "Back")
                     elif ok:
                         problems.append("Lobby: no Leave button")
-                if find("Highway", "button", timeout=20.0) is not None:
+                if find("Solo Drive", "button", timeout=20.0) is not None:
                     highway_menus()
                 else:
-                    problems.append("Back at the title: no Highway button")
-                if find("Kart", "button", timeout=20.0) is not None:
+                    problems.append("Back at the title: no Solo Drive button")
+                if find("Solo Drive", "button", timeout=20.0) is not None:
                     kart_menus()
                 else:
-                    problems.append("Back at the title: no Kart button")
+                    problems.append("Back at the title: no Solo Drive button")
                 if find("Track Editor", "button", timeout=20.0) is not None:
                     editor_walk()
                 else:
