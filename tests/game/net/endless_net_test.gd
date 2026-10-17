@@ -188,6 +188,20 @@ func test_a_joiner_starts_behind_the_leader() -> void:
 	assert_float(s._endless_start()).is_equal(52000.0 - EndlessControl.JOIN_BEHIND_M)
 	s.dedicated = true # the server stays at the start
 	assert_float(s._endless_start()).is_equal(EndlessControl.START_M)
+	# In single file behind the leader (this game's players one behind another).
+	assert_int(s._endless_file_index(3, 4)).is_equal(0)
+	_free_session(s)
+
+
+func test_players_start_apart_at_the_start() -> void:
+	# Every game's first player is its own player 0: the roster keeps them apart (one game's car
+	# landed on the other's in a LAN test).
+	var s := TrackSession.new()
+	s.event = RaceEvent.endless(4242, 1)
+	s.online = { "endless": { "t0": 0.0, "at": {} } }
+	assert_int(s._endless_file_index(7, 0)).is_equal(0)
+	assert_int(s._endless_file_index(9, 1)).is_equal(1)
+	assert_int(s._endless_file_index(12, 2)).is_equal(2)
 	_free_session(s)
 
 

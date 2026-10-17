@@ -177,7 +177,7 @@ A calm, never-ending drive, like Slow Roads.
 - **Sharing:** a road code, the start biome and the seed, e.g. `FOREST-0007K2Q` (Crockford base 32; case and O-for-0 typos don't matter). The pause menu copies it.
 - **Resets** put the car back in its lane where it last was, ghosted for 3 s.
 - **Players on one PC** stay on one stretch of road. Past 2.5 km apart they're warned; past 3 km the event's rule acts: **Bring up the one behind**, or **Hold the leader back**.
-- **Online (D159):** everyone drives the same road. Each game builds the road round its own players and keeps its own origin, so players spread out freely; **Join** in the pause menu puts you just behind another player, at their speed. A joiner starts just behind whoever's furthest along. One game drives each traffic car near players and the others show it; a slot used up on one game is used up on all. The server checks the road chunks each game made against its own.
+- **Online (D159):** everyone drives the same road. Each game builds the road round its own players and keeps its own origin, so players spread out freely; **Join** in the pause menu puts you just behind another player, at their speed. At the start everyone lines up in single file in the roster's order; a joiner starts just behind whoever's furthest along. Online cars start ghosted for 3 s. One game drives each traffic car near players and the others show it; a slot used up on one game is used up on all. The server checks the road chunks each game made against its own.
 
 ## 5. Light career
 

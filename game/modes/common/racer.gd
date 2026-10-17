@@ -219,6 +219,8 @@ func _spawn(pkg: VehiclePackage) -> void:
 		timer.teleported(lap_pos(last_valid))
 	if session.ghosted:
 		set_ghost(true)
+	elif session.endless and session.net and session.net.owned.has(net_id):
+		ghost_for(EndlessControl.GHOST_S) # online, others may be anywhere near (D159)
 	driver = _make_driver()
 	add_child(driver)
 	if Game.dedicated or Game.dev.has("bot"):

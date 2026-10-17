@@ -42,6 +42,7 @@ var _kart_uses := 0
 var _kart_hits := 0
 var _endless := {}
 var _endless_lead := NAN # the furthest player's spot when it joined (m)
+var _spawn_m := NAN # where its first player started on the road (m)
 var _proxies_max := 0
 var _owned_traffic_max := 0
 var _near_s := 0
@@ -142,11 +143,13 @@ func _endless_sample(session: TrackSession) -> void:
 		_proxies_max = maxi(_proxies_max, proxies)
 		_owned_traffic_max = maxi(_owned_traffic_max, t.cars.size() - proxies)
 	var me: Racer = session.players[0]
+	if is_nan(_spawn_m) and me.vehicle:
+		_spawn_m = float(session.track.project(me.spawn_at.origin).distance)
 	for id: int in en.at:
 		if not id in Net.my_ids and absf(en.distance_of(id) - me.distance) < 300.0:
 			_near_s += 1
 			break
-	_endless = { "km": (me.distance - session.endless_start_m) / 1000.0, "start_m": session.endless_start_m, "lead_m": _endless_lead,
+	_endless = { "km": (me.distance - session.endless_start_m) / 1000.0, "start_m": session.endless_start_m, "spawn_m": _spawn_m, "lead_m": _endless_lead,
 		"shifts": session.origin.shifts, "owned_max": _owned_traffic_max, "proxies_max": _proxies_max, "handovers": en.handovers,
 		"gone": t.gone.size() if t else 0, "near_s": _near_s }
 

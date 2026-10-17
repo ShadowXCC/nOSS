@@ -39,7 +39,7 @@ the same road (the bots' chunk checksums against the server's: none may differ),
 are shown where they are although each game's origin moves on its own (p95 under 1 m), that every
 bot drove and moved its origin, and that the traffic was shared (a car one game drives shown on
 another). With --late the last bot joins that many seconds after the rest: it must start just
-behind the leader.
+behind the leader. Bots that start together must each start in their own spot.
 
 With --exported the exported builds run instead of the project (tools/export.sh linux windows
 server first): the dedicated server, then bots taking turns between the Linux export and the Windows
@@ -439,6 +439,13 @@ def main(argv=None):
                 gap = e["lead_m"] - e["start_m"]
                 if e["lead_m"] < 0 or not 0 <= gap <= 400:
                     fails.append(f"{name} joined {gap:.0f} m behind the leader")
+        # Bots that started together each have their own spot (a LAN test had two cars land on each other).
+        spawns = sorted((reports[n]["endless"]["spawn_m"], n) for n in reports
+                        if n.startswith("bot") and reports[n].get("endless", {}).get("spawn_m") is not None
+                        and not (late_bots and n == last))
+        for (a, na), (b, nb) in zip(spawns, spawns[1:]):
+            if b - a < 10.0:
+                fails.append(f"{na} and {nb} started {b - a:.1f} m apart")
         if not any(reports[n].get("endless", {}).get("proxies_max", 0) > 0 for n in reports if n.startswith("bot")) and len(bots) > 1:
             fails.append("no traffic car was shown from another game")
         if endless_server is None:

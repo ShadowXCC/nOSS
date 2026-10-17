@@ -193,7 +193,7 @@ Every game makes the same road and the same traffic schedule from the event's se
 
 - **Traffic owners:** a game with a player within 140 m of a scheduled car makes it a physics car at once and asks for it. The first game to ask drives it and sends its states (id 1000 + its slot, 20 a second); the others get the owner and show a kinematic proxy, which goes on along its slot until states come. When the owner lets it go (nobody of its own near), the next game still asking takes it over where it is, at its speed; a game that leaves hands its cars on the same way. The owner's flags2 say whether the car is wrecked or has left its slot.
 - **Slots used up:** a car knocked out of its slot (or left behind) is never drawn from the schedule again on any game: the owner reports it, the server tells everyone.
-- **Where everyone is:** once a second each game reports its players' road distances and speeds; the server sends everyone the lot (for Join, and in SESSION for joiners, who start just behind whoever's furthest along).
+- **Where everyone is:** once a second each game reports its players' road distances and speeds; the server sends everyone the lot (for Join, and in SESSION for joiners, who start just behind whoever's furthest along). At a session's start each game places its players by their place in the roster, so cars on different games never start on the same spot; cars start ghosted for 3 s.
 - **The road checked:** each game reports the checksum of every chunk it made; the server makes the same chunk and compares (none may differ, M9's "a seed reproduces the same road").
 - **The server** builds no world (§9) and doesn't place cars on the road: it relays states, rules on owners and checks chunks.
 

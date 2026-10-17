@@ -689,6 +689,16 @@ func _ready_online() -> void:
 	ai_racers = 0
 
 
+## Where in the single file an online player starts on an endless road (D159): at the session's
+## start by their place in the roster, so players on different games never land on each other;
+## joining a drive under way, one behind another behind the leader.
+func _endless_file_index(id: int, roster_index: int) -> int:
+	var at: Variant = online.get("endless", {}).get("at", {})
+	if at is Dictionary and not (at as Dictionary).is_empty():
+		return maxi(Array(Net.my_ids).find(id), 0)
+	return roster_index
+
+
 ## The server changed the sky mid-session (an admin's /time or /weather).
 func _on_env_changed(sky: Dictionary) -> void:
 	online.environment = sky
@@ -712,7 +722,7 @@ func _on_chat(line: Dictionary) -> void:
 func _add_online_racer(d: Dictionary, index: int) -> Racer:
 	var id := int(d.id)
 	var spot := highway.spawn_for(index, direction_for(index)) if highway \
-		else endless.spawn_for(maxi(Array(Net.my_ids).find(id), 0)) if endless \
+		else endless.spawn_for(_endless_file_index(id, index)) if endless \
 		else track.transform_at(_grid_distance(index), _grid_lateral(index))
 	if d.get("ai", false) and Net.is_server(): # the server's AI cars (D88)
 		var a := AiRacer.new()
