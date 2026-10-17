@@ -102,3 +102,26 @@ func test_outside_karts_everyone_has_the_sessions_class() -> void:
 		await get_tree().physics_frame
 	for r in s.racers:
 		assert_str(String(r.platform.platform.id)).is_equal("official.track.gt")
+
+
+func test_online_each_kart_has_the_rosters_class() -> void:
+	var t: TrackSession = auto_free(TrackSession.new())
+	t.platform_id = "official.kart.medium"
+	t.platform = PlatformLoader.load_official(t.platform_id)
+	t.mode = GameModes.mode_for(t.platform_id)
+	t.arcade = GameModes.arcade(t.mode)
+	t.online = { "track": "t" }
+	var remote: NetRacer = auto_free(NetRacer.new())
+	remote.class_id = "official.kart.heavy"
+	assert_str(String(t.platform_for(remote).platform.id)).is_equal("official.kart.heavy")
+	remote.class_id = "official.track.gt" # not the mode's: the session's
+	assert_str(String(t.platform_for(remote).platform.id)).is_equal("official.kart.medium")
+	# The server's AI karts go by the roster too, not a pick of this game's.
+	var a: AiRacer = auto_free(AiRacer.new())
+	a.number = 5
+	assert_str(String(t.platform_for(a).platform.id)).is_equal("official.kart.medium")
+	a.class_id = "official.kart.light"
+	assert_str(String(t.platform_for(a).platform.id)).is_equal("official.kart.light")
+	for o: Object in [t.views, t.field, t.race, remote.timer, a.timer]: # never in the tree
+		if o is Node:
+			o.free()
