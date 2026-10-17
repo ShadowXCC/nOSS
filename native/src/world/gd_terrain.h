@@ -25,6 +25,12 @@ public:
 	world::SurfaceMap map;
 	// VehicleSim surface id, or -1 off the map.
 	int64_t surface_at(double p_x, double p_z) const { return map.at(p_x, p_z); }
+	// Where its first sample is (the floating origin moves it, D155).
+	void set_origin(const godot::Vector2 &p_origin) {
+		map.ox = p_origin.x;
+		map.oz = p_origin.y;
+	}
+	godot::Vector2 get_origin() const { return godot::Vector2(real_t(map.ox), real_t(map.oz)); }
 };
 
 // A track's terrain (heightfield.h) for scripts: shaping, paint, the road's bed, picking, and
@@ -41,6 +47,11 @@ public:
 	void create(int64_t p_w, int64_t p_d, const godot::Vector2 &p_origin, double p_cell, double p_height, int64_t p_layer);
 	godot::Vector2i get_size() const { return godot::Vector2i(_field.w, _field.d); }
 	godot::Vector2 get_origin() const { return godot::Vector2(_field.ox, _field.oz); }
+	// Moves the field without changing it (the floating origin, D155).
+	void set_origin(const godot::Vector2 &p_origin) {
+		_field.ox = p_origin.x;
+		_field.oz = p_origin.y;
+	}
 	double get_cell() const { return _field.cell; }
 	double height_at(double p_x, double p_z) const { return _field.height_at(p_x, p_z); }
 	double base_at(double p_x, double p_z) const { return _field.base_at(p_x, p_z); }

@@ -144,6 +144,14 @@ static func create(platform_result: PlatformLoader.Result, pkg: VehiclePackage, 
 func _ready() -> void:
 	sim.set_exclude([get_rid()])
 	add_to_group(&"vehicles")
+	add_to_group(&"origin_shift")
+
+
+## The floating origin moved (D155): the car moves with the world, keeping its speed and spin.
+## Not a reset (online it isn't a teleport).
+func origin_shifted(delta: Vector3) -> void:
+	global_position += delta
+	reset_physics_interpolation()
 
 
 ## Water and snow on the road under this car (EnvDirector, D153); its grip follows.

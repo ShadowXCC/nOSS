@@ -87,10 +87,15 @@ func mesh() -> ArrayMesh:
 
 ## The triangles as a collision shape (faces in the mesh's winding).
 func shape() -> ConcavePolygonShape3D:
-	var faces := PackedVector3Array()
-	faces.resize(index.size())
-	for k in index.size():
-		faces[k] = verts[index[k]]
 	var s := ConcavePolygonShape3D.new()
-	s.set_faces(faces)
+	s.set_faces(faces())
 	return s
+
+
+## The triangles as a list of corners, three per face (no engine calls: safe on a worker).
+func faces() -> PackedVector3Array:
+	var out := PackedVector3Array()
+	out.resize(index.size())
+	for k in index.size():
+		out[k] = verts[index[k]]
+	return out

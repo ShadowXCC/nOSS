@@ -48,10 +48,13 @@ PackedFloat32Array floats(const std::vector<float> &p_v) {
 } // namespace
 
 void NossSurfaceMap::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("set_origin", "origin"), &NossSurfaceMap::set_origin);
+	ClassDB::bind_method(D_METHOD("get_origin"), &NossSurfaceMap::get_origin);
 	ClassDB::bind_method(D_METHOD("surface_at", "x", "z"), &NossSurfaceMap::surface_at);
 }
 
 void NossTerrain::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("set_origin", "origin"), &NossTerrain::set_origin);
 	ClassDB::bind_method(D_METHOD("create", "w", "d", "origin", "cell", "height", "layer"), &NossTerrain::create);
 	ClassDB::bind_method(D_METHOD("get_size"), &NossTerrain::get_size);
 	ClassDB::bind_method(D_METHOD("get_origin"), &NossTerrain::get_origin);

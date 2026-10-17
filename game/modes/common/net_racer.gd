@@ -41,6 +41,14 @@ func setup() -> void:
 	process_physics_priority = -70 # after the network is polled, before the RaceField
 
 
+## The floating origin moved (D155): its states and what it showed move with the world too.
+func origin_shifted(delta: Vector3) -> void:
+	super(delta)
+	buffer.shift(delta)
+	for i in _shown_p.size():
+		_shown_p[i] += delta
+
+
 ## Its car is as whole here as this game will have it (D127): every tier this game fetches is
 ## in and mounted, or nothing better is coming (no car picked, or refused).
 func settled() -> bool:

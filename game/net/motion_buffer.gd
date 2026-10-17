@@ -22,6 +22,12 @@ var _offset_rot := Quaternion.IDENTITY
 var _shown_at := -1.0
 
 
+## The floating origin moved (D155): every state moves with the world.
+func shift(delta: Vector3) -> void:
+	for s in states:
+		s.xform.origin += delta
+
+
 func latest() -> CarState:
 	return states[-1] if not states.is_empty() else null
 

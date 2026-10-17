@@ -106,6 +106,14 @@ var _pending_time := 0.0
 ## Sets up the lap timer. Subclasses add their view, HUD and camera.
 func setup() -> void:
 	_new_timer()
+	add_to_group(&"origin_shift")
+
+
+## The floating origin moved (D155): its spawn and last good spot move with the world (its car
+## moves itself).
+func origin_shifted(delta: Vector3) -> void:
+	spawn_at.origin += delta
+	last_valid_xform.origin += delta
 
 
 ## A fresh timer and results for the next session (the car stays).
