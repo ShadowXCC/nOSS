@@ -55,6 +55,8 @@ ManeuverSpec read_spec(const String &p_maneuver, const Dictionary &p_options) {
 	read_number(p_options, "step_lateral_g", s.step_lateral_g);
 	read_number(p_options, "top_speed_time", s.top_speed_time);
 	read_number(p_options, "pace", s.pace);
+	read_number(p_options, "wetness", s.conditions.wetness);
+	read_number(p_options, "snow", s.conditions.snow);
 	s.slalom_gates = std::max(int(gates), 2);
 	return s;
 }

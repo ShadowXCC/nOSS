@@ -46,6 +46,11 @@ public:
 	void shift(int64_t p_direction);
 	void select_gear(int64_t p_gear);
 	void set_assists(const godot::Dictionary &p_assists);
+	// Water and snow on the road (0..1 each, ENV-02); both 0 is the dry sim exactly.
+	void set_conditions(double p_wetness, double p_snow);
+	godot::Vector2 get_conditions() const;
+	// A surface's grip in these conditions (AI speeds, the HUD).
+	static double grip_of(int64_t p_surface, double p_wetness, double p_snow);
 	void reset();
 	void roll_at(double p_speed);
 

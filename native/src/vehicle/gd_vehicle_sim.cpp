@@ -1,5 +1,7 @@
 #include "vehicle/gd_vehicle_sim.h"
 
+#include <algorithm>
+
 #include "vehicle/gd_platform.h"
 #include "world/gd_terrain.h"
 
@@ -34,6 +36,9 @@ void VehicleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("shift", "direction"), &VehicleSim::shift);
 	ClassDB::bind_method(D_METHOD("select_gear", "gear"), &VehicleSim::select_gear);
 	ClassDB::bind_method(D_METHOD("set_assists", "assists"), &VehicleSim::set_assists);
+	ClassDB::bind_method(D_METHOD("set_conditions", "wetness", "snow"), &VehicleSim::set_conditions);
+	ClassDB::bind_method(D_METHOD("get_conditions"), &VehicleSim::get_conditions);
+	ClassDB::bind_static_method("VehicleSim", D_METHOD("surface_grip", "surface", "wetness", "snow"), &VehicleSim::grip_of);
 	ClassDB::bind_method(D_METHOD("reset"), &VehicleSim::reset);
 	ClassDB::bind_method(D_METHOD("roll_at", "speed"), &VehicleSim::roll_at);
 	ClassDB::bind_method(D_METHOD("get_speed"), &VehicleSim::get_speed);
@@ -216,6 +221,20 @@ void VehicleSim::set_assists(const Dictionary &p_assists) {
 	a.stability = p_assists.get("stability", a.stability);
 	a.auto_gearbox = p_assists.get("auto_gearbox", a.auto_gearbox);
 	a.auto_clutch = p_assists.get("auto_clutch", a.auto_clutch);
+}
+
+void VehicleSim::set_conditions(double p_wetness, double p_snow) {
+	if (_model) {
+		_model->conditions = { std::clamp(p_wetness, 0.0, 1.0), std::clamp(p_snow, 0.0, 1.0) };
+	}
+}
+
+Vector2 VehicleSim::get_conditions() const {
+	return _model ? Vector2(real_t(_model->conditions.wetness), real_t(_model->conditions.snow)) : Vector2();
+}
+
+double VehicleSim::grip_of(int64_t p_surface, double p_wetness, double p_snow) {
+	return surface_grip(int(p_surface), { p_wetness, p_snow });
 }
 
 void VehicleSim::reset() {

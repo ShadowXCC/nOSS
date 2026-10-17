@@ -30,6 +30,7 @@ struct ManeuverSpec {
 	double step_lateral_g = 0.4; // steady-state target of the step input
 	double top_speed_time = 60.0; // s
 	double pace = 0.75; // lap speed as a share of the tires' grip
+	Conditions conditions; // water and snow on the test surface (ENV-02)
 };
 
 struct Metric {

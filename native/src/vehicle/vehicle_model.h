@@ -73,9 +73,21 @@ enum Surface {
 struct SurfaceInfo {
 	double grip;
 	double drag; // extra rolling resistance coefficient
+	double wet; // grip with water on it (sealed surfaces lose 25%, the rest keep theirs)
+	double snow; // grip under snow
 };
 
 const SurfaceInfo &surface_info(int p_surface);
+
+// What the weather has left on the road (docs/PHYSICS.md §4, ENV-02), each 0..1.
+struct Conditions {
+	double wetness = 0.0;
+	double snow = 0.0;
+};
+
+// A surface's grip in these conditions: dry, toward wet by the wetness, then toward its snow
+// grip by the snow. Exactly the dry grip when both are 0.
+double surface_grip(int p_surface, const Conditions &p_conditions);
 
 struct AxleSpec {
 	double freq_hz = 2.0;
@@ -258,6 +270,8 @@ public:
 	std::optional<KartLayer> kart;
 	// The world's gravity at the car (the kart layer's stick gravity replaces it).
 	V3 gravity{ 0.0, -GRAVITY, 0.0 };
+	// Water and snow on the road under this car (none: the dry sim, exactly).
+	Conditions conditions;
 
 	// Ray each wheel casts this tick; the caller fills a Contact per wheel.
 	Ray wheel_ray(int p_index, const Chassis &p_chassis) const;

@@ -8,17 +8,19 @@ namespace noss::vehicle {
 
 namespace {
 
+// grip, drag, wet grip, grip under snow. Sealed surfaces lose a quarter of their grip wet and
+// pack down to 0.45 under snow; loose ones keep theirs wet and go to snow's under snow.
 constexpr std::array<SurfaceInfo, SURFACE_COUNT> SURFACES = { {
-		{ 1.00, 0.0 }, // asphalt
-		{ 0.97, 0.0 }, // concrete
-		{ 0.90, 0.005 }, // curb
-		{ 0.95, 0.0 }, // painted line
-		{ 0.60, 0.06 }, // grass
-		{ 0.55, 0.12 }, // gravel
-		{ 0.70, 0.03 }, // dirt
-		{ 0.40, 0.20 }, // sand
-		{ 0.35, 0.02 }, // snow
-		{ 0.12, 0.0 }, // ice
+		{ 1.00, 0.0, 0.75, 0.45 }, // asphalt
+		{ 0.97, 0.0, 0.7275, 0.45 }, // concrete
+		{ 0.90, 0.005, 0.675, 0.45 }, // curb
+		{ 0.95, 0.0, 0.7125, 0.45 }, // painted line
+		{ 0.60, 0.06, 0.60, 0.35 }, // grass
+		{ 0.55, 0.12, 0.55, 0.35 }, // gravel
+		{ 0.70, 0.03, 0.70, 0.35 }, // dirt
+		{ 0.40, 0.20, 0.40, 0.35 }, // sand
+		{ 0.35, 0.02, 0.35, 0.35 }, // snow
+		{ 0.12, 0.0, 0.12, 0.12 }, // ice
 } };
 
 // Slip ratio uses max(|v|, this) as its denominator, so it stays finite at a standstill.
@@ -57,6 +59,13 @@ constexpr double WHEEL_INERTIA_PER_KG_M2 = 0.0085;
 
 const SurfaceInfo &surface_info(int p_surface) {
 	return SURFACES[size_t(std::clamp(p_surface, 0, SURFACE_COUNT - 1))];
+}
+
+double surface_grip(int p_surface, const Conditions &p_conditions) {
+	const SurfaceInfo &s = surface_info(p_surface);
+	double w = std::clamp(p_conditions.wetness, 0.0, 1.0), snow = std::clamp(p_conditions.snow, 0.0, 1.0);
+	double g = s.grip + (s.wet - s.grip) * w;
+	return g + (s.snow - g) * snow;
 }
 
 Config make_config(const PlatformSpec &p_spec, const Geometry &p_geometry) {
@@ -256,6 +265,7 @@ void VehicleModel::roll_at(double p_speed) {
 void VehicleModel::take_state(const VehicleModel &p_other) {
 	controls = p_other.controls;
 	assists = p_other.assists;
+	conditions = p_other.conditions;
 	engine_omega = p_other.engine_omega;
 	gearbox.gear = p_other.gearbox.gear;
 	gearbox.target = p_other.gearbox.target;
@@ -477,7 +487,7 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 	if (assists.stability && forward_speed > ESC_MIN_SPEED) {
 		double v = forward_speed;
 		double yaw = dot(p_chassis.angular_velocity, up); // + = turning left
-		double limit = ESC_GRIP * spec.tire.mu * 9.81 / v;
+		double limit = ESC_GRIP * spec.tire.mu * surface_grip(SURFACE_ASPHALT, conditions) * 9.81 / v;
 		double target = clampd(v * std::tan(delta) / spec.wheelbase_ref, -limit, limit);
 		V3 vb = R.transposed() * p_chassis.velocity;
 		double beta = std::atan2(vb.x, std::max(std::abs(vb.z), 1.0)); // + = sliding to the left
@@ -628,7 +638,7 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 			w.deflection = clampd(w.deflection, -sigma * max_tan_alpha, sigma * max_tan_alpha);
 			w.tan_alpha = w.deflection / sigma;
 			v_den[i] = std::max(std::abs(vl), SLIP_SPEED_FLOOR);
-			mu[i] = tire_mu(spec.tire, w.fz) * surface_info(w.surface).grip * mods.grip;
+			mu[i] = tire_mu(spec.tire, w.fz) * surface_grip(w.surface, conditions) * mods.grip;
 			double kappa = (w.omega * r - vl) / v_den[i];
 			double dk = 0.01 * spec.tire.peak_slip_ratio;
 			double tan_alpha = w.tan_alpha * mods.slip_seen;

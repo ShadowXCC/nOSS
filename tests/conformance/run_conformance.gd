@@ -3,7 +3,9 @@ extends SceneTree
 ## the standard maneuvers across its geometry grid, and checks that each metric stays within
 ## 2% of the platform's reference geometry. Writes conformance.csv and summary.json to
 ## tests/conformance/out/. Exits 1 on any failure.
-##   tools/run_conformance.sh [--quick] [--platform=official.track.gt]
+## Then the weather (ENV-02): each platform's reference config dry, wet and under snow, with the
+## wet cornering grip and braking distance checked against dry (summary.json's "weather").
+##   tools/run_conformance.sh [--quick] [--platform=official.track.gt] [--no-weather]
 
 const Grid := preload("res://tests/conformance/conformance_grid.gd")
 const TRACK := "res://content/tracks/proving_ground/track.json"
@@ -56,6 +58,13 @@ func _run() -> int:
 			report.failed, report.worst_metric, report.worst_pct, report.worst_config, report.ms])
 		for line: String in report.failures.slice(0, 12):
 			print("  ", line)
+		if not args.has("no-weather"):
+			var weather := _weather(platform, options, threads)
+			summary.platforms[platform.id].weather = weather
+			failures += int(not weather.pass)
+			print("%s %s weather: skidpad wet %.2fx, snow %.2fx; braking wet %.2fx, snow %.2fx; lap wet %.2fx" % [
+				"PASS" if weather.pass else "FAIL", platform.id, weather.lat_g_wet, weather.lat_g_snow,
+				weather.braking_wet, weather.braking_snow, weather.lap_wet])
 	summary.failed = failures
 	summary.ms = Time.get_ticks_msec() - t0
 	_write(rows, summary)
@@ -118,6 +127,41 @@ func _run_platform(platform: Dictionary, platform_hash: String, track_options: D
 			rows.append(base.merged({ "metric": metric, "value": value, "ref": ref_value, "delta_pct": check.delta, "pass": check.pass }))
 	report.ms = Time.get_ticks_msec() - t0
 	return report
+
+
+## The reference config's skidpad, braking and lap dry, wet and under snow (ENV-02, M9's "rain
+## measurably lowers grip"). Ratios are wet (or snow) over dry; wet must lose at least 10% of the
+## cornering grip (on a 30 m circle, so karts reach their grip before their top speed), brake at
+## least 5% longer (brake torque, not grip, stops some light cars) and lap slower; snow more so.
+static func _weather(platform: Dictionary, track_options: Dictionary, threads: int) -> Dictionary:
+	var ref: Dictionary = Grid.configs(platform, true)[0]
+	var fitted := Fitting.fit(platform, ref.fit, ref.get("mode", "normal"))
+	var geometry := { "ground_y": fitted.ground_y, "wheels": fitted.physics_wheels }
+	var arcade := GameModes.arcade(GameModes.mode_for(platform.id))
+	var test_kmh := _test_speed(platform, ref)
+	var jobs := []
+	var conditions := [{}, { "wetness": 1.0 }, { "snow": 1.0 }]
+	for c: Dictionary in conditions:
+		var options := track_options.merged(c).merged({ "brake_speed": test_kmh, "skidpad_radius": 30.0 })
+		for maneuver in ["skidpad", "braking", "lap"]:
+			jobs.append({ "platform": platform, "geometry": geometry, "maneuver": maneuver, "options": options, "arcade": arcade })
+	var results := NossConformance.run_batch(jobs, threads)
+	var value := func(i: int, metric: String) -> float:
+		return float(results[i].metrics.get(metric, NAN)) if results[i].ok else NAN
+	var brake_metric := "d_%d_0_m" % int(test_kmh)
+	var out := {
+		"lat_g": [value.call(0, "lat_g"), value.call(3, "lat_g"), value.call(6, "lat_g")],
+		"braking_m": [value.call(1, brake_metric), value.call(4, brake_metric), value.call(7, brake_metric)],
+		"lap_s": [value.call(2, "lap_s"), value.call(5, "lap_s"), value.call(8, "lap_s")],
+	}
+	out.lat_g_wet = out.lat_g[1] / out.lat_g[0]
+	out.lat_g_snow = out.lat_g[2] / out.lat_g[0]
+	out.braking_wet = out.braking_m[1] / out.braking_m[0]
+	out.braking_snow = out.braking_m[2] / out.braking_m[0]
+	out.lap_wet = out.lap_s[1] / out.lap_s[0]
+	out.pass = out.lat_g_wet < 0.9 and out.braking_wet > 1.05 and out.lap_wet > 1.03 \
+		and out.lat_g_snow < out.lat_g_wet and out.braking_snow > out.braking_wet
+	return out
 
 
 ## 100 km/h, or 85% of the reference config's top speed rounded down to 10 km/h.

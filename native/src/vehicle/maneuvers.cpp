@@ -52,6 +52,7 @@ ManeuverResult fail(const std::string &p_error) {
 // Full throttle along a straight: 0-100 and 0-200 km/h times, or the speed after a set time.
 ManeuverResult launch(const Config &p_config, const ManeuverSpec &p_spec, bool p_top_speed) {
 	FlatHarness h(p_config);
+	h.model.conditions = p_spec.conditions;
 	Path path = straight_path(8000.0);
 	PathDriver driver(path, p_config.spec);
 	settle(h);
@@ -126,6 +127,7 @@ bool hold_speed(FlatHarness &p_h, PathDriver &p_driver, double p_target, double 
 // above it.
 ManeuverResult braking(const Config &p_config, const ManeuverSpec &p_spec) {
 	FlatHarness h(p_config);
+	h.model.conditions = p_spec.conditions;
 	Path path = straight_path(8000.0);
 	PathDriver driver(path, p_config.spec);
 	settle(h);
@@ -179,6 +181,7 @@ ManeuverResult skidpad(const Config &p_config, const ManeuverSpec &p_spec) {
 	}
 	Path path(points, true);
 	FlatHarness h(p_config);
+	h.model.conditions = p_spec.conditions;
 	DriverParams params;
 	params.lateral_time = 4.0;
 	PathDriver driver(path, p_config.spec, params);
@@ -231,6 +234,7 @@ ManeuverResult skidpad(const Config &p_config, const ManeuverSpec &p_spec) {
 // At a steady speed, a quick steering step to a fixed input: yaw-rate rise time and overshoot.
 ManeuverResult step_steer(const Config &p_config, const ManeuverSpec &p_spec) {
 	FlatHarness h(p_config);
+	h.model.conditions = p_spec.conditions;
 	Path path = straight_path(8000.0);
 	PathDriver driver(path, p_config.spec);
 	settle(h);
@@ -300,6 +304,7 @@ ManeuverResult slalom(const Config &p_config, const ManeuverSpec &p_spec) {
 	// Worst path error between the first and last gate at p_kmh.
 	auto error_at = [&](double p_kmh) -> double {
 		FlatHarness h(p_config);
+	h.model.conditions = p_spec.conditions;
 		h.place_at(0.0, -runup, 0.0);
 		PathDriver driver(path, p_config.spec);
 		settle(h);
@@ -358,11 +363,12 @@ ManeuverResult lap(const Config &p_config, const ManeuverSpec &p_spec) {
 		return fail("No track");
 	}
 	Path path(p_spec.track, true);
-	double grip = p_config.spec.tire.mu * GRAVITY * p_spec.pace;
+	double grip = p_config.spec.tire.mu * surface_grip(SURFACE_ASPHALT, p_spec.conditions) * GRAVITY * p_spec.pace;
 	std::vector<double> profile = speed_profile(path, grip, 0.9 * grip, 120.0);
 	double x, z, heading;
 	path.point_at(p_spec.track_start_s - p_spec.lap_runup, x, z, heading);
 	FlatHarness h(p_config);
+	h.model.conditions = p_spec.conditions;
 	h.place_at(x, z, heading);
 	PathDriver driver(path, p_config.spec);
 	settle(h);
