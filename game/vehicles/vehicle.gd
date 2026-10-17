@@ -92,6 +92,8 @@ var _wheel_front := PackedByteArray()
 var _lights_key := -1
 
 var _collision: CollisionShape3D
+var _road := Vector2.ZERO
+var _beams: SpotLight3D
 
 
 ## Drives with the kart_arcade layer (`numbers` from GameModes.arcade), or without it ({}).
@@ -139,6 +141,43 @@ static func create(platform_result: PlatformLoader.Result, pkg: VehiclePackage, 
 
 func _ready() -> void:
 	sim.set_exclude([get_rid()])
+	add_to_group(&"vehicles")
+
+
+## Water and snow on the road under this car (EnvDirector, D153); its grip follows.
+func set_road(wetness: float, snow: float) -> void:
+	var c := Vector2(wetness, snow)
+	if not c.is_equal_approx(_road):
+		_road = c
+		sim.set_conditions(wetness, snow)
+
+
+## Its headlights light the road (players' cars and the nearest few, at night; D153).
+func set_beams(on: bool) -> void:
+	if on == (_beams != null) or not drawn:
+		return
+	if not on:
+		_beams.queue_free()
+		_beams = null
+		return
+	_beams = SpotLight3D.new()
+	_beams.name = "Beams"
+	_beams.light_color = Color(1.0, 0.95, 0.85)
+	_beams.light_energy = 7.0
+	_beams.spot_range = 95.0
+	_beams.spot_angle = 40.0
+	_beams.spot_attenuation = 0.55
+	_beams.spot_angle_attenuation = 1.3
+	_beams.shadow_enabled = false
+	_beams.light_specular = 0.3
+	var front := 2.0
+	var height := 0.7
+	if fitted and fitted.envelope.size != Vector3.ZERO:
+		front = fitted.envelope.end.z
+		height = fitted.envelope.position.y + fitted.envelope.size.y * 0.35
+	# A little ahead of the nose and tilted down to light the road; the body faces +Z.
+	_beams.transform = Transform3D(Basis.from_euler(Vector3(deg_to_rad(-2.5), PI, 0.0)), Vector3(0.0, height, front + 0.2))
+	add_child(_beams)
 
 
 ## Mounts a package: fit, visuals, collision envelope. Mid-drive this is the hotswap:
@@ -270,6 +309,7 @@ func _process(delta: float) -> void:
 			_lights_key = key
 			visual.set_indicators(key & 1 != 0, key & 2 != 0)
 			visual.set_light("head", 2.0 if head_flash else float(head_lights))
+			visual.set_tail_lights(head_lights > 0)
 		_sound_horn()
 
 

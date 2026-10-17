@@ -8,7 +8,8 @@ extends SubViewportContainer
 ##   by Players (PlayerSlot.menu_target). Godot has one focus per OS window, so the view
 ##   remembers its own (Players.track_focus) and draws its own focus cursor.
 ## - Render scale and anti-aliasing follow the graphics preset, times the auto-resolution
-##   factor. Brightness is the player's (a copy of the world's environment on the camera).
+##   factor. Brightness is the player's (a copy of the world's environment on the camera, kept in
+##   step with the sky by EnvDirector).
 
 const REF := Vector2(1920, 1080)
 ## Room a menu needs; menus shrink below it, and the text scale stops growing them past it.
@@ -33,13 +34,18 @@ var render_scale := 1.0:
 var _hud_layer := CanvasLayer.new()
 var _overlay_layer := CanvasLayer.new()
 var _cursor := FocusCursor.new()
+## The player's brightness (their profile's).
+var brightness := 1.0
+
 var _world_env: Environment
 var _env: Environment
 var _camera: Camera3D
+var _flash := 0.0
 
 
 func _init() -> void:
 	name = "PlayerView"
+	add_to_group(&"player_views")
 	# Paused, the window only hands clicks to controls that can process: the view keeps taking
 	# them for its menus, while the world in it (camera rig) pauses.
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -100,20 +106,39 @@ func set_camera(camera: Camera3D, world_env: Environment) -> void:
 	apply_profile()
 
 
-## Re-reads the player's HUD scale, text scale and brightness.
+## Re-reads the player's HUD scale, text scale and brightness. The view keeps its own copy of
+## the scene's environment (EnvDirector keeps it in step with the sky, D153), with the player's
+## brightness and, in storms, their own lightning.
 func apply_profile() -> void:
 	_fit()
 	if _camera == null or slot == null:
 		return
-	var b := float(slot.profile.data.get("brightness", 1.0))
-	if is_equal_approx(b, 1.0) or _world_env == null:
+	if _world_env == null:
 		_camera.environment = null
 		return
 	if _env == null:
 		_env = _world_env.duplicate()
 		_env.adjustment_enabled = true
-	_env.adjustment_brightness = b
+	brightness = float(slot.profile.data.get("brightness", 1.0))
+	_apply_brightness()
 	_camera.environment = _env
+
+
+## This view's environment (null before its camera is set).
+func environment() -> Environment:
+	return _env
+
+
+## A lightning flash on this view: 0 none, up to about 1 (EnvDirector, D153).
+func set_flash(amount: float) -> void:
+	if not is_equal_approx(amount, _flash):
+		_flash = amount
+		_apply_brightness()
+
+
+func _apply_brightness() -> void:
+	if _env:
+		_env.adjustment_brightness = brightness * (1.0 + _flash)
 
 
 func apply_graphics() -> void:

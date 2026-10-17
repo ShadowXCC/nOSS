@@ -35,6 +35,10 @@ extends Node
 ##   --battle[=hits]      a battle right away (the first arena, or --track; --battle-min, --battle-hits, --race-ai)
 ##   --cup[=<id>]         a cup right away (the Spark Cup, or <id>; --race-ai)
 ##   --kart-debug         online kart items: log every item more than 1 m off the server's
+##   --time=<t>           any session's time of day (dawn, morning, noon, afternoon, dusk, night),
+##                        --time-rate=<x> game minutes a minute, --weather=<w> (clear, cloudy, rain, storm,
+##                        fog, snow, changing), --env-seed=<n> its fronts
+##   --endless-selftest[=<seed>]  print checksums of 200 km of endless road and its ground (determinism)
 ##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5; a list like 5,30,90 takes several), one per window
 ##   --quit-at=<s>        quit after this many seconds
 ##   --bay                open the Fitting Bay

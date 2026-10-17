@@ -24,12 +24,21 @@ static func get_material(key: String, texture: Texture2D, roughness: float, spec
 	return m
 
 
-## A lit-up material (lamp heads, tunnel lights): `color`, glowing at `glow` of it.
-static func glowing(key: String, color: Color, glow := 1.0) -> ShaderMaterial:
+## A lit-up material (lamp heads, tunnel lights): `color`, glowing at `glow` of it; with
+## `night_only`, only after dark (D153). Snow never settles on it.
+static func glowing(key: String, color: Color, glow := 1.0, night_only := false) -> ShaderMaterial:
 	if _cache.has(key):
 		return _cache[key]
 	var m := get_material(key, null, 0.5, 0.3, false, Vector2.ONE, color)
 	m.set_shader_parameter("emission", color * glow)
+	m.set_shader_parameter("night_glow", night_only)
+	m.set_shader_parameter("snow_settle", 0.0)
+	return m
+
+
+## A paved surface: it shines when wet (D153).
+static func _paved(m: ShaderMaterial) -> ShaderMaterial:
+	m.set_shader_parameter("wet_shine", 1.0)
 	return m
 
 
@@ -37,7 +46,7 @@ static func glowing(key: String, color: Color, glow := 1.0) -> ShaderMaterial:
 static func surface(id: int) -> ShaderMaterial:
 	match id:
 		VehicleSim.SURFACE_CONCRETE:
-			return get_material("concrete_world", RetroTextures.concrete(), 0.8, 0.25, true, Vector2.ONE / 6.0)
+			return _paved(get_material("concrete_world", RetroTextures.concrete(), 0.8, 0.25, true, Vector2.ONE / 6.0))
 		VehicleSim.SURFACE_GRASS:
 			return get_material("runoff_grass", RetroTextures.grass(), 1.0, 0.1, true, Vector2.ONE / 5.0)
 		VehicleSim.SURFACE_GRAVEL:
@@ -49,7 +58,7 @@ static func surface(id: int) -> ShaderMaterial:
 		VehicleSim.SURFACE_SNOW, VehicleSim.SURFACE_ICE:
 			return get_material("runoff_snow", RetroTextures.snow(), 0.6, 0.3, true, Vector2.ONE / 4.0)
 		VehicleSim.SURFACE_CURB:
-			return get_material("curb", RetroTextures.curb(), 0.6, 0.3)
+			return _paved(get_material("curb", RetroTextures.curb(), 0.6, 0.3))
 		VehicleSim.SURFACE_PAINT:
-			return get_material("paint_white", null, 0.6, 0.2, false, Vector2.ONE, Color(0.9, 0.9, 0.88))
-	return get_material("asphalt_plain", RetroTextures.asphalt_plain(), 0.85, 0.3, true, Vector2.ONE / 6.0)
+			return _paved(get_material("paint_white", null, 0.6, 0.2, false, Vector2.ONE, Color(0.9, 0.9, 0.88)))
+	return _paved(get_material("asphalt_plain", RetroTextures.asphalt_plain(), 0.85, 0.3, true, Vector2.ONE / 6.0))

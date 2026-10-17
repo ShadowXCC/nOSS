@@ -2,8 +2,8 @@ class_name RaceEvent
 extends RefCounted
 ## One track event and its rules (docs/GAMEMODES.md §1, MODE-02): which sessions it runs
 ## (practice, qualifying, race, or free drive and time trial on their own), the AI field, and
-## the race rules. The last race set up is remembered in settings.cfg. A highway event (§3) runs
-## as one free session with its own rules (HighwayControl).
+## the race rules, and the sky. The last race set up is remembered in settings.cfg. A highway
+## event (§3) runs as one free session with its own rules (HighwayControl).
 
 ## "free" (free drive), "race" (a race weekend), "time_trial", "highway" or "battle" (kart, an
 ## arena).
@@ -40,16 +40,28 @@ var items := true
 var battle_rule := "standing"
 var battle_min := 5
 var battle_hits := 10
+## The sky (ENV-01…03, D153): the time of day ("track": the track's own fixed sun, or a time),
+## how fast it runs (game minutes per real minute; 0 stands still), the weather ("track": the
+## track's own, "changing": fronts come and go), and the seed of the weather's fronts (0: picked
+## when the session starts).
+var time := "track"
+var time_rate := 0
+var weather := "track"
+var env_seed := 0
 
 ## The values each text field may take; the first is the default.
 const CHOICES := {
 	"kind": ["free", "race", "time_trial", "highway", "battle"], "start": ["standing", "rolling"], "grid": ["qualifying", "reverse", "random"],
 	"track_limits": ["lenient", "off", "strict"], "ai_cars": ["garage", "builtin"], "sub": ["cruise", "score", "run", "loop"],
 	"battle_rule": ["standing", "hits"],
+	"time": ["track", "dawn", "morning", "noon", "afternoon", "dusk", "night"],
+	"weather": ["track", "clear", "cloudy", "rain", "storm", "fog", "snow", "changing"],
 }
+## Time rates offered in menus (game minutes per real minute).
+const TIME_RATES := [0, 1, 10, 30, 60, 120]
 const KEYS := ["kind", "practice_min", "qualifying_min", "race_laps", "race_min", "ai_count", "ai_skill",
 	"start", "grid", "collisions", "track_limits", "ai_cars", "sub", "police", "traffic", "run", "direction",
-	"items", "battle_rule", "battle_min", "battle_hits"]
+	"items", "battle_rule", "battle_min", "battle_hits", "time", "time_rate", "weather", "env_seed"]
 ## Written only for highway events (circuit events stay as older games and servers know them).
 const HIGHWAY_KEYS := ["sub", "police", "traffic", "run", "direction"]
 ## Written only for battles, or with items off.
@@ -139,6 +151,8 @@ static func from_dict(d: Dictionary) -> RaceEvent:
 	e.run = e.run.left(32)
 	e.battle_min = clampi(e.battle_min, 1, 15)
 	e.battle_hits = clampi(e.battle_hits, 0, 50)
+	e.time_rate = clampi(e.time_rate, 0, 600)
+	e.env_seed = clampi(e.env_seed, 0, 0x7FFFFFFF)
 	# Text fields only take their known values (events also come from servers).
 	for key: String in CHOICES:
 		if e.get(key) not in CHOICES[key]:

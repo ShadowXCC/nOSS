@@ -22,6 +22,8 @@ const STOCK_COLORS := [
 const CHOICE_SLOTS := 4
 const BRAKE_ON_ENERGY := 4.0
 const BRAKE_OFF_ENERGY := 0.0
+## Tail lights while the headlights are on.
+const TAIL_ENERGY := 1.2
 ## Light groups the game switches (fit.json "lights"): their glow colour and energy when on.
 const LIGHTS := {
 	"brake": [Color(1.0, 0.08, 0.04), BRAKE_ON_ENERGY],
@@ -41,6 +43,7 @@ var _steering: Array[Array] = [] # [node, rest, pivot, axis]
 var _paint := {} # slot -> ShaderMaterial
 var _brake_materials: Array[BaseMaterial3D] = []
 var _brake_on := false
+var _tail_on := false
 ## Group -> its materials (copies per car), and how bright each group is now (0..1, head up to 2).
 var _light_materials := {}
 var _light_level := {}
@@ -131,8 +134,21 @@ func set_brake_lights(on: bool) -> void:
 	if on == _brake_on:
 		return
 	_brake_on = on
+	_apply_tail()
+
+
+## With the headlights on, the tail lights glow dimly too (D153).
+func set_tail_lights(on: bool) -> void:
+	if on == _tail_on:
+		return
+	_tail_on = on
+	_apply_tail()
+
+
+func _apply_tail() -> void:
+	var e := BRAKE_ON_ENERGY if _brake_on else TAIL_ENERGY if _tail_on else BRAKE_OFF_ENERGY
 	for m in _brake_materials:
-		m.emission_energy_multiplier = BRAKE_ON_ENERGY if on else BRAKE_OFF_ENERGY
+		m.emission_energy_multiplier = e
 
 
 ## Indicators showing now (the caller blinks them).

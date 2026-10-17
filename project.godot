@@ -70,3 +70,15 @@ style_saturation={
 "type": "float",
 "value": 1.0
 }
+env_wetness={
+"type": "float",
+"value": 0.0
+}
+env_snow={
+"type": "float",
+"value": 0.0
+}
+env_night={
+"type": "float",
+"value": 0.0
+}

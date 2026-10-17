@@ -88,6 +88,8 @@ var results_menu: ResultsMenu
 ## Time trial: records laps, shows the ghost (null in other events).
 var time_trial: TimeTrial
 var world_env: Environment
+## The sky: time of day and weather (D153).
+var env: EnvDirector
 ## Who has the game paused, or null.
 var paused_by: SessionPlayer
 ## Online (D84): the session's SESSION message ({track, class, event, roster}); {} offline.
@@ -132,6 +134,25 @@ var _fps_frames := 0
 var _sound_time := 0.0
 
 
+## The sky (D153): the event's time and weather over the track's own, the style's sun.
+func _env_state(style: StyleProfile) -> EnvState:
+	var time := String(Game.dev.get("time", event.time))
+	var rate := int(Game.dev.get("time-rate", event.time_rate))
+	var weather := String(Game.dev.get("weather", event.weather))
+	var seed := int(Game.dev.get("env-seed", event.env_seed))
+	if seed <= 0:
+		seed = randi_range(1, 0x7FFFFFFF)
+	var track_env: Variant = track.raw.get("environment", {})
+	return EnvState.from_settings(time, rate, weather, seed, track_env if track_env is Dictionary else {}, style.data.get("sun", {}))
+
+
+## The track's fog: light, normal or heavy.
+func _fog_scale() -> float:
+	var track_env: Variant = track.raw.get("environment", {})
+	var fog := String(track_env.get("fog", "normal")) if track_env is Dictionary else "normal"
+	return { "light": 0.5, "heavy": 2.0 }.get(fog, 1.0)
+
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
 	if track_package == null or not track_package.ok():
@@ -146,7 +167,14 @@ func _ready() -> void:
 	var env_node := style.create_environment()
 	world_env = env_node.environment
 	add_child(env_node)
-	add_child(style.create_sun())
+	var sun := style.create_sun()
+	add_child(sun)
+	env = EnvDirector.new()
+	env.setup(style, world_env, sun, _env_state(style), _fog_scale())
+	env.local_vehicles = func() -> Array:
+		return racers.filter(func(r: Racer) -> bool: return r is SessionPlayer and r.vehicle != null).map(func(r: Racer) -> Vehicle: return r.vehicle)
+	add_child(env)
+	env.apply()
 	var built := TrackBuilder.build(track, terrain, { "visual": not dedicated, "scene": track_package.scene })
 	add_child(built)
 	for area: Node in built.find_children("Water*", "Area3D", false, false):
@@ -361,6 +389,12 @@ func _ready_highway() -> void:
 	highway_field.session = self
 	highway_field.layout = track.highway
 	add_child(highway_field)
+	# Tunnels keep the weather off the players' cars.
+	env.sheltered = func(v: Vehicle) -> bool:
+		for r in racers:
+			if r.vehicle == v:
+				return r.track_index >= 0 and track.highway.in_tunnel(r.distance)
+		return false
 	highway = HighwayControl.new()
 	highway.name = "HighwayControl"
 	highway.session = self

@@ -6,6 +6,8 @@ render_mode diffuse_lambert, specular_schlick_ggx;
 global uniform vec4 style_tint;
 global uniform float style_mip_bias;
 global uniform float style_saturation;
+global uniform float env_wetness;
+global uniform float env_snow;
 
 // Heights: (chunk + 3)² with a one-sample apron, 0..1 over h_min .. h_min + h_range.
 uniform sampler2D height_tex : filter_nearest, repeat_disable;
@@ -63,7 +65,13 @@ void fragment() {
 		c *= mix(1.0 - variation, 1.0 + variation, v);
 	}
 	float grey = dot(c, vec3(0.299, 0.587, 0.114));
-	ALBEDO = mix(vec3(grey), c, style_saturation);
-	ROUGHNESS = 0.95;
-	SPECULAR = 0.1;
+	c = mix(vec3(grey), c, style_saturation);
+	// The sky (D153): darker wet ground, snow lying where it's flat enough.
+	float wet = env_wetness * (1.0 - env_snow);
+	c *= 1.0 - 0.2 * wet;
+	float up = smoothstep(0.6, 0.85, (INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).y);
+	c = mix(c, vec3(0.9, 0.92, 0.96), env_snow * up * 0.9);
+	ALBEDO = c;
+	ROUGHNESS = 0.95 - 0.35 * wet;
+	SPECULAR = 0.1 + 0.15 * wet;
 }

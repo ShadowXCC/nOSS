@@ -112,7 +112,11 @@
         "items": { "description": "Kart events: item boxes on.", "type": "boolean" },
         "battle_rule": { "description": "Battles: last one standing or most hits.", "enum": ["standing", "hits"] },
         "battle_min": { "description": "Battles: minutes at most.", "type": "integer", "minimum": 1, "maximum": 15 },
-        "battle_hits": { "description": "Most-hits battles: the first to this many wins (0: the most when time's up).", "type": "integer", "minimum": 0, "maximum": 50 }
+        "battle_hits": { "description": "Most-hits battles: the first to this many wins (0: the most when time's up).", "type": "integer", "minimum": 0, "maximum": 50 },
+        "time": { "description": "Time of day (track: the track's own fixed sun).", "enum": ["track", "dawn", "morning", "noon", "afternoon", "dusk", "night"] },
+        "time_rate": { "description": "Game minutes per real minute (0: the time stands still).", "type": "integer", "minimum": 0, "maximum": 600 },
+        "weather": { "description": "Weather (track: the track's own; changing: fronts come and go).", "enum": ["track", "clear", "cloudy", "rain", "storm", "fog", "snow", "changing"] },
+        "env_seed": { "description": "Seed of the weather's fronts (0: picked when the session starts).", "type": "integer", "minimum": 0, "maximum": 2147483647 }
       }
     }
   }

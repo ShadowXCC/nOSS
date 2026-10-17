@@ -450,7 +450,7 @@ func _add_batches(parent: Node3D, batches: Dictionary) -> void:
 			"lamps":
 				material = WorldMaterials.get_material("lamp_pole", null, 0.5, 0.5, false, Vector2.ONE, Color(0.55, 0.57, 0.6))
 			"lamp_heads":
-				material = WorldMaterials.glowing("lamp_head", Color(1.0, 0.86, 0.6), 1.6)
+				material = WorldMaterials.glowing("lamp_head", Color(1.0, 0.86, 0.6), 1.6, true)
 			"tunnel_lights":
 				material = WorldMaterials.glowing("tunnel_light", Color(1.0, 0.92, 0.75), 2.0)
 			"gantry":
