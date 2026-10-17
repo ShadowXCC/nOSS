@@ -230,6 +230,11 @@ static func _spray_puff() -> Texture2D:
 	return _puff
 
 
+## The water and snow on the road under it, as last set (x wetness, y snow).
+func road_conditions() -> Vector2:
+	return _road
+
+
 ## Its headlights light the road (players' cars and the nearest few, at night; D153).
 func set_beams(on: bool) -> void:
 	if on == (_beams != null) or not drawn:

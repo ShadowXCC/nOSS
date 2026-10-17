@@ -51,6 +51,8 @@ func _ready() -> void:
 	_add(rows, UiKit.spinner("Grid", [["qualifying", "Qualifying"], ["reverse", "Reverse"], ["random", "Random"]], event.grid, func(v: String) -> void: event.grid = v))
 	_add(rows, UiKit.spinner("Collisions", [[true, "On"], [false, "Ghosted"]], event.collisions, func(v: bool) -> void: event.collisions = v))
 	_add(rows, UiKit.spinner("Track limits", [["off", "Off"], ["lenient", "Lenient"], ["strict", "Strict"]], event.track_limits, func(v: String) -> void: event.track_limits = v))
+	for row in SkyRows.rows(event):
+		_add(rows, row)
 
 	var next := UiKit.button("Next", func() -> void:
 		Settings.set_last_event(event)

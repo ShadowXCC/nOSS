@@ -35,12 +35,15 @@ func _ready() -> void:
 	for i in entries.size():
 		var e: Dictionary = entries[i]
 		var assists := " ".join(PackedStringArray(e.get("assists", [])))
+		var road := String(e.get("road", "dry")) # a wet or snowy lap is tagged (D153)
 		var value := "%d points" % int(e.score) if scores else Hud.format_time(float(e.time))
-		var text := "%d   %s   %s   %s%s" % [i + 1, value, e.get("name", "?"), e.get("car", ""), "   " + assists if assists else ""]
+		var text := "%d   %s   %s   %s%s%s" % [i + 1, value, e.get("name", "?"), e.get("car", ""), "   " + road.capitalize() if road != "dry" else "",
+			"   " + assists if assists else ""]
 		var b := UiKit.button(text, func() -> void: pass)
 		b.flat = true
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.accessibility_name = "%d, %s, %s, %s%s" % [i + 1, value, e.get("name", "?"), e.get("car", ""), ", assists: " + assists if assists else ""]
+		b.accessibility_name = "%d, %s, %s, %s%s%s" % [i + 1, value, e.get("name", "?"), e.get("car", ""), ", %s road" % road if road != "dry" else "",
+			", assists: " + assists if assists else ""]
 		rows.add_child(b)
 		focusable.append(b)
 	var back := UiKit.button("Back", func() -> void: closed.emit())

@@ -164,6 +164,7 @@ func panel() -> Array:
 		return out
 	if t.highway:
 		out.append_array(_highway_rows(t))
+		out.append_array(_sky_rows())
 		return out
 	var race: Dictionary = draft.layout.race
 	var length := t.length
@@ -201,7 +202,22 @@ func panel() -> Array:
 		func(v: float) -> void: draft.set_race("rolling_back_m", v, "Rolling start"), "Before the line"))
 	out.append(UiKit.spinner("Start gantry", [[true, "On"], [false, "Off"]], t.gantry, func(v: bool) -> void: draft.set_race("gantry", v, "Start gantry")))
 	out.append_array(_ai_rows(t))
+	out.append_array(_sky_rows())
 	return out
+
+
+## The track's own time and weather (D153): what events get when they keep "Track's".
+func _sky_rows() -> Array:
+	var env: Dictionary = draft.layout.get("environment", {})
+	var times := [["", "Fixed sun"]] + SkyRows.TIMES.slice(1)
+	var weathers := [["", "Clear"]] + SkyRows.WEATHERS.slice(2)
+	return [
+		UiKit.label("Sky", 26),
+		UiKit.spinner("Time", times, String(env.get("time", "")), func(v: String) -> void: draft.set_env("time", v),
+			"The track's own time of day; events can pick another"),
+		UiKit.spinner("Weather", weathers, String(env.get("weather", "")), func(v: String) -> void: draft.set_env("weather", v),
+			"The track's own weather; events can pick another"),
+	]
 
 
 func _ai_rows(t: TrackData) -> Array:

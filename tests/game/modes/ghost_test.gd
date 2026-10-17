@@ -87,3 +87,14 @@ func test_leaderboard_keeps_official_full_speed_laps_in_order() -> void:
 	var list := Leaderboard.entries("test_track", "official.track.gt")
 	assert_array(list.map(func(e: Dictionary) -> float: return float(e.time))).is_equal([69.0, 70.0])
 	DirAccess.remove_absolute(Leaderboard.path_for("test_track"))
+
+
+## Wet and snowy laps go on the same boards, tagged (D153).
+func test_entries_say_whether_the_road_was_wet() -> void:
+	assert_str(Leaderboard.road_of(null)).is_equal("dry")
+	var v: Vehicle = auto_free(Vehicle.new())
+	assert_str(Leaderboard.road_of(v)).is_equal("dry")
+	v.set_road(0.8, 0.0)
+	assert_str(Leaderboard.road_of(v)).is_equal("wet")
+	v.set_road(0.0, 1.0)
+	assert_str(Leaderboard.road_of(v)).is_equal("snow")

@@ -135,3 +135,36 @@ func test_problems_show_in_check_and_stop_a_save() -> void:
 	assert_str((e._tool_buttons.Check as Button).text).is_equal("Check")
 	e.queue_free()
 	await get_tree().process_frame
+
+
+## The track's own sky (D153): the Race tool's Time and Weather rows write the environment block
+## (one undo each), and back to the default takes the key out.
+func test_the_sky_rows_set_the_tracks_own_time_and_weather() -> void:
+	var d := TrackTemplates.make("oval")
+	var e := _editor(d)
+	await get_tree().process_frame
+	e.show_tool("Race")
+	var rows: Array = (e.tool as EditorTool).panel()
+	var time: Button
+	var weather: Button
+	for c in rows:
+		if c is Button and String(c.accessibility_name).begins_with("Time: "):
+			time = c
+		if c is Button and String(c.accessibility_name).begins_with("Weather: "):
+			weather = c
+	assert_object(time).is_not_null()
+	assert_object(weather).is_not_null()
+	assert_str(String(time.accessibility_name)).is_equal("Time: Fixed sun")
+	d.set_env("time", "dusk")
+	d.set_env("weather", "rain")
+	assert_str(String(d.layout.environment.time)).is_equal("dusk")
+	assert_str(String(d.layout.environment.weather)).is_equal("rain")
+	var state := EnvState.from_settings("track", 0, "track", 1, d.layout.environment, {})
+	assert_float(state.at(0.0).hour).is_equal(EnvState.HOURS.dusk)
+	assert_float(state.at(0.0).wetness).is_equal(1.0)
+	assert_str(d.undo()).is_equal("Set weather")
+	d.set_env("time", "")
+	assert_bool(d.layout.environment.has("time")).is_false()
+	for c: Node in rows:
+		c.free()
+	e.queue_free()

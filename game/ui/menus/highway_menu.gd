@@ -65,6 +65,8 @@ func _build(focus := "") -> void:
 	else:
 		_add(UiKit.spinner("Way round", _ways(), event.direction, func(v: int) -> void: event.direction = v,
 			"Which carriageway you start on; both ways: players take turns"))
+	for row in SkyRows.rows(event):
+		_add(row)
 	_add(UiKit.button("Next", _next, "Pick the class"))
 	_add(UiKit.button("Back", func() -> void: closed.emit()))
 	UiKit.chain_focus(_rows, focus.is_empty())

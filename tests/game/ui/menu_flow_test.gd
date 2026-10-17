@@ -27,6 +27,7 @@ func before_test() -> void:
 	Players.clear()
 	_requested.clear()
 	Settings.profile.last_platform = "official.track.gt" # the class lists focus the last one used
+	Settings.profile.last_highway = {} # the highway menu starts from its defaults
 
 
 func _on_event(e: RaceEvent, platform_id: String) -> void:
@@ -186,6 +187,14 @@ func test_keyboard_only_boot_to_a_highway() -> void:
 	assert_str(_focused(runner)).starts_with("Way round: ")
 	while not _focused(runner).ends_with("Both ways"):
 		await _key(KEY_RIGHT)
+	await _key(KEY_DOWN) # the sky (D153)
+	assert_str(_focused(runner)).is_equal("Time: Track's")
+	await _key(KEY_DOWN)
+	assert_str(_focused(runner)).is_equal("Time runs: Still")
+	await _key(KEY_DOWN)
+	assert_str(_focused(runner)).is_equal("Weather: Track's")
+	while _focused(runner) != "Weather: Rain":
+		await _key(KEY_RIGHT)
 	await _key(KEY_DOWN)
 	assert_str(_focused(runner)).is_equal("Next")
 	await _key(KEY_ENTER)
@@ -206,6 +215,7 @@ func test_keyboard_only_boot_to_a_highway() -> void:
 	assert_str(e.kind).is_equal("highway")
 	assert_str(e.sub).is_equal("score")
 	assert_int(e.direction).is_equal(0)
+	assert_str(e.weather).is_equal("rain")
 	assert_str(String(_requested[0][1])).starts_with("official.highway.")
 
 
@@ -303,6 +313,12 @@ func test_keyboard_only_boot_to_free_drive_with_ai() -> void:
 	assert_str(_focused(runner)).is_equal("Collisions: Ghosted")
 	await _key(KEY_DOWN) # Track limits
 	await _key(KEY_DOWN)
+	assert_str(_focused(runner)).is_equal("Time: Track's")
+	while _focused(runner) != "Time: Night":
+		await _key(KEY_RIGHT)
+	await _key(KEY_DOWN) # Time runs
+	await _key(KEY_DOWN) # Weather
+	await _key(KEY_DOWN)
 	assert_str(_focused(runner)).is_equal("Next")
 	await _key(KEY_ENTER)
 	await _frames(4)
@@ -320,6 +336,7 @@ func test_keyboard_only_boot_to_free_drive_with_ai() -> void:
 	assert_str(e.kind).is_equal("free")
 	assert_int(e.ai_count).is_equal(2)
 	assert_bool(e.collisions).is_false()
+	assert_str(e.time).is_equal("night")
 	assert_str(String(_requested[0][1])).is_equal("official.track.gt")
 	# Remembered for next time.
 	assert_int(FreeDriveMenu.last().ai_count).is_equal(2)

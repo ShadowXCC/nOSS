@@ -110,6 +110,8 @@ func _build(focus := "") -> void:
 			_add(UiKit.button("New cup", func() -> void: _open_builder({}), "Pick four tracks and their laps"))
 			_add_ai()
 			_add(UiKit.spinner("Items", [[true, "On"], [false, "Off"]], event.items, func(v: bool) -> void: event.items = v))
+	for row in SkyRows.rows(event):
+		_add(row)
 	var next := UiKit.button("Next", _next, "The players: each picks a car and a class")
 	next.disabled = not _ready_to_go()
 	_add(next)

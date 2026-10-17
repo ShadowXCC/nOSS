@@ -54,6 +54,8 @@ func _ready() -> void:
 	_add(rows, UiKit.spinner("Collisions", [[true, "On"], [false, "Ghosted"]], event.collisions, func(v: bool) -> void: event.collisions = v))
 	_add(rows, UiKit.spinner("Track limits", [["off", "Off"], ["lenient", "Lenient"], ["strict", "Strict"]], event.track_limits,
 		func(v: String) -> void: event.track_limits = v, "Cutting the track spoils a timed lap"))
+	for row in SkyRows.rows(event):
+		_add(rows, row)
 
 	var next := UiKit.button("Next", func() -> void:
 		event.kind = "free"

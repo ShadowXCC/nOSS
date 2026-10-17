@@ -389,7 +389,11 @@ func set_point_attrs(changes: Dictionary, name: String) -> void:
 
 
 func set_env(key: String, value: Variant) -> void:
-	_edit("Set " + key.replace("_", " "), "environment", func() -> void: layout.environment[key] = value, &"all")
+	_edit("Set " + key.replace("_", " "), "environment", func() -> void:
+		if value == null or (value is String and value.is_empty()):
+			layout.environment.erase(key) # back to the default
+		else:
+			layout.environment[key] = value, &"all")
 
 
 # --- highways (EDT-10) ----------------------------------------------------------------------

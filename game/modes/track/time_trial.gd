@@ -110,6 +110,7 @@ func _on_lap(time: float, valid: bool, _best: bool) -> void:
 		"track": session.track.id, "version": ProjectSettings.get_setting("application/config/version"),
 		"assists": PackedStringArray(player.assists_used.keys().filter(func(k: String) -> bool: return player.assists_used[k])),
 		"setup": player.custom_setup, "game_speed": Engine.time_scale, "date": Time.get_datetime_string_from_system(),
+		"road": Leaderboard.road_of(v),
 	}
 	var saved := Ghost.load_file(best_path())
 	if saved == null or time < float(saved.meta.get("time", INF)):
@@ -119,7 +120,7 @@ func _on_lap(time: float, valid: bool, _best: bool) -> void:
 	var entry := {
 		"name": player.display_name, "time": time, "car": g.meta.car, "platform": g.meta.platform,
 		"platform_hash": g.meta.platform_hash, "version": g.meta.version, "assists": Array(g.meta.assists),
-		"setup": g.meta.setup, "game_speed": g.meta.game_speed, "date": g.meta.date,
+		"setup": g.meta.setup, "game_speed": g.meta.game_speed, "date": g.meta.date, "road": g.meta.road,
 	}
 	var place := Leaderboard.submit(session.track.record_key(), entry)
 	if place > 0:

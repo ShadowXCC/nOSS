@@ -4,7 +4,8 @@ extends RefCounted
 ## user://leaderboards/<track>.json, a list per board. A board is a platform's id (time-trial
 ## laps), or a platform's id and what's timed or scored after "|": "|score" (score attack, most
 ## points first), "|loop+1" and "|loop-1" (a highway loop's laps each way), "|run:<id>" (a run).
-## Entries record the platform's id and content hash, the game version, assists and setup. Only
+## Entries record the platform's id and content hash, the game version, assists and setup, and
+## whether the road was wet or snowy (D153). Only
 ## official platforms at full game speed are listed (ACC-08: slower game speed never counts).
 
 const SCHEMA := "noss.leaderboard/1"
@@ -39,10 +40,19 @@ static func entry_of(r: Racer, values: Dictionary) -> Dictionary:
 		"name": r.display_name, "car": v.package.display_name() if v and v.package else "", "platform": v.base_platform.get("id", "") if v else "",
 		"platform_hash": v.platform_hash if v else "", "version": ProjectSettings.get_setting("application/config/version"),
 		"assists": Array(PackedStringArray(r.assists_used.keys().filter(func(k: String) -> bool: return r.assists_used[k]))),
-		"game_speed": Engine.time_scale, "date": Time.get_datetime_string_from_system(),
+		"game_speed": Engine.time_scale, "date": Time.get_datetime_string_from_system(), "road": road_of(v),
 	}
 	out.merge(values, true)
 	return out
+
+
+## The road under a car (D153): "dry", "wet" or "snow". Wet and snowy laps go on the same boards,
+## tagged.
+static func road_of(v: Vehicle) -> String:
+	if v == null:
+		return "dry"
+	var c := v.road_conditions()
+	return "snow" if c.y > 0.25 else "wet" if c.x > 0.25 else "dry"
 
 
 ## Whether a lap may be listed: official platform, full game speed.

@@ -18,6 +18,8 @@ var _battle_hits := 10
 var _track := TrackLibrary.DEFAULT
 var _traffic := 150
 var _police := false
+## The sky of an event other than a race weekend (a race's is in Race settings).
+var _sky := RaceEvent.new()
 var _rows: Array = []
 var _status: Label
 var _race_settings: Button
@@ -45,6 +47,7 @@ func _ready() -> void:
 		_battle_rule = config.event(0).battle_rule
 		_battle_min = config.event(0).battle_min if config.event(0).battle_min in [3, 5, 7, 10] else 5
 		_battle_hits = config.event(0).battle_hits if config.event(0).battle_hits in [5, 10, 15, 20, 0] else 10
+	_sky = config.event(0)
 	_track = TrackLibrary.resolve(String(config.rotation[0].get("track", "")))
 	_list = UiKit.panel(self, "Host", 860)
 	_build()
@@ -113,8 +116,11 @@ func _build(focus := "") -> void:
 		_add(rows, UiKit.spinner("Traffic", TRAFFIC, _traffic, func(n: int) -> void: _traffic = n, "Cars on the road"))
 		_add(rows, UiKit.spinner("Police", [[false, "Off"], [true, "On"]], _police, func(v: bool) -> void: _police = v, "Speed traps and chases"))
 	else:
-		_race_settings = UiKit.button("Race settings", _open_event, "Sessions, laps, AI and rules")
+		_race_settings = UiKit.button("Race settings", _open_event, "Sessions, laps, AI and rules, the sky")
 		_add(rows, _race_settings)
+	if _kind != "race":
+		for row in SkyRows.rows(_sky):
+			_add(rows, row)
 	var ports := []
 	for i in NetDiscovery.PORTS:
 		ports.append([NetProtocol.DEFAULT_PORT + i, "UDP %d" % (NetProtocol.DEFAULT_PORT + i)])
@@ -154,6 +160,10 @@ func _host() -> void:
 		else RaceEvent.battle(_battle_rule, _battle_min) if _kind == "battle" else RaceEvent.free_drive()
 	if _kind == "battle":
 		e.battle_hits = _battle_hits
+	if _kind != "race":
+		e.time = _sky.time
+		e.time_rate = _sky.time_rate
+		e.weather = _sky.weather
 	config.rotation[0]["track"] = _track
 	config.rotation[0]["event"] = e.to_dict()
 	var saved := config.to_dict()
