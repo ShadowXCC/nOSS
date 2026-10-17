@@ -43,6 +43,10 @@ var collision := true
 var focus := Callable()
 ## () -> PackedVector3Array: scene points the far ground and sea follow (the players' cars).
 var focus_points := Callable()
+## Online (D159): each chunk's checksum as it's made ({chunk: checksum}), for EndlessNet to send
+## the server (it takes them away).
+var record_sums := false
+var sums := {}
 ## Every piece's build counted, for the long-drive check: {road, tiles, far, jobs}.
 var stats := { "road": 0, "tiles": 0, "far": 0, "jobs": 0, "freed_road": 0, "freed_tiles": 0, "freed_far": 0 }
 
@@ -152,7 +156,10 @@ func _update_road(distances: PackedFloat64Array) -> void:
 		_clear()
 	while road.is_empty() or road.chunks[-1] < k_hi:
 		var k := k_lo if road.is_empty() else road.chunks[-1] + 1
-		var c := RoadWindow.chunk_track(gen.chunk(k), origin.x, origin.z, k)
+		var data := gen.chunk(k)
+		var c := RoadWindow.chunk_track(data, origin.x, origin.z, k)
+		if record_sums and sums.size() < 256:
+			sums[k] = int(data.checksum)
 		c.set_meta(&"ox", origin.x)
 		c.set_meta(&"oz", origin.z)
 		road.append(c)

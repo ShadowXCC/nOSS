@@ -18,6 +18,7 @@ and exits 0 (PASS) or 1 (FAIL).
   tools/net_check.py --event highway --clients 2 --dirs opposite --speed-factor 1.6 --duration 600   # M7 acceptance 3
   tools/net_check.py --event kart --clients 4 --ai 4 --track gearworks --laps 3 --rtt 150 --jitter 10 --loss 1   # M8
   tools/net_check.py --event battle --clients 4 --ai 4 --track crate_yard --rule hits   # M8
+  tools/net_check.py --event endless --clients 3 --late 40 --duration 150   # M9: an endless convoy
 
 On a highway (--event highway, the Lumen Ring and the Street class unless given) every bot also
 reports its traffic: checksums that disagreed with the server's (must be 0), full states taken
@@ -31,6 +32,13 @@ the Crate Yard; the bots drive Light, Medium and Heavy in turn unless --classes 
 view, so theirs is shown, not checked),
 under 5% of reported hits turned down, a classified race or a battle with a winner. With
 KART_DEBUG=1 the bots log every item more than 1 m off (KARTDBG lines in their logs).
+
+An endless road (--event endless: the Cruiser class, normal traffic) checks that every game makes
+the same road (the bots' chunk checksums against the server's: none may differ), that remote cars
+are shown where they are although each game's origin moves on its own (p95 under 1 m), that every
+bot drove and moved its origin, and that the traffic was shared (a car one game drives shown on
+another). With --late the last bot joins that many seconds after the rest: it must start just
+behind the leader.
 
 With --fresh, the server's AI cars are this machine's garage cars (every one before any twice), and
 one bot with an empty cache fetches them all whole; it reports when every car was there as a
@@ -60,6 +68,7 @@ PILEUP_CARS = 3
 KART_PILEUP_CARS = 4
 MAX_DOWN_KB = 64.0
 MAX_TRAFFIC_ERR_M = 1.0
+MAX_ENDLESS_ERR_M = 1.0
 MAX_ITEM_ERR_M = 0.5
 MAX_REJECTED = 0.05
 KART_CLASSES = ["official.kart.light", "official.kart.medium", "official.kart.heavy"]  # --classes mixed: bot i drives the i-th
@@ -123,7 +132,7 @@ def main(argv=None):
     p.add_argument("--clients", type=int, default=3, help="bots with one player each")
     p.add_argument("--quad", type=int, default=0, help="bots with four players each (splitscreen guests)")
     p.add_argument("--duration", type=float, default=60.0, help="seconds of driving (free drive)")
-    p.add_argument("--event", choices=["free", "race", "highway", "kart", "battle"], default="free")
+    p.add_argument("--event", choices=["free", "race", "highway", "kart", "battle", "endless"], default="free")
     p.add_argument("--rule", choices=["standing", "hits"], default="standing", help="battle: last one standing or most hits")
     p.add_argument("--minutes", type=int, default=5, help="battle: its length at most")
     p.add_argument("--traffic", type=int, default=150, help="highway: traffic cars")
@@ -136,6 +145,8 @@ def main(argv=None):
                         "LAN list, on the standard port 47800 unless --port is given")
     p.add_argument("--desync", action="store_true", help="highway: the first bot's traffic goes out of step once (it must resync)")
     p.add_argument("--laps", type=int, default=3)
+    p.add_argument("--seed", type=int, default=7, help="endless: the road's seed")
+    p.add_argument("--late", type=float, default=0.0, help="endless: the last bot joins this many seconds after the others")
     p.add_argument("--ai", type=int, default=0, help="AI cars the server adds (races)")
     p.add_argument("--class", dest="klass", default="")
     p.add_argument("--classes", choices=["mixed", "same"], default="mixed",
@@ -159,8 +170,11 @@ def main(argv=None):
     args.port = args.port or (47800 if args.open else 47850)
     highway = args.event == "highway"
     karts = args.event in ["kart", "battle"]
-    args.klass = args.klass or ("official.highway.street" if highway else "official.kart.medium" if karts else "official.track.gt")
-    args.track = args.track or ("lumen_ring" if highway else "gearworks" if args.event == "kart" else "crate_yard" if args.event == "battle" else "proving_ground")
+    endless = args.event == "endless"
+    args.klass = args.klass or ("official.highway.street" if highway else "official.kart.medium" if karts
+                                else "official.endless.cruiser" if endless else "official.track.gt")
+    args.track = args.track or ("lumen_ring" if highway else "gearworks" if args.event == "kart" else "crate_yard" if args.event == "battle"
+                                else "endless" if endless else "proving_ground")
 
     logs = Path(args.logs) if args.logs else ROOT / "reports" / "net_check" / time.strftime("%Y%m%d_%H%M%S")
     logs.mkdir(parents=True, exist_ok=True)
@@ -172,10 +186,12 @@ def main(argv=None):
     track = args.track
     if Path(track).exists():  # a path here, not an id: the config lives in the logs' folder
         track = str(Path(track).resolve())
-    builtin_track = (ROOT / "content" / "tracks" / args.track).is_dir()
+    builtin_track = (ROOT / "content" / "tracks" / args.track).is_dir() or endless
     event = {"kind": "race" if args.event == "kart" else args.event}
     if highway:
         event.update({"sub": args.sub, "traffic": args.traffic, "direction": 0 if args.dirs == "opposite" else 1, "police": args.police})
+    if endless:
+        event.update({"road_seed": args.seed, "biome": 1, "endless_traffic": "normal", "oncoming": True})
     if args.event == "battle":
         event.update({"battle_rule": args.rule, "battle_min": args.minutes, "ai_count": args.ai, "ai_cars": "builtin"})
     if args.event in ["race", "kart"]:
@@ -213,7 +229,9 @@ def main(argv=None):
     # --fresh: the garage's personal-use cars (FM4) go to this PC's own bot only (Requirements §6).
     personal = ["--share-personal"] if args.fresh else []
     # Its own folder (instances/90): its boards and keys never mix with this PC's player's.
-    server = start("server", ["--server", f"--config={config_path}", f"--min-players={players}", "--net-stats", "--instance=90"] + debug + personal)
+    late_bots = 1 if endless and args.late > 0 else 0
+    server = start("server", ["--server", f"--config={config_path}", f"--min-players={players - late_bots * (4 if args.quad and not args.clients else 1)}",
+                              "--net-stats", "--instance=90"] + debug + personal)
     time.sleep(2.0)
     if server.poll() is not None:  # it couldn't start (most often: the port is taken by another server)
         reason = [l for l in (logs / "server.log").read_text(errors="replace").splitlines() if "Can't" in l or "ERROR" in l]
@@ -237,6 +255,9 @@ def main(argv=None):
         quit_flag = [f"--quit-at={args.within + 40}", "--bot-full", f"--cache={cache}"] + debug
     bots = []
     for i in range(args.clients + args.quad):
+        if late_bots and i == args.clients + args.quad - 1:
+            time.sleep(args.late)
+        late = ["--quit-at=%g" % (args.duration + 15 - args.late)] if late_bots and i == args.clients + args.quad - 1 else []
         n = 4 if i >= args.clients else 1
         cheat = [f"--cheat={args.cheat}"] if args.cheat and i == 0 else []
         cheat += ["--traffic-desync"] if args.desync and i == 0 else []
@@ -246,7 +267,7 @@ def main(argv=None):
         if karts and args.classes == "mixed":
             cheat += ["--p1-profile=" + json.dumps({"kart_class": KART_CLASSES[i % len(KART_CLASSES)]})]
         bots.append(start(f"bot{i:02d}", ["--bot", f"--connect=127.0.0.1:{port}", f"--players={n}",
-                                          f"--bot-fps={args.bot_fps}"] + quit_flag + cheat))
+                                          f"--bot-fps={args.bot_fps}"] + (late or quit_flag) + cheat))
         time.sleep(0.2)
 
     peak = {}
@@ -266,6 +287,7 @@ def main(argv=None):
     # Gather the bots' reports.
     reports, contacts, fails, results, checks = {}, [], [], None, []
     server_stats = {}
+    endless_server = None
     kart_server = None
     loop = None
     track_ms = {}
@@ -286,6 +308,8 @@ def main(argv=None):
                 loop = json.loads(line[len("NETCHECK_LOOP "):])
             elif line.startswith("NETCHECK_RESULTS "):
                 results = json.loads(line[len("NETCHECK_RESULTS "):])
+            elif line.startswith("NETCHECK_ENDLESS_SERVER "):
+                endless_server = json.loads(line[len("NETCHECK_ENDLESS_SERVER "):])
             elif line.startswith("NETCHECK_KART_SERVER "):
                 kart_server = json.loads(line[len("NETCHECK_KART_SERVER "):])
             elif line.startswith("NETCHECK_CONTACT "):
@@ -364,6 +388,38 @@ def main(argv=None):
                         fails.append(f"loop lap {r['lap']}: they never passed")
                     if 0 <= r["again"] < LOOP_AGAIN_MIN:
                         fails.append(f"loop lap {r['lap']}: only {r['again'] * 100:.0f}% of the traffic came round again")
+    if endless:
+        print("%-7s %7s %7s %8s %6s %9s %8s %9s %6s %7s" % ("endless", "km", "shifts", "start", "lead", "traffic", "proxies", "handovers", "gone", "near s"))
+        last = f"bot{len(bots) - 1:02d}"
+        for name in sorted(n for n in reports if n.startswith("bot")):
+            r = reports[name]
+            e = r.get("endless", {})
+            if not e:
+                fails.append(f"{name}: no endless report")
+                continue
+            print("%-7s %7.2f %7d %7.0fm %5.0fm %9d %8d %9d %6d %7d" % (name, e["km"], e["shifts"], e["start_m"], e["lead_m"], e["owned_max"],
+                  e["proxies_max"], e["handovers"], e["gone"], e["near_s"]))
+            if r["err_p95"] > MAX_ENDLESS_ERR_M:
+                fails.append(f"{name}: remote cars shown {r['err_p95']:.2f} m off (p95)")
+            if e["km"] < 0.5:
+                fails.append(f"{name}: drove only {e['km'] * 1000:.0f} m")
+            if args.duration >= 120 and e["shifts"] < 1 and not (late_bots and name == last):
+                fails.append(f"{name}: its origin never moved")
+            if late_bots and name == last:
+                gap = e["lead_m"] - e["start_m"]
+                if e["lead_m"] < 0 or not 0 <= gap <= 400:
+                    fails.append(f"{name} joined {gap:.0f} m behind the leader")
+        if not any(reports[n].get("endless", {}).get("proxies_max", 0) > 0 for n in reports if n.startswith("bot")) and len(bots) > 1:
+            fails.append("no traffic car was shown from another game")
+        if endless_server is None:
+            fails.append("the server reported nothing on the road")
+        else:
+            print("server road: %d chunks checked, %d differed; %d traffic owners, %d handovers, %d slots used up" % (
+                endless_server["checked"], endless_server["mismatches"], endless_server["owners"], endless_server["handovers"], endless_server["gone"]))
+            if endless_server["checked"] < len(bots) * 5:
+                fails.append(f"only {endless_server['checked']} road chunks checked")
+            if endless_server["mismatches"]:
+                fails.append(f"{endless_server['mismatches']} road chunks differed from the server's")
     for name, ms in sorted(track_ms.items()):
         print("%s got the track in %d ms" % (name, ms))
     if args.fresh and not builtin_track and "bot00" not in track_ms:

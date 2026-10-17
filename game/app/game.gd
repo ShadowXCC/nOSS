@@ -405,6 +405,8 @@ func _on_session_track(h: String) -> void:
 ## Where a session's track is here: the host's own, or by hash (built-in, library, download), or
 ## by id or path (built-in tracks, tests); "" while it isn't here.
 func session_track(ref: String) -> String:
+	if ref == ServerConfig.ENDLESS:
+		return ref # an endless road: made from the event's seed
 	if Net.host_logic:
 		var info := Net.host_logic.track_info()
 		if info.hash == ref or info.path == ref:

@@ -10,8 +10,8 @@ const WINDOW_S := 5.0
 ## Quick lines for controller players (no typing).
 const QUICK := ["GG", "Sorry", "Thanks", "Nice race", "Wait", "Ready"]
 const COMMANDS := {
-	"help": "Commands: /kick <name>, /ban <name>, /start, /next, /restart",
-	"kick": "", "ban": "", "start": "", "next": "", "restart": "",
+	"help": "Commands: /kick <name>, /ban <name>, /start, /next, /restart, /time <dawn…night>, /weather <clear…snow, changing>",
+	"kick": "", "ban": "", "start": "", "next": "", "restart": "", "time": "", "weather": "",
 }
 
 

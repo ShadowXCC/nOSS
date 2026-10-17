@@ -5,7 +5,9 @@ extends RefCounted
 ##   bits) · linear and angular velocity (half floats) · front steer i8 · wheel lift i8 ×4 (cm)
 ##   · throttle u8 · brake u8 · gear i8 · rpm u16 · flags u8 · flags2 u8 · kart u16
 ## The pose is the ground reference (what Vehicle.reset_to takes), so a placeholder and the real
-## car line up whatever their models. Ids: players 1-199, the server's AI 200-299, police
+## car line up whatever their models. X and Z are world millimetres wrapped to 32 bits (D159): a
+## game whose scene origin has moved (an endless road's floating origin) adds it going out, and
+## takes back the world point nearest it coming in, so every game can keep its own origin. Ids: players 1-199, the server's AI 200-299, police
 ## 300-399, highway traffic 1000 + its lane-sim index (NetProtocol).
 
 const SIZE := 48
@@ -50,6 +52,9 @@ var flags := 0
 var flags2 := 0
 ## Kart sessions: the kart word (drift, tier, boost, shield, spun, towed, out...); 0 otherwise.
 var kart := 0
+## The bytes it came in as (decode): a server passes them on as they are, so a car's world position
+## isn't rounded through the server's scene.
+var raw := PackedByteArray()
 
 
 ## The state of `vehicle` now (`time` in server seconds).
@@ -87,11 +92,17 @@ static func show_on(vehicle: Vehicle, flags2: int) -> void:
 	vehicle.light_bar = flags2 & FLAG2_LIGHT_BAR != 0
 
 
-func encode(out: PackedByteArray, at: int) -> void:
+## Into `out` at `at`; `ox`, `oz`: where this game's scene origin is in the world (mm).
+func encode(out: PackedByteArray, at: int, ox := 0, oz := 0) -> void:
+	if raw.size() == SIZE:
+		for k in SIZE:
+			out[at + k] = raw[k]
+		return
 	out.encode_u16(at, id)
 	out.encode_u32(at + 2, int(time * 1000.0) & 0xFFFFFFFF)
-	for k in 3:
-		out.encode_s32(at + 6 + k * 4, clampi(roundi(xform.origin[k] * 1000.0), -2147483647, 2147483647))
+	out.encode_s32(at + 6, wrap32(roundi(xform.origin.x * 1000.0) + ox))
+	out.encode_s32(at + 10, clampi(roundi(xform.origin.y * 1000.0), -2147483647, 2147483647))
+	out.encode_s32(at + 14, wrap32(roundi(xform.origin.z * 1000.0) + oz))
 	out.encode_u32(at + 18, pack_rotation(xform.basis.get_rotation_quaternion()))
 	for k in 3:
 		out.encode_half(at + 22 + k * 2, velocity[k])
@@ -109,9 +120,11 @@ func encode(out: PackedByteArray, at: int) -> void:
 
 
 ## A state from `bytes` at `at`; `time_base` is the server clock (s) now, to unwrap the 32-bit
-## milliseconds. Null if it holds non-finite numbers.
-static func decode(bytes: PackedByteArray, at: int, time_base := 0.0) -> CarState:
+## milliseconds; `ox`, `oz`: where this game's scene origin is in the world (mm), to place it in
+## the scene. Null if it holds non-finite numbers.
+static func decode(bytes: PackedByteArray, at: int, time_base := 0.0, ox := 0, oz := 0) -> CarState:
 	var s := CarState.new()
+	s.raw = bytes.slice(at, at + SIZE)
 	s.id = bytes.decode_u16(at)
 	var ms := bytes.decode_u32(at + 2)
 	# The full time nearest time_base with these low 32 bits.
@@ -122,7 +135,7 @@ static func decode(bytes: PackedByteArray, at: int, time_base := 0.0) -> CarStat
 	elif base_ms - full > 0x7FFFFFFF:
 		full += 0x100000000
 	s.time = full / 1000.0
-	var origin := Vector3(bytes.decode_s32(at + 6), bytes.decode_s32(at + 10), bytes.decode_s32(at + 14)) / 1000.0
+	var origin := Vector3(wrap32(bytes.decode_s32(at + 6) - ox), bytes.decode_s32(at + 10), wrap32(bytes.decode_s32(at + 14) - oz)) / 1000.0
 	var q := unpack_rotation(bytes.decode_u32(at + 18))
 	s.xform = Transform3D(Basis(q), origin)
 	s.velocity = Vector3(bytes.decode_half(at + 22), bytes.decode_half(at + 24), bytes.decode_half(at + 26))
@@ -140,6 +153,11 @@ static func decode(bytes: PackedByteArray, at: int, time_base := 0.0) -> CarStat
 	s.flags2 = bytes.decode_u8(at + 45)
 	s.kart = bytes.decode_u16(at + 46)
 	return s
+
+
+## `v` wrapped into a signed 32-bit int (the same low 32 bits).
+static func wrap32(v: int) -> int:
+	return ((v + 0x80000000) & 0xFFFFFFFF) - 0x80000000
 
 
 ## Smallest three: the largest component's index (2 bits) and the other three in 10 bits each,

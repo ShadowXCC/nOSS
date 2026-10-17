@@ -4,7 +4,7 @@ extends Node
 ## blocks, so a thread reads lines and hands them to the main thread. It only starts when stdin is
 ## a terminal or a pipe.
 
-const HELP := "Commands: players, kick <name>, ban <name>, say <text>, start, next, restart, quit"
+const HELP := "Commands: players, kick <name>, ban <name>, say <text>, start, next, restart, time <dawn…night>, weather <clear…snow, changing>, quit"
 
 ## Kept for the process's life: a read can't be interrupted, so the thread is never joined.
 static var _thread: Thread
@@ -56,7 +56,7 @@ func run(line: String) -> void:
 		"say":
 			if arg:
 				host.say("Server: " + NetChat.clean(arg))
-		"kick", "ban", "start", "next", "restart":
+		"kick", "ban", "start", "next", "restart", "time", "weather":
 			host.admin(1, cmd, arg)
 		"quit", "stop", "exit":
 			get_tree().quit()

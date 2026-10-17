@@ -17,6 +17,8 @@ signal port_checked(ok: bool, message: String)
 signal resync_requested(peer: int)
 ## A client wants one of this server's boards for the session's track (D118).
 signal board_requested(peer: int, board: String)
+## A client's word on an endless road's traffic and players (EndlessNet, D159).
+signal endless_reported(peer: int, data: Dictionary)
 
 var server: NetServer
 var config: ServerConfig
@@ -44,6 +46,12 @@ var _dirty := false
 var _names := {} # platform id -> display name
 var _tracks := {} # track path (the config's) -> track_info()
 var _highway := {} # this session's traffic: {seed, count, t0} (highway events)
+## This session's sky (every game the same, D159): {time, time_rate, weather, seed, t0}.
+var _env := {}
+var _endless := {} # an endless session's clock: {t0}
+## Where each player is on an endless road ({car id: [distance, time, speed]}, from EndlessNet), for
+## joiners.
+var endless_at := {}
 
 
 func _init(p_server: NetServer) -> void:
@@ -104,6 +112,9 @@ func track_path() -> String:
 ## can't go online (personal use, over the size cap, unreadable) gives way to the default one,
 ## with a log line. The track is offered to anyone who asks for it by hash.
 func track_info() -> Dictionary:
+	var e := event()
+	if e.kind == "endless":
+		return { "path": ServerConfig.ENDLESS, "hash": ServerConfig.ENDLESS, "id": ServerConfig.ENDLESS, "name": "Endless " + EndlessCode.encode(e.road_seed, e.biome), "bytes": 0 }
 	var path := config.track_path(rotation_index)
 	if not _tracks.has(path):
 		_tracks[path] = _make_track_info(path)
@@ -222,6 +233,9 @@ func handle(peer: int, type: int, data: Dictionary) -> void:
 		NetProtocol.Msg.RESYNC:
 			if peer != 1 and state == "session":
 				resync_requested.emit(peer)
+		NetProtocol.Msg.ENDLESS:
+			if state == "session" and event().kind == "endless":
+				endless_reported.emit(peer, data)
 		NetProtocol.Msg.BOARD_REQUEST:
 			if state == "session" and NetProtocol.has_fields(data, { "board": [TYPE_STRING, 160] }):
 				board_requested.emit(peer, String(data.board))
@@ -286,6 +300,18 @@ func admin(peer: int, cmd: String, target := "") -> void:
 			if state == "session":
 				end_session()
 			next_event()
+		"time", "weather":
+			var allowed: Array = EnvState.HOURS.keys() + ["track"] if cmd == "time" else EnvState.KINDS.keys() + ["changing", "track"]
+			var what := target.strip_edges().to_lower()
+			if state != "session":
+				_notice(peer, "No session on")
+			elif not what in allowed:
+				_notice(peer, "Use one of: " + ", ".join(PackedStringArray(allowed)))
+			else:
+				_env[cmd] = what
+				_env.t0 = ClockSync.local_now()
+				_to_all(NetProtocol.Msg.ENV, _env)
+				_say("%s: %s" % ["Time" if cmd == "time" else "Weather", what.capitalize()])
 
 
 ## Starts the rotation's current event for everyone in the lobby.
@@ -300,6 +326,13 @@ func start_session() -> void:
 	if event().kind == "highway":
 		# The same traffic on every game: one seed, tick 0 at this moment on the server's clock.
 		_highway = { "seed": randi() % 1000000, "count": event().traffic, "t0": ClockSync.local_now() }
+	# The same sky on every game: the event's settings, one seed for the weather's fronts, and its
+	# clock from this moment.
+	var e := event()
+	_env = { "time": e.time, "time_rate": e.time_rate, "weather": e.weather, "seed": e.env_seed if e.env_seed > 0 else randi_range(1, 0x7FFFFFFF),
+		"t0": ClockSync.local_now() }
+	_endless = { "t0": ClockSync.local_now() } if e.kind == "endless" else {}
+	endless_at = {}
 	_to_all(NetProtocol.Msg.SESSION, session_dict())
 	log_line.emit("Session: %s, %s, %s" % [track_info().name, _class_name(platform_id()), event().kind])
 	_dirty = true
@@ -326,6 +359,10 @@ func session_dict() -> Dictionary:
 		"class": platform_id(), "class_hash": platform_result().hash, "event": event().to_dict(), "roster": roster(), "rules": rules_dict() }
 	if not _highway.is_empty():
 		out.highway = _highway
+	if not _env.is_empty():
+		out.environment = _env
+	if not _endless.is_empty():
+		out.endless = { "t0": _endless.t0, "at": endless_at }
 	return out
 
 

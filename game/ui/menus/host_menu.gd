@@ -3,8 +3,9 @@ extends Control
 ## Hosting a game (MP-01, MP-06): the server's name, password and size, the class, track and
 ## event, LAN discovery and the router port. This game runs the server and plays at the same
 ## time; players who don't have the track get it from here (EDT-08). A highway cruise (M7)
-## takes a highway track, a highway class and its traffic. The last settings are remembered
-## (the password isn't).
+## takes a highway track, a highway class and its traffic; an endless road (M9) a road code, an
+## endless class and its traffic, and no track. The last settings are remembered (the password
+## isn't).
 
 signal closed
 
@@ -20,6 +21,9 @@ var _traffic := 150
 var _police := false
 ## The sky of an event other than a race weekend (a race's is in Race settings).
 var _sky := RaceEvent.new()
+## An endless road's settings (its seed, start biome, traffic).
+var _endless := EndlessMenu.last()
+var _code: LineEdit
 var _rows: Array = []
 var _status: Label
 var _race_settings: Button
@@ -48,6 +52,8 @@ func _ready() -> void:
 		_battle_min = config.event(0).battle_min if config.event(0).battle_min in [3, 5, 7, 10] else 5
 		_battle_hits = config.event(0).battle_hits if config.event(0).battle_hits in [5, 10, 15, 20, 0] else 10
 	_sky = config.event(0)
+	if _kind == "endless":
+		_endless = config.event(0)
 	_track = TrackLibrary.resolve(String(config.rotation[0].get("track", "")))
 	_list = UiKit.panel(self, "Host", 860)
 	_build()
@@ -87,23 +93,41 @@ func _build(focus := "") -> void:
 	_add(rows, UiKit.spinner("Players", sizes, clampi(config.max_players, 2, 16), func(n: int) -> void: config.max_players = n, "Most players, splitscreen included"))
 	var classes := []
 	for mode in GameModes.list():
-		if (mode.id == "highway") != (_kind == "highway") or (_kind == "battle" and mode.id != "kart"):
+		if (mode.id == "highway") != (_kind == "highway") or (_kind == "battle" and mode.id != "kart") or (_kind == "endless" and mode.id != "endless"):
 			continue
 		for r: PlatformLoader.Result in GameModes.classes(mode):
 			classes.append([r.platform.id, "%s %s" % [mode.name, r.platform.name]])
 	if not classes.any(func(c: Array) -> bool: return c[0] == config.rotation[0].get("class", "")) and not classes.is_empty():
 		config.rotation[0]["class"] = classes[0][0]
-	_add(rows, UiKit.spinner("Event", [["free", "Free drive"], ["race", "Race weekend"], ["highway", "Highway cruise"], ["battle", "Kart battle"]], _kind,
+	_add(rows, UiKit.spinner("Event", [["free", "Free drive"], ["race", "Race weekend"], ["highway", "Highway cruise"], ["battle", "Kart battle"],
+		["endless", "Endless road"]], _kind,
 		func(k: String) -> void:
 			var was := _kind
 			_kind = k
-			if (k in ["highway", "battle"]) or (was in ["highway", "battle"]):
-				_build.call_deferred("Event"), "Highways and kart battles have their own tracks and classes"))
+			if (k in ["highway", "battle", "endless"]) or (was in ["highway", "battle", "endless"]):
+				_build.call_deferred("Event"), "Highways, kart battles and endless roads have their own tracks and classes"))
 	_add(rows, UiKit.spinner("Class", classes, config.rotation[0].get("class", "official.track.gt"),
 		func(id: String) -> void: config.rotation[0]["class"] = id, "How every car drives"))
-	_add(rows, UiKit.spinner("Track", tracks.map(func(e: Dictionary) -> Array: return [e.path, TrackLibrary.label(e)]), _track,
-		func(path: String) -> void: _track = path, "Players without it get it from you"))
-	if _kind == "battle":
+	if _kind != "endless":
+		_add(rows, UiKit.spinner("Track", tracks.map(func(e: Dictionary) -> Array: return [e.path, TrackLibrary.label(e)]), _track,
+			func(path: String) -> void: _track = path, "Players without it get it from you"))
+	if _kind == "endless":
+		var code := UiKit.text_field("Road code", EndlessCode.encode(_endless.road_seed, _endless.biome), func(_t: String) -> void: pass, 24,
+			"Type a road code to drive that road", _enter_code)
+		_code = code.get_child(1) as LineEdit
+		_code.focus_exited.connect(func() -> void: _enter_code(_code.text))
+		_add(rows, code)
+		_add(rows, UiKit.button("New road", func() -> void:
+			_endless.road_seed = EndlessCode.random_seed()
+			_build.call_deferred("New road"), "A road nobody has driven"))
+		_add(rows, UiKit.spinner("Start in", EndlessBiomes.choices(), _endless.biome, func(v: int) -> void:
+			_endless.biome = v
+			_code.text = EndlessCode.encode(_endless.road_seed, _endless.biome), "The biome the road starts in"))
+		_add(rows, UiKit.spinner("Traffic", EndlessMenu.TRAFFIC, _endless.endless_traffic, func(v: String) -> void: _endless.endless_traffic = v,
+			"Other cars on the road"))
+		_add(rows, UiKit.spinner("Oncoming", [[true, "On"], [false, "Off"]], _endless.oncoming, func(v: bool) -> void: _endless.oncoming = v,
+			"Cars coming the other way"))
+	elif _kind == "battle":
 		_add(rows, UiKit.spinner("Rule", [["standing", "Last one standing"], ["hits", "Most hits"]], _battle_rule,
 			func(v: String) -> void:
 				_battle_rule = v
@@ -147,6 +171,20 @@ func _add(parent: Control, c: Control) -> void:
 	_rows.append(c)
 
 
+## A typed road code: that road, or the last one back if it isn't one.
+func _enter_code(text: String) -> void:
+	var d := EndlessCode.decode(text)
+	if d.is_empty():
+		_status.text = "Not a road code"
+		_code.text = EndlessCode.encode(_endless.road_seed, _endless.biome)
+		return
+	_status.text = ""
+	if int(d.seed) != _endless.road_seed or int(d.biome) != _endless.biome:
+		_endless.road_seed = int(d.seed)
+		_endless.biome = int(d.biome)
+		_build.call_deferred("Road code")
+
+
 func _open_event() -> void:
 	var menu := EventMenu.new()
 	menu.picked.connect(func(_e: RaceEvent) -> void:
@@ -157,14 +195,15 @@ func _open_event() -> void:
 
 func _host() -> void:
 	var e := Settings.last_event() if _kind == "race" else RaceEvent.highway("cruise", _police, _traffic) if _kind == "highway" \
-		else RaceEvent.battle(_battle_rule, _battle_min) if _kind == "battle" else RaceEvent.free_drive()
+		else RaceEvent.battle(_battle_rule, _battle_min) if _kind == "battle" else RaceEvent.from_dict(_endless.to_dict()) if _kind == "endless" \
+		else RaceEvent.free_drive()
 	if _kind == "battle":
 		e.battle_hits = _battle_hits
 	if _kind != "race":
 		e.time = _sky.time
 		e.time_rate = _sky.time_rate
 		e.weather = _sky.weather
-	config.rotation[0]["track"] = _track
+	config.rotation[0]["track"] = ServerConfig.ENDLESS if _kind == "endless" else _track
 	config.rotation[0]["event"] = e.to_dict()
 	var saved := config.to_dict()
 	saved.password = ""

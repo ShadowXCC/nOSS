@@ -130,6 +130,10 @@ var endless: EndlessControl
 var endless_world: EndlessWorld
 var origin: FloatingOrigin
 var endless_traffic: Node
+## Online: the traffic's owners, slots used up and where everyone is (D159).
+var endless_net: EndlessNet
+## Where this game's players start on the road (m).
+var endless_start_m := EndlessControl.START_M
 
 var _default_car := ""
 var _show_fps := false
@@ -140,12 +144,14 @@ var _fps_frames := 0
 var _sound_time := 0.0
 
 
-## The sky (D153): the event's time and weather over the track's own, the style's sun.
+## The sky (D153): the event's time and weather over the track's own, the style's sun; online, the
+## server's (the same on every game, D159).
 func _env_state(style: StyleProfile) -> EnvState:
-	var time := String(Game.dev.get("time", event.time))
-	var rate := int(Game.dev.get("time-rate", event.time_rate))
-	var weather := String(Game.dev.get("weather", event.weather))
-	var seed := int(Game.dev.get("env-seed", event.env_seed))
+	var sky: Dictionary = online.get("environment", {})
+	var time := String(Game.dev.get("time", sky.get("time", event.time)))
+	var rate := int(Game.dev.get("time-rate", sky.get("time_rate", event.time_rate)))
+	var weather := String(Game.dev.get("weather", sky.get("weather", event.weather)))
+	var seed := int(Game.dev.get("env-seed", sky.get("seed", event.env_seed)))
 	if seed <= 0:
 		seed = randi_range(1, 0x7FFFFFFF)
 	var track_env: Variant = track.raw.get("environment", {})
@@ -160,7 +166,7 @@ func _load_endless() -> void:
 	endless_world = EndlessWorld.new()
 	endless_world.gen = EndlessGen.make(event.road_seed, event.biome)
 	endless_world.origin = origin
-	endless_world.visual = not dedicated
+	endless_world.visual = not (dedicated or Game.dev.has("bot")) # bots draw nothing
 	endless_world.collision = not dedicated
 	endless_world.focus = _endless_distances
 	endless_world.focus_points = _endless_points
@@ -173,16 +179,35 @@ func _load_endless() -> void:
 	track = endless_world.road
 	terrain = null
 	safe_rejoin = false
+	endless_start_m = _endless_start()
+	# Start the origin by the start (a joiner may start far along): nothing's made far from it.
+	var c := endless_world.gen.chunk(floori(endless_start_m / (TrackData.SAMPLE_M * NossRoadGen.chunk_samples())))
+	if not c.is_empty() and Vector2(c.x[0], c.z[0]).length() > FloatingOrigin.SHIFT_AT_M:
+		origin.x = snappedf(c.x[0], FloatingOrigin.SNAP_M)
+		origin.z = snappedf(c.z[0], FloatingOrigin.SNAP_M)
 
 
-## Road distances to keep built round: this game's players (all racers on a server).
+## Where this game's players start: online, behind whoever's furthest along (D159; the server
+## stays at the start); otherwise near the road's start.
+func _endless_start() -> float:
+	var at: Variant = online.get("endless", {}).get("at", {})
+	var best := -INF
+	if at is Dictionary and not dedicated:
+		for v: Variant in at.values():
+			if v is Array and not (v as Array).is_empty() and (v[0] is float or v[0] is int) and is_finite(float(v[0])):
+				best = maxf(best, float(v[0]))
+	return maxf(best - EndlessControl.JOIN_BEHIND_M, EndlessControl.START_M) if best > -INF else EndlessControl.START_M
+
+
+## Road distances to keep built round: this game's players (a dedicated server keeps only the
+## start: it places nobody, D159).
 func _endless_distances() -> PackedFloat64Array:
 	var out := PackedFloat64Array()
 	for r in racers:
-		if r.vehicle and (r is SessionPlayer or dedicated):
+		if r.vehicle and r is SessionPlayer:
 			out.append(r.distance)
 	if out.is_empty():
-		out.append(EndlessControl.START_M)
+		out.append(endless_start_m)
 	return out
 
 
@@ -192,7 +217,7 @@ func _endless_points() -> PackedVector3Array:
 		if r.vehicle and (r is SessionPlayer or dedicated):
 			out.append(r.vehicle.global_position)
 	if out.is_empty() and endless_world and not endless_world.road.is_empty():
-		out.append(endless_world.road.point_at(EndlessControl.START_M))
+		out.append(endless_world.road.point_at(endless_start_m))
 	return out
 
 
@@ -202,8 +227,9 @@ func _ready_endless() -> void:
 	endless.session = self
 	endless.world = endless_world
 	endless.event = event
+	endless.start_m = endless_start_m
 	add_child(endless)
-	if event.endless_traffic != "off":
+	if event.endless_traffic != "off" and not dedicated:
 		var traffic := EndlessTraffic.new()
 		traffic.session = self
 		traffic.world = endless_world
@@ -253,7 +279,7 @@ func _ready() -> void:
 	env.apply()
 	if endless_world:
 		add_child(endless_world)
-		endless_world.prime(EndlessControl.START_M)
+		endless_world.prime(endless_start_m)
 	else:
 		var built := TrackBuilder.build(track, terrain, { "visual": not dedicated, "scene": track_package.scene })
 		add_child(built)
@@ -375,6 +401,8 @@ func _exit_tree() -> void:
 		Net.board_received.disconnect(_on_board_received)
 	if Net.highway_event.is_connected(_on_highway_event):
 		Net.highway_event.disconnect(_on_highway_event)
+	if Net.env_changed.is_connected(_on_env_changed):
+		Net.env_changed.disconnect(_on_env_changed)
 	if Net.host_logic and Net.host_logic.board_requested.is_connected(_on_board_requested):
 		Net.host_logic.board_requested.disconnect(_on_board_requested)
 	Engine.time_scale = 1.0
@@ -626,6 +654,21 @@ func _ready_online() -> void:
 		kn.session = self
 		kn.kart = kart
 		add_child(kn)
+	var sky: Dictionary = online.get("environment", {})
+	if not sky.is_empty():
+		var t0 := float(sky.t0)
+		env.clock = func() -> float: return net.now() - t0
+	Net.env_changed.connect(_on_env_changed)
+	if endless:
+		endless_net = EndlessNet.new()
+		endless_net.session = self
+		endless_net.traffic = endless_traffic
+		endless_world.record_sums = true
+		var t0 := float(online.get("endless", {}).get("t0", 0.0))
+		if endless_traffic:
+			endless_traffic.net = endless_net
+			endless_traffic.clock = func() -> float: return net.now() - t0
+		add_child(endless_net)
 	if traffic:
 		var hn := HighwayNet.new()
 		hn.name = "HighwayNet"
@@ -646,6 +689,15 @@ func _ready_online() -> void:
 	ai_racers = 0
 
 
+## The server changed the sky mid-session (an admin's /time or /weather).
+func _on_env_changed(sky: Dictionary) -> void:
+	online.environment = sky
+	env.state = _env_state(StyleProfile.load_profile(track.style))
+	var t0 := float(sky.t0)
+	env.clock = func() -> float: return net.now() - t0
+	env.apply()
+
+
 ## Chat shows as captions for each player here, and is read out with their race narration.
 func _on_chat(line: Dictionary) -> void:
 	var text := "%s: %s" % [line.name, line.text] if line.kind == "chat" else String(line.text)
@@ -659,7 +711,9 @@ func _on_chat(line: Dictionary) -> void:
 
 func _add_online_racer(d: Dictionary, index: int) -> Racer:
 	var id := int(d.id)
-	var spot := highway.spawn_for(index, direction_for(index)) if highway else track.transform_at(_grid_distance(index), _grid_lateral(index))
+	var spot := highway.spawn_for(index, direction_for(index)) if highway \
+		else endless.spawn_for(maxi(Array(Net.my_ids).find(id), 0)) if endless \
+		else track.transform_at(_grid_distance(index), _grid_lateral(index))
 	if d.get("ai", false) and Net.is_server(): # the server's AI cars (D88)
 		var a := AiRacer.new()
 		a.configure(int(d.get("local", 0)), float(d.get("skill", ai_skill)))

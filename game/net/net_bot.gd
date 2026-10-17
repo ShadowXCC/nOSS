@@ -10,7 +10,9 @@ extends Node
 ## checksums that disagreed, full states taken, late events, handovers, the most physics cars it
 ## drove at once, and the slowest its lane sim kept up (ticks a second). In a kart session it
 ## reports its items (D141): uses, hits on its cars, the server's corrections and how far its
-## items were from the server's (p95).
+## items were from the server's (p95). On an endless road (D159) it reports how far it drove, its
+## origin's moves, where it started against the leader, the traffic cars it drove and showed from
+## other games, and how long another player was near.
 
 const CONTACT_IMPULSE := 150.0 # N·s in one tick counts as contact (as race_check)
 
@@ -38,6 +40,11 @@ var _kart_errors := PackedFloat32Array()
 var _chaser_errors := PackedFloat32Array()
 var _kart_uses := 0
 var _kart_hits := 0
+var _endless := {}
+var _endless_lead := NAN # the furthest player's spot when it joined (m)
+var _proxies_max := 0
+var _owned_traffic_max := 0
+var _near_s := 0
 var _kart_hooked: KartItems
 
 
@@ -77,6 +84,7 @@ func _physics_process(delta: float) -> void:
 		_remote_cars = maxi(_remote_cars, remote) # the most seen at once
 		_traffic_sample(session)
 		_kart_sample(session)
+		_endless_sample(session)
 	for id: int in session.net.owned:
 		var r: Racer = session.net.owned[id]
 		var v := r.vehicle
@@ -90,6 +98,8 @@ func _physics_process(delta: float) -> void:
 		_last_hit[id] = [other, now]
 		_contacts += 1
 		var p := v.global_position
+		if session.origin: # world metres: each game has its own origin
+			p += Vector3(session.origin.x, 0.0, session.origin.z)
 		print("NETCHECK_CONTACT %.3f %d %d %.1f %.1f %.1f" % [now, id, other, p.x, p.y, p.z])
 
 
@@ -111,6 +121,34 @@ func _traffic_sample(session: TrackSession) -> void:
 	_traffic = { "mismatches": hn.mismatches, "resyncs": hn.resyncs, "late": hn.late, "handovers": hn.handovers, "beats": hn.beats,
 		"owned_max": _owned_max, "tick_rate_min": _tick_rate_min if _tick_rate_min < INF else -1.0, "physics_max": session.traffic.cars.size(),
 		"err_n": e.size(), "err_p95": e[int(e.size() * 0.95)] if not e.is_empty() else 0.0 }
+
+
+## Once a second: an endless road's counters.
+func _endless_sample(session: TrackSession) -> void:
+	var en := session.endless_net
+	if en == null or session.players.is_empty():
+		return
+	if is_nan(_endless_lead):
+		var at: Variant = session.online.get("endless", {}).get("at", {})
+		_endless_lead = -1.0
+		for v: Variant in at.values() if at is Dictionary else []:
+			if v is Array and not (v as Array).is_empty():
+				_endless_lead = maxf(_endless_lead, float(v[0]))
+	var t: EndlessTraffic = session.endless_traffic
+	if t:
+		var proxies := 0
+		for c: EndlessTrafficCar in t.cars.values():
+			proxies += 1 if c.remote else 0
+		_proxies_max = maxi(_proxies_max, proxies)
+		_owned_traffic_max = maxi(_owned_traffic_max, t.cars.size() - proxies)
+	var me: Racer = session.players[0]
+	for id: int in en.at:
+		if not id in Net.my_ids and absf(en.distance_of(id) - me.distance) < 300.0:
+			_near_s += 1
+			break
+	_endless = { "km": (me.distance - session.endless_start_m) / 1000.0, "start_m": session.endless_start_m, "lead_m": _endless_lead,
+		"shifts": session.origin.shifts, "owned_max": _owned_traffic_max, "proxies_max": _proxies_max, "handovers": en.handovers,
+		"gone": t.gone.size() if t else 0, "near_s": _near_s }
 
 
 ## Once a second: the kart items' counters.
@@ -196,7 +234,7 @@ func _exit_tree() -> void:
 		"err_p95": e[int(e.size() * 0.95)] if not e.is_empty() else 0.0, "err_max": e.back() if not e.is_empty() else 0.0,
 		"contacts": _contacts, "remote_cars": _remote_cars, "throttle_min": _throttle_min,
 		"rtt_ms": Net.client.rtt_ms() if Net.client else 0.0,
-		"cars": _cars, "preview_s": _preview_s, "full_s": _full_s, "traffic": _traffic, "kart": _kart,
+		"cars": _cars, "preview_s": _preview_s, "full_s": _full_s, "traffic": _traffic, "kart": _kart, "endless": _endless,
 	}))
 
 

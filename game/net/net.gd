@@ -26,6 +26,10 @@ signal traffic_full(data: Dictionary)
 signal board_received(board: String, entries: Array)
 ## Police news for one of this game's cars (D115): {id, kind (heat, busted, evaded), level, evading, text}.
 signal highway_event(data: Dictionary)
+## An endless road's traffic owners, used-up slots and players' spots from the server (D159).
+signal endless_state(data: Dictionary)
+## The sky changed mid-session (an admin's /time or /weather): {time, time_rate, weather, seed, t0}.
+signal env_changed(env: Dictionary)
 
 const CHAT_KEEP := 100
 
@@ -324,6 +328,14 @@ func _fetch_cars() -> void:
 			content.fetch_car(p.car, 1, content.max_tier)
 
 
+## A session's sky from the server, checked: {time, time_rate, weather, seed, t0}, or {}.
+static func _env_of(d: Variant) -> Dictionary:
+	if not (d is Dictionary and NetProtocol.has_fields(d, { "time": [TYPE_STRING, 16], "time_rate": TYPE_INT, "weather": [TYPE_STRING, 16],
+			"seed": TYPE_INT, "t0": TYPE_FLOAT })):
+		return {}
+	return { "time": String(d.time), "time_rate": clampi(d.time_rate, 0, 600), "weather": String(d.weather), "seed": maxi(int(d.seed), 1), "t0": float(d.t0) }
+
+
 func _fetch_track(h: String, bytes: int) -> void:
 	if content and not is_server() and ContentStore.valid_hash(h):
 		content.fetch_track(h, 1, bytes)
@@ -392,6 +404,12 @@ func _handle(type: int, data: Dictionary) -> void:
 			var hw: Variant = data.get("highway")
 			if hw is Dictionary and NetProtocol.has_fields(hw, { "seed": TYPE_INT, "count": TYPE_INT, "t0": TYPE_FLOAT }):
 				session.highway = { "seed": hw.seed, "count": clampi(hw.count, -1, RaceEvent.TRAFFIC_MAX), "t0": float(hw.t0) }
+			var env := _env_of(data.get("environment"))
+			if not env.is_empty():
+				session.environment = env
+			var el: Variant = data.get("endless")
+			if el is Dictionary and NetProtocol.has_fields(el, { "t0": TYPE_FLOAT, "at": TYPE_DICTIONARY }) and (el.at as Dictionary).size() <= NetProtocol.MAX_PLAYERS:
+				session.endless = { "t0": float(el.t0), "at": el.at }
 			_fetch_track(String(data.track), int(data.get("track_bytes", -1)))
 			race_begin = {}
 			session_started.emit(session)
@@ -408,6 +426,14 @@ func _handle(type: int, data: Dictionary) -> void:
 		NetProtocol.Msg.TRAFFIC_FULL:
 			if not session.is_empty():
 				traffic_full.emit(data)
+		NetProtocol.Msg.ENDLESS_STATE:
+			if not session.is_empty():
+				endless_state.emit(data)
+		NetProtocol.Msg.ENV:
+			var env := _env_of(data)
+			if not session.is_empty() and not env.is_empty():
+				session.environment = env
+				env_changed.emit(env)
 		NetProtocol.Msg.HW_EVENT:
 			if NetProtocol.has_fields(data, { "id": TYPE_INT, "kind": [TYPE_STRING, 16], "level": TYPE_INT, "evading": TYPE_FLOAT, "text": [TYPE_STRING, 64] }) \
 					and data.kind in ["heat", "busted", "evaded"]:

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Runs every test suite: native (doctest), JSON schemas, tools (unittest), GDScript (gdUnit4, headless),
-# platform conformance, a short AI race check (and one in the rain), a short kart check, a 10-minute endless drive, a short
-# highway check, short online checks (a race,
-# a highway with traffic), the track editor's 3 km acceptance build (raced and sent online), boot
-# smoke test.
+# platform conformance, a short AI race check (and one in the rain), a short kart check, a 10-minute
+# endless drive, a short highway check, short online checks (a race, a highway with traffic, karts,
+# an endless convoy), the track editor's 3 km acceptance build (raced and sent online), boot smoke
+# test.
 # Exits non-zero if any fails. Run tools/setup_dev.sh once first.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -62,6 +62,9 @@ step "Online check (3 bots and an AI car race a lap, 150 ms)"
 
 step "Online highway check (3 bots, 60 traffic cars, 150 ms, one put out of step)"
 .venv/bin/python tools/net_check.py --event highway --clients 3 --traffic 60 --duration 40 --rtt 150 --jitter 10 --loss 1 --desync | grep -E "^(net_check|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("highway net check")
+
+step "Endless net check (3 bots, one joining late, 150 ms RTT)"
+.venv/bin/python tools/net_check.py --event endless --clients 3 --late 40 --duration 150 --rtt 150 --jitter 10 --loss 1 | grep -E "^(net_check|server road|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("endless net check")
 
 step "Kart net check (3 bots, 1 AI, 1 lap of Gearworks, 150 ms, 1% loss)"
 .venv/bin/python tools/net_check.py --event kart --clients 3 --ai 1 --laps 1 --rtt 150 --jitter 10 --loss 1 | grep -E "^(net_check|server items|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("kart net check")

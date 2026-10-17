@@ -210,6 +210,12 @@ func update_track(delta: float) -> void:
 		on_track = track.arena.inside(vehicle.global_transform * vehicle.center_of_mass, 0.5)
 		return
 	var com_world := vehicle.global_transform * vehicle.center_of_mass
+	if track is RoadWindow and not track.is_near_centreline(com_world, 60.0):
+		# Somewhere on an endless road this game hasn't made (D159): nothing to place it on.
+		speed = vehicle.speed()
+		on_track = false
+		track_index = -1
+		return
 	var proj := track.project(com_world, track_index)
 	track_index = proj.index
 	distance = proj.distance

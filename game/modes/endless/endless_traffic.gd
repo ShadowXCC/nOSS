@@ -8,6 +8,8 @@ extends Node
 ## lane ever meet. Cars near a player become physics cars (EndlessTrafficCar) that keep to their
 ## slot unless something's in the way; knocked or left far behind, a car leaves its slot (the slot
 ## stays empty) and goes once nobody's near. Cars further off are drawn, one MultiMesh per type.
+## Online (D159) one game drives each physics car (EndlessNet's owners) and the others show it from
+## its states; a car's network id comes from its slot (car_id_of).
 
 const UP := 0 # toward higher distances (the players' way)
 const DOWN := 1 # oncoming
@@ -30,6 +32,8 @@ var density := "light"
 var oncoming := true
 ## Seconds on the traffic's clock (online: the server's, D159). Unset: this node's own.
 var clock := Callable()
+## Online: who drives which car (null offline).
+var net: EndlessNet
 ## Physics cars by slot key (Vector2i(lane, j)).
 var cars := {}
 ## Slots left behind by cars knocked out of them (never drawn again).
@@ -102,6 +106,20 @@ func _process(_delta: float) -> void:
 
 
 # --- the schedule --------------------------------------------------------------------------------
+
+
+## A slot as one number (lane, j) -> 2j + lane, for the network.
+static func slot_of(key: Vector2i) -> int:
+	return key.y * 2 + key.x
+
+
+static func key_of(slot: int) -> Vector2i:
+	return Vector2i(slot & 1, slot >> 1)
+
+
+## Slot `slot`'s car's network id (CarState ids are 16 bits: slots this far apart never meet).
+static func car_id_of(slot: int) -> int:
+	return NetProtocol.FIRST_TRAFFIC_ID + posmod(slot, 64000)
 
 
 ## Slot (lane, j): whether a car's in it, when it left (s, on the lane's clock), its type and colour.
@@ -283,9 +301,21 @@ func _promote_near() -> void:
 		if (on_slot and near > DEMOTE_M) or (car.left_slot and near > GONE_M) or is_nan(slot_s(key)) and near > DEMOTE_M:
 			if car.left_slot:
 				gone[key] = true
-			car.vehicle.queue_free()
-			car.queue_free()
-			cars.erase(key)
+				if net and not car.remote:
+					net.gone(slot_of(key))
+			_remove(key)
+			if net:
+				net.drop(slot_of(key))
+
+
+func _remove(key: Vector2i) -> void:
+	var car: EndlessTrafficCar = cars[key]
+	cars.erase(key)
+	if session.net:
+		session.net.drop_traffic(car_id_of(slot_of(key)))
+	if car.vehicle and is_instance_valid(car.vehicle):
+		car.vehicle.queue_free()
+	car.queue_free()
 
 
 func _promote(c: Dictionary, xf: Transform3D) -> void:
@@ -294,11 +324,12 @@ func _promote(c: Dictionary, xf: Transform3D) -> void:
 		return
 	var v := Vehicle.create(_platforms[type], PackageLoader.copy(_packages[type]))
 	v.name = "EndlessTraffic%d_%d" % [c.key.x, c.key.y]
+	var slot := slot_of(c.key)
+	v.traffic_id = car_id_of(slot) - NetProtocol.FIRST_TRAFFIC_ID
 	v.visual_every_frame = true
 	session.add_child(v)
 	if v.visual:
 		v.visual.set_paint("primary", c.color, "metallic")
-	v.reset_to(xf, xf.basis.z * float(c.speed))
 	var car := EndlessTrafficCar.new()
 	car.traffic = self
 	car.key = c.key
@@ -307,6 +338,76 @@ func _promote(c: Dictionary, xf: Transform3D) -> void:
 	car.speed = c.speed
 	add_child(car)
 	cars[c.key] = car
+	# Online: driven here unless another game has it already (asking for it either way: the server
+	# hands it over when its owner lets it go).
+	var owner := int(net.owners.get(slot, -1)) if net else -1
+	_drive_here(car, owner < 0 or net.is_mine(owner), xf, xf.basis.z * float(c.speed))
+	if net:
+		net.want(slot)
+
+
+## Makes `car` driven here (a physics car) or shown from its owner's states (a proxy), from
+## `xform` at `velocity`.
+func _drive_here(car: EndlessTrafficCar, local: bool, xform: Transform3D, velocity: Vector3) -> void:
+	var v := car.vehicle
+	car.remote = not local
+	car.buffer = MotionBuffer.new()
+	v.set_remote(not local)
+	if local:
+		v.reset_to(xform, velocity)
+	else:
+		v.move_remote(xform, velocity, Vector3.ZERO, true)
+	if session.net:
+		var id := car_id_of(slot_of(car.key))
+		if local:
+			session.net.own_traffic(id, car)
+		else:
+			session.net.drop_traffic(id)
+
+
+# --- online --------------------------------------------------------------------------------------
+
+
+## Slot `slot`'s car is now driven by `owner`'s game (-1: nobody): a proxy here becomes this game's
+## physics car where it is, at its speed, or this game's becomes a proxy. Nobody: whoever has it
+## here drives it.
+func set_driver(slot: int, owner: int) -> void:
+	var car: EndlessTrafficCar = cars.get(key_of(slot))
+	if car == null or car.vehicle == null or not is_instance_valid(car.vehicle):
+		return
+	var local := owner < 0 or net.is_mine(owner)
+	if local == not car.remote:
+		return
+	var v := car.vehicle
+	var xf := v.ground_reference()
+	var vel := v.remote_velocity if car.remote else v.linear_velocity
+	if car.remote:
+		car.take_over()
+	_drive_here(car, local, xf, vel)
+
+
+## Slot `slot` is used up (its car left it on some game): never drawn from the schedule again.
+func mark_gone(slot: int) -> void:
+	gone[key_of(slot)] = true
+	var car: EndlessTrafficCar = cars.get(key_of(slot))
+	if car:
+		car.left_slot = true
+
+
+## A state of a car another game drives.
+func push_state(st: CarState, now: float) -> void:
+	var car := car_by_id(st.id)
+	if car and car.remote:
+		car.buffer.push(st, now)
+		car.remote_flags = st.flags2
+
+
+## The physics car or proxy with network id `id`, or null.
+func car_by_id(id: int) -> EndlessTrafficCar:
+	for key: Vector2i in cars:
+		if car_id_of(slot_of(key)) == id:
+			return cars[key]
+	return null
 
 
 # --- drawing -------------------------------------------------------------------------------------

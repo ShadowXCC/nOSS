@@ -79,7 +79,7 @@
       "required": ["class"],
       "properties": {
         "track": {
-          "description": "A track's id (built-in, like proving_ground, or in the track library) or a path (.nosstrack, track folder or track.json), relative to the config.",
+          "description": "A track's id (built-in, like proving_ground, or in the track library) or a path (.nosstrack, track folder or track.json), relative to the config; endless events need none (their road comes from road_seed).",
           "type": "string",
           "minLength": 1,
           "maxLength": 256
@@ -92,7 +92,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "kind": { "description": "battle: a kart class on an arena (D144).", "enum": ["free", "race", "highway", "battle"] },
+        "kind": { "description": "battle: a kart class on an arena (D144); endless: a road made from road_seed (D159).", "enum": ["free", "race", "highway", "battle", "endless"] },
         "practice_min": { "type": "integer", "minimum": 0, "maximum": 120 },
         "qualifying_min": { "type": "integer", "minimum": 0, "maximum": 120 },
         "race_laps": { "type": "integer", "minimum": 1, "maximum": 99 },
@@ -116,7 +116,12 @@
         "time": { "description": "Time of day (track: the track's own fixed sun).", "enum": ["track", "dawn", "morning", "noon", "afternoon", "dusk", "night"] },
         "time_rate": { "description": "Game minutes per real minute (0: the time stands still).", "type": "integer", "minimum": 0, "maximum": 600 },
         "weather": { "description": "Weather (track: the track's own; changing: fronts come and go).", "enum": ["track", "clear", "cloudy", "rain", "storm", "fog", "snow", "changing"] },
-        "env_seed": { "description": "Seed of the weather's fronts (0: picked when the session starts).", "type": "integer", "minimum": 0, "maximum": 2147483647 }
+        "env_seed": { "description": "Seed of the weather's fronts (0: picked when the session starts).", "type": "integer", "minimum": 0, "maximum": 2147483647 },
+        "road_seed": { "description": "Endless events: the road's seed.", "type": "integer", "minimum": 0, "maximum": 2147483647 },
+        "biome": { "description": "Endless events: the biome the road starts in (NossRoadGen.biome_ids order).", "type": "integer", "minimum": 0, "maximum": 31 },
+        "endless_traffic": { "description": "Endless events: traffic.", "enum": ["light", "normal", "off"] },
+        "oncoming": { "description": "Endless events: oncoming traffic.", "type": "boolean" },
+        "spread": { "description": "Endless events: local players far apart on one game: bring the one behind up, or hold the leader back.", "enum": ["bring", "hold"] }
       }
     }
   }

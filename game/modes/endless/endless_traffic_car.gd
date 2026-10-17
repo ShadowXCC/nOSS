@@ -4,7 +4,8 @@ extends Node
 ## slot's schedule, catching up a little when held back, and yields to anything ahead in its lane
 ## (a player, another car). Knocked hard, rolled, or left well behind its slot, it leaves the slot:
 ## a knocked or rolled car stops with its hazards on; one left behind drives on at the lane's
-## speed. Either way it goes once nobody's near (EndlessTraffic).
+## speed. Either way it goes once nobody's near (EndlessTraffic). Online, a car another game drives
+## is a `remote` proxy of its states (D159).
 
 ## Catching up: m/s more per metre behind its slot, within these.
 const CATCH_UP := 0.35
@@ -17,6 +18,8 @@ const UPSET_S := 1.0
 const LOOK_M := 14.0
 const GAP_M := 5.0
 const GAP_S := 1.4
+## A proxy with no state this recent goes on along its slot.
+const STALE_S := 1.0
 
 var traffic: EndlessTraffic
 var key: Vector2i
@@ -26,6 +29,10 @@ var s := 0.0
 var speed := 0.0
 var left_slot := false
 var wrecked := false
+## Online: shown from its owner's states (`buffer`), not driven here.
+var remote := false
+var buffer := MotionBuffer.new()
+var remote_flags := 0
 var _index := -1
 var _upset := 0.0
 var _wheelbase := 2.7
@@ -34,6 +41,7 @@ var _max_steer := 0.55
 
 func _ready() -> void:
 	process_physics_priority = -50
+	add_to_group(&"origin_shift")
 	var p := vehicle.platform
 	_wheelbase = float(p.geometry.wheelbase_m.ref)
 	_max_steer = deg_to_rad(float(p.steering.max_road_angle_deg))
@@ -50,6 +58,9 @@ func _physics_process(delta: float) -> void:
 	_index = int(proj.index)
 	s = float(proj.distance)
 	speed = vehicle.speed()
+	if remote:
+		_follow(delta)
+		return
 	var dir := 1.0 if key.x == EndlessTraffic.UP else -1.0
 	_upset = _upset + delta if vehicle.global_basis.y.y < 0.4 else 0.0
 	if vehicle.car_impulse > KNOCK_NS or vehicle.wall_impulse > KNOCK_NS or _upset > UPSET_S:
@@ -97,3 +108,38 @@ func _physics_process(delta: float) -> void:
 	vehicle.brake = clampf(-err * 0.25, 0.0, 1.0) if err < -0.8 else 0.0
 	vehicle.handbrake = 0.0
 	vehicle.indicators = 0
+
+
+## The scene's origin moved (FloatingOrigin): the states waiting move with it (the car moves itself).
+func origin_shifted(delta: Vector3) -> void:
+	buffer.shift(delta)
+
+
+## Its driver's word for the network: wrecked, still on its slot.
+func flags2() -> int:
+	return (CarState.FLAG2_WRECKED if wrecked else 0) | (0 if left_slot else CarState.FLAG2_LANE_OK)
+
+
+## A proxy: where its owner's states put it now; with none lately, its slot's spot.
+func _follow(delta: float) -> void:
+	var now := traffic.session.net.now() if traffic.session.net else 0.0
+	var p := buffer.pose(now, delta) if not buffer.is_empty() else {}
+	if not p.is_empty() and now - (p.state as CarState).time < STALE_S:
+		var st: CarState = p.state
+		vehicle.remote_state = st
+		vehicle.move_remote(p.xform, p.velocity, p.angular, st.flags & CarState.FLAG_TELEPORT != 0)
+		CarState.show_on(vehicle, st.flags2)
+		wrecked = st.flags2 & CarState.FLAG2_WRECKED != 0
+		left_slot = left_slot or st.flags2 & CarState.FLAG2_LANE_OK == 0
+		return
+	var at := traffic.slot_s(key)
+	if not left_slot and not is_nan(at):
+		var xf := traffic.pose(key.x, at)
+		vehicle.move_remote(xf, xf.basis.z * traffic.lane_speed(key.x, at), Vector3.ZERO, false)
+
+
+## This game drives it from now on (it was a proxy): as its owner's last word left it.
+func take_over() -> void:
+	wrecked = remote_flags & CarState.FLAG2_WRECKED != 0
+	left_slot = left_slot or (remote_flags != 0 and remote_flags & CarState.FLAG2_LANE_OK == 0)
+	_upset = 0.0

@@ -7,6 +7,8 @@ extends RefCounted
 const SCHEMA := "noss.server/1"
 const TRACKS_DIR := "res://content/tracks/"
 const DEFAULT_TRACK := "proving_ground"
+## The track ref of an endless event (no track: its road comes from its seed).
+const ENDLESS := "endless"
 
 var name := "nOSS server"
 var port := NetProtocol.DEFAULT_PORT
@@ -110,8 +112,11 @@ func save() -> Error:
 
 
 ## The track of rotation item `i`: a track's id (built-in, or in the track library), or a path
-## (.nosstrack, a track folder or a track.json) relative to the config.
+## (.nosstrack, a track folder or a track.json) relative to the config; "endless" for an endless
+## event (its road comes from its seed).
 func track_path(i: int) -> String:
+	if event(i).kind == "endless":
+		return ENDLESS
 	var t := String(rotation[i].get("track", DEFAULT_TRACK))
 	if not t.contains("/") and not t.contains("\\") and not t.contains("."):
 		var found := TrackLibrary.resolve(t)
@@ -134,10 +139,11 @@ func platform(i: int) -> PlatformLoader.Result:
 	return PlatformLoader.load_file(PlatformLoader.USER_DIR + id + PlatformLoader.SUFFIX)
 
 
-## Rotation item `i`'s event (online: free drive, a race weekend, a highway or a kart battle).
+## Rotation item `i`'s event (online: free drive, a race weekend, a highway, a kart battle or an
+## endless road).
 func event(i: int) -> RaceEvent:
 	var e := RaceEvent.from_dict(rotation[i].get("event", {}))
-	if e.kind not in ["free", "race", "highway", "battle"]:
+	if e.kind not in ["free", "race", "highway", "battle", "endless"]:
 		e.kind = "free"
 	return e
 
