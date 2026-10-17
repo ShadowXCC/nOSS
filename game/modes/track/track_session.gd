@@ -203,6 +203,15 @@ func _ready_endless() -> void:
 	endless.world = endless_world
 	endless.event = event
 	add_child(endless)
+	if event.endless_traffic != "off":
+		var traffic := EndlessTraffic.new()
+		traffic.session = self
+		traffic.world = endless_world
+		traffic.seed = event.road_seed
+		traffic.density = event.endless_traffic
+		traffic.oncoming = event.oncoming
+		endless_traffic = traffic
+		add_child(traffic)
 	if not dedicated and not Game.dev.has("bot"):
 		var music := EndlessMusic.new()
 		music.seed_base = event.road_seed

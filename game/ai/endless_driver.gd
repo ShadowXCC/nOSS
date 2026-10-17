@@ -38,6 +38,7 @@ var speed_factor := 1.0
 var lane_side := -1.0
 var _held := 0.0
 var _passing := false
+var _passing_what: Variant # the Racer or the traffic slot being passed
 var _stuck := 0.0
 var _upset := 0.0
 
@@ -109,6 +110,15 @@ func controls(delta: float) -> Dictionary:
 		want = minf(want, sqrt(LATERAL * grip / here))
 	if racer.pace_limit > 0.0:
 		want = minf(want, racer.pace_limit)
+	# Passing: back once well past what it passed; back at once if anything comes the other way.
+	if _passing:
+		var oncoming := _ahead(road, d, lane_w / 2.0, lane_w)
+		var passed_s := _where(_passing_what)
+		if (not oncoming.is_empty() and float(oncoming.speed) < 0.0 and float(oncoming.gap) < 250.0) \
+				or is_nan(passed_s) or d > passed_s + 15.0:
+			_passing = false
+			_held = 0.0
+			lane_side = -1.0
 	# Anything ahead in its lane.
 	var ahead := _ahead(road, d, lane_side * lane_w / 2.0, lane_w)
 	if not ahead.is_empty():
@@ -118,10 +128,6 @@ func controls(delta: float) -> Dictionary:
 		if gap < safe:
 			want = minf(want, maxf(lead_v * gap / safe, 0.0))
 		_passing_rules(delta, road, d, speed, want, ahead)
-	elif _passing:
-		_held = 0.0
-		_passing = false
-		lane_side = -1.0
 	var err := want - speed
 	var throttle := clampf(0.2 + err * 0.3, 0.0, 1.0) if err > 0.0 else 0.0
 	var brake := clampf(-err * 0.22, 0.0, 1.0) if err < -0.8 else 0.0
@@ -155,13 +161,23 @@ func _ahead(road: RoadWindow, d: float, lane_lat: float, lane_w: float) -> Dicti
 		var gap := r.distance - d - 5.0
 		if gap > -2.0 and gap < best_gap and absf(r.lateral - lane_lat) < lane_w * 0.7:
 			best_gap = gap
-			best = { "gap": maxf(gap, 0.0), "speed": maxf(r.speed, 0.0) }
+			best = { "gap": maxf(gap, 0.0), "speed": maxf(r.speed, 0.0), "what": r }
 	var traffic: Variant = racer.session.get(&"endless_traffic")
 	if traffic != null and traffic.has_method(&"ahead"):
 		var t: Dictionary = traffic.ahead(d, lane_lat < 0.0, best_gap)
 		if not t.is_empty() and float(t.gap) < best_gap:
 			best = t
 	return best
+
+
+## Where what it's passing is now (absolute m), or NAN if it's gone.
+func _where(what: Variant) -> float:
+	if what is Racer:
+		return (what as Racer).distance if is_instance_valid(what) else NAN
+	var traffic: Variant = racer.session.get(&"endless_traffic")
+	if what is Vector2i and traffic != null:
+		return traffic.position_of(what)
+	return NAN
 
 
 ## Held up behind something slower: over into the other lane when the road's clear far enough,
@@ -175,6 +191,7 @@ func _passing_rules(delta: float, road: RoadWindow, d: float, speed: float, want
 		if _held > PASS_AFTER_S and _clear_to_pass(road, d, speed):
 			lane_side = 1.0
 			_passing = true
+			_passing_what = ahead.get("what")
 			_held = 0.0
 
 

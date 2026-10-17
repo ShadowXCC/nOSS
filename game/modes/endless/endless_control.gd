@@ -69,6 +69,8 @@ func _physics_process(delta: float) -> void:
 		var p: SessionPlayer = session.players[0]
 		print("endless: d %.1f lat %.2f idx %d car %s road %s speed %.1f window %.0f..%.0f %s origin %.0f,%.0f" % [p.distance, p.lateral, p.track_index,
 			p.vehicle.global_position, world.road.point_at(p.distance), p.speed, world.road.offset_m, world.road.end_m(), world.counts(), session.origin.x, session.origin.z])
+		if session.endless_traffic:
+			print("traffic: %d scheduled, %d physics, %d gone" % [session.endless_traffic.scheduled().size(), session.endless_traffic.cars.size(), session.endless_traffic.gone.size()])
 
 
 ## Local players on one stretch of road (floating origin, one world): when they drift too far apart

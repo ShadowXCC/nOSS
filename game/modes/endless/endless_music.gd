@@ -49,6 +49,8 @@ func _exit_tree() -> void:
 ## Music files in the music folder.
 static func own_files() -> PackedStringArray:
 	var out := PackedStringArray()
+	if not DirAccess.dir_exists_absolute(DIR):
+		return out
 	for f in DirAccess.get_files_at(DIR):
 		if f.get_extension().to_lower() in ["ogg", "mp3"]:
 			out.append(DIR.path_join(f))
