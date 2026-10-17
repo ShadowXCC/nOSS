@@ -380,7 +380,7 @@ def editor_walk():
     step("Editor: leave", "Exit")
     if find("Don't save", "button", timeout=3.0) is not None:
         step("Unsaved prompt", "Don't save")
-    if find("Race", "button", timeout=20.0) is None:
+    if find("Solo Drive", "button", timeout=20.0) is None:
         problems.append("Out of the editor: no title")
 
 

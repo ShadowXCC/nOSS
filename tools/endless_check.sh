@@ -3,9 +3,16 @@
 # an autodriven endless drive headless at a fixed 120 Hz, faster than real time. Options go to
 # tests/endless/endless_check.gd, e.g. --minutes=120 --traffic=normal, or --no-rebase (the
 # negative control: without the floating origin the precision check must fail on a long drive).
+# --windowed draws it (as fast as it can, in a window) and checks video memory too.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-tools/godot.sh --headless --fixed-fps 120 res://tests/endless/endless_check.tscn -- "$@" 2>&1 \
+mode=(--headless)
+extra=()
+if [[ " $* " == *" --windowed "* ]]; then
+	mode=()
+	extra=(--screens=-1) # P1 on the game's own window
+fi
+tools/godot.sh "${mode[@]}" --fixed-fps 120 res://tests/endless/endless_check.tscn -- "$@" "${extra[@]}" 2>&1 \
 	| grep -vE "^Godot Engine|^Gamepad|^Wheel support|^$| loaded .* in [0-9]+ ms"
 exit "${PIPESTATUS[0]}"

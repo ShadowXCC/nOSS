@@ -76,6 +76,8 @@ func _ready() -> void:
 			view.multimesh = mm
 			view.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			view.custom_aabb = AABB(Vector3(-1e5, -1e4, -1e5), Vector3(2e5, 2e4, 2e5))
+			# Placed every frame from the clock: nothing for physics interpolation to smooth.
+			view.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 			add_child(view)
 			_views.append(view)
 

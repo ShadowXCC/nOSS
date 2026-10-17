@@ -19,6 +19,7 @@ and exits 0 (PASS) or 1 (FAIL).
   tools/net_check.py --event kart --clients 4 --ai 4 --track gearworks --laps 3 --rtt 150 --jitter 10 --loss 1   # M8
   tools/net_check.py --event battle --clients 4 --ai 4 --track crate_yard --rule hits   # M8
   tools/net_check.py --event endless --clients 3 --late 40 --duration 150   # M9: an endless convoy
+  tools/net_check.py --event endless --clients 2 --exported --duration 120  # exported builds (tools/export.sh)
 
 On a highway (--event highway, the Lumen Ring and the Street class unless given) every bot also
 reports its traffic: checksums that disagreed with the server's (must be 0), full states taken
@@ -39,6 +40,10 @@ are shown where they are although each game's origin moves on its own (p95 under
 bot drove and moved its origin, and that the traffic was shared (a car one game drives shown on
 another). With --late the last bot joins that many seconds after the rest: it must start just
 behind the leader.
+
+With --exported the exported builds run instead of the project (tools/export.sh linux windows
+server first): the dedicated server, then bots taking turns between the Linux export and the Windows
+export under Wine (in a throwaway prefix), so the two builds play together.
 
 With --fresh, the server's AI cars are this machine's garage cars (every one before any twice), and
 one bot with an empty cache fetches them all whole; it reports when every car was there as a
@@ -164,6 +169,7 @@ def main(argv=None):
     p.add_argument("--fresh", action="store_true", help="one bot with an empty cache fetches every car")
     p.add_argument("--within", type=float, default=60.0, help="--fresh: seconds allowed for every car")
     p.add_argument("--logs", default="", help="the logs' folder (default reports/net_check/<time>/)")
+    p.add_argument("--exported", action="store_true", help="run the exported server, Linux and Windows (Wine) builds")
     p.add_argument("--verbose", action="store_true")
     args = p.parse_args(argv)
     # The game's LAN list only asks the standard ports (47800-47815), so an open server uses one.
@@ -207,10 +213,28 @@ def main(argv=None):
     config_path.write_text(json.dumps(config))
     procs = []
 
+    wine_prefix = None
+    if args.exported:
+        import tempfile
+        wine_prefix = tempfile.mkdtemp(prefix="noss_wine_")
+
+    def command(name):
+        """The program for `name`: the project, or (--exported) the server export and the Linux and
+        Windows exports in turn for bots."""
+        if not args.exported:
+            return [GODOT], {}
+        if name == "server":
+            return [str(ROOT / "export" / "server" / "noss_server.x86_64")], {}
+        if int(name[3:]) % 2 == 0:
+            return [str(next((ROOT / "export" / "linux").glob("*.x86_64")))], {}
+        env = dict(os.environ, WINEPREFIX=wine_prefix, WINEDLLOVERRIDES="winemenubuilder.exe=d", WINEDEBUG="-all")
+        return ["wine", str(next((ROOT / "export" / "windows").glob("*.exe")))], env
+
     def start(name, extra):
         out = open(logs / f"{name}.log", "w")
-        proc = subprocess.Popen([GODOT, "--headless", "--"] + extra, stdout=out, stderr=subprocess.STDOUT,
-                                cwd=ROOT, start_new_session=True)
+        program, env = command(name)
+        proc = subprocess.Popen(program + ["--headless", "--"] + extra, stdout=out, stderr=subprocess.STDOUT,
+                                cwd=ROOT, start_new_session=True, env=env or None)
         procs.append((name, proc, out))
         return proc
 
@@ -283,6 +307,12 @@ def main(argv=None):
         stop_all()
         if sim:
             sim.running = False
+        if wine_prefix:
+            import shutil
+            server_bin = shutil.which("wineserver") or "/usr/lib/x86_64-linux-gnu/wine/wineserver"
+            if Path(server_bin).exists():  # the prefix's server would linger
+                subprocess.run([server_bin, "-k"], env=dict(os.environ, WINEPREFIX=wine_prefix), stderr=subprocess.DEVNULL)
+            shutil.rmtree(wine_prefix, ignore_errors=True)
 
     # Gather the bots' reports.
     reports, contacts, fails, results, checks = {}, [], [], None, []
@@ -292,7 +322,7 @@ def main(argv=None):
     loop = None
     track_ms = {}
     for name, proc, _ in procs:
-        text = (logs / f"{name}.log").read_text(errors="replace")
+        text = (logs / f"{name}.log").read_text(errors="replace").replace("\r", "")
         if args.verbose:
             print(f"--- {name}\n{text}")
         for line in text.splitlines():
@@ -320,8 +350,8 @@ def main(argv=None):
     if timed_out:
         fails.append("bots still running at the deadline")
 
-    print("net_check: %d players (%d bots), %s, %s, %s%s" % (
-        players, len(bots), args.event, args.klass, Path(args.track).name,
+    print("net_check: %d players (%d bots), %s, %s, %s%s%s" % (
+        players, len(bots), args.event, args.klass, Path(args.track).name, ", exported builds (odd bots on Windows under Wine)" if args.exported else "",
         f", link {args.rtt:g} ms RTT, jitter {args.jitter:g} ms, loss {args.loss:g}%, rate {args.rate}" if sim else ""))
     print("%-7s %4s %8s %8s %8s %9s %9s %9s %8s %7s %5s" % ("bot", "pl", "down", "max", "up", "err med", "err p95", "err max", "contacts", "RSS", "thr"))
     worst_down = 0.0
