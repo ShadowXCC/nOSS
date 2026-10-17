@@ -398,7 +398,23 @@ const NAMES := { "lines": "Lines", "curbs": "Curbs", "bridge": "Bridge", "lamps"
 	"portal": "Portals", "portal_dark": "PortalShells", "portal_floor": "PortalFloors" }
 
 
-func _add_batches(parent: Node3D, batches: Dictionary) -> void:
+## The batches' meshes and collision faces, made ahead (on a worker: no nodes, no shapes) for
+## add_built(): {key: {mesh, faces}}.
+func prebuild(batches: Dictionary) -> Dictionary:
+	var out := {}
+	for key: String in batches:
+		var b: MeshBatch = batches[key]
+		if not b.is_empty():
+			out[key] = { "mesh": b.mesh() if visual else null, "faces": b.faces() }
+	return out
+
+
+## Nodes for batches made ahead by prebuild() (on the main thread).
+func add_built(parent: Node3D, batches: Dictionary, built: Dictionary) -> void:
+	_add_batches(parent, batches, built)
+
+
+func _add_batches(parent: Node3D, batches: Dictionary, built := {}) -> void:
 	for key: String in batches:
 		var b: MeshBatch = batches[key]
 		if b.is_empty():
@@ -467,15 +483,16 @@ func _add_batches(parent: Node3D, batches: Dictionary) -> void:
 			"portal_floor":
 				surface = VehicleSim.SURFACE_ASPHALT
 				material = WorldMaterials.surface(VehicleSim.SURFACE_ASPHALT)
-		_add_piece(parent, node_name, b, material, surface)
+		_add_piece(parent, node_name, b, material, surface, built.get(key, {}))
 
 
 ## A piece: its mesh (unless visuals are off) and, if it's solid, a static body with its surface.
-func _add_piece(parent: Node3D, node_name: String, b: MeshBatch, material: Material, surface: int) -> void:
+## `built`: its mesh and faces made ahead ({} : made here).
+func _add_piece(parent: Node3D, node_name: String, b: MeshBatch, material: Material, surface: int, built := {}) -> void:
 	if visual:
 		var mi := MeshInstance3D.new()
 		mi.name = node_name
-		mi.mesh = b.mesh()
+		mi.mesh = built.mesh if built.get("mesh") != null else b.mesh()
 		mi.material_override = material
 		parent.add_child(mi)
 	if surface < 0:
@@ -484,6 +501,11 @@ func _add_piece(parent: Node3D, node_name: String, b: MeshBatch, material: Mater
 	body.name = node_name + "Body"
 	body.set_meta(&"noss_surface", surface)
 	var cs := CollisionShape3D.new()
-	cs.shape = b.shape()
+	if built.has("faces"):
+		var shape := ConcavePolygonShape3D.new()
+		shape.set_faces(built.faces)
+		cs.shape = shape
+	else:
+		cs.shape = b.shape()
 	body.add_child(cs)
 	parent.add_child(body)

@@ -18,7 +18,8 @@ var _chunks := {} # Vector2i -> {material, height: ImageTexture, splat: [ImageTe
 var _far: MeshInstance3D
 
 
-static func build(t: TerrainData) -> TerrainView:
+## With `far` off, no far ground round it (an endless tile: its neighbours and the far tiles are).
+static func build(t: TerrainData, far := true) -> TerrainView:
 	var v := TerrainView.new()
 	v.name = "TerrainView"
 	v.terrain = t
@@ -26,7 +27,8 @@ static func build(t: TerrainData) -> TerrainView:
 	for cz in n.y:
 		for cx in n.x:
 			v._make_chunk(Vector2i(cx, cz))
-	v._make_far()
+	if far:
+		v._make_far()
 	return v
 
 

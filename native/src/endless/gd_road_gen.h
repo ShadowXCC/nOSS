@@ -33,6 +33,10 @@ public:
 	// Natural ground (m) on a w x d grid from (x0, z0), cell metres apart, row by row in z.
 	godot::PackedFloat32Array ground_heights(double p_x0, double p_z0, int64_t p_w, int64_t p_d, double p_cell) const;
 	double ground_at(double p_x, double p_z) const;
+	// Paint for a tile of ground (TerrainData.LAYERS: grass, dirt, sand, gravel, rock, snow, concrete,
+	// asphalt), 8 weights a sample summing to 255, from each sample's biome, height and slope;
+	// `p_heights` is the tile's (w x d, row by row in z). For looks only (not part of the road).
+	godot::PackedByteArray tile_paint(double p_x0, double p_z0, int64_t p_w, int64_t p_d, double p_cell, const godot::PackedFloat32Array &p_heights) const;
 	// (biome, the next one, its weight 0..1) at a world point.
 	godot::Vector3 biome_at(double p_x, double p_z) const;
 	// The road's main direction (radians, 0 = +Z, + = toward +X).

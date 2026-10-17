@@ -40,6 +40,16 @@ const TYPES := {
 	"crate": { "name": "Crate", "category": "trackside", "collide": true },
 	"container": { "name": "Container", "category": "buildings", "collide": true },
 	"crane": { "name": "Yard crane", "category": "buildings", "collide": true },
+	# The endless road's biomes (M9).
+	"cactus": { "name": "Cactus", "category": "nature", "collide": true, "scatter": true, "slope": 0.8, "spacing": 6.0 },
+	"palm": { "name": "Palm", "category": "nature", "collide": true, "scatter": true, "slope": 0.5, "spacing": 6.0 },
+	"cypress": { "name": "Cypress", "category": "nature", "collide": true, "scatter": true, "slope": 0.6, "spacing": 4.0 },
+	"tree_autumn": { "name": "Autumn tree", "category": "nature", "collide": true, "scatter": true, "slope": 0.6, "spacing": 5.0 },
+	"tree_pine_snow": { "name": "Snowy pine", "category": "nature", "collide": true, "scatter": true, "slope": 0.7, "spacing": 4.0 },
+	"hay_bale": { "name": "Hay bale", "category": "nature", "collide": true, "scatter": true, "slope": 0.2, "spacing": 8.0 },
+	"barn": { "name": "Barn", "category": "buildings", "collide": true, "scatter": true, "slope": 0.12, "spacing": 60.0, "clear_m": 10.0 },
+	"chalet": { "name": "Chalet", "category": "buildings", "collide": true, "scatter": true, "slope": 0.2, "spacing": 50.0, "clear_m": 8.0 },
+	"chevron": { "name": "Bend sign", "category": "trackside", "collide": true },
 }
 const CATEGORIES := ["nature", "buildings", "city", "trackside", "ground"]
 
@@ -162,6 +172,68 @@ static func parts(id: String, size := Vector3.ZERO) -> Array:
 			return [_part("", "container", b, VehicleSim.SURFACE_CONCRETE)]
 		"crane":
 			return _crane()
+		"cactus":
+			var b := MeshBatch.new()
+			_cylinder(b, Vector3(0, 1.6, 0), 0.32, 3.2, 7)
+			_cylinder(b, Vector3(0.75, 1.9, 0), 0.2, 1.2, 6)
+			b.box(Vector3(0.45, 1.4, 0), Basis(), Vector3(0.7, 0.3, 0.3))
+			_cylinder(b, Vector3(-0.65, 1.5, 0), 0.18, 0.9, 6)
+			b.box(Vector3(-0.4, 1.15, 0), Basis(), Vector3(0.6, 0.26, 0.26))
+			return [_part("", "cactus", b, -1)]
+		"palm":
+			var trunk := MeshBatch.new()
+			_cylinder(trunk, Vector3(0, 3.5, 0), 0.22, 7.0, 6)
+			var fronds := MeshBatch.new()
+			for k in 7:
+				var yaw := TAU * k / 7.0
+				fronds.box(Vector3(cos(yaw) * 1.4, 6.9, sin(yaw) * 1.4), Basis(Vector3.UP, -yaw) * Basis(Vector3.BACK, deg_to_rad(-22.0)), Vector3(3.0, 0.08, 0.7))
+			return [_part("", "palm_trunk", trunk, -1), _part("Fronds", "palm_leaf", fronds, -1)]
+		"cypress":
+			var trunk := MeshBatch.new()
+			_cylinder(trunk, Vector3(0, 0.6, 0), 0.18, 1.2, 5)
+			var crown := MeshBatch.new()
+			_blob(crown, Vector3(0, 4.2, 0), Vector3(1.6, 7.0, 1.6), 5)
+			return [_part("", "bark", trunk, -1), _part("Crown", "cypress", crown, -1)]
+		"tree_autumn":
+			var parts := _round_tree()
+			parts[1].material = "leaves_autumn"
+			return parts
+		"tree_pine_snow":
+			var parts := _pine()
+			parts[1].material = "pine_snow"
+			return parts
+		"hay_bale":
+			var b := MeshBatch.new()
+			# A round bale lying on its side: a cylinder turned along x.
+			var c := MeshBatch.new()
+			_cylinder(c, Vector3.ZERO, 0.75, 1.2, 9)
+			var turn := Transform3D(Basis(Vector3.BACK, PI / 2.0), Vector3(0, 0.75, 0))
+			for k in c.verts.size():
+				b.vertex(turn * c.verts[k], (turn.basis * c.normals[k]).normalized(), c.uvs[k])
+			b.index.append_array(c.index)
+			return [_part("", "straw", b, -1)]
+		"barn":
+			var walls := MeshBatch.new()
+			walls.box(Vector3(0, 2.6, 0), Basis(), Vector3(9.0, 5.2, 14.0), Vector2(2, 1))
+			var roof := MeshBatch.new()
+			_prism(roof, Vector3(10.0, 3.6, 14.6))
+			for v in roof.verts.size():
+				roof.verts[v].y += 5.2
+			return [_part("", "barn", walls, VehicleSim.SURFACE_CONCRETE), _part("Roof", "roof", roof, VehicleSim.SURFACE_CONCRETE)]
+		"chalet":
+			var walls := MeshBatch.new()
+			walls.box(Vector3(0, 2.0, 0), Basis(), Vector3(7.0, 4.0, 8.0), Vector2(2, 1))
+			var roof := MeshBatch.new()
+			_prism(roof, Vector3(8.6, 2.8, 9.6))
+			for v in roof.verts.size():
+				roof.verts[v].y += 4.0
+			return [_part("", "chalet", walls, VehicleSim.SURFACE_CONCRETE), _part("Roof", "roof_dark", roof, VehicleSim.SURFACE_CONCRETE)]
+		"chevron":
+			var post := MeshBatch.new()
+			post.box(Vector3(0, 0.6, 0), Basis(), Vector3(0.08, 1.2, 0.08))
+			var sign := MeshBatch.new()
+			sign.box(Vector3(0, 1.35, 0), Basis(), Vector3(0.05, 0.6, 0.8), Vector2(1, 1))
+			return [_part("", "metal", post, VehicleSim.SURFACE_CONCRETE), _part("Sign", "chevron", sign, -1)]
 		"layby":
 			var pad := MeshBatch.new()
 			pad.quad([Vector3(-s.x / 2, 0.02, -s.z / 2), Vector3(-s.x / 2, 0.02, s.z / 2), Vector3(s.x / 2, 0.02, s.z / 2), Vector3(s.x / 2, 0.02, -s.z / 2)],
@@ -192,12 +264,12 @@ static func scatter_shape(id: String) -> Dictionary:
 	if not TYPES.get(id, {}).get("collide", false):
 		return {}
 	match id:
-		"tree_pine", "tree_round":
+		"tree_pine", "tree_round", "tree_autumn", "tree_pine_snow", "palm", "cypress", "cactus":
 			var c := CylinderShape3D.new()
 			c.radius = 0.35
 			c.height = 4.0
 			return { "shape": c, "offset": Vector3(0, 2.0, 0) }
-		"tower_slim", "tower_block", "tower_wide", "tower_tall":
+		"tower_slim", "tower_block", "tower_wide", "tower_tall", "barn", "chalet", "hay_bale":
 			var box := AABB()
 			for part: Dictionary in parts(id):
 				for v in (part.batch as MeshBatch).verts:
@@ -281,6 +353,28 @@ static func material(key: String) -> Material:
 			return WorldMaterials.get_material("container", RetroTextures.building(), 0.6, 0.4, false, Vector2.ONE, Color(0.75, 0.3, 0.2))
 		"crane":
 			return WorldMaterials.get_material("crane", null, 0.5, 0.5, false, Vector2.ONE, Color(0.95, 0.72, 0.12))
+		"cactus":
+			return WorldMaterials.get_material("cactus", RetroTextures.grass(), 0.9, 0.1, false, Vector2(1, 3), Color(0.42, 0.6, 0.34))
+		"palm_trunk":
+			return WorldMaterials.get_material("palm_trunk", RetroTextures.dirt(), 1.0, 0.05, false, Vector2(1, 4), Color(0.62, 0.5, 0.36))
+		"palm_leaf":
+			return WorldMaterials.get_material("palm_leaf", RetroTextures.grass(), 1.0, 0.05, false, Vector2(2, 1), Color(0.38, 0.62, 0.3))
+		"cypress":
+			return WorldMaterials.get_material("cypress", RetroTextures.grass(), 1.0, 0.05, false, Vector2(1, 3), Color(0.22, 0.38, 0.24))
+		"leaves_autumn":
+			return WorldMaterials.get_material("leaves_autumn", RetroTextures.grass(), 1.0, 0.05, false, Vector2(2, 2), Color(0.95, 0.55, 0.22))
+		"pine_snow":
+			return WorldMaterials.get_material("pine_snow", RetroTextures.snow(), 1.0, 0.1, false, Vector2(2, 2), Color(0.78, 0.86, 0.84))
+		"straw":
+			return WorldMaterials.get_material("straw", RetroTextures.sand(), 1.0, 0.05, false, Vector2(2, 1), Color(0.92, 0.8, 0.5))
+		"barn":
+			return WorldMaterials.get_material("barn", RetroTextures.building(), 0.9, 0.1, false, Vector2.ONE, Color(0.62, 0.2, 0.15))
+		"chalet":
+			return WorldMaterials.get_material("chalet", RetroTextures.dirt(), 0.9, 0.1, false, Vector2(2, 2), Color(0.62, 0.42, 0.28))
+		"roof_dark":
+			return WorldMaterials.get_material("roof_dark", null, 0.7, 0.2, false, Vector2.ONE, Color(0.25, 0.22, 0.22))
+		"chevron":
+			return WorldMaterials.get_material("chevron", RetroTextures.checker(), 0.5, 0.3, false, Vector2(1, 2), Color(1.0, 0.82, 0.1))
 	return WorldMaterials.get_material("concrete_world", RetroTextures.concrete(), 0.8, 0.25, true, Vector2.ONE / 6.0)
 
 

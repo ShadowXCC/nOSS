@@ -1,5 +1,6 @@
 #include "endless/gd_road_gen.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include <godot_cpp/core/class_db.hpp>
@@ -26,6 +27,7 @@ void NossRoadGen::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("chunk", "k"), &NossRoadGen::chunk);
 	ClassDB::bind_method(D_METHOD("ground_heights", "x0", "z0", "w", "d", "cell"), &NossRoadGen::ground_heights);
 	ClassDB::bind_method(D_METHOD("ground_at", "x", "z"), &NossRoadGen::ground_at);
+	ClassDB::bind_method(D_METHOD("tile_paint", "x0", "z0", "w", "d", "cell", "heights"), &NossRoadGen::tile_paint);
 	ClassDB::bind_method(D_METHOD("biome_at", "x", "z"), &NossRoadGen::biome_at);
 	ClassDB::bind_method(D_METHOD("axis_heading"), &NossRoadGen::axis_heading);
 	ClassDB::bind_method(D_METHOD("checksum", "chunks"), &NossRoadGen::checksum);
@@ -118,6 +120,115 @@ PackedFloat32Array NossRoadGen::ground_heights(double p_x0, double p_z0, int64_t
 	for (int64_t r = 0; r < p_d; r++) {
 		for (int64_t c = 0; c < p_w; c++) {
 			w[r * p_w + c] = float(double(land.ground_mm(x0 + c * cell, z0 + r * cell)) * 0.001);
+		}
+	}
+	return out;
+}
+
+namespace {
+
+double smooth(double p_a, double p_b, double p_x) {
+	double t = std::clamp((p_x - p_a) / (p_b - p_a), 0.0, 1.0);
+	return t * t * (3.0 - 2.0 * t);
+}
+
+// Layer weights for one biome at a sample: grass, dirt, sand, gravel, rock, snow.
+void biome_paint(int p_biome, double p_h, double p_slope, double p_patch, double p_field, double r_w[6]) {
+	for (int i = 0; i < 6; i++) {
+		r_w[i] = 0.0;
+	}
+	double steep = smooth(0.7, 1.0, p_slope);
+	switch (p_biome) {
+		case BIOME_COAST: {
+			double beach = smooth(5.0, 2.0, p_h);
+			r_w[0] = (0.85 - 0.15 * p_patch) * (1.0 - beach);
+			r_w[1] = (0.15 + 0.15 * p_patch) * (1.0 - beach);
+			r_w[2] = beach;
+			break;
+		}
+		case BIOME_FOREST:
+			r_w[0] = 0.7 - 0.2 * p_patch;
+			r_w[1] = 0.3 + 0.2 * p_patch;
+			break;
+		case BIOME_FARMLAND: {
+			double ploughed = smooth(0.25, 0.4, p_field);
+			r_w[0] = 1.0 - ploughed;
+			r_w[1] = ploughed;
+			break;
+		}
+		case BIOME_CANYON:
+			r_w[2] = 0.55 + 0.25 * p_patch;
+			r_w[1] = 0.45 - 0.25 * p_patch;
+			steep = smooth(0.35, 0.6, p_slope);
+			break;
+		case BIOME_ALPINE:
+			r_w[0] = 0.8 - 0.1 * p_patch;
+			r_w[1] = 0.2 + 0.1 * p_patch;
+			r_w[5] = smooth(210.0, 260.0, p_h) * 3.0;
+			steep = smooth(0.45, 0.75, p_slope);
+			break;
+		case BIOME_SNOW:
+			r_w[5] = 1.0;
+			steep = smooth(0.55, 0.85, p_slope);
+			break;
+		case BIOME_AUTUMN:
+			r_w[0] = 0.55 - 0.2 * p_patch;
+			r_w[1] = 0.45 + 0.2 * p_patch;
+			break;
+		default:
+			r_w[0] = 1.0;
+	}
+	for (int i = 0; i < 6; i++) {
+		if (i != 4) {
+			r_w[i] *= 1.0 - steep;
+		}
+	}
+	r_w[4] = steep;
+}
+
+} // namespace
+
+PackedByteArray NossRoadGen::tile_paint(double p_x0, double p_z0, int64_t p_w, int64_t p_d, double p_cell, const PackedFloat32Array &p_heights) const {
+	PackedByteArray out;
+	if (p_w <= 1 || p_d <= 1 || p_heights.size() != p_w * p_d) {
+		return out;
+	}
+	out.resize(p_w * p_d * 8);
+	uint8_t *o = out.ptrw();
+	const float *h = p_heights.ptr();
+	const Landscape &land = _gen.landscape();
+	uint64_t seed = _gen.seed();
+	for (int64_t r = 0; r < p_d; r++) {
+		for (int64_t c = 0; c < p_w; c++) {
+			double x = p_x0 + c * p_cell, z = p_z0 + r * p_cell;
+			int64_t xm = to_mm(x), zm = to_mm(z);
+			int64_t i = r * p_w + c;
+			double dx = (h[r * p_w + std::min(c + 1, p_w - 1)] - h[r * p_w + std::max<int64_t>(c - 1, 0)]) / (2.0 * p_cell);
+			double dz = (h[std::min(r + 1, p_d - 1) * p_w + c] - h[std::max<int64_t>(r - 1, 0) * p_w + c]) / (2.0 * p_cell);
+			double slope = std::sqrt(dx * dx + dz * dz);
+			double patch = double(value_noise_q16(xm, zm, 45000, seed ^ 0xBA7C4ULL)) / 65536.0;
+			double field = double(value_noise_q16(xm, zm, 140000, seed ^ 0xF1E1DULL)) / 65536.0;
+			BiomeMix m = land.biome_at(land.axis_mm(xm, zm));
+			double wa[6], wb[6], w[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+			biome_paint(m.a, h[i], slope, patch, field, wa);
+			biome_paint(m.b, h[i], slope, patch, field, wb);
+			double t = m.b != m.a ? double(m.w) / 65536.0 : 0.0;
+			double sum = 0.0;
+			for (int k = 0; k < 6; k++) {
+				w[k] = std::max(0.0, wa[k] + (wb[k] - wa[k]) * t);
+				sum += w[k];
+			}
+			int total = 0;
+			int biggest = 0;
+			for (int k = 0; k < 8; k++) {
+				int v = sum > 0.0 ? int(w[k] / sum * 255.0) : (k == 0 ? 255 : 0);
+				o[i * 8 + k] = uint8_t(v);
+				total += v;
+				if (w[k] > w[biggest]) {
+					biggest = k;
+				}
+			}
+			o[i * 8 + biggest] = uint8_t(o[i * 8 + biggest] + (255 - total)); // exactly 255
 		}
 	}
 	return out;

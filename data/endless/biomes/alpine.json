@@ -1,0 +1,6 @@
+{
+  "schema": "noss.endless_biome/1", "id": "alpine", "name": "Alpine", "far_color": "#62815a",
+  "scatter": [ { "prop": "tree_pine", "per_ha": 30 }, { "prop": "rock", "per_ha": 12 }, { "prop": "chalet", "per_ha": 0.15, "near_road": 300 } ],
+  "ambience": { "birds": 0.5, "crickets": 0.2 },
+  "weather": { "snowy": false, "rain": 1.0, "fog": 1.3 }
+}

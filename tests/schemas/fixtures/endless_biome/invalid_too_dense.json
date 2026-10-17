@@ -1,0 +1,1 @@
+{ "schema": "noss.endless_biome/1", "id": "forest", "name": "Forest", "far_color": "#476f3a", "scatter": [ { "prop": "tree_pine", "per_ha": 4000 } ] }

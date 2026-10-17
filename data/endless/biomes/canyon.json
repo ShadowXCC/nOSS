@@ -1,0 +1,6 @@
+{
+  "schema": "noss.endless_biome/1", "id": "canyon", "name": "Desert canyon", "far_color": "#b7865a",
+  "scatter": [ { "prop": "cactus", "per_ha": 8 }, { "prop": "rock", "per_ha": 14 }, { "prop": "bush", "per_ha": 4 } ],
+  "ambience": { "birds": 0.1, "crickets": 0.4 },
+  "weather": { "snowy": false, "rain": 0.25, "fog": 0.4 }
+}

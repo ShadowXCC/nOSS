@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://noss.dev/schemas/endless_biome.schema.json",
+  "title": "noss.endless_biome/1",
+  "description": "How an endless biome looks and sounds (D156). How its road bends and its ground rises is in native code (D152), so every game builds the same road.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "name", "far_color", "scatter"],
+  "properties": {
+    "schema": { "const": "noss.endless_biome/1" },
+    "id": { "enum": ["coast", "forest", "farmland", "canyon", "alpine", "snow", "autumn"] },
+    "name": { "type": "string", "maxLength": 32 },
+    "far_color": { "description": "The ground's colour far off.", "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "scatter": {
+      "description": "Props scattered over the ground: how many a hectare.",
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["prop", "per_ha"],
+        "properties": {
+          "prop": { "type": "string" },
+          "per_ha": { "type": "number", "minimum": 0, "maximum": 400 },
+          "near_road": { "description": "Only this close to the road, m (fields, bales).", "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "ambience": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "birds": { "type": "number", "minimum": 0, "maximum": 1 },
+        "crickets": { "type": "number", "minimum": 0, "maximum": 1 },
+        "surf": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "weather": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "snowy": { "description": "Rain falls as snow here.", "type": "boolean" },
+        "rain": { "description": "How much of the rain falls here (a desert: little).", "type": "number", "minimum": 0, "maximum": 1 },
+        "fog": { "type": "number", "minimum": 0, "maximum": 2 }
+      }
+    },
+    "water": { "description": "The sea shows here.", "type": "boolean" }
+  }
+}

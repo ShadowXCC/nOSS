@@ -1,0 +1,7 @@
+{
+  "schema": "noss.endless_biome/1", "id": "coast", "name": "Coast", "far_color": "#6f8f52",
+  "scatter": [ { "prop": "palm", "per_ha": 6 }, { "prop": "cypress", "per_ha": 10 }, { "prop": "bush", "per_ha": 25 }, { "prop": "rock", "per_ha": 8 } ],
+  "ambience": { "birds": 0.4, "crickets": 0.3, "surf": 0.8 },
+  "weather": { "snowy": false, "rain": 0.9, "fog": 1.4 },
+  "water": true
+}

@@ -158,6 +158,18 @@ func trim_front(count: int) -> void:
 	trimmed.emit(count)
 
 
+## Empty again (the road starts over somewhere else).
+func clear() -> void:
+	for name: String in PER_SAMPLE + EXTRA:
+		var a: Variant = get(name)
+		a.clear()
+		set(name, a)
+	chunks = PackedInt32Array()
+	first_index = 0
+	offset_m = 0.0
+	_reindex()
+
+
 ## The world moved (floating origin): every sample moves by `delta`.
 func shift(delta: Vector3) -> void:
 	for i in samples.size():
