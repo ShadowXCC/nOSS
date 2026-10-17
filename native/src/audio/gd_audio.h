@@ -26,6 +26,9 @@ public:
 	// A kart item sound ("pickup", "roulette", "fire", "hit", "shield", "emp", "boost", "tier",
 	// "slick"): 16-bit mono PCM at 44.1 kHz.
 	static godot::PackedByteArray render_fx(const godot::String &p_kind);
+	// Weather and ambience (D153): "rain", "wind", "surf", "crickets", "birds" (loops) or
+	// "thunder" (a one-shot), as 16-bit mono at 44.1 kHz.
+	static godot::PackedByteArray render_weather(const godot::String &p_kind);
 };
 
 } // namespace noss

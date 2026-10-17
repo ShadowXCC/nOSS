@@ -8,6 +8,8 @@
 
 #include "audio/engine_synth.h"
 #include "audio/fx_synth.h"
+#include "audio/weather_synth.h"
+#include "audio/weather_synth.h"
 #include "audio/siren_synth.h"
 #include "audio/tire_synth.h"
 
@@ -62,6 +64,7 @@ void NossAudio::_bind_methods() {
 	ClassDB::bind_static_method("NossAudio", D_METHOD("render_siren", "kind"), &NossAudio::render_siren);
 	ClassDB::bind_static_method("NossAudio", D_METHOD("render_horn", "f1", "f2"), &NossAudio::render_horn);
 	ClassDB::bind_static_method("NossAudio", D_METHOD("render_fx", "kind"), &NossAudio::render_fx);
+	ClassDB::bind_static_method("NossAudio", D_METHOD("render_weather", "kind"), &NossAudio::render_weather);
 }
 
 namespace {
@@ -83,6 +86,10 @@ PackedByteArray NossAudio::render_siren(const String &p_kind) {
 
 PackedByteArray NossAudio::render_fx(const String &p_kind) {
 	return pcm_bytes(audio::render_fx(audio::fx_kind(p_kind.utf8().get_data())));
+}
+
+PackedByteArray NossAudio::render_weather(const String &p_kind) {
+	return pcm_bytes(audio::render_weather(audio::weather_sound(p_kind.utf8().get_data())));
 }
 
 PackedByteArray NossAudio::render_horn(double p_f1, double p_f2) {

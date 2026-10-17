@@ -57,6 +57,8 @@ var _stuck_time := 0.0
 var _reverse_time := 0.0
 var _trouble_time := 0.0
 var _rng := RandomNumberGenerator.new()
+var _road_grip := 1.0
+var _road_check := 0.0
 ## Stuck this long: back out; this long: reset (a kart AI is quicker with both).
 var stuck_reverse_s := 2.5
 var stuck_reset_s := 7.0
@@ -71,10 +73,7 @@ func _ready() -> void:
 	_plan_time = _rng.randf() / PLAN_HZ # spread planning over ticks
 	_noise_phase = Vector2(_rng.randf() * TAU, _rng.randf() * TAU)
 	_line = RacingLine.for_track(racer.track)
-	var s := _skill()
-	var grip := lerpf(GRIP.x, GRIP.y, s)
-	_profile = _line.speed_profile(racer.vehicle.base_platform, grip)
-	_caution_profile = _line.speed_profile(racer.vehicle.base_platform, grip * CAUTION_GRIP)
+	_make_profiles()
 	var p := racer.vehicle.platform
 	_brake_full = float(p.brakes.max_torque_nm) / float(p.geometry.wheel_radius_m.ref) / float(p.mass.kg)
 	_emergency_decel = 0.8 * RacingLine.max_braking(p, float(p.tires.mu_peak))
@@ -96,6 +95,30 @@ func _skill() -> float:
 	return clampf(skill, 0.0, 100.0) / 100.0
 
 
+## The share of the tires' grip it drives on (KartAI adds the kart's).
+func _base_grip() -> float:
+	return lerpf(GRIP.x, GRIP.y, _skill())
+
+
+## Speeds from the line for its grip on this road (wet or snowy roads are slower, D153).
+func _make_profiles() -> void:
+	var grip := _base_grip() * _road_grip
+	_profile = _line.speed_profile(racer.vehicle.base_platform, grip)
+	_caution_profile = _line.speed_profile(racer.vehicle.base_platform, grip * CAUTION_GRIP)
+
+
+## The road's grip under the car (EnvDirector sets its conditions), in steps of 0.05 so the
+## profiles (cached per grip) are made again only when the weather really changes.
+func _check_road() -> void:
+	if racer.vehicle == null or not is_instance_valid(racer.vehicle):
+		return
+	var c := racer.vehicle.sim.get_conditions()
+	var road := snappedf(VehicleSim.surface_grip(VehicleSim.SURFACE_ASPHALT, c.x, c.y), 0.05)
+	if not is_equal_approx(road, _road_grip):
+		_road_grip = road
+		_make_profiles()
+
+
 func _physics_process(delta: float) -> void:
 	if as_guide:
 		return
@@ -114,6 +137,10 @@ func controls(delta: float) -> Dictionary:
 	var vehicle := racer.vehicle
 	if vehicle == null or not is_instance_valid(vehicle):
 		return {}
+	_road_check -= delta
+	if _road_check <= 0.0:
+		_road_check = 0.5
+		_check_road()
 	var out := { "steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": 0.0 }
 	if racer.held or racer.waiting:
 		_hold(out)

@@ -94,6 +94,8 @@ var _lights_key := -1
 var _collision: CollisionShape3D
 var _road := Vector2.ZERO
 var _beams: SpotLight3D
+var _spray: GPUParticles3D
+static var _puff: GradientTexture2D
 
 
 ## Drives with the kart_arcade layer (`numbers` from GameModes.arcade), or without it ({}).
@@ -150,6 +152,82 @@ func set_road(wetness: float, snow: float) -> void:
 	if not c.is_equal_approx(_road):
 		_road = c
 		sim.set_conditions(wetness, snow)
+
+
+## Spray off its wheels on a wet road, 0..1 (EnvDirector, D153).
+func set_spray(amount: float) -> void:
+	if not drawn:
+		return
+	if amount <= 0.02:
+		if _spray:
+			_spray.emitting = false
+		return
+	if _spray == null:
+		_spray = _make_spray()
+		add_child(_spray)
+	_spray.amount_ratio = clampf(amount, 0.0, 1.0)
+	_spray.emitting = true
+
+
+func _make_spray() -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.name = "Spray"
+	p.amount = 64
+	p.lifetime = 0.7
+	p.local_coords = false
+	p.visibility_aabb = AABB(Vector3(-20, -5, -40), Vector3(40, 15, 60))
+	var half_width := 0.8
+	var rear := -2.0
+	if fitted and fitted.envelope.size != Vector3.ZERO:
+		half_width = fitted.envelope.size.x * 0.4
+		rear = fitted.envelope.position.z + 0.2
+	p.position = Vector3(0.0, 0.25, rear)
+	var m := ParticleProcessMaterial.new()
+	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	m.emission_box_extents = Vector3(half_width, 0.05, 0.15)
+	m.direction = Vector3(0.0, 0.35, -1.0)
+	m.spread = 18.0
+	m.initial_velocity_min = 2.0
+	m.initial_velocity_max = 5.0
+	m.gravity = Vector3(0.0, -3.0, 0.0)
+	m.scale_min = 0.6
+	m.scale_max = 1.5
+	var fade := Gradient.new()
+	fade.set_color(0, Color(1, 1, 1, 0.35))
+	fade.set_color(1, Color(1, 1, 1, 0.0))
+	var ramp := GradientTexture1D.new()
+	ramp.gradient = fade
+	m.color_ramp = ramp
+	p.process_material = m
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.8, 0.8)
+	var look := StandardMaterial3D.new()
+	look.albedo_texture = _spray_puff()
+	look.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	look.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	look.vertex_color_use_as_albedo = true
+	look.albedo_color = Color(0.85, 0.87, 0.9)
+	look.roughness = 1.0
+	look.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX
+	quad.material = look
+	p.draw_pass_1 = quad
+	return p
+
+
+## A soft round puff for spray, made once.
+static func _spray_puff() -> Texture2D:
+	if _puff == null:
+		var g := Gradient.new()
+		g.set_color(0, Color(1, 1, 1, 1))
+		g.set_color(1, Color(1, 1, 1, 0))
+		_puff = GradientTexture2D.new()
+		_puff.gradient = g
+		_puff.fill = GradientTexture2D.FILL_RADIAL
+		_puff.fill_from = Vector2(0.5, 0.5)
+		_puff.fill_to = Vector2(0.5, 0.0)
+		_puff.width = 32
+		_puff.height = 32
+	return _puff
 
 
 ## Its headlights light the road (players' cars and the nearest few, at night; D153).

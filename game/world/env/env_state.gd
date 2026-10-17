@@ -21,7 +21,7 @@ const KINDS := {
 	"cloudy": [0.6, 0.0, 0.0, 0.1],
 	"rain": [0.85, 0.7, 0.0, 0.35],
 	"storm": [1.0, 1.0, 1.0, 0.45],
-	"fog": [0.5, 0.0, 0.0, 1.0],
+	"fog": [0.8, 0.0, 0.0, 1.0],
 	"snow": [0.85, 0.7, 0.0, 0.5],
 }
 ## The road soaks this fast in rain (s) and dries this slowly after; snow settles and melts.

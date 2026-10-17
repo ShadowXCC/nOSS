@@ -170,6 +170,7 @@ func _ready() -> void:
 	var sun := style.create_sun()
 	add_child(sun)
 	env = EnvDirector.new()
+	env.sound = not dedicated
 	env.setup(style, world_env, sun, _env_state(style), _fog_scale())
 	env.local_vehicles = func() -> Array:
 		return racers.filter(func(r: Racer) -> bool: return r is SessionPlayer and r.vehicle != null).map(func(r: Racer) -> Vehicle: return r.vehicle)

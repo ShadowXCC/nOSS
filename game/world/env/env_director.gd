@@ -42,6 +42,14 @@ var _fog_scale := 1.0
 var _time := 0.0
 var _since := INF
 var _cars_since := INF
+## Rain, wind and thunder (none on a dedicated server).
+var ambience: Ambience
+var sound := true
+## Extra ambience on top of the weather's (endless: the biome's surf, birds, crickets), 0..1.
+var extra_ambience := {}
+var _slot := -1
+var _strikes: Array = [] # [{at, distance, bearing}] still lighting the sky
+var _bolt: MeshInstance3D
 
 
 ## `fog_scale`: the track's fog (light 0.5, normal 1, heavy 2).
@@ -67,6 +75,9 @@ func _ready() -> void:
 	name = "EnvDirector"
 	process_mode = Node.PROCESS_MODE_PAUSABLE
 	process_physics_priority = -58
+	if sound:
+		ambience = Ambience.new()
+		add_child(ambience)
 
 
 func _exit_tree() -> void:
@@ -91,6 +102,7 @@ func _process(delta: float) -> void:
 	if _cars_since >= CARS_S:
 		_cars_since = 0.0
 		_update_cars()
+	_lightning()
 
 
 ## Works the sky out for now and puts it on the world (and every view).
@@ -110,8 +122,8 @@ func apply() -> void:
 	var over_sky := (over.sky as Color) * lum
 	var over_cloud := ((over.cloud_color as Color) * lum).lerp((over.storm_cloud as Color) * lum, storm * 0.7)
 
-	var fog_color := (p.fog as Color).lerp((over.fog as Color) * lum, maxf(cloud * 0.5, fog))
-	var fog_density: float = _base.fog_density * _fog_scale * (1.0 + 2.0 * precip + 6.5 * fog) * (1.6 if snapshot.snowing else 1.0)
+	var fog_color := (p.fog as Color).lerp((over.fog as Color) * lum, maxf(cloud * 0.7, fog))
+	var fog_density: float = _base.fog_density * _fog_scale * (1.0 + 2.0 * precip + 9.0 * fog) * (1.6 if snapshot.snowing else 1.0)
 	var ambient: float = _base.ambient * float(p.ambient) * (1.0 - 0.15 * cloud)
 	var exposure: float = _base.exposure * float(p.exposure)
 	_write(_env, fog_color, fog_density, ambient, exposure)
@@ -138,7 +150,7 @@ func apply() -> void:
 		_sky.set_shader_parameter("top_color", (p.top as Color).lerp(over_sky, cloud * 0.7))
 		_sky.set_shader_parameter("horizon_color", (p.horizon as Color).lerp(over_sky * 1.05, cloud * 0.6))
 		_sky.set_shader_parameter("ground_color", p.ground)
-		_sky.set_shader_parameter("cloud_color", (p.cloud_color as Color).lerp(over_cloud, cloud * 0.6))
+		_sky.set_shader_parameter("cloud_color", (p.cloud_color as Color).lerp(over_cloud, cloud))
 		_sky.set_shader_parameter("mountain_color", p.mountains)
 		_sky.set_shader_parameter("mountain_far_color", (p.mountains_far as Color).lerp(fog_color, fog * 0.6))
 		_sky.set_shader_parameter("cloud_cover", lerpf(_base.clouds, 1.0, cloud))
@@ -152,6 +164,23 @@ func apply() -> void:
 	for g: StringName in globals:
 		RenderingServer.global_shader_parameter_set(g, globals[g])
 	lights_on = el < LIGHTS_BELOW_DEG or fog > 0.5 or precip > 0.3
+
+	# Rain or snow round each player, unless they're under shelter.
+	var all_sheltered := true
+	var any := false
+	for box: WeatherBox in get_tree().get_nodes_in_group(&"weather_boxes"):
+		var dry := box.vehicle != null and sheltered.is_valid() and bool(sheltered.call(box.vehicle))
+		box.set_weather(precip, bool(snapshot.snowing), lum, dry)
+		all_sheltered = all_sheltered and dry
+		any = true
+	if ambience:
+		var rain := 0.0 if snapshot.snowing else precip
+		if any and all_sheltered:
+			rain *= 0.2
+		var levels := { "rain": rain * 0.9, "wind": clampf(0.08 + 0.35 * cloud + 0.5 * storm + (0.3 * precip if snapshot.snowing else 0.0), 0.0, 1.0) }
+		for k: String in extra_ambience:
+			levels[k] = float(extra_ambience[k])
+		ambience.set_levels(levels)
 
 
 func _write(env: Environment, fog_color: Color, fog_density: float, ambient: float, exposure: float) -> void:
@@ -189,10 +218,81 @@ func _update_cars() -> void:
 	for pair: Array in near:
 		var v: Vehicle = pair[1]
 		var mine := v in own
-		var beam := lights_on and (mine or (others < BEAMS_NEAREST and float(pair[0]) < BEAMS_M))
-		if beam and not mine:
+		var close := mine or (others < BEAMS_NEAREST and float(pair[0]) < BEAMS_M)
+		if close and not mine:
 			others += 1
-		v.set_beams(beam)
+		v.set_beams(lights_on and close)
+		# Spray off the wheels on a wet road, for the cars near the cameras.
+		var spray := 0.0
+		if close and wet > 0.25 and snow < 0.3 and not (sheltered.is_valid() and bool(sheltered.call(v))):
+			var speed := (v.remote_velocity if v.remote else v.linear_velocity).length()
+			spray = wet * clampf((speed - 8.0) / 25.0, 0.0, 1.0)
+		v.set_spray(spray)
+
+
+## Storms: strikes from the sky's seed by the second; each view flashes (softly with Reduce
+## flashing), the bolt shows to those without it, and thunder follows.
+func _lightning() -> void:
+	if snapshot.is_empty():
+		return
+	var t := now()
+	var slot := floori(t)
+	if slot != _slot:
+		_slot = slot
+		var s := Lightning.strike(state.seed, slot, float(snapshot.storm))
+		if not s.is_empty():
+			_strikes.append(s)
+			_strike_seen(s)
+	var calm_flash := 0.0
+	var full_flash := 0.0
+	var keep: Array = []
+	for s: Dictionary in _strikes:
+		var dt := t - float(s.at)
+		if dt <= Lightning.LASTS_S:
+			keep.append(s)
+		var near := clampf(1.6 - float(s.distance) / Lightning.FARTHEST_M, 0.3, 1.0)
+		full_flash = maxf(full_flash, Lightning.flash(dt, false) * near)
+		calm_flash = maxf(calm_flash, Lightning.flash(dt, true) * near)
+	_strikes = keep
+	var dim := 0.3 + 0.7 * night # by day a flash hardly shows
+	for view in get_tree().get_nodes_in_group(&"player_views"):
+		if not view.has_method(&"set_flash"):
+			continue
+		var owner: PlayerSlot = view.get(&"slot")
+		var calm := owner != null and bool(owner.profile.data.get("reduce_flashing", false))
+		view.call(&"set_flash", (calm_flash if calm else full_flash) * dim)
+	if _bolt:
+		var showing := false
+		for s: Dictionary in _strikes:
+			showing = showing or t - float(s.at) < Lightning.BOLT_S and t >= float(s.at)
+		_bolt.visible = showing
+
+
+## A strike seen for the first time: its bolt in the sky and its thunder.
+func _strike_seen(s: Dictionary) -> void:
+	var cams: Array = []
+	for rig in CameraRig.rigs:
+		if is_instance_valid(rig) and rig.camera.is_inside_tree():
+			cams.append(rig.camera.global_position)
+	if cams.is_empty():
+		return
+	var centre := Vector3.ZERO
+	for c: Vector3 in cams:
+		centre += c
+	centre /= cams.size()
+	if _bolt == null:
+		_bolt = MeshInstance3D.new()
+		_bolt.name = "Lightning"
+		_bolt.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_bolt)
+		Flash.put_on(_bolt, false) # never for Reduce flashing
+	var height := 700.0
+	_bolt.mesh = Lightning.bolt_mesh(hash([state.seed, s.at]), height)
+	var d: float = s.distance
+	_bolt.global_position = centre + Vector3(sin(float(s.bearing)) * d, height - 20.0, cos(float(s.bearing)) * d)
+	_bolt.visible = false
+	if ambience:
+		ambience.thunder(d / Lightning.SOUND_MPS, clampf(1.4 - d / Lightning.FARTHEST_M, 0.15, 1.0))
 
 
 ## The style's palettes blended for a sun elevation.

@@ -36,9 +36,10 @@ static func glowing(key: String, color: Color, glow := 1.0, night_only := false)
 	return m
 
 
-## A paved surface: it shines when wet (D153).
+## A paved surface: it shines when wet, and snow lies thinner on it (D153).
 static func _paved(m: ShaderMaterial) -> ShaderMaterial:
 	m.set_shader_parameter("wet_shine", 1.0)
+	m.set_shader_parameter("snow_settle", 0.55) # traffic keeps a road greyer than the verges
 	return m
 
 

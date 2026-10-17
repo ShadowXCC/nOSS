@@ -8,6 +8,8 @@ signal pause_requested(player: SessionPlayer)
 
 var slot: PlayerSlot
 var view: PlayerView
+## Rain or snow round this player's camera (D153).
+var weather: WeatherBox
 var controller: VehicleController
 var cameras := CameraRig.new()
 var hud := Hud.new()
@@ -52,6 +54,8 @@ func setup() -> void:
 	cameras.input = null if slot.ai else slot.input
 	view.add_3d(cameras)
 	view.set_camera(cameras.camera, session.world_env)
+	weather = WeatherBox.create(slot.index)
+	view.add_3d(weather)
 	hud.process_mode = Node.PROCESS_MODE_ALWAYS # shows "Paused by P2" while paused
 	view.hud_root.add_child(hud)
 	hud.apply_profile(slot.profile)
@@ -138,6 +142,8 @@ func _spawned() -> void:
 	cameras.set_vehicle(vehicle)
 	cameras.set_mode(String(slot.profile.data.get("camera", "chase_near")))
 	cameras.camera.cull_mask = RacingLineView.cull_mask_for(slot.index, cameras.camera.cull_mask)
+	cameras.camera.cull_mask = WeatherBox.cull_mask_for(slot.index, cameras.camera.cull_mask)
+	weather.vehicle = vehicle
 	cameras.camera.doppler_tracking = Camera3D.DOPPLER_TRACKING_PHYSICS_STEP # sirens
 	hud.vehicle = vehicle
 	_update_line_view()

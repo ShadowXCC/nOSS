@@ -24,5 +24,5 @@
     "twilight": { "top": "#1b2552", "horizon": "#7c4f6a", "ground": "#2a2a30", "cloud_color": "#7a5f78", "mountains": "#2c2a3e", "mountains_far": "#4a3f5c", "fog": "#4d4260", "sun": "#ff8c5a", "sun_energy": 0.0, "ambient": 0.42, "exposure": 1.15 },
     "night": { "top": "#03060f", "horizon": "#0c1426", "ground": "#05070a", "cloud_color": "#141a28", "mountains": "#070b14", "mountains_far": "#0c1220", "fog": "#0a1020", "sun": "#ff8c5a", "sun_energy": 0.0, "ambient": 0.22, "exposure": 1.3, "moon": "#a8bce0", "moon_energy": 0.16 }
   },
-  "overcast": { "sky": "#8a9099", "fog": "#9aa1aa", "cloud_color": "#b4b9c0", "storm_cloud": "#4a4f58" }
+  "overcast": { "sky": "#737a83", "fog": "#8f969f", "cloud_color": "#a7adb5", "storm_cloud": "#454a53" }
 }

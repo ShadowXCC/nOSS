@@ -53,14 +53,15 @@ func _ready() -> void:
 	stuck_reverse_s = 1.5
 	stuck_reset_s = 4.0
 	stuck_behind = true
-	var arcade: Dictionary = racer.vehicle.arcade
-	if not arcade.is_empty():
-		var grip := lerpf(GRIP.x, GRIP.y, _skill()) * float(arcade.grip)
-		_profile = _line.speed_profile(racer.vehicle.base_platform, grip)
-		_caution_profile = _line.speed_profile(racer.vehicle.base_platform, grip * CAUTION_GRIP)
 	items.racer = racer
 	items.skill = skill
 	items.rng.seed = hash(racer.number) ^ 0x17e5
+
+
+## A kart's grip is the arcade layer's on top (D130).
+func _base_grip() -> float:
+	var arcade: Dictionary = racer.vehicle.arcade
+	return super() * (float(arcade.grip) if not arcade.is_empty() else 1.0)
 
 
 ## The deepest drift tier it waits for: 1 below skill 40, 2 from 40, 3 from 75.
