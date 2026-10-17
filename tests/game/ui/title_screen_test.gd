@@ -36,7 +36,7 @@ func test_solo_drive_lists_the_modes() -> void:
 	for b: Button in solo.find_children("*", "Button", true, false):
 		assert_str(String(b.accessibility_name)).is_not_empty()
 		names.append(String(b.accessibility_name))
-	assert_array(names).contains_exactly(["Free Drive", "Race", "Time Trial", "Highway", "Kart", "Back"])
+	assert_array(names).contains_exactly(["Free Drive", "Race", "Time Trial", "Highway", "Kart", "Endless", "Back"])
 	assert_str(String(solo.get_viewport().gui_get_focus_owner().accessibility_name)).is_equal("Free Drive")
 	solo.closed.emit()
 	await runner.simulate_frames(3)

@@ -59,6 +59,10 @@ var direction := 1
 var wrong_way := false
 var limits := true
 var wrong_way_respawn := true
+## Laps count (off on the endless road: no lap timer, no wrong way, D157).
+var laps := true
+## Off the endless road this far below it: fallen off the world (back on the road).
+const FALL_BELOW_ROAD_M := 60.0
 
 ## Held on the grid: AI brakes, players' throttle is cut (race starts).
 var held := false
@@ -211,7 +215,8 @@ func _spawn(pkg: VehiclePackage) -> void:
 	distance = proj.distance
 	lateral = proj.lateral
 	track_index = -1
-	timer.teleported(lap_pos(last_valid))
+	if laps:
+		timer.teleported(lap_pos(last_valid))
 	if session.ghosted:
 		set_ghost(true)
 	driver = _make_driver()
@@ -302,9 +307,10 @@ func update_track(delta: float) -> void:
 	distance = proj.distance
 	lateral = proj.lateral
 	speed = vehicle.speed()
-	timer.update(lap_pos(distance), delta, vehicle.linear_velocity.length())
-	if session.highway == null:
-		wrong_way = timer.wrong_way
+	if laps:
+		timer.update(lap_pos(distance), delta, vehicle.linear_velocity.length())
+		if session.highway == null:
+			wrong_way = timer.wrong_way
 	_clock += delta
 	# Last valid spot for resets: on the road, upright.
 	on_track = absf(lateral) < track.half_width(distance, lateral) + 1.0 and vehicle.global_basis.y.y > 0.8
@@ -314,7 +320,8 @@ func update_track(delta: float) -> void:
 		_check_track_limits()
 	# Fallen off the world (off a bridge, into water): back on the road. A kart is also towed
 	# from well below the road where it is (off a jump or a loop, D132).
-	if (com.y < track.kill_y or (session.kart and com.y < track.point_at(distance).y - KART_FALL_M)) and not waiting:
+	if (com.y < track.kill_y or (session.kart and com.y < track.point_at(distance).y - KART_FALL_M)
+			or (not laps and com.y < track.point_at(distance).y - FALL_BELOW_ROAD_M)) and not waiting:
 		reset_car()
 	# Wrong way: a warning (the HUD shows it), then a respawn facing the right way.
 	if wrong_way and wrong_way_respawn and not waiting:
@@ -377,6 +384,9 @@ func reset_car() -> void:
 		return
 	if session.highway:
 		session.highway.reset(self)
+		return
+	if session.endless:
+		session.endless.reset(self)
 		return
 	timer.invalidate("Reset")
 	if session.safe_rejoin:

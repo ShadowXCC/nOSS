@@ -34,6 +34,8 @@ extends Node
 ##   --kart               a kart race right away (the first kart track, or --track; --race-laps, --race-ai, --platform)
 ##   --battle[=hits]      a battle right away (the first arena, or --track; --battle-min, --battle-hits, --race-ai)
 ##   --cup[=<id>]         a cup right away (the Spark Cup, or <id>; --race-ai)
+##   --endless[=<code>]   an endless drive right away (a road code like FOREST-0000001, or a new road;
+##                        --traffic=off|light|normal, --platform)
 ##   --kart-debug         online kart items: log every item more than 1 m off the server's
 ##   --time=<t>           any session's time of day (dawn, morning, noon, afternoon, dusk, night),
 ##                        --time-rate=<x> game minutes a minute, --weather=<w> (clear, cloudy, rain, storm,
@@ -173,7 +175,7 @@ static func parse_args(engine_args: PackedStringArray, user_args: PackedStringAr
 
 ## First scene after boot.
 func first_scene() -> String:
-	return "" if dedicated or dev.has("drive") or dev.has("bay") or dev.has("garage") or dev.has("race") or dev.has("time-trial") or dev.has("highway") or dev.has("editor") or dev_kart() else TITLE
+	return "" if dedicated or dev.has("drive") or dev.has("bay") or dev.has("garage") or dev.has("race") or dev.has("time-trial") or dev.has("highway") or dev.has("editor") or dev.has("endless") or dev_kart() else TITLE
 
 
 ## Dev: a kart race, battle or cup asked for on the command line.
@@ -186,6 +188,12 @@ func dev_kart() -> bool:
 func start_dev_event() -> void:
 	if dev_kart():
 		_start_dev_kart()
+		return
+	if dev.has("endless"):
+		var code := EndlessCode.decode(String(dev.endless))
+		var e := RaceEvent.endless(int(code.get("seed", EndlessCode.random_seed())), int(code.get("biome", 1)))
+		e.endless_traffic = String(dev.get("traffic", "light")) if String(dev.get("traffic", "light")) in RaceEvent.CHOICES.endless_traffic else "light"
+		start_event(e, String(dev.get("platform", "official.endless.cruiser")))
 		return
 	if dev.has("highway"):
 		var h := RaceEvent.highway(String(dev.get("sub", "cruise")), dev.has("police"), int(dev.get("traffic", "-1")))
@@ -271,7 +279,7 @@ func selected_track(type := "") -> String:
 ## Starts `session`, its track loaded off the main thread first behind a loading screen (a
 ## preloaded track_package goes straight in).
 func open_session(session: TrackSession) -> void:
-	if session.track_package and session.track_package.ok():
+	if (session.track_package and session.track_package.ok()) or session.event.kind == "endless": # endless makes its own road
 		_switch(session)
 		return
 	_switch(LoadingScreen.new())

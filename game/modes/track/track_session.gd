@@ -124,6 +124,12 @@ var traffic: TrafficManager
 var traffic_seed := -1
 ## Highways: each player's starting direction by player order ([] or missing: the event's).
 var directions: Array = []
+## An endless drive (docs/GAMEMODES.md §4, D157): its rules, its world (the road window is the
+## track), the floating origin under it, and its traffic. Null otherwise.
+var endless: EndlessControl
+var endless_world: EndlessWorld
+var origin: FloatingOrigin
+var endless_traffic: Node
 
 var _default_car := ""
 var _show_fps := false
@@ -146,6 +152,63 @@ func _env_state(style: StyleProfile) -> EnvState:
 	return EnvState.from_settings(time, rate, weather, seed, track_env if track_env is Dictionary else {}, style.data.get("sun", {}))
 
 
+## Endless (D157): the road window is the track, made by the world from the event's seed; the
+## floating origin keeps the players near the scene's centre.
+func _load_endless() -> void:
+	origin = FloatingOrigin.new()
+	add_child(origin)
+	endless_world = EndlessWorld.new()
+	endless_world.gen = EndlessGen.make(event.road_seed, event.biome)
+	endless_world.origin = origin
+	endless_world.visual = not dedicated
+	endless_world.collision = not dedicated
+	endless_world.focus = _endless_distances
+	endless_world.focus_points = _endless_points
+	origin.focus = func() -> Vector3:
+		var points := _endless_points()
+		var c := Vector3.ZERO
+		for p in points:
+			c += p
+		return c / maxf(points.size(), 1)
+	track = endless_world.road
+	terrain = null
+	safe_rejoin = false
+
+
+## Road distances to keep built round: this game's players (all racers on a server).
+func _endless_distances() -> PackedFloat64Array:
+	var out := PackedFloat64Array()
+	for r in racers:
+		if r.vehicle and (r is SessionPlayer or dedicated):
+			out.append(r.distance)
+	if out.is_empty():
+		out.append(EndlessControl.START_M)
+	return out
+
+
+func _endless_points() -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for r in racers:
+		if r.vehicle and (r is SessionPlayer or dedicated):
+			out.append(r.vehicle.global_position)
+	if out.is_empty() and endless_world and not endless_world.road.is_empty():
+		out.append(endless_world.road.point_at(EndlessControl.START_M))
+	return out
+
+
+func _ready_endless() -> void:
+	ai_racers = 0
+	endless = EndlessControl.new()
+	endless.session = self
+	endless.world = endless_world
+	endless.event = event
+	add_child(endless)
+	if not dedicated and not Game.dev.has("bot"):
+		var music := EndlessMusic.new()
+		music.seed_base = event.road_seed
+		add_child(music)
+
+
 ## The track's fog: light, normal or heavy.
 func _fog_scale() -> float:
 	var track_env: Variant = track.raw.get("environment", {})
@@ -155,13 +218,16 @@ func _fog_scale() -> float:
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
-	if track_package == null or not track_package.ok():
-		track_package = TrackLoader.load_package(track_path)
-	if not track_package.ok():
-		push_error("Track %s: %s" % [track_path, track_package.error])
-		track_package = TrackLoader.load_package(DEFAULT_TRACK)
-	track = track_package.track
-	terrain = track_package.terrain
+	if event.kind == "endless":
+		_load_endless()
+	else:
+		if track_package == null or not track_package.ok():
+			track_package = TrackLoader.load_package(track_path)
+		if not track_package.ok():
+			push_error("Track %s: %s" % [track_path, track_package.error])
+			track_package = TrackLoader.load_package(DEFAULT_TRACK)
+		track = track_package.track
+		terrain = track_package.terrain
 	var style := StyleProfile.load_profile(track.style)
 	style.apply_globals()
 	var env_node := style.create_environment()
@@ -176,10 +242,14 @@ func _ready() -> void:
 		return racers.filter(func(r: Racer) -> bool: return r is SessionPlayer and r.vehicle != null).map(func(r: Racer) -> Vehicle: return r.vehicle)
 	add_child(env)
 	env.apply()
-	var built := TrackBuilder.build(track, terrain, { "visual": not dedicated, "scene": track_package.scene })
-	add_child(built)
-	for area: Node in built.find_children("Water*", "Area3D", false, false):
-		(area as Area3D).body_entered.connect(_on_water)
+	if endless_world:
+		add_child(endless_world)
+		endless_world.prime(EndlessControl.START_M)
+	else:
+		var built := TrackBuilder.build(track, terrain, { "visual": not dedicated, "scene": track_package.scene })
+		add_child(built)
+		for area: Node in built.find_children("Water*", "Area3D", false, false):
+			(area as Area3D).body_entered.connect(_on_water)
 	platform = PlatformLoader.load_file(platform_file) if platform_file else PlatformLoader.load_official(platform_id)
 	if not platform.ok():
 		push_warning("Platform %s: %s" % [platform_id, platform.errors])
@@ -214,16 +284,19 @@ func _ready() -> void:
 	add_child(field)
 	if event.kind == "highway" and track.highway:
 		_ready_highway()
+	elif event.kind == "endless":
+		_ready_endless()
 	elif not arcade.is_empty() and event.kind != "time_trial":
 		_ready_kart()
 		if event.kind == "battle":
 			_ready_battle()
 
 	add_child(views)
-	var map := TrackMap.new()
-	map.track = track
-	map.cars = _map_cars
-	views.map = map
+	if not endless: # no map of a road that never ends
+		var map := TrackMap.new()
+		map.track = track
+		map.cars = _map_cars
+		views.map = map
 	views.views_changed.connect(_on_views_changed)
 
 	if is_online():
@@ -332,11 +405,15 @@ func _add_player(slot: PlayerSlot, at: Variant = null, kart_class := "") -> Sess
 		p.spawn_at = at
 	elif highway:
 		p.spawn_at = highway.spawn_for(i, direction_for(i))
+	elif endless:
+		p.spawn_at = endless.spawn_for(i)
 	else:
 		p.spawn_at = track.transform_at(_grid_distance(i), _grid_lateral(i)) if _spot_clear(_grid_distance(i), _grid_lateral(i)) else _free_grid_spot()
 	p.view = views.add(slot)
 	players.append(p)
 	_add_racer(p)
+	if endless:
+		endless.apply_hud(p)
 	p.pause_requested.connect(_open_pause)
 	slot.profile.data.last_platform = platform_id
 	var path := car_path if car_path and slot.index == 0 else String(slot.profile.data.get("last_car", ""))
@@ -479,6 +556,10 @@ func direction_for(i: int) -> int:
 ## The node that drives `r` (an AI racer, a dev player): the racing AI on circuits, the lane
 ## driver on highways, the battle AI in an arena.
 func make_driver(r: Racer) -> Node:
+	if endless:
+		var e := EndlessDriver.new()
+		e.racer = r
+		return e
 	if highway:
 		var d := HighwayDriver.new()
 		d.racer = r
@@ -496,6 +577,11 @@ func make_driver(r: Racer) -> Node:
 
 ## What a player's access assists follow (ACC-07): the racing line, or a highway's lanes.
 func make_guide(r: Racer) -> Node:
+	if endless:
+		var e := EndlessDriver.new()
+		e.racer = r
+		e.as_guide = true
+		return e
 	if highway:
 		var d := HighwayDriver.new()
 		d.racer = r
@@ -708,6 +794,10 @@ func _add_racer(r: Racer) -> void:
 		r.limits = false
 		r.wrong_way_respawn = false
 		r.direction = direction_for(racers.size())
+	elif endless:
+		r.limits = false
+		r.wrong_way_respawn = false
+		r.laps = false
 	elif kart:
 		r.limits = false
 	racers.append(r)
@@ -1167,8 +1257,9 @@ func _open_pause(p: SessionPlayer) -> void:
 		if is_online():
 			Net.leave()
 		Game.go_title())
-	if highway:
-		menu.extra_items = highway.pause_items(p).map(func(item: Array) -> Array:
+	var mode_items: Array = highway.pause_items(p) if highway else endless.pause_items(p) if endless else []
+	if not mode_items.is_empty():
+		menu.extra_items = mode_items.map(func(item: Array) -> Array:
 			return [item[0], func() -> void:
 				_resume(p)
 				item[1].call(), item[2]])

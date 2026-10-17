@@ -65,6 +65,7 @@ const DEFAULTS := {
 	"last_track": "",
 	## The last highway event set up (RaceEvent.to_dict; HighwayMenu).
 	"last_highway": {},
+	"last_endless": {},
 }
 ## Dicts whose known keys are merged one by one; other dicts are taken whole.
 const NESTED := ["input", "assists", "presets"]

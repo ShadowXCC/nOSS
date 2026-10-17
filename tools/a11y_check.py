@@ -5,7 +5,8 @@ Runs the game with accessibility on and walks title -> Solo Drive -> Race -> cla
 Players -> a 1-lap race -> results -> title, then Online -> Host -> the lobby -> Leave (M5), then
 Solo Drive -> Highway -> a highway -> its menu -> the class -> Players and back out (M7), then
 Solo Drive -> Kart -> a race, a battle and the cup builder -> the class -> Players and back out
-(M8), then the track editor: every
+(M8), then Solo Drive -> Endless -> its menu -> the class -> Players and back out (M9), then the
+track editor: every
 tool, a new oval, its race setup and checks, a new highway loop and its ramps, the Stunts tool on
 a kart circuit and an arena, and out (M6-M8);
 then, in a second run, a highway session's pause menu (opened with --pause-at: keys can't be
@@ -22,6 +23,7 @@ display. Writes no settings or profiles (--no-save).
     tools/a11y_check.py --editor-only  # just the track editor
     tools/a11y_check.py --highway-only # just the highway menus and a highway session's pause
     tools/a11y_check.py --kart-only    # just the kart menus (race, battle, cup builder)
+    tools/a11y_check.py --endless-only # just the endless menus
 """
 import os
 import subprocess
@@ -281,6 +283,19 @@ def kart_menus():
     return ok
 
 
+def endless_menus():
+    """Title -> Solo Drive -> Endless -> its menu -> the class -> Players, and back out (M9)."""
+    log("Endless menus")
+    ok = step("Title (endless)", "Solo Drive")
+    ok = ok and step("Solo Drive (endless)", "Endless")
+    ok = ok and step("Endless: menu", "Next")
+    ok = ok and step("Endless: class", "Endless Cruiser", prefix=True)
+    for label, anchor in (("Endless: players", "Ready"), ("Endless: class again", "Endless Cruiser"),
+                          ("Endless: menu again", "Next"), ("Solo Drive (after endless)", "Endless")):
+        ok = ok and back_from(label, anchor)
+    return ok
+
+
 def back_from(label, anchor):
     """Waits for the screen with `anchor` (a name prefix), checks it, and presses its Back."""
     if find(anchor, "button", timeout=30.0, prefix=True) is None:
@@ -387,6 +402,10 @@ def main():
             if find("Solo Drive", "button", timeout=60.0) is not None:
                 kart_menus()
             raise SystemExit(report())
+        if "--endless-only" in sys.argv:
+            if find("Solo Drive", "button", timeout=60.0) is not None:
+                endless_menus()
+            raise SystemExit(report())
         log("Title")
         ok = step("Title", "Solo Drive")
         ok = ok and step("Solo Drive", "Race")
@@ -424,6 +443,10 @@ def main():
                     kart_menus()
                 else:
                     problems.append("Back at the title: no Solo Drive button")
+                if find("Solo Drive", "button", timeout=20.0) is not None:
+                    endless_menus()
+                else:
+                    problems.append("Back at the title: no Solo Drive button")
                 if find("Track Editor", "button", timeout=20.0) is not None:
                     editor_walk()
                 else:
@@ -434,7 +457,7 @@ def main():
 
 
 def finish():
-    if "--editor-only" not in sys.argv and "--kart-only" not in sys.argv:
+    if "--editor-only" not in sys.argv and "--kart-only" not in sys.argv and "--endless-only" not in sys.argv:
         highway_pause_walk()
     return report()
 

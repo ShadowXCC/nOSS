@@ -36,6 +36,8 @@ func _physics_process(delta: float) -> void:
 ## Along-track gap from `from` to `to`, metres, in (-length/2, length/2]: + = `to` is ahead.
 func gap(from: Racer, to: Racer) -> float:
 	var d := to.distance - from.distance
+	if not track.closed: # an open road (endless): no wrapping
+		return d
 	var half := track.length / 2.0
 	if d > half:
 		d -= track.length

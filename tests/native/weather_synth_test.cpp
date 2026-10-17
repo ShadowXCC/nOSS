@@ -32,3 +32,22 @@ TEST_CASE("weather sounds: every kind renders, the loops join seamlessly, the sa
 	CHECK(weather_sound("nothing") == WeatherSound::RAIN);
 	CHECK_FALSE(weather_loops(WeatherSound::THUNDER));
 }
+
+#include <chrono>
+
+#include "audio/music_synth.h"
+
+TEST_CASE("music: a seed makes its own loop, the same every time") {
+	auto t0 = std::chrono::steady_clock::now();
+	std::vector<int16_t> a = render_music(7), b = render_music(7), c = render_music(8);
+	double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / 3.0;
+	MESSAGE("a 64 s loop in " << ms << " ms");
+	REQUIRE(a.size() == size_t(44100 * 64));
+	CHECK(a == b);
+	CHECK(a != c);
+	int worst = 0;
+	for (size_t i = 1; i < a.size(); i++) {
+		worst = std::max(worst, std::abs(int(a[i]) - int(a[i - 1])));
+	}
+	CHECK(std::abs(int(a.front()) - int(a.back())) <= worst);
+}

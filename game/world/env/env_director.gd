@@ -47,6 +47,9 @@ var ambience: Ambience
 var sound := true
 ## Extra ambience on top of the weather's (endless: the biome's surf, birds, crickets), 0..1.
 var extra_ambience := {}
+## The local weather (endless: the biome's): {snowy (rain falls as snow), rain (how much of it
+## falls), fog (how thick)}; {} as the sky says.
+var biome_weather := {}
 var _slot := -1
 var _strikes: Array = [] # [{at, distance, bearing}] still lighting the sky
 var _bolt: MeshInstance3D
@@ -109,7 +112,7 @@ func _process(delta: float) -> void:
 func apply() -> void:
 	if state == null or _env == null:
 		return
-	snapshot = state.at(now())
+	snapshot = _local(state.at(now()))
 	var el: float = snapshot.elevation
 	var cloud: float = snapshot.cloud
 	var precip: float = snapshot.precip
@@ -181,6 +184,23 @@ func apply() -> void:
 		for k: String in extra_ambience:
 			levels[k] = float(extra_ambience[k])
 		ambience.set_levels(levels)
+
+
+## The sky's weather where the players are (endless: by biome): less rain in a desert, snow
+## instead of rain where it's cold, thicker fog on a coast.
+func _local(s: Dictionary) -> Dictionary:
+	if biome_weather.is_empty():
+		return s
+	var out := s.duplicate()
+	out.precip = float(s.precip) * float(biome_weather.get("rain", 1.0))
+	out.storm = float(s.storm) * float(biome_weather.get("rain", 1.0))
+	out.fog = clampf(float(s.fog) * float(biome_weather.get("fog", 1.0)), 0.0, 1.0)
+	out.wetness = float(s.wetness) * float(biome_weather.get("rain", 1.0))
+	if bool(biome_weather.get("snowy", false)):
+		out.snowing = float(out.precip) > 0.0 or bool(s.snowing)
+		out.snow = maxf(float(s.snow), float(out.wetness))
+		out.wetness = float(out.wetness) * 0.2
+	return out
 
 
 func _write(env: Environment, fog_color: Color, fog_density: float, ambient: float, exposure: float) -> void:

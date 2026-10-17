@@ -216,7 +216,8 @@ func update_track(delta: float) -> void:
 	lateral = proj.lateral
 	speed = vehicle.speed()
 	on_track = absf(lateral) < track.half_width(distance, lateral) + 1.0
-	timer.update(lap_pos(distance), delta, vehicle.remote_velocity.length())
+	if laps:
+		timer.update(lap_pos(distance), delta, vehicle.remote_velocity.length())
 	_clock += delta
-	if Net.server and not dnf:
+	if Net.server and not dnf and limits:
 		_check_track_limits()

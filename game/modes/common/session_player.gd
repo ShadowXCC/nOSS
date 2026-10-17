@@ -126,6 +126,7 @@ func _make_driver() -> Node:
 	slot.input.wheel.apply_ffb_settings(float(platform.platform.get("ffb", {}).get("reference_rack_nm", 9.0)))
 	controller.reset_requested.connect(reset_car)
 	controller.camera_next_requested.connect(_next_camera)
+	controller.autodrive_requested.connect(toggle_autodrive)
 	slot.profile.changed.connect(_on_profile_changed)
 	return controller
 
@@ -365,6 +366,18 @@ func update_track(delta: float) -> void:
 func _next_camera() -> void:
 	cameras.next_mode()
 	slot.profile.set_value("camera", cameras.mode)
+
+
+## Autodrive on or off (its key, the endless pause menu), where the class and mode allow it.
+func toggle_autodrive() -> void:
+	if "autodrive" not in AssistRules.allowed(vehicle.base_platform if vehicle else {}, session.mode):
+		notify("No autodrive here", 1.5)
+		return
+	var assists: Dictionary = slot.profile.data.get("assists", {})
+	assists.autodrive = not bool(assists.get("autodrive", false))
+	slot.profile.data.assists = assists
+	slot.profile.changed.emit()
+	notify("Autodrive " + ("on" if assists.autodrive else "off"), 1.5)
 
 
 func _on_profile_changed() -> void:

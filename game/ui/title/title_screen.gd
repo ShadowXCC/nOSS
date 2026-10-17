@@ -87,6 +87,7 @@ func _ready() -> void:
 		"tracks": _open_tracks(func(_t: String) -> void: pass, true)
 		"highway": _open_highway()
 		"kart": _open_kart()
+		"endless": _open_endless()
 		"online-players":
 			_open_online()
 			_online._open_players()
@@ -134,6 +135,7 @@ func _on_solo_chosen(mode: String) -> void:
 	match mode:
 		"highway": _open_highway()
 		"kart": _open_kart()
+		"endless": _open_endless()
 		_: _open_classes(mode)
 
 
@@ -262,6 +264,31 @@ func _open_kart() -> void:
 	add_child(menu)
 
 
+## Endless (M9): the road and its setup (EndlessMenu), the class, the players.
+func _open_endless() -> void:
+	_mode = "endless"
+	var menu := EndlessMenu.new()
+	menu.name = "EndlessMenu"
+	menu.picked.connect(func(e: RaceEvent) -> void:
+		menu.visible = false
+		_classes = ClassPicker.new()
+		_classes.mode_filter = "endless"
+		_classes.current = String(Settings.profile.get("last_platform", ""))
+		_classes.picked.connect(func(id: String) -> void:
+			_classes.visible = false
+			Settings.profile.last_platform = id
+			_open_players(id, e, ""))
+		_classes.closed.connect(func() -> void:
+			_classes.queue_free()
+			menu.visible = true
+			menu.grab_focus_first())
+		add_child(_classes))
+	menu.closed.connect(func() -> void:
+		menu.queue_free()
+		_back_to_solo())
+	add_child(menu)
+
+
 func _open_event(platform_id: String) -> void:
 	_event = EventMenu.new()
 	_event.picked.connect(func(e: RaceEvent) -> void:
@@ -293,7 +320,7 @@ func _open_players(platform_id: String, event: RaceEvent = null, track := "", st
 		if _mode == "kart" and is_instance_valid(_kart_menu): # kart: its menu, then the players
 			_kart_menu.visible = true
 			_kart_menu.grab_focus_first()
-		elif _mode == "highway" and is_instance_valid(_classes): # highway: menu, class, players
+		elif _mode in ["highway", "endless"] and is_instance_valid(_classes): # highway, endless: menu, class, players
 			_classes.visible = true
 			_classes.grab_focus_first()
 		elif is_instance_valid(_event):

@@ -93,6 +93,11 @@
         "key": "L"
       }
     ],
+    "autodrive": [
+      {
+        "key": "O"
+      }
+    ],
     "drift": [
       {
         "key": "Space"

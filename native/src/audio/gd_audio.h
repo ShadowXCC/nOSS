@@ -29,6 +29,8 @@ public:
 	// Weather and ambience (D153): "rain", "wind", "surf", "crickets", "birds" (loops) or
 	// "thunder" (a one-shot), as 16-bit mono at 44.1 kHz.
 	static godot::PackedByteArray render_weather(const godot::String &p_kind);
+	// Endless's ambient music (D157): a 64 s seamless loop for a seed, 16-bit mono at 44.1 kHz.
+	static godot::PackedByteArray render_music(int64_t p_seed);
 };
 
 } // namespace noss

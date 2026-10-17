@@ -48,24 +48,36 @@ var time := "track"
 var time_rate := 0
 var weather := "track"
 var env_seed := 0
+## Endless (docs/GAMEMODES.md §4, D157): the road's seed and the biome it starts in (NossRoadGen
+## order), traffic ("light", "normal" or "off"), oncoming traffic on, and what happens when local
+## players drift far apart ("bring": the one behind is brought up; "hold": the leader is held).
+var road_seed := 1
+var biome := 1
+var endless_traffic := "light"
+var oncoming := true
+var spread := "bring"
 
 ## The values each text field may take; the first is the default.
 const CHOICES := {
-	"kind": ["free", "race", "time_trial", "highway", "battle"], "start": ["standing", "rolling"], "grid": ["qualifying", "reverse", "random"],
+	"kind": ["free", "race", "time_trial", "highway", "battle", "endless"], "start": ["standing", "rolling"], "grid": ["qualifying", "reverse", "random"],
 	"track_limits": ["lenient", "off", "strict"], "ai_cars": ["garage", "builtin"], "sub": ["cruise", "score", "run", "loop"],
 	"battle_rule": ["standing", "hits"],
 	"time": ["track", "dawn", "morning", "noon", "afternoon", "dusk", "night"],
 	"weather": ["track", "clear", "cloudy", "rain", "storm", "fog", "snow", "changing"],
+	"endless_traffic": ["light", "normal", "off"], "spread": ["bring", "hold"],
 }
 ## Time rates offered in menus (game minutes per real minute).
 const TIME_RATES := [0, 1, 10, 30, 60, 120]
 const KEYS := ["kind", "practice_min", "qualifying_min", "race_laps", "race_min", "ai_count", "ai_skill",
 	"start", "grid", "collisions", "track_limits", "ai_cars", "sub", "police", "traffic", "run", "direction",
-	"items", "battle_rule", "battle_min", "battle_hits", "time", "time_rate", "weather", "env_seed"]
+	"items", "battle_rule", "battle_min", "battle_hits", "time", "time_rate", "weather", "env_seed",
+	"road_seed", "biome", "endless_traffic", "oncoming", "spread"]
 ## Written only for highway events (circuit events stay as older games and servers know them).
 const HIGHWAY_KEYS := ["sub", "police", "traffic", "run", "direction"]
 ## Written only for battles, or with items off.
 const KART_KEYS := ["items", "battle_rule", "battle_min", "battle_hits"]
+## Written only for endless events.
+const ENDLESS_KEYS := ["road_seed", "biome", "endless_traffic", "oncoming", "spread"]
 ## Traffic cars at most.
 const TRAFFIC_MAX := 400
 
@@ -94,6 +106,20 @@ static func battle(rule := "standing", minutes := 5) -> RaceEvent:
 	return e
 
 
+## An endless drive (D157): the day and the weather go by on their own unless set.
+static func endless(seed_value := 1, start_biome := 1) -> RaceEvent:
+	var e := RaceEvent.new()
+	e.kind = "endless"
+	e.ai_count = 0
+	e.road_seed = seed_value
+	e.biome = start_biome
+	e.track_limits = "off"
+	e.time = "morning"
+	e.time_rate = 30
+	e.weather = "changing"
+	return e
+
+
 static func highway(sub_mode := "cruise", with_police := false, traffic_cars := -1) -> RaceEvent:
 	var e := RaceEvent.new()
 	e.kind = "highway"
@@ -108,7 +134,7 @@ static func highway(sub_mode := "cruise", with_police := false, traffic_cars := 
 ## The sessions in order: "free", "time_trial", or "practice", "qualifying", "race". A highway
 ## event is one free session (its own rules run beside it).
 func sessions() -> PackedStringArray:
-	if kind == "highway":
+	if kind == "highway" or kind == "endless":
 		return PackedStringArray(["free"])
 	if kind == "battle":
 		return PackedStringArray(["battle"])
@@ -129,6 +155,8 @@ func to_dict() -> Dictionary:
 		if key in HIGHWAY_KEYS and kind != "highway":
 			continue
 		if key in KART_KEYS and kind != "battle" and items:
+			continue
+		if key in ENDLESS_KEYS and kind != "endless":
 			continue
 		d[key] = get(key)
 	return d
@@ -153,6 +181,8 @@ static func from_dict(d: Dictionary) -> RaceEvent:
 	e.battle_hits = clampi(e.battle_hits, 0, 50)
 	e.time_rate = clampi(e.time_rate, 0, 600)
 	e.env_seed = clampi(e.env_seed, 0, 0x7FFFFFFF)
+	e.road_seed = clampi(e.road_seed, 0, 0x7FFFFFFF)
+	e.biome = clampi(e.biome, 0, 6)
 	# Text fields only take their known values (events also come from servers).
 	for key: String in CHOICES:
 		if e.get(key) not in CHOICES[key]:

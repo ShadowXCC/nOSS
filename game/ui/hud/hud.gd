@@ -190,6 +190,8 @@ func apply_profile(profile: PlayerProfile) -> void:
 	_hidden.clear()
 	for id: String in PRESETS.get(String(profile.data.get("hud_preset", "full")), []):
 		_hidden[id] = true
+	for id: String in session_hidden:
+		_hidden[id] = true
 	var extra: Variant = profile.data.get("hud_hidden", [])
 	if extra is Array:
 		for id: Variant in extra:
@@ -198,6 +200,11 @@ func apply_profile(profile: PlayerProfile) -> void:
 		for c: CanvasItem in item[1]:
 			c.visible = not _hidden.has(item[0])
 	queue_redraw()
+
+
+## Elements this session hides whatever the player's choice (endless: everything, until they
+## show it; timing always, there are no laps). Set it, then apply_profile().
+var session_hidden := PackedStringArray()
 
 
 ## Whether a HUD element is shown (not hidden by the player's preset or choice).

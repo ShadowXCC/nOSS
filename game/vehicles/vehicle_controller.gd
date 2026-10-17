@@ -6,6 +6,8 @@ extends Node
 
 signal reset_requested
 signal camera_next_requested
+## The autodrive key: on or off (an access assist, where it's allowed).
+signal autodrive_requested
 ## Kart: the player used their item, throwing it back (D135).
 signal item_requested(back: bool)
 
@@ -129,6 +131,8 @@ func _physics_process(delta: float) -> void:
 		reset_requested.emit()
 	if input.just_pressed("camera_next"):
 		camera_next_requested.emit()
+	if input.just_pressed("autodrive"):
+		autodrive_requested.emit()
 
 
 ## H-shifter (INP-04, docs/INPUT.md §5): the gate held selects that gear, no gate is neutral.

@@ -14,6 +14,7 @@ const MODES := [
 	["time_trial", "Time Trial", "Solo laps against your ghost"],
 	["highway", "Highway", "Cruise, score attack, runs and laps through traffic"],
 	["kart", "Kart", "Kart races with items, battles and cups"],
+	["endless", "Endless", "A calm drive down a road that never ends"],
 ]
 
 var _rows: Array = []
