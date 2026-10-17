@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Runs every test suite: native (doctest), JSON schemas, tools (unittest), GDScript (gdUnit4, headless),
-# platform conformance, a short AI race check, a short kart check, a short highway check, short online checks (a race,
+# platform conformance, a short AI race check (and one in the rain), a short kart check, a 10-minute endless drive, a short
+# highway check, short online checks (a race,
 # a highway with traffic), the track editor's 3 km acceptance build (raced and sent online), boot
 # smoke test.
 # Exits non-zero if any fails. Run tools/setup_dev.sh once first.
@@ -49,6 +50,9 @@ tools/kart_check.sh --karts=8 --laps=1 --seed=1 | grep -E "^(kart_check|Race|Tim
 
 step "Battle check (8 karts, last one standing, the arena fixture)"
 tools/kart_check.sh --battle --karts=8 --seed=1 | grep -E "^(kart_check|Battle|Race|PASS|FAIL|  )" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("battle check")
+
+step "Endless check (10 minutes of driving, normal traffic)"
+tools/endless_check.sh --minutes=10 --traffic=normal | grep -E "^(Endless|  |Time|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("endless check")
 
 step "Highway check (2 players, 400 traffic, 60 s)"
 tools/highway_check.sh --players=2 --traffic=400 --seconds=60 | grep -E "^(Highway|Time|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("highway check")

@@ -450,9 +450,13 @@ func _build_far(job: Job) -> void:
 	arrays[Mesh.ARRAY_NORMAL] = normals
 	arrays[Mesh.ARRAY_COLOR] = cols
 	arrays[Mesh.ARRAY_INDEX] = index
+	job.result = { "arrays": arrays, "mesh": _far_mesh(arrays) if MeshBatch.threaded() else null }
+
+
+static func _far_mesh(arrays: Array) -> ArrayMesh:
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	job.result = { "mesh": mesh }
+	return mesh
 
 
 # --- the sea -------------------------------------------------------------------------------------
@@ -587,7 +591,7 @@ func _apply(job: Job) -> void:
 				return
 			var mi := MeshInstance3D.new()
 			mi.name = "Far_%d_%d" % [key.x, key.y]
-			mi.mesh = job.result.mesh
+			mi.mesh = job.result.mesh if job.result.mesh else _far_mesh(job.result.arrays)
 			mi.material_override = _far_material
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			mi.visibility_range_begin = FAR_FROM_M

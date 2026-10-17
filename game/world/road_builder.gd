@@ -399,13 +399,13 @@ const NAMES := { "lines": "Lines", "curbs": "Curbs", "bridge": "Bridge", "lamps"
 
 
 ## The batches' meshes and collision faces, made ahead (on a worker: no nodes, no shapes) for
-## add_built(): {key: {mesh, faces}}.
+## add_built(): {key: {mesh, faces}}. Headless, the meshes wait for add_built (MeshBatch.threaded).
 func prebuild(batches: Dictionary) -> Dictionary:
 	var out := {}
 	for key: String in batches:
 		var b: MeshBatch = batches[key]
 		if not b.is_empty():
-			out[key] = { "mesh": b.mesh() if visual else null, "faces": b.faces() }
+			out[key] = { "mesh": b.mesh() if visual and MeshBatch.threaded() else null, "faces": b.faces() }
 	return out
 
 

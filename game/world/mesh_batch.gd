@@ -72,6 +72,12 @@ func append(other: MeshBatch) -> void:
 		index.append(i + offset)
 
 
+## Whether meshes may be made on a worker: not headless, where the stand-in renderer's mesh store
+## isn't thread-safe (making them on two threads at once corrupts it).
+static func threaded() -> bool:
+	return DisplayServer.get_name() != "headless"
+
+
 func mesh() -> ArrayMesh:
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
