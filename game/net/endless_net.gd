@@ -1,6 +1,6 @@
 class_name EndlessNet
 extends Node
-## An endless drive online (D159, docs/NETWORKING.md §11). Every game makes the same road and the
+## An endless drive online (D159, docs/NETWORKING.md §12). Every game makes the same road and the
 ## same traffic schedule from the session's seed and the server's clock, and keeps its own floating
 ## origin round its own players, so little needs sending:
 ## - which game drives each physics traffic car (its owner): a game with a player near a car asks

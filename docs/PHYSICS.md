@@ -65,20 +65,20 @@ VehicleSim (per vehicle, C++)
 
 The surface type comes from the collider (track material tag).
 
-| Surface | Grip × | Extra |
-|---|---|---|
-| Asphalt | 1.00 | — |
-| Concrete | 0.97 | — |
-| Curb | 0.90 | Vibration in FFB and audio |
-| Painted line | 0.95 (wet 0.75) | — |
-| Grass | 0.60 | Rolling drag ↑ |
-| Gravel | 0.55 | Heavy drag, spray |
-| Dirt | 0.70 | — |
-| Sand | 0.40 | Very heavy drag |
-| Snow | 0.35 | — |
-| Ice | 0.12 | — |
+| Surface | Grip × | Wet | Under snow | Extra |
+|---|---|---|---|---|
+| Asphalt | 1.00 | 0.75 | 0.45 | — |
+| Concrete | 0.97 | 0.7275 | 0.45 | — |
+| Curb | 0.90 | 0.675 | 0.45 | Vibration in FFB and audio |
+| Painted line | 0.95 | 0.7125 | 0.45 | — |
+| Grass | 0.60 | 0.60 | 0.35 | Rolling drag ↑ |
+| Gravel | 0.55 | 0.55 | 0.35 | Heavy drag, spray |
+| Dirt | 0.70 | 0.70 | 0.35 | — |
+| Sand | 0.40 | 0.40 | 0.35 | Very heavy drag |
+| Snow | 0.35 | 0.35 | 0.35 | — |
+| Ice | 0.12 | 0.12 | 0.12 | — |
 
-**Wet:** grip × (1 − 0.25 · wetness) on sealed surfaces, with wetness 0–1 from weather ([GAMEMODES.md](GAMEMODES.md), ENV-02). Puddles and aquaplaning come later.
+**Wet and snowy roads (D153):** sealed surfaces lose a quarter of their grip wet (grip × (1 − 0.25 · wetness)); under snow they pack down to 0.45, and loose ones go to snow's 0.35. With wetness w and snow cover c (0–1, from the weather, [GAMEMODES.md §0](GAMEMODES.md#0-common-to-all-modes)): `g_w = g + (wet − g) · w`, then `g_w + (snow − g_w) · c`. Each car gets its road's conditions a few times a second (`VehicleSim.set_conditions`); a car in a tunnel stays dry. With both at 0 the model is bit for bit what it was. The ESC's grip limit follows the same factor, and the AI's speed profiles use it (rounded to 0.05). Measured on the conformance harness, fully wet: the GT class's skidpad 0.75× dry and braking from 100 km/h 1.26× the distance (every class: 0.73–0.78× and 1.10–1.32×, `tools/run_conformance.sh`'s weather lines); in the game an AI race in the rain laps about 15% slower than dry, with no pile-ups. Puddles and aquaplaning come later.
 
 ## 5. Drivetrain
 
@@ -136,7 +136,7 @@ The surface type comes from the collider (track material tag).
 - **Self-righting** after 1.5 s on the roof or side. Walls bounce at 0.6 and karts at 0.3 (mass decides); stunt pieces don't bounce.
 - **Item effects:** spin-out (1.2 s, grip × 0.35, about 1.3 turns, braking at 10 m/s²), slow (power cut), boost, cancel; a 3 m/s knock comes from the item.
 
-**Highway and endless** use the core unchanged. Endless defaults to assists on.
+**Highway and endless** use the core unchanged. Endless's classes (`data/modes/endless.mode.json`: Cruiser, 150 kW, 1400 kg, rear drive; Sport, 260 kW, 1350 kg) have assists allowed and on, the autodrive included, and no racing line.
 
 ## 10. Collisions and damage
 

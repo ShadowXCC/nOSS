@@ -101,6 +101,7 @@ The checks add: piece off the road, pieces overlapping, a loop round a corner or
   - Speeds from the class's grip, power, braking and downforce, and the track's banking, grade and crests: banking into a turn lets it go faster, a crest takes load off the tires (the AI lifts so it keeps 75% of the car's weight on them), climbs slow the car (D93).
   - **Pins:** drag the line sideways to pin it there; it bends through the pin and stays inside the road. Pins don't change the layout (records stay, D97).
   - "AI lap" shows the reference car's lap on the line (Track GT).
+- **Sky** (M9, D153): the track's own time of day (a fixed sun, or Dawn … Night) and weather (Clear … Snow, or Changing), stored in its `environment` block. Events that keep "Track's" get them; an event can pick another.
 - **Pit lane:** later (M10).
 
 ## 5. File format: `.nosstrack`
@@ -141,7 +142,8 @@ my_track.nosstrack
   "ground": { "terrain":"terrain/meta.json" },   // or { "flat_y":-0.03, "surface":"grass" }
   "props": { "items":[{ "prop":"grandstand","p":[…],"yaw_deg":90,"scale":1,"size":[13,9.9,110],"ground":true }],
              "scatter":[{ "prop":"tree_pine","xf":[x,z,yaw,scale, …] }] },
-  "environment": {}, "scene": null }   // a fitted scene: { "glb":"scene/scene.glb", "tags":"scene/tags.json" }
+  "environment": { "time":"dusk", "weather":"rain" },   // optional: also sun_elevation_deg, sun_azimuth_deg, fog
+  "scene": null }   // a fitted scene: { "glb":"scene/scene.glb", "tags":"scene/tags.json" }
 ```
 
 - A highway (`"type":"highway"`, D106) adds a `highway` section; its road's defaults come from it (widths, no curbs, concrete run-off and barriers):

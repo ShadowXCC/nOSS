@@ -18,7 +18,7 @@ Both run identical server code (`NetServer` for connections, `NetHost` for the l
 ## 2. Transport
 
 - **ENet** (UDP) through Godot's `ENetMultiplayerPeer`, polled by our own `SceneMultiplayer`. Default port **UDP 47800**, configurable (D83).
-- **Protocol version 5** (M8: the kart word in car states and kart items, D142; version 4: the start waits for every game's cars, D127; version 3, M7: 16-bit car ids, a second flags byte, highway traffic, D112; version 2 brought the track by hash, D98). A client and server must match it and the game version ("Version mismatch").
+- **Protocol version 6** (M9: world positions in car states, knocks relative to the car, the sky and endless roads, D159; version 5, M8: the kart word in car states and kart items, D142; version 4: the start waits for every game's cars, D127; version 3, M7: 16-bit car ids, a second flags byte, highway traffic, D112; version 2 brought the track by hash, D98). A client and server must match it and the game version ("Version mismatch").
 - **No RPCs** (D78). Every message is raw bytes (`send_bytes`): one type byte, then either a `var_to_bytes` Dictionary (control messages; never objects; size-checked before decoding, field-checked after) or a packed binary layout (car states, race state, content).
 - **Channels:**
 
@@ -43,7 +43,7 @@ Both run identical server code (`NetServer` for connections, `NetHost` for the l
 - Each install has an **RSA-2048 key** in `user://identity/key.pem` (owner-only). The SHA-256 of the public key is the player's **fingerprint**: what bans, whitelists and admin lists hold. A display name sits on top. No accounts (D81).
 - **Joining:** the server sends a nonce. The client answers with its public key, the nonce signed with it (so nobody can claim someone else's fingerprint) and, if the server has a password, an HMAC of the nonce keyed with the password's hash. Game and protocol versions must match. A refusal says why ("Wrong password", "Server full", "Banned", "Version mismatch (server 0.5.0)", "Already on this server").
 - **Host tools:** kick, ban (by fingerprint, saved to the config), password, whitelist, admins (fingerprints in the config; a listen server's host is always admin), and the server rules (§8).
-- **Chat:** text only, 200 characters, five lines per five seconds per connection, mute per player (on each player's own game). Controller players have quick lines. Admin commands: `/kick name`, `/ban name`, `/start`, `/next`, `/restart`, `/help`. Chat shows in the lobby and as captions in sessions (read out with a player's race narration), and the pause menu has a Chat screen.
+- **Chat:** text only, 200 characters, five lines per five seconds per connection, mute per player (on each player's own game). Controller players have quick lines. Admin commands: `/kick name`, `/ban name`, `/start`, `/next`, `/restart`, `/time dawn|morning|noon|afternoon|dusk|night|track`, `/weather clear|cloudy|rain|storm|fog|snow|changing|track`, `/help`. Chat shows in the lobby and as captions in sessions (read out with a player's race narration), and the pause menu has a Chat screen.
 - **Two copies on one PC** (testing): `--instance=N` keeps each copy's settings, profiles and key apart.
 
 ## 5. Session flow
@@ -55,7 +55,9 @@ connect ─► join checks (versions, key, password, bans, room)
         ─► a client without the track gets it first ("Getting track 40%"); then Ready
         ─► the server fetches each picked car from its owner (§7); clients fetch everyone's
         ─► start (host, admin /start, or the dedicated server once all are ready)
-        ─► SESSION: track (hash, id, name, size), class (and its hash), event, rules, roster in grid order
+        ─► SESSION: track (hash, id, name, size; "endless" for an endless road), class (and its hash), event, rules,
+           roster in grid order, the sky (environment: time, rate, weather, seed, t0) and an endless road's
+           clock and where everyone is (endless: t0, at)
         ─► each game builds its session: its own players drive, every other car is remote
         ─► the start waits until every game has the session's cars ("Syncing 2/3"; 3–30 s, D127)
         ─► races: the server runs the event, clients follow (§6); results; next session
@@ -63,7 +65,7 @@ connect ─► join checks (versions, key, password, bans, room)
 ```
 
 - **Splitscreen online** (LOC-05): one connection carries up to 4 local players, each with their own id. All count toward the **16-player** cap (MP-03).
-- **Joining mid-session:** free drive takes newcomers at once (first free grid spot). A race weekend doesn't; they wait in the lobby for the next event ("Race on: you're in the next one").
+- **Joining mid-session:** free drive takes newcomers at once (first free grid spot); an endless road starts them just behind whoever's furthest along. A race weekend doesn't; they wait in the lobby for the next event ("Race on: you're in the next one").
 - **Leaving mid-session:** in a race weekend the car stays in the results as out, until the next session.
 - **Online the game never pauses** and runs at full speed (D85). A player's pause menu opens just for them.
 - **Hotswap** (PKG-06): allowed by the server's rule (outside races by default); the new car hash reaches everyone and travels like any car.
@@ -78,14 +80,17 @@ connect ─► join checks (versions, key, password, bans, room)
 | Kart items | Server | (M8) The server spawns item entities. The victim's client reports a hit; the server validates it. |
 | Police | Server | The server runs the police units (ids from 300), sent like player cars; clients know them by their first state. Heat, busts and evades go to each player's game (HW_EVENT, D115). |
 | Traffic | Server (seed + events) | Every game runs the same lane sim from the session's seed by the server's clock; the server's events change it (below, D109). Cars near players are physics cars driven by their owner's game (D110). |
-| Weather, time | Server | (M9) Broadcast every few seconds |
+| Weather, time | Server (settings + clock) | Every game works the sky out from the event's settings, the server's seed for the weather's fronts and its clock (SESSION's `environment`), so nothing more is sent; an admin's `/time` or `/weather` sends ENV with a new start (D159) |
+| Endless road | Seed | Every game makes the same road from the event's seed (integers only, D152); the server checks the chunks games made against its own (§12) |
+| Endless traffic | Seed + clock; owners from the server | Every game works out the same schedule; a physics car near players is driven by one game, the others show it (§12, D159) |
 
 ### Car states
 
 - **Rate:** each game sends its own cars 30 times a second (60 when its round trip is under 30 ms), and the traffic cars it drives 20 times a second. The server relays each car to each client by priority (D111): up to 60 a second within 150 m of that client's players, 30 within 400 m, 15 within 800 m, else 5; traffic past 600 m isn't sent (the client shows its lane-sim shadow); at most 56 KB/s, the most overdue (time since last sent × rate) and placed cars first, so in a crowd every car keeps its share.
-- **Contents:** 48 bytes (`CarState`, D112, D142): a 16-bit id, server time (ms), position (millimetres), rotation (smallest three, 32 bits), linear and angular velocity (half floats), front steer, wheel lift, throttle, brake, gear, rpm, flags (brake lights, ghosted, waiting, placed, handbrake, knocked) and flags2 (horn, light flash, indicators, siren, light bar; a traffic car's wrecked and on-the-line), and the kart word (drift side and tier, boost, shield, spun, slowed, magnet, trick, towed, out of a battle, airborne; 0 for other cars). Ids: players 1–199, the server's AI 200–299, police 300–399, traffic 1000 + its lane-sim index. The pose is the car's ground reference, so a placeholder and the real car line up.
+- **Contents:** 48 bytes (`CarState`, D112, D142): a 16-bit id, server time (ms), position (millimetres; X and Z in the world, wrapped to 32 bits, D159), rotation (smallest three, 32 bits), linear and angular velocity (half floats), front steer, wheel lift, throttle, brake, gear, rpm, flags (brake lights, ghosted, waiting, placed, handbrake, knocked) and flags2 (horn, light flash, indicators, siren, light bar; a traffic car's wrecked and on-the-line), and the kart word (drift side and tier, boost, shield, spun, slowed, magnet, trick, towed, out of a battle, airborne; 0 for other cars). Ids: players 1–199, the server's AI 200–299, police 300–399, traffic 1000 + its lane-sim index (on an endless road, 1000 + its slot, §12). The pose is the car's ground reference, so a placeholder and the real car line up.
+- **World positions** (D159): a game whose scene origin has moved (an endless road's floating origin, [ARCHITECTURE.md §8](ARCHITECTURE.md#8-floating-origin)) adds it going out and takes back the world point nearest it coming in, so every game keeps its own origin and 32 bits of millimetres reach ±2147 km from wherever it is. With no origin (every track) the bytes are what they were. The server passes states on as they came, so a car's position isn't rounded through the server's scene.
 - **Remote cars are shown at the present time** (D84, `MotionBuffer`): extrapolated from their newest state to now (velocity, acceleration from the last two states, turn rate, at most 0.5 s ahead). A correction fades out over 0.15 s; a placed car (a reset, the grid) snaps. Locally they're **kinematic** bodies. Clients keep the server's clock with pings (the fastest recent round trip wins).
-- **Car-to-car contact** (D86): a remote car is kinematic, as heavy as a wall, so after a knock the local car gets back the share an equal-mass collision wouldn't have given it. The knock also goes through the server (checked: owner, distance, at most 10 a second per pair, at most 3 m/s of speed) to the other car's game, which uses it only if it didn't feel that knock itself.
+- **Car-to-car contact** (D86): a remote car is kinematic, as heavy as a wall, so after a knock the local car gets back the share an equal-mass collision wouldn't have given it. The knock also goes through the server (checked: owner, within 8 m of the car, at most 10 a second per pair, at most 3 m/s of speed) to the other car's game, which uses it only if it didn't feel that knock itself. Its point is sent from the knocked car's position (D159), so it lands on the car whatever each game's origin.
 - **Ghosting:** the event can turn car-to-car contact off; online races are ghosted until the lights go out; with the server's `ghost_bad_links` rule (on by default), a car whose link is over 250 ms or 5% loss for 3 s races ghosted.
 
 ### Highway traffic (D109, D110)
@@ -131,7 +136,7 @@ connect ─► join checks (versions, key, password, bans, room)
   - speed above the platform's top speed (peak power against drag) plus 15% and 8 m/s
   - acceleration along the ground beyond 45 m/s², away from contacts and resets (landing off a crest or a kerb's knock is up and down, so it doesn't count, D104)
   - moving further between states than its speed allows (a teleport not marked as a reset)
-  - a reset that jumps more than 40 m ahead along the track
+  - a reset that jumps more than 40 m ahead along the track (not on an endless road, where Join takes a car anywhere)
   - states stamped more than 0.5 s ahead of the server's clock or 5 s behind
   - a lap faster than 97% of the racing line's ideal for the platform
   - karts (D142): the top speed is the class's geared top × the boost cap; no lap check (boosts beat the line); a towed kart is left alone; take-offs, landings, loops and knocks (an item's too) get the knock's grace, and a knocked kart may gain up to 6 m/s (bumps bounce)
@@ -143,8 +148,8 @@ connect ─► join checks (versions, key, password, bans, room)
 - **Build:** `tools/export.sh server` → `export/server/noss_server.x86_64` (the "Linux Server" preset: dedicated server mode, runs headless on its own). From the project: `tools/godot.sh --headless -- --server --config=server.json`.
 - **Run:** `noss_server --config server.json [--port N]`. Example config: `data/server.example.json` (schema `data/schemas/server.schema.json`): name, port, password, max players (≤16), MOTD, admins, whitelist, bans, LAN discovery, UPnP, car-state rate, event rotation, rules, caps, plausibility response.
 - **Running:** it starts the event once everyone in the lobby is ready (after 5 s), runs the event's sessions with 15 s of results between them, goes on to the next event in the rotation, and goes back to the lobby when the last player leaves.
-- **Console** (stdin, a terminal or a pipe): `players`, `kick <name>`, `ban <name>`, `say <text>`, `start`, `next`, `restart`, `quit`. Logs go to stdout and `user://logs/server.log`.
-- **No GPU needed:** physics only; cars load without models; no sound.
+- **Console** (stdin, a terminal or a pipe): `players`, `kick <name>`, `ban <name>`, `say <text>`, `start`, `next`, `restart`, `time <…>`, `weather <…>`, `quit`. Logs go to stdout and `user://logs/server.log`.
+- **No GPU needed:** physics only; cars load without models; no sound. On an endless road it builds no world: a short stretch at the start, its own floating origin round the convoy, and the road chunks it checks.
 
 ## 10. Targets and measurements
 
@@ -159,8 +164,10 @@ connect ─► join checks (versions, key, password, bans, room)
 | Highway, 10 minutes with police (M7) | In step, ≤64 KB/s, the server on time | 16 players, 150 cars: 0 disagreements in about 600 checks each; 22–39 KB/s down (54 KB/s for 4 players on one connection); remote players within 0.06 m, traffic within 0.13 m (95%); no plausibility flags; the server's scripts about 340 ms a second (D125) |
 | Loop online (M7) | Players each way meet every lap; the traffic comes round | 2 players each way at 1.6 × the limit: 2–3 meetings a lap, 91% of the traffic met one lap met again the next |
 | Exported builds (M7) | Linux and Windows in step | The Linux dedicated server, an exported Linux bot and the Windows export under Wine: 0 disagreements |
+| Endless convoy (M9) | The same road; remote cars where they are with each game's own origin | 3 bots, one joining 40 s late, 150 s (about 3.6 km and 2 origin moves each): 41–43 road chunks checked, none differed; remote cars within 0.01 m (95%), within 0.05 m at 150 ms RTT with 1% loss; the late bot started 40 m behind the leader; traffic shown from another game on every bot (13–22 handovers); 4–8 KB/s down |
+| Endless, exported builds (M9) | Linux and Windows make the same road | The Linux dedicated server, an exported Linux bot and the Windows export under Wine: 25 chunks checked, none differed; remote cars within 0.02 m (95%) |
 
-- **Tools:** `tools/net_sim.py` (a UDP proxy adding delay, jitter, loss and a bandwidth cap, no root needed) and `tools/net_check.py` (a dedicated server, headless bot clients, optionally `net_sim`; reports bandwidth, remote-car error, contacts and pile-ups, memory, race results, and a fresh client's download times). `tools/run_tests.sh` runs a one-lap race with 3 bots and an AI car at 150 ms, a highway with 3 bots and 60 traffic cars at 150 ms, one put out of step on purpose, and a kart race and a battle with 3 bots and an AI kart at 150 ms. Kart options: `--event kart|battle --rule standing|hits --minutes N` (Gearworks or the Crate Yard and the Medium kart unless given); the verdicts add items within 0.5 m of the server's (Bolts and Slicks, 95%), under 5% of hit reports turned down and no item use turned down. Highway options: `--event highway --traffic N --dirs same|opposite --sub cruise|score|loop --police --speed-factor X --desync --open`. With `--dirs opposite` the server watches the first player each way round (the same `LoopWatch` as `highway_check --scenario=loop`): they must pass every lap, at least 60% of the traffic met one lap must come round the next, and the server must count the other player's laps too.
+- **Tools:** `tools/net_sim.py` (a UDP proxy adding delay, jitter, loss and a bandwidth cap, no root needed) and `tools/net_check.py` (a dedicated server, headless bot clients, optionally `net_sim`; reports bandwidth, remote-car error, contacts and pile-ups, memory, race results, and a fresh client's download times). `tools/run_tests.sh` runs a one-lap race with 3 bots and an AI car at 150 ms, a highway with 3 bots and 60 traffic cars at 150 ms, one put out of step on purpose, a kart race and a battle with 3 bots and an AI kart at 150 ms, and an endless convoy of 3 bots (one joining 40 s late) at 150 ms. Endless options: `--event endless --seed N --late S`; the verdicts add no road chunk differing from the server's, remote cars within 1 m (95%), every bot driving and moving its origin, traffic shown from another game, and the late bot starting just behind the leader. `--exported` runs the exported server and bots taking turns between the Linux export and the Windows export under Wine. Kart options: `--event kart|battle --rule standing|hits --minutes N` (Gearworks or the Crate Yard and the Medium kart unless given); the verdicts add items within 0.5 m of the server's (Bolts and Slicks, 95%), under 5% of hit reports turned down and no item use turned down. Highway options: `--event highway --traffic N --dirs same|opposite --sub cruise|score|loop --police --speed-factor X --desync --open`. With `--dirs opposite` the server watches the first player each way round (the same `LoopWatch` as `highway_check --scenario=loop`): they must pass every lap, at least 60% of the traffic met one lap must come round the next, and the server must count the other player's laps too.
 
 ## 11. Kart items (D141, D142)
 
@@ -179,5 +186,23 @@ The server rules on items; each game shows its own at once.
 | Raw 112 `KART_REPORT` | client → server, reliable | the same records: PICK, USE, HIT |
 
 Measured (one PC, `tools/net_check.py --event kart|battle`, 2–4 bots with AI): Bolts and Slicks within 0.01–0.17 m of the server's (95%), at 150 ms with 1% loss too; Seekers within 1–4 m (they home on each game's own view of their target, and are corrected); hits validated, none turned down; 5–10 KB/s down per bot.
+
+## 12. Endless roads (D159)
+
+Every game makes the same road and the same traffic schedule from the event's seed and the server's clock, and builds the world round its own players with its own floating origin. Players spread out freely; **Join** in the pause menu puts a game's players 40 m behind another player, at their speed (the game moves its origin there and makes the road before they land).
+
+- **Traffic owners:** a game with a player within 140 m of a scheduled car makes it a physics car at once and asks for it. The first game to ask drives it and sends its states (id 1000 + its slot, 20 a second); the others get the owner and show a kinematic proxy, which goes on along its slot until states come. When the owner lets it go (nobody of its own near), the next game still asking takes it over where it is, at its speed; a game that leaves hands its cars on the same way. The owner's flags2 say whether the car is wrecked or has left its slot.
+- **Slots used up:** a car knocked out of its slot (or left behind) is never drawn from the schedule again on any game: the owner reports it, the server tells everyone.
+- **Where everyone is:** once a second each game reports its players' road distances and speeds; the server sends everyone the lot (for Join, and in SESSION for joiners, who start just behind whoever's furthest along).
+- **The road checked:** each game reports the checksum of every chunk it made; the server makes the same chunk and compares (none may differ, M9's "a seed reproduces the same road").
+- **The server** builds no world (§9) and doesn't place cars on the road: it relays states, rules on owners and checks chunks.
+
+| Message | Way | Contents |
+|---|---|---|
+| `ENDLESS` (53) | client → server, reliable, at once for changes and once a second | `want`, `drop`, `gone`: slots (2 × car index + lane) · `at`: {car id: [distance m, speed m/s]} for its own players only · `sums`: {chunk: checksum} |
+| `ENDLESS_STATE` (54) | server → clients, reliable | `owners`: {slot: car id of a player in the driving game, or −1} · `gone`: slots · `at`: {car id: [distance, server time, speed]} · `full` (the whole state, to a game when it first reports) |
+| `ENV` (55) | server → clients, reliable | time, time rate, weather, seed, t0: the sky from now on |
+
+Measured: see §10 (Endless convoy).
 
 **Replays and ghosts** can reuse the same car-state format (AV-08).

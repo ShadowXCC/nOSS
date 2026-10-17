@@ -9,10 +9,16 @@ Rules and flow for each mode. Every mode uses the same vehicle core ([PHYSICS.md
 - **Flow:** Lobby → (Practice) → (Qualifying) → Main session → Results. Single player goes straight to the session.
 - **Before a session:** each player picks a **class** (platform), a **car** (package) and **assists**.
 - **AI** fills empty slots where the mode supports it, with skill 0–100.
-- **Environment:** time of day and weather are set per event, or progress continuously (endless).
-  - Day/night changes lighting only.
-  - Weather sets road wetness (grip, [PHYSICS.md §4](PHYSICS.md#4-tires-pacejka-lite)), fog density and rain particles.
-  - Presets: Clear, Cloudy, Fog, Light rain, Heavy rain. Snow surfaces belong to the track, not the weather.
+- **Environment (D153):** every event menu has three sky rows.
+  - **Time:** Track's (the track's own fixed sun), Dawn, Morning, Noon, Afternoon, Dusk or Night.
+  - **Time runs:** still, real time, or 10×, 30×, 60× or 120×.
+  - **Weather:** Track's, Clear, Cloudy, Rain, Storm, Fog, Snow, or Changing (fronts of 4–12 minutes, blending over a minute).
+  - Nothing changes unless you pick something. A track's `environment` block is the default; without one it's today's look (clear, a fixed sun).
+  - The sun and moon share one light. At night: stars, a moon, lamps lit, headlights on (also in rain and fog), lit beams from the players' cars and the four nearest.
+  - Rain soaks the road over about 90 s and it dries over 15 minutes; snow settles over 2½ minutes and melts over 30. A wet road shines and grips less, a snowy one turns white and grips much less ([PHYSICS.md §4](PHYSICS.md#surfaces)). Tunnels stay dry.
+  - Rain and snow fall round each player's camera, with spray behind cars on wet roads, and sounds for rain, wind and thunder. Storms bring lightning: a soft pulse under Reduce flashing ([ACCESSIBILITY.md §4](ACCESSIBILITY.md#4-motion-comfort-and-flashing)).
+  - The sky is worked out from the settings and the clock, so online every game shows the same one (the server's seed and clock, D159); admins change it with `/time` and `/weather`.
+  - Leaderboards and ghosts record a wet or snowy road; such laps are tagged on the boards.
 - **In-game text is short.** Examples: "Lap 2/5", "P3", "+0.42", "Best lap", "Track limits", "Busted", "Combo ×4".
 
 ## 1. Track racing
@@ -96,14 +102,14 @@ Kart races and battles run on servers (protocol 5): the server rules on boxes, i
 
 High-speed driving through traffic on a multi-lane highway that closes into a loop, with on and off ramps. The first map, the **Lumen Ring** (8.3 km, D121), is made with the track editor; open-ended highways and a generator come with Endless (M9).
 
-**Start:** title → Highway → the track → what to do (mode, traffic Off/75/150/250/400, police, which way round: clockwise, anticlockwise or both ways in turn; the run for Runs) → the class (Street or Super) → players. Players start in single file on the hard shoulder behind the lap line. Online, the host picks "Highway cruise" in the host menu.
+**Start:** title → Solo Drive → Highway → the track → what to do (mode, traffic Off/75/150/250/400, police, which way round: clockwise, anticlockwise or both ways in turn; the run for Runs) → the class (Street or Super) → players. Players start in single file on the hard shoulder behind the lap line. Online, the host picks "Highway cruise" in the host menu.
 
 ### Traffic
 
 - Every game runs the same traffic from the session's seed (D108, D109): hatchbacks, saloons, SUVs, vans, trucks and buses (an original low-poly set, D117), each with its own speed spread.
 - Cars keep to lanes, signal for 1.5 s before changing lanes, keep right unless overtaking (trucks and buses stay in their lanes), slow for corners and the tunnel's limit, take exits and join from entries. The same cars come round again: a car that leaves at an exit comes back later out of a portal.
 - Near a player a car becomes a full physics car (D110): it can be hit, spun and wrecked. A wreck stays where it stopped until nobody is near, then it's towed. Further away cars are drawn from the lane sim.
-- Not yet: density by time of day (with the day–night cycle, M9).
+- Not yet: density by time of day. The lane sim's population is fixed for the session, so the day–night cycle (M9) doesn't change it.
 
 ### Sub-modes
 
@@ -151,20 +157,27 @@ A highway that closes on itself, like a city ring expressway. The world feels li
 
 ## 4. Endless
 
-*MODE-06, ENV-01…ENV-03. Milestone M9.*
+*MODE-06, ENV-01…ENV-03. Milestone M9 (D152–D159).*
 
 A calm, never-ending drive, like Slow Roads.
 
-- **Road generation:** chunks of ~250 m are generated ahead and removed behind, from a **seed**.
-  - Curvature and elevation come from noise, constrained to stay drivable (max grade, minimum radius for the class speed).
-  - Bridges and cuttings smooth out extreme terrain.
-- **Biomes** change every few km with smooth transitions: coast, forest, farmland, desert canyon, alpine, snow, autumn. They are inspired by GT4-era environments (Grand Canyon, Swiss Alps, Deep Forest, Autumn Ring, Amalfi) but built from original assets.
-- **Traffic:** light, in both directions. Oncoming traffic can be turned off.
-- **Environment:** day/night and weather advance continuously. Time scale is adjustable (real time to fast).
-- **Minimal UI:** the HUD is hidden by default. Ambient music.
-- **Autodrive:** toggle, and the AI drives while you watch.
-- **Sharing:** a "seed + start biome" code.
-- **Multiplayer:** everyone drives the same seeded road as a convoy. If players drift far apart, those ahead are kept within one shared section of road. Floating origin ([ARCHITECTURE.md §8](ARCHITECTURE.md#8-floating-origin)).
+**Start:** title → Solo Drive → Endless → the road (a road code, or New road), the biome it starts in, traffic (Light, Normal or Off), oncoming traffic, what happens when players on this PC drift apart, and the sky (Morning, 30×, Changing by default) → the class (Cruiser or Sport) → players. The last setup is remembered. Online, the host picks "Endless road" in the host menu.
+
+- **The road (D152):** a two-lane road made 2 m at a time from the seed, in integers only, so every machine makes the same road.
+  - Bends are clothoids picked per biome, never tighter than the biome allows. The road keeps within 75° of a main direction picked from the seed, so it never crosses itself (no hairpins).
+  - The height follows the ground ahead within the biome's grade and crest limits. Where the road runs well above the ground it's a bridge with pillars; where the ground drops away beside it, a guard rail. Tight bends get chevrons.
+  - It comes in 240 m chunks, made about 3 km ahead and dropped about 1 km behind. Any chunk can be made again exactly (driving back, a player joining far along).
+- **Biomes (D156):** coast, forest, farmland, desert canyon, alpine, snow and autumn follow each other every 4–7 km, blending over 1.5 km. Inspired by GT4-era places (Amalfi, Deep Forest, the Grand Canyon, the Swiss Alps, Autumn Ring), built from original assets. Each has its own ground, paint, road, props, sky and fog tints, sounds (birds, crickets, surf) and weather odds. Its name shows as you enter it.
+- **The world (D156):** the ground in 256 m tiles near the road (shaped to it, with props scattered from the seed), coarse 1 km tiles out to the horizon, and the sea along the coast. It's all made on worker threads and added a little each frame, and dropped behind you, so memory stays flat however far you drive.
+- **Floating origin (D155):** the scene moves back every 2 km, so positions stay precise ([ARCHITECTURE.md §8](ARCHITECTURE.md#8-floating-origin)). Measured: 162 km in 2 hours, with the same precision in the last 10 minutes as in the first.
+- **Traffic (D158):** light, both ways; oncoming traffic can be turned off. Where every car is comes from a schedule worked out from the seed and the clock, so the same cars are in the same places on every game and no two in a lane ever meet. Within 140 m of a player a car becomes a physics car that keeps to its slot unless something's in the way. Knocked hard, rolled, or left 25 m behind its slot, it leaves the slot for good (a knocked car stops with its hazards on), and goes once nobody's near.
+- **Autodrive:** the pause menu or the Autodrive key (O on the keyboard) hands the car to the AI and back. It keeps to the right-hand lane, slows for bends and wet roads, follows traffic and overtakes on clear straights when nothing's coming.
+- **Minimal HUD:** hidden until shown from the pause menu (speed, gear, assists); laps and places never show. Captions and messages always do.
+- **Music:** your own OGG and MP3 files from the music folder (`user://music/`), shuffled; otherwise original ambient pieces made from the seed, each played twice before the next fades in.
+- **Sharing:** a road code, the start biome and the seed, e.g. `FOREST-0007K2Q` (Crockford base 32; case and O-for-0 typos don't matter). The pause menu copies it.
+- **Resets** put the car back in its lane where it last was, ghosted for 3 s.
+- **Players on one PC** stay on one stretch of road. Past 2.5 km apart they're warned; past 3 km the event's rule acts: **Bring up the one behind**, or **Hold the leader back**.
+- **Online (D159):** everyone drives the same road. Each game builds the road round its own players and keeps its own origin, so players spread out freely; **Join** in the pause menu puts you just behind another player, at their speed. A joiner starts just behind whoever's furthest along. One game drives each traffic car near players and the others show it; a slot used up on one game is used up on all. The server checks the road chunks each game made against its own.
 
 ## 5. Light career
 

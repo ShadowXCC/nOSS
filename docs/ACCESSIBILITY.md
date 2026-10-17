@@ -68,7 +68,7 @@ Everyone should be able to drive. This doc covers options for vision, hearing, m
 | Horizon lock | Chase and cockpit cameras keep the horizon level (no roll) |
 | Speed FOV | Speed-based FOV change can be turned off. FOV is fixed per camera. |
 | Motion blur | None in `retro_ps2`. Every future style profile must have an off switch. |
-| Reduce flashing | Caps flashes at 3 per second and lowers their contrast (WCAG 2.3.1). Covers police lights, lightning, boost and item effects (EMP, Shield) and countdown lights. |
+| Reduce flashing | Caps flashes at 3 per second and lowers their contrast (WCAG 2.3.1). Covers police lights, lightning, boost and item effects (EMP, Shield) and countdown lights. Lightning (M9, D153) becomes one soft pulse at most a third as bright (at most one a second) and its bolt isn't drawn; it's per view, so a splitscreen player without the option still sees the full flicker. |
 
 The first-boot screen includes a short photosensitivity notice.
 
@@ -107,7 +107,7 @@ These build on the standard assists (steer aid, ABS, TCS, stability, auto-gearbo
 | Brake assist | Brakes for corners and slow traffic ahead. Strength 0–100%. |
 | Steering assist | Follows the AI line. You control speed. Strength 0–100%, so it can just nudge. |
 | Item assist (kart) | Uses your item at a good moment |
-| Autodrive | All of the above. The car drives itself (already in endless). |
+| Autodrive | All of the above. The car drives itself. On endless roads it's on hand from the pause menu or the Autodrive key (M9). |
 
 - **Rules:** these change driving, so they are allowed and defaulted per platform, then mode, then server, like every other assist ([PLATFORMS.md §3](PLATFORMS.md#3-mode-overrides-and-tuning)). They are allowed by default in single player, local play, cruise and endless.
 - **Results** and leaderboard entries show which assists were on.
@@ -120,7 +120,7 @@ These build on the standard assists (steer aid, ABS, TCS, stability, auto-gearbo
 |---|---|
 | Pause | Pause at any time in single player and local play. Online sessions can't pause. |
 | Game speed | 50–100% sim speed in offline single player. Those results don't count toward leaderboards. |
-| HUD presets | Full, Minimal, Off. Any HUD element can be hidden on its own. |
+| HUD presets | Full, Minimal, Off. Any HUD element can be hidden on its own. Endless hides the HUD until you show it; captions and messages always show (M9). |
 | Navigation | Checkpoint arrows on highway runs. "Wrong way" warnings in every mode. |
 | Difficulty | AI skill 0–100, traffic density, police on/off ([GAMEMODES.md §0](GAMEMODES.md#0-common-to-all-modes)) |
 
@@ -147,8 +147,8 @@ Each new local player who joins (press-to-join, [INPUT.md §3](INPUT.md#3-joinin
 - **Every milestone:** the main flow works with controller only and with keyboard only.
 - **From M4:** the main flow (boot → race → results) works with a screen reader.
 - **Colorblind check:** a test simulates each palette's colour vision (Machado 2009) and requires the colours that must differ to stay apart (CIE76 ΔE ≥ 20). For review, `tools/cvd_shots.gd` turns screenshots (taken with a display; headless can't render) into deuteranopia, protanopia and tritanopia versions.
-- **Screen reader:** `tools/a11y_check.py` walks boot → race → results over AT-SPI in a private session (accessible names, focus on every screen). From M5 it also walks Online → Host → lobby, and from M6 the track editor: every tool, a new oval's race setup and checks, and out (`--editor-only` for just that). From M7: Highway → a highway → its menu → the class → Players and back out a screen at a time (focus on each), the highway editor's Ramps tool, and a highway session's pause menu (opened with `--pause-at`) with Join a friend (`--highway-only` for those). The test drive and back are covered by unit tests: AT-SPI can't send the driving keys here (on Wayland, no keys at all). Known: menus left open behind the current one (and the title's buttons) are still reported to screen readers as on screen; focus stays on the current menu, but a screen reader's review mode could reach them. The walk presses the newest screen's Back for that reason.
-- **Flash check:** with Reduce flashing on, police lights (M7) and kart items (M8) stay at or under 3 flashes per second.
+- **Screen reader:** `tools/a11y_check.py` walks boot → race → results over AT-SPI in a private session (accessible names, focus on every screen). From M5 it also walks Online → Host → lobby, and from M6 the track editor: every tool, a new oval's race setup and checks, and out (`--editor-only` for just that). From M7: Highway → a highway → its menu → the class → Players and back out a screen at a time (focus on each), the highway editor's Ramps tool, and a highway session's pause menu (opened with `--pause-at`) with Join a friend (`--highway-only` for those). From M8 the kart menus, the cup builder and the Stunts tool (`--kart-only`). From M9 every drive mode is reached through Solo Drive, and the walk goes Solo Drive → Endless → its menu (the road code, biome, traffic, spread rule and the sky rows) → the class → Players and back out (`--endless-only`). The test drive and back are covered by unit tests: AT-SPI can't send the driving keys here (on Wayland, no keys at all). Known: menus left open behind the current one (and the title's buttons) are still reported to screen readers as on screen; focus stays on the current menu, but a screen reader's review mode could reach them. The walk presses the newest screen's Back for that reason.
+- **Flash check:** with Reduce flashing on, police lights (M7), kart items (M8) and lightning (M9) stay at or under 3 flashes per second.
 - **Feedback:** once the GitHub repo exists, issues get an `accessibility` label.
 
 ## 10. Later

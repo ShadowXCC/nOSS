@@ -25,7 +25,8 @@ extends Node
 ##                        every 30 s and at exit (M7 acceptance runs)
 ##   --fullscreen         fullscreen for this run; --no-vsync: no vsync (measurements)
 ##   --pause-at=<s>       open the last player's pause menu
-##   --menu=<m>           title: open classes, event, free, players, settings, online, online-players, tracks or kart
+##   --menu=<m>           title: open solo, classes, event, free, players, settings, online, online-players, tracks,
+##                        highway, kart or endless
 ##                        (--join=<n>: n devices join)
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
 ##   --track=<ref>        the track for --drive, --race and --time-trial: an id, a path or a hash

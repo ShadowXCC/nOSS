@@ -15,7 +15,7 @@ Each local player has their own set of actions:
 | View | `camera_next`, `look_back`, free look: `look_left`, `look_right`, `look_up`, `look_down` (0…1; the view turns while held and swings back to the camera when let go) |
 | Car | `horn`, `lights`, `reset_car`, `hotswap_menu` |
 | Kart | `use_item`, `throw_back` (hold), `drift` (hold) (M8, D135) |
-| UI | `pause`, `chat`, `scoreboard`, `confirm`, `cancel`, `editor_back` (a test drive back to the track editor, M6) |
+| UI | `pause`, `chat`, `scoreboard`, `confirm`, `cancel`, `editor_back` (a test drive back to the track editor, M6), `autodrive` (endless: the car drives itself, and back, M9) |
 
 **Defaults** come from presets (§7); every action, menus included, can be rebound per player on every device.
 
@@ -34,6 +34,7 @@ Each local player has their own set of actions:
 | Back to editor (test drives) | F5 | F5 | F8 | D-pad down |
 | Horn, flash lights (M7) | H, L | V, T | M, L | L3, X |
 | Kart: drift, use item, throw back (M8) | Space, E, B | Space, E, X | /, `.`, ' | RB, LB, R3 |
+| Autodrive (M9) | O | — | — | — (the pause menu) |
 | Menu confirm, back | Enter or Space, Esc or Backspace | Space or F, Esc or G | Enter, Backspace | A, B |
 | Frame rate | F3 (any keyboard) | | | — |
 

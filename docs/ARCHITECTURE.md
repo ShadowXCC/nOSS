@@ -57,9 +57,10 @@ nOSS/
 │  ├─ modes/              common/, track/, kart/, highway/, endless/
 │  ├─ world/              track data and format, track packages (load, write, library), the
 │  │                      track builder (road, props, scenes), terrain/, props/, checks,
-│  │                      kart/ (kart pieces: layout, stunt builder), arena/ (outline, floor, wall);
-│  │                      later procedural gen, weather, time of day
-│  ├─ ai/                 racing, kart, battle (arena nav), item policy, traffic, police
+│  │                      kart/ (kart pieces: layout, stunt builder), arena/ (outline, floor, wall),
+│  │                      env/ (time of day, weather, lightning), endless/ (road window, world,
+│  │                      ground, biomes), the floating origin
+│  ├─ ai/                 racing, kart, battle (arena nav), item policy, traffic, police, endless
 │  ├─ net/                server, client, lobby, chat, content transfer, car states, race sync
 │  ├─ editor/             track_editor/ (draft and history, view, gizmos, preview, tools/:
 │  │                      road, ramps, stunts, surfaces, terrain, paint, props, race, check), fitting_bay/
@@ -67,6 +68,7 @@ nOSS/
 │  └─ ui/                 menus, HUD, themes, garage
 ├─ native/                C++ GDExtension "noss_core"
 │  ├─ src/core/  src/vehicle/  src/input/  src/package/  src/traffic/  src/mesh/  src/audio/
+│  │  src/endless/        the endless road generator, landscape and biomes (M9)
 │  │  src/world/          terrain heightfield, PNG16, surface map (M6)
 │  ├─ thirdparty/         godot-cpp, SDL3, doctest, meshoptimizer (M2) (submodules)
 │  └─ SConstruct
@@ -75,6 +77,7 @@ nOSS/
 │  ├─ modes/<mode>.mode.json                   mode rules and overrides
 │  ├─ items/                                   kart item odds
 │  ├─ cups/                                    built-in kart cups
+│  ├─ endless/biomes/                          how each endless biome looks and sounds
 │  ├─ sound_profiles/                          built-in engine sounds
 │  ├─ input_presets/                           device presets
 │  ├─ tire_sounds/                             built-in tire profiles
@@ -87,6 +90,7 @@ nOSS/
 │  ├─ game/               gdUnit4 tests, mirroring game/
 │  ├─ editor/             track_check: the M6 acceptance build (a scene, run by tools/track_check.sh)
 │  ├─ race/               race_check: the AI race soak
+│  ├─ endless/            endless_check: the long drive (tools/endless_check.sh)
 │  ├─ native/             doctest tests for noss_core
 │  └─ schemas/            JSON schema checks and fixtures
 └─ docs/
@@ -157,6 +161,8 @@ Vehicle (RigidBody3D, Jolt)       mass, inertia, CoG from platform (never from t
 - **Physics order per tick:** player input (−90) → RaceField (−60) → RaceControl (−55) → drivers (−50) → vehicles (0).
 - **Karts** (`game/modes/kart/`, M8, D129): a class whose mode has the `kart_arcade` layer adds **KartControl** (tow drone, slipstream, beached karts) with **KartBoxes**, **KartItems** (slots, roulette, uses, hits; the authority offline), **KartEntities** (Bolts, Seekers, the Hunter, Slicks), **KartEffects**, **KartHud** and **KartSounds**; a battle adds **BattleControl** (lives, hits, out, the end); a cup is a **CupRun** kept by Game between its races. The layer itself is native (`native/src/vehicle/kart_layer.*`, PHYSICS.md §9). AI: **KartAI** (the racing AI with drifts, loops, boxes and Slicks) and **BattleAI** (ArenaNav paths), both using **ItemPolicy** (also the item assist). Order: KartControl and KartItems (−57) → BattleControl (−53) → drivers (−50).
 - **Highways** (`game/modes/highway/`, M7, D113): a highway event adds **HighwayField** (where each car is: road or ramp, carriageway, lane; wrong way), **TrafficManager** (the native lane sim `NossTraffic` in `native/src/traffic/`: stepping it, drawing distant traffic with one MultiMesh per type, turning cars near players into physics **TrafficCar**s and back, wrecks and tows, solid boxes past the cap), **HighwayControl** (starts, portals, resets, turning round, Join, loop boards, name plates) and, by sub-mode, **HighwayScore** (ScoreAttack rules and NearMiss), **RunControl** and **PoliceControl** (Heat; PoliceRacer units driven by PoliceAI, which drives the lanes like the autodrive's **HighwayDriver**). Order: HighwayField (−59) → TrafficManager (−58) → HighwayControl (−56) → drivers and traffic cars (−50) → RunControl (−45) → PoliceControl (−44) → HighwayScore (−40).
+- **The sky** (`game/world/env/`, M9, D153): every session has an **EnvDirector** (−58). **EnvState** is a pure function of the event's sky settings and the session's clock (hour, sun and moon, the weather front, wetness and snow cover in closed form), so a late joiner gets the same sky. The director puts it on the world a few times a second: one DirectionalLight3D (sun by day, moon by night), the sky shader's uniforms, fog, ambient light and exposure from the style's palettes, the shader globals `env_wetness`, `env_snow` and `env_night` (wet shine, settled snow, lamps), headlights and beams, and each car's grip conditions. Every PlayerView owns an Environment copy kept in step, for its brightness and its own lightning. Each player has a **WeatherBox** (rain or snow streaks wrapped round their camera by `weather.gdshader`, on their own render layer, 17–20) and **Ambience** plays rain, wind, thunder and the biome's sounds (native synth, `native/src/audio/weather_synth.*`).
+- **Endless** (`game/modes/endless/`, `game/world/endless/`, M9, D152–D158): the road is native (**NossRoadGen**, `native/src/endless/`: integer maths, 240 m chunks with checkpoints, the landscape and biomes). An endless event adds a **FloatingOrigin** (−98, §8), an **EndlessWorld** (a **RoadWindow** — a TrackData of the road from about 1 km behind the last player to 3 km ahead of the first, with absolute distances — the road's meshes and collision chunk by chunk, **EndlessGround** tiles, far tiles, props and the sea, made on workers and added within 2.5 ms a frame), **EndlessControl** (−56: spawns, resets, the local spread rule, the HUD, biome weather and sounds, pause items, Join), **EndlessTraffic** (−58: the schedule, **EndlessTrafficCar** physics cars near players, MultiMeshes) and **EndlessMusic**. **EndlessDriver** drives for the autodrive and bots. Order: FloatingOrigin (−98) → … → EnvDirector and EndlessTraffic (−58) → EndlessNet (−57) → EndlessControl (−56) → drivers and traffic cars (−50).
 
 ## 6b. Online
 
@@ -167,6 +173,7 @@ Vehicle (RigidBody3D, Jolt)       mass, inertia, CoG from platform (never from t
 - **In a session**, the TrackSession gets a **NetSession** (car states out and in, clock sync, contact relay, plausibility on the server) and a **NetRace** (the server's race state, grid, results and notes to clients, whose RaceControl only follows). Every car not driven here is a **NetRacer**: a kinematic Vehicle moved by its **MotionBuffer** to where its states put it now.
 - **The dedicated server** (`ServerMain`) runs the same code with no players of its own, no views, no sound and no car models.
 - **Highways online:** a **HighwayNet** (−59) keeps every game's lane sim on the server's ticks: the server's events and heartbeats out, and on clients the full state when they join or fall out of step (D109); traffic cars a game drives go out with its car states, and other games' show as proxies (D110). **RelayScheduler** picks which states each client gets, nearest first within a byte budget (D111).
+- **Endless online:** an **EndlessNet** (−57) carries who drives each traffic car, slots used up, where every player is on the road and the road chunks' checksums (D159, NETWORKING.md §12). Car states carry world positions, so each game keeps its own floating origin.
 - **Karts online:** a **KartNet** (−56, after the items move) carries the server's word on boxes, uses, hits and lives, and its 5 Hz snapshot of how things stand; each game shows its own items at once (D141, NETWORKING.md §11).
 - **Physics order per tick** online: devices (−100) → network poll (−95) → lobby (−94) → content (−93) → player input (−90) → car states (−80) → remote cars (−70) → RaceField (−60) → highway traffic sync (−59) → kart items (−57) → kart sync (−56) → RaceControl (−55) → NetRace (−54) → drivers (−50) → vehicles (0).
 
@@ -187,11 +194,14 @@ Vehicle (RigidBody3D, Jolt)       mass, inertia, CoG from platform (never from t
 
 ## 8. Floating origin
 
-Endless mode and large real-world maps go far beyond single-precision range.
+*Built in M9 (D155, risk R7).* Endless roads (and later large real-world maps) go far beyond what 32-bit floats hold precisely: about 0.25 mm within 2 km, but 2 cm at 150 km.
 
-- When the local player passes **2 km** from the origin, the world shifts back to the origin: physics bodies, nodes, particles, audio.
-- With several local players, the origin follows the players' centroid. Players who drift far apart are kept within one shared section of road (see [GAMEMODES.md](GAMEMODES.md)).
-- **Network positions** are sent as `(sector_x, sector_z)` int32 plus a float32 local offset, so every client can rebase on its own.
+- **FloatingOrigin** (`game/world/floating_origin.gd`, an endless session's node) keeps the world point the scene's origin is at as 64-bit floats. When what it watches gets **2 km** from it (this game's players' centroid; the convoy's on a dedicated server), the origin moves there and everything in the scene moves back by as much, in one physics tick, first in the tick (−98), so cameras and Doppler see no jump.
+- **XZ only:** heights stay as they are. The origin snaps to **1500 m**, the least common multiple of every world texture's period (2, 3, 4, 5, 6 and 250 m), so world-mapped textures don't jump.
+- **What moves:** every node in the group `origin_shift` gets `origin_shifted(delta)`: vehicles (keeping their speed and spin, no teleport flag), the road window and its chunks, ground tiles and their native maps (`set_origin`), remote cars' and traffic proxies' buffered states, racers' spawn and last good spots, the network's kept states and the server's checks. Physics interpolation is reset on whatever moved.
+- **Local players** stay on one stretch of road: the event's spread rule brings the one behind up or holds the leader back past 3 km ([GAMEMODES.md §4](GAMEMODES.md#4-endless)).
+- **Online** each game keeps its own origin round its own players. Car states carry world positions in millimetres wrapped to 32 bits; each game adds its origin going out and takes back the world point nearest it coming in (D159).
+- **Measured** (`tools/endless_check.sh --minutes=120`, autodrive in normal traffic): 162 km, 83 moves; the car's step-to-step error 0.033 mm (RMS) in the last 10 minutes as in the first; the worst speed jump at a move 0.05 m/s. With the origin held still the same check fails within 30 minutes (0.75 mm at 37 km).
 
 ## 9. Threading
 
@@ -199,7 +209,7 @@ Endless mode and large real-world maps go far beyond single-precision range.
 |---|---|
 | Main | Game logic, UI, scene tree, render submission |
 | Physics | Godot physics plus `VehicleSim`, on the main thread for now (D34) |
-| Worker pool | Package and track validation and loading, model and scene import, LOD generation; the track editor's AI line and checks, autosave encoding; content transfer decode |
+| Worker pool | Package and track validation and loading, model and scene import, LOD generation; the track editor's AI line and checks, autosave encoding; content transfer decode; endless road meshes, ground tiles, far tiles and scatter (meshes on the main thread when headless: the stand-in renderer's mesh store isn't thread-safe); ambient music |
 | Native FFB | ~500 Hz loop that mixes the latest FFB inputs (`native/src/ffb/`) and updates SDL3 haptic effects |
 
 ## 10. Data and save locations
@@ -228,6 +238,7 @@ user://
 ├─ cache/content/              downloaded cars and tracks (unpacked), platforms, by hash; hosted/ (a
 │                              server's bare track.json as a package); tmp/
 ├─ instances/<n>/              settings, profiles and key of a second copy on one PC (--instance)
+├─ music/                      your own OGG and MP3 files for the endless road (you make it; the game only reads it)
 └─ logs/                       server.log (dedicated server)
 ```
 
@@ -235,7 +246,8 @@ user://
 
 ## 11. Testing
 
-- **Run everything:** `tools/run_tests.sh` (native build, doctest, schemas, gdUnit4 headless, conformance, an AI race, a highway with 400 traffic cars, an online race, an online highway, the track editor's 3 km acceptance build, boot smoke test).
+- **Run everything:** `tools/run_tests.sh` (native build, doctest, schemas, gdUnit4 headless, conformance, an AI race and one in the rain, a kart race, a 10-minute endless drive, a highway with 400 traffic cars, online checks (a race, a highway, karts, a battle, an endless convoy), the track editor's 3 km acceptance build, boot smoke test).
+- **Endless:** `tools/endless_check.sh --minutes=N` drives the autodrive headless (15× real time) and checks precision (the car's step-to-step error against its speed, speed changes at origin moves), memory (growth after warm-up, objects, nodes, built against freed), stuck time and frame times; `--no-rebase` is the negative control. `tools/endless_determinism.sh` compares the Linux and Windows builds' roads (`--endless-selftest`: 200 km of road and ground for four seeds).
 - **Highways:** `tools/highway_check.sh` runs a highway session headless (`--scenario=cruise`: nothing stuck, a constant population; `--scenario=loop`: players going opposite ways meet every lap and the traffic comes round again). `tools/traffic_determinism.sh` compares the Linux and Windows builds' lane sims. `--traffic-selftest` prints a lane sim's checksum.
 - **Track editor:** `tools/track_check.sh` builds a 3 km track headless with the editor's own commands, checks, saves and reloads it, races 8 AI cars on it and sends it to a fresh bot online. The Proving Ground has a golden test (samples, curbs, AI line, lap time, grid, pieces) that every change to the track code must keep.
 - **GDScript:** gdUnit4, run headless (`godot --headless`).

@@ -27,6 +27,8 @@ The world look is a swappable **style profile** ([ARCHITECTURE.md §7](ARCHITECT
 
 **M1 (`retro_ps2` v0):** exponential distance fog, a painted sky shader (gradient, sun, cloud layer, two distant mountain silhouettes) that also feeds car reflections, procedural 64–256 px world textures, one low-res sun shadow, filmic tonemap and mild glow. The data lives in `data/styles/retro_ps2.json`; tracks use the `noss_world` shader, which reads the style's global uniforms.
 
+**M9 (time of day and weather, D153):** the sun and the moon are one directional light, crossing over below the horizon. The sky shader gets the sun and moon, night (stars, a moon), cloud cover and storm darkness; fog, ambient light, exposure and the sky's colours come from the style's palettes by the sun's height (`times`: night, twilight, golden hour, day; `overcast` for cloud and storms). World shaders read three globals: `env_wetness` (darker, shinier paved surfaces), `env_snow` (snow settling on what faces up, thinner on roads) and `env_night` (lamps and lit windows glow only after dark). Headlights, tail lights and lit beams (players' cars and the four nearest) come on at dusk, in rain and in fog. Rain and snow are streaks wrapped round each player's camera by one shader, with nothing to simulate; spray rises behind cars on wet roads. Lightning lights each player's view on its own, with a bolt in the sky (none with Reduce flashing, [ACCESSIBILITY.md §4](ACCESSIBILITY.md#4-motion-comfort-and-flashing)).
+
 **Authoring rule:** world assets are made at retro budget, and may include optional hi-res texture sets (`_hi`, up to 2K) for future profiles. All world materials use the `noss_world` shader so profiles can restyle them.
 
 ## 3. Content and licensing
@@ -38,6 +40,7 @@ The world look is a swappable **style profile** ([ARCHITECTURE.md §7](ARCHITECT
   - **"Proving Ground":** a ~2 km test circuit with a skidpad and a long straight, used for conformance tests ([PLATFORMS.md §5](PLATFORMS.md#5-conformance-tests)).
   - Procedural and simple textures in the retro style.
 - **M8 kart content (original, made in code):** the **nOSS Kart** (`tools/make_noss_box.gd --kart`: a low frame, side pods, a driver, paint slots and presets); five kart tracks (`tools/make_kart_tracks.gd`: Marble Mile, Gearworks, Skyhop Ridge, Crate Yard, Dust Bowl, D147); props for yards and arenas (crate, shipping container, yard crane); item boxes (a turning crate with an original glyph whose colours shift slowly), the items themselves, drift sparks, boost flame, shield, the EMP ring, spin stars and the tow drone. No item effect flashes the whole screen; with Reduce flashing they keep under 3 flashes a second (D146).
+- **M9 endless content (original, made in code):** seven biomes (`data/endless/biomes/<id>.json`, schema `endless_biome`: ground paint, road, props and how dense, sky and fog tints, far-ground colour, sounds, weather odds): coast, forest, farmland, desert canyon, alpine, snow and autumn, after GT4-era places but nothing copied. New props: cactus, palm, cypress, an autumn tree, a snowy pine, hay bales, a barn, a chalet and curve chevrons; bridges with pillars and guard rails come from the road builder; the sea is a plane along the coast.
 
 ## 4. Cameras
 
@@ -101,15 +104,17 @@ Every car carries its own engine sound inside its `.noss` (`sound/`, format in [
 | Tires | Squeal by slip, scrub, skid, surface layers (gravel spray, grass, curb rumble) |
 | Car | Wind (by speed), suspension bottoming, transmission clunk, horn set, collisions (light, heavy, scrape), glass break |
 | Modes | Kart items (M8, synthesized by `NossAudio.render_fx`: pickup, roulette tick, fire, hit, shield, EMP, boost, drift tier step), police sirens (with Doppler), traffic pass-bys, countdown and finish stings |
-| World | Ambience per biome and track, rain, thunder |
+| World | Rain, wind and thunder with the weather; per endless biome surf, birds by day and crickets at night (M9) |
 | UI | Short, retro-styled clicks and confirms |
-| Music | Original or CC-licensed menu and endless playlists, plus an optional user music folder (local OGG/MP3) |
+| Music | Endless: original ambient pieces made from the road's seed, or your own OGG/MP3 files from the music folder (M9). Menu music later |
 
 **Tire sounds (D90):** each car picks a built-in tire sound in the Fitting Bay's Sound step (`data/tire_sounds/<id>.json`, schema `tire_profile`), or brings its own loop over it. **Squeal** (the default) is synthesized by `NossAudio.render_tire_loop`: noise through narrow band-passes at non-harmonic centres (about 1.05, 1.73 and 2.6 kHz), a faint tone that wanders at random, and a random flutter of the level, in a seamless 2.5 s loop. Its level follows the fastest-slipping wheel on a paved surface (1.5 m/s starts it, 7.5 m/s is loudest), comes in fast (30 ms) and fades slowly (160 ms), and a broad scrub layer joins in for locked or spinning wheels. **Classic** is the first nOSS tire tone, kept as it was. A new built-in is a new JSON file. The Sound step's **Skid** button plays the tires in the bay.
 
 **Highway sounds (M7):** sirens are synthesized by `NossAudio.render_siren` (a 4 s wail, a faster yelp within 80 m of the listener, with Doppler as they pass); the horn by `NossAudio.render_horn` (two tones, a seamless half-second loop) for every car, remote ones from their states; traffic near players shares six engine loops (a light I4 and a heavy V8 made by the engine synth) instead of a sound per car (D120).
 
 **Traffic and police models (M7, D117):** seven original low-poly vehicles made in code by `tools/make_traffic_set.gd` (hatchback, saloon, SUV, van, box truck, bus, police), each with a far LOD merged into one mesh per type (drawn with one MultiMesh, paint from each car's colour, brake and indicator lights from bits) and light groups (head, brake, indicators; the police car's light bar halves). The city round the Lumen Ring is props made in code too: four tower types, a landmark tower, overpasses, sign gantries, crash cushions, double lamps and laybys.
+
+**Weather and music (M9):** rain, wind, surf, crickets and birds are synthesized seamless loops and thunder a one-shot (`NossAudio.render_weather`, seeded noise, the same every time), played on the Ambience bus with levels that follow the weather and the biome; thunder comes after a strike at the speed of sound. The endless road's music (`NossAudio.render_music`, D157) is a 64 s loop per seed: a slow progression of eight chords on soft detuned pads, a quiet bass and a few bell notes, with an echo; each seed gives its own key, chords and melody. Each piece plays twice, then the next fades in over 6 s. OGG or MP3 files in `user://music/` play instead, shuffled.
 
 **Splitscreen mix:** see [ARCHITECTURE.md §6](ARCHITECTURE.md#6-local-players-splitscreen-and-multi-monitor).
 
