@@ -4,7 +4,7 @@ extends GdUnitTestSuite
 
 func test_modes_list_their_classes() -> void:
 	var modes := GameModes.list()
-	assert_array(modes.map(func(m: Dictionary) -> String: return m.id)).contains_exactly(["track", "kart", "highway"])
+	assert_array(modes.map(func(m: Dictionary) -> String: return m.id)).contains_exactly(["track", "kart", "highway", "endless"])
 	for mode in modes:
 		var classes := GameModes.classes(mode)
 		assert_int(classes.size()).override_failure_message(mode.id).is_equal(mode.classes.size())
@@ -21,6 +21,22 @@ func test_every_class_has_a_default_car() -> void:
 func test_describe() -> void:
 	var gt := PlatformLoader.load_official("official.track.gt").platform
 	assert_str(GameModes.describe(gt)).is_equal("RWD · 377 kW · 1300 kg")
+	assert_str(GameModes.describe(PlatformLoader.load_official("official.endless.cruiser").platform)).is_equal("RWD · 151 kW · 1400 kg")
+	assert_str(GameModes.describe(PlatformLoader.load_official("official.endless.sport").platform)).is_equal("RWD · 260 kW · 1350 kg")
+
+
+## Endless (M9, PLATFORMS.md §6): calm classes with assists on, autodrive allowed, nothing to tune,
+## and no racing line (there's no line on a road made as you go).
+func test_the_endless_mode() -> void:
+	var mode := GameModes.mode_for("official.endless.cruiser")
+	assert_str(String(mode.id)).is_equal("endless")
+	assert_array(mode.tuning.allow).is_empty()
+	assert_array(mode.assists.allowed).contains(["autodrive", "steer_aid"])
+	assert_array(mode.assists.allowed).not_contains(["racing_line"])
+	assert_array(mode.assists.defaults).contains(["abs", "tcs", "stability", "auto_gearbox"])
+	var cruiser := PlatformLoader.load_official("official.endless.cruiser").platform
+	assert_bool(Fitting.compatible(cruiser, "truck")).is_true()
+	assert_bool(Fitting.compatible(PlatformLoader.load_official("official.endless.sport").platform, "truck")).is_false()
 
 
 func test_the_kart_mode_fills_its_arcade_numbers() -> void:

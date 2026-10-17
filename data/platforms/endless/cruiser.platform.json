@@ -1,0 +1,77 @@
+{
+  "schema": "noss.platform/1",
+  "id": "official.endless.cruiser",
+  "name": "Cruiser",
+  "version": "0.1.0",
+  "family": "car",
+  "modes": ["endless"],
+  "accepts_families": ["car", "truck"],
+
+  "layout": {
+    "drive": "rwd",
+    "axles": [
+      { "steer": true, "driven": false, "wheels": 2 },
+      { "steer": false, "driven": true, "wheels": 2 }
+    ]
+  },
+
+  "geometry": {
+    "wheelbase_m": { "ref": 2.75, "min": 2.30, "max": 3.40 },
+    "track_m": { "ref": 1.60, "min": 1.45, "max": 1.85 },
+    "ride_height_m": { "ref": 0.15, "min": 0.10, "max": 0.24 },
+    "wheel_radius_m": { "ref": 0.34, "min": 0.30, "max": 0.40 },
+    "envelope_m": { "length": [3.6, 5.8], "width": [1.60, 2.10], "height": [1.20, 2.10] }
+  },
+
+  "mass": {
+    "kg": 1400,
+    "front_weight": 0.53,
+    "cog_height_over_track": 0.34,
+    "yaw_dynamic_index": 1.0
+  },
+
+  "engine": {
+    "torque_curve_nm": [[1000, 200], [2000, 270], [3500, 300], [4500, 295], [5500, 262], [6000, 235], [6300, 215]],
+    "idle_rpm": 750,
+    "redline_rpm": 6000,
+    "limiter_rpm": 6300,
+    "inertia_kgm2": 0.17,
+    "engine_brake_nm": 60
+  },
+  "gearbox": {
+    "type": "auto",
+    "ratios": [3.90, 2.40, 1.60, 1.20, 1.00, 0.80],
+    "reverse": 3.4,
+    "final_drive": 3.40,
+    "shift_time_s": 0.20
+  },
+  "differential": { "type": "lsd_clutch", "preload_nm": 40, "power_lock": 0.25, "coast_lock": 0.10 },
+  "brakes": { "max_torque_nm": 5200, "bias_front": 0.64 },
+  "suspension": {
+    "front": { "freq_hz": 1.5, "damping_bump": 0.40, "damping_rebound": 0.60, "travel_m": 0.13 },
+    "rear": { "freq_hz": 1.6, "damping_bump": 0.40, "damping_rebound": 0.60, "travel_m": 0.14 },
+    "roll_gradient_deg_per_g": 2.0,
+    "roll_stiffness_front_share": 0.60
+  },
+  "steering": { "max_road_angle_deg": 32, "wheel_rotation_deg": 900 },
+  "aero": { "cd_a": 0.72, "cl_a_front": -0.05, "cl_a_rear": -0.10, "slipstream": false },
+  "tires": {
+    "model": "pacejka_lite",
+    "compound": "street",
+    "mu_peak": 1.05,
+    "load_sensitivity": 0.10,
+    "peak_slip_ratio": 0.12,
+    "peak_slip_angle_deg": 8.5,
+    "relaxation_length_m": 0.32,
+    "rolling_resistance": 0.013,
+    "wear": false,
+    "temperature": false
+  },
+
+  "assists_allowed": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid", "auto_throttle", "brake_assist", "steering_assist", "autodrive"],
+  "damage": { "cosmetic": true, "mechanical": [] },
+
+  "tunable": {},
+
+  "ffb": { "reference_rack_nm": 7.0 }
+}

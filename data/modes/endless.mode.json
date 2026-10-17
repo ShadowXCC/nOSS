@@ -1,0 +1,16 @@
+{
+  "schema": "noss.mode/1",
+  "id": "endless",
+  "name": "Endless",
+  "classes": [
+    "official.endless.cruiser",
+    "official.endless.sport"
+  ],
+  "tuning": { "allow": [] },
+  "assists": {
+    "allowed": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid", "auto_throttle", "brake_assist", "steering_assist", "autodrive"],
+    "defaults": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid"]
+  },
+  "damage": { "cosmetic": true, "mechanical": false },
+  "physics_layer": "none"
+}
