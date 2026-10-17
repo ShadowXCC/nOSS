@@ -49,6 +49,13 @@ static func mode_for(platform_id: String) -> Dictionary:
 	return {}
 
 
+## The classes a kart racer may pick in a session of class `platform_id` (D149): its mode's, if
+## that's a kart mode; else none.
+static func kart_classes(platform_id: String) -> Array:
+	var mode := mode_for(platform_id)
+	return Array(mode.get("classes", [])) if mode.get("physics_layer", "none") == "kart_arcade" else []
+
+
 ## The mode's kart_arcade numbers with every default filled in, or {} for a mode without the
 ## layer. (Mode files are checked against their schema, so the numbers are in range.)
 static func arcade(mode: Dictionary) -> Dictionary:

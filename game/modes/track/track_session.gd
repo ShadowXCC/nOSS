@@ -293,9 +293,10 @@ func _apply_dev_layout() -> void:
 		Settings.split_three = Game.dev.three
 
 
-func _add_player(slot: PlayerSlot, at: Variant = null) -> SessionPlayer:
+func _add_player(slot: PlayerSlot, at: Variant = null, kart_class := "") -> SessionPlayer:
 	var p := SessionPlayer.new()
 	p.slot = slot
+	p.class_id = kart_class
 	p.bay_return = bay_return
 	var i := racers.size()
 	if at is Transform3D:
@@ -533,6 +534,7 @@ func _add_online_racer(d: Dictionary, index: int) -> Racer:
 		var a := AiRacer.new()
 		a.configure(int(d.get("local", 0)), float(d.get("skill", ai_skill)))
 		a.net_id = id
+		a.class_id = String(d.get("class", ""))
 		a.paint = CarVisual.clean_paint(d.get("paint"))
 		a.spawn_at = spot
 		_add_racer(a)
@@ -546,7 +548,7 @@ func _add_online_racer(d: Dictionary, index: int) -> Racer:
 		var slot := Players.slots[local]
 		if autodrive:
 			slot.ai = true
-		var p := _add_player(slot, spot)
+		var p := _add_player(slot, spot, String(d.get("class", "")))
 		p.net_id = id
 		net.add(p, true)
 		return p
@@ -559,6 +561,7 @@ func _add_online_racer(d: Dictionary, index: int) -> Racer:
 	r.is_human = not d.get("ai", false)
 	r.paint = CarVisual.clean_paint(d.get("paint"))
 	r.name = "Net%d" % id
+	r.class_id = String(d.get("class", ""))
 	r.spawn_at = spot
 	_add_racer(r)
 	r.car_hash = String(d.car) if String(d.get("car_note", "")).is_empty() else ""
@@ -613,12 +616,15 @@ func _on_net_car(car_hash: String) -> void:
 
 
 ## Racer `r`'s class: in a kart session a player's own pick (their profile's `kart_class`) or an AI
-## kart's (D149); otherwise, and for a class the mode doesn't have, the session's.
+## kart's (D149), online the roster's; otherwise, and for a class the mode doesn't have, the
+## session's.
 func platform_for(r: Racer) -> PlatformLoader.Result:
-	if arcade.is_empty() or is_online():
+	if arcade.is_empty():
 		return platform
-	var id := ""
-	if r is SessionPlayer:
+	var id := r.class_id
+	if is_online():
+		pass
+	elif r is SessionPlayer:
 		id = String((r as SessionPlayer).slot.profile.data.get("kart_class", ""))
 	elif r is AiRacer:
 		id = ai_class((r as AiRacer).number - 5)

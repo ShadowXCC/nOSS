@@ -189,7 +189,9 @@ func _check(peer: int, s: CarState, t: float) -> void:
 		return
 	var p: Plausibility = _plaus.get(s.id)
 	if p == null:
-		p = Plausibility.for_platform(session.platform.platform, session.track, session.arcade)
+		var r: Racer = racers.get(s.id)
+		var platform := r.platform if r and r.platform else session.platform
+		p = Plausibility.for_platform(platform.platform, session.track, session.arcade)
 		_plaus[s.id] = p
 	var contact := t - float(_touched_at.get(s.id, -INF)) < 0.5
 	if not contact and session.traffic:

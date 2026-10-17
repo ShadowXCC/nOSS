@@ -136,7 +136,8 @@ func _kart_sample(session: TrackSession) -> void:
 	c.sort()
 	_kart = { "uses": _kart_uses, "hits": _kart_hits, "corrections": kn.corrections, "err_n": e.size(),
 		"err_p95": e[int(e.size() * 0.95)] if not e.is_empty() else 0.0,
-		"chaser_p95": c[int(c.size() * 0.95)] if not c.is_empty() else 0.0 }
+		"chaser_p95": c[int(c.size() * 0.95)] if not c.is_empty() else 0.0,
+		"class": String(session.players[0].platform.platform.id) if not session.players.is_empty() and session.players[0].platform else "" }
 
 
 func _on_track(h: String) -> void:

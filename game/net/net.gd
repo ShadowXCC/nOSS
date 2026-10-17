@@ -214,7 +214,8 @@ func set_ready(on: bool) -> void:
 	request(NetProtocol.Msg.READY, { "ready": on })
 
 
-## Picks the car at `path` for this game's player `local_index`.
+## Picks the car at `path` for this game's player `local_index`, with their kart class (the
+## server keeps it for kart sessions, D149).
 func pick_car(local_index: int, path: String) -> void:
 	if local_index >= my_ids.size():
 		return
@@ -224,8 +225,10 @@ func pick_car(local_index: int, path: String) -> void:
 	var h := package_hash(path)
 	if content:
 		content.share_car(h) # the server fetches it from here
+	var profile := Players.slots[local_index].profile if local_index < Players.slots.size() else Settings.primary
 	request(NetProtocol.Msg.PICK, { "player": my_ids[local_index], "car": h, "bytes": NetContent.package_bytes(path),
-		"car_name": String(m.get("name", path.get_file())).left(64), "family": String(m.get("family", "car")).left(16) })
+		"car_name": String(m.get("name", path.get_file())).left(64), "family": String(m.get("family", "car")).left(16),
+		"class": String(profile.data.get("kart_class", "")).left(64) })
 
 
 func admin(cmd: String, target := "") -> void:

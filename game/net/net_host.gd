@@ -376,6 +376,7 @@ func _ai_entries() -> Array:
 		return out
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
+	var kart_classes := GameModes.kart_classes(platform.platform.id) if platform.ok() else []
 	var skills := []
 	for i in count:
 		skills.append(clampf(e.ai_skill + 10.0 * (0.5 - float(i) / maxf(count - 1, 1)), 0.0, 100.0))
@@ -390,6 +391,7 @@ func _ai_entries() -> Array:
 			"id": NetProtocol.FIRST_AI_ID + i, "peer": 1, "local": i, "name": AiRacer.NAMES[i % AiRacer.NAMES.size()],
 			"color": AiRacer.COLOR.to_html(false), "fp": "", "admin": false, "car": h,
 			"car_name": String(pick[1].get("name", "")).left(64), "family": String(pick[1].get("family", "car")).left(16),
+			"class": String(kart_classes[rng.randi() % kart_classes.size()]) if not kart_classes.is_empty() else "",
 			"car_note": "", "ready": true, "ai": true, "skill": skills[i],
 			"paint": CarVisual.random_paint(PackageLoader.read_json(pick[0], "paint.json"), rng),
 		})
@@ -448,6 +450,9 @@ func _pick(peer: int, data: Dictionary) -> void:
 	p.car = data.car if ContentStore.valid_hash(String(data.car)) else ""
 	p.car_name = NetChat.clean(data.car_name).left(64)
 	p.family = family
+	var picked: Variant = data.get("class")
+	if state == "lobby": # a session keeps the classes it started with
+		p.kart_class = String(picked) if picked is String and platform.ok() and picked in GameModes.kart_classes(platform.platform.id) else ""
 	p.car_note = ""
 	var bytes := int(data.get("bytes", -1)) if data.get("bytes") is int else -1
 	if content and p.car:

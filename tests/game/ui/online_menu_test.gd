@@ -160,3 +160,37 @@ func test_hosting_a_highway_cruise() -> void:
 	Net.leave()
 	host.queue_free()
 	await _frames(2)
+
+
+## A kart lobby (D149): your row opens your car and class; the class goes to the server.
+func test_a_kart_lobby_picks_your_class() -> void:
+	Settings.primary.set_value("kart_class", "")
+	var cfg := ServerConfig.from_dict(Settings.net_host)
+	cfg.rotation[0]["class"] = "official.kart.medium"
+	assert_int(Net.host(cfg, Net.local_players())).is_equal(OK)
+	var lobby: LobbyMenu = auto_free(LobbyMenu.new())
+	add_child(lobby)
+	await _frames(6)
+	var me: int = Net.my_ids[0]
+	assert_str(UiKit.text_of(lobby._player_rows[0])).contains("Medium")
+	lobby._on_player(me)
+	await _frames(2)
+	var pick: Control = lobby._sub
+	assert_object(pick).is_not_null()
+	_assert_named(pick)
+	var klass := _control(pick, "Class") as Button
+	for i in 3:
+		if UiKit.text_of(klass).contains("Heavy"):
+			break
+		klass.pressed.emit()
+		await _frames(2)
+	assert_str(String(Settings.primary.data.get("kart_class", ""))).is_equal("official.kart.heavy")
+	var until := Time.get_ticks_msec() + 3000
+	while Time.get_ticks_msec() < until and Net.server.players[me].kart_class != "official.kart.heavy":
+		await _frames(1)
+	assert_str(Net.server.players[me].kart_class).is_equal("official.kart.heavy")
+	pick.closed.emit()
+	await _frames(2)
+	assert_str(UiKit.text_of(lobby._player_rows[0])).contains("Heavy")
+	Net.leave()
+	Settings.primary.set_value("kart_class", "")

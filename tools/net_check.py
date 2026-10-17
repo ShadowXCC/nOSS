@@ -27,7 +27,7 @@ watches the first player each way round (NETCHECK_LOOP): they must pass every la
 of the traffic the first meets on the other carriageway one lap must come round the next.
 
 A kart race (--event kart: Gearworks and the Medium kart unless given) or battle (--event battle:
-the Crate Yard) also checks the items (D141): every bot's Bolts and Slicks within 0.5 m of the server's (p95; Seekers home on each game's own
+the Crate Yard; the bots drive Light, Medium and Heavy in turn unless --classes same) also checks the items (D141): every bot's Bolts and Slicks within 0.5 m of the server's (p95; Seekers home on each game's own
 view, so theirs is shown, not checked),
 under 5% of reported hits turned down, a classified race or a battle with a winner. With
 KART_DEBUG=1 the bots log every item more than 1 m off (KARTDBG lines in their logs).
@@ -62,6 +62,7 @@ MAX_DOWN_KB = 64.0
 MAX_TRAFFIC_ERR_M = 1.0
 MAX_ITEM_ERR_M = 0.5
 MAX_REJECTED = 0.05
+KART_CLASSES = ["official.kart.light", "official.kart.medium", "official.kart.heavy"]  # --classes mixed: bot i drives the i-th
 HIGHWAY_MISSES = 3  # HighwayNet.MISSES: checksums that disagree before a game asks again
 LOOP_AGAIN_MIN = 0.6  # acceptance 3: the share of the traffic met one lap that comes round the next
 
@@ -137,6 +138,8 @@ def main(argv=None):
     p.add_argument("--laps", type=int, default=3)
     p.add_argument("--ai", type=int, default=0, help="AI cars the server adds (races)")
     p.add_argument("--class", dest="klass", default="")
+    p.add_argument("--classes", choices=["mixed", "same"], default="mixed",
+                   help="kart: the bots drive Light, Medium and Heavy in turn, or all the server's class")
     p.add_argument("--track", default="",
                    help="the server's track: an id, or a .nosstrack / track folder (sent to bots that lack it)")
     p.add_argument("--port", type=int, default=0, help="the server's port (default 47850; 47800 with --open)")
@@ -240,6 +243,8 @@ def main(argv=None):
         factor = args.speed_factor or (1.4 if args.police else 0.0)
         cheat += [f"--speed-factor={factor:g}"] if factor else []
         cheat += ["--kart-debug"] if os.environ.get("KART_DEBUG") else []
+        if karts and args.classes == "mixed":
+            cheat += ["--p1-profile=" + json.dumps({"kart_class": KART_CLASSES[i % len(KART_CLASSES)]})]
         bots.append(start(f"bot{i:02d}", ["--bot", f"--connect=127.0.0.1:{port}", f"--players={n}",
                                           f"--bot-fps={args.bot_fps}"] + quit_flag + cheat))
         time.sleep(0.2)
@@ -395,13 +400,14 @@ def main(argv=None):
                 if r["dnf"] or r["laps"] < args.laps:
                     fails.append("%s not classified (%d laps%s)" % (r["name"], r["laps"], ", DNF" if r["dnf"] else ""))
     if karts:
-        print("%-7s %6s %6s %11s %9s %11s" % ("items", "uses", "hits", "corrections", "err p95", "seekers p95"))
+        print("%-7s %6s %6s %11s %9s %11s  %s" % ("items", "uses", "hits", "corrections", "err p95", "seekers p95", "class"))
         for name in sorted(n for n in reports if n.startswith("bot")):
             k = reports[name].get("kart", {})
             if not k:
                 fails.append(f"{name}: no kart items")
                 continue
-            print("%-7s %6d %6d %11d %8.2fm %10.2fm" % (name, k["uses"], k["hits"], k["corrections"], k["err_p95"], k.get("chaser_p95", 0.0)))
+            print("%-7s %6d %6d %11d %8.2fm %10.2fm  %s" % (name, k["uses"], k["hits"], k["corrections"], k["err_p95"], k.get("chaser_p95", 0.0),
+                                                       k.get("class", "").rsplit(".", 1)[-1]))
             if k["err_p95"] > MAX_ITEM_ERR_M:
                 fails.append(f"{name}: items {k['err_p95']:.2f} m off the server's (p95)")
         if kart_server is None:

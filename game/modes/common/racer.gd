@@ -21,6 +21,8 @@ const KART_FALL_M := 6.0
 var session: TrackSession
 var track: TrackData
 var platform: PlatformLoader.Result
+## Online, the kart class this racer asked for (the roster's, D149); "" for the session's.
+var class_id := ""
 var vehicle: Vehicle
 ## Drives the vehicle: a VehicleController (devices) or a RacingAI.
 var driver: Node

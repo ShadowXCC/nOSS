@@ -278,6 +278,57 @@ func test_lan_discovery_finds_both_servers() -> void:
 
 ## The server's AI cars come with a paint job each (D128), the same on every game: it travels in
 ## the roster, already clean.
+## Each kart its own class (D149): a player's pick is kept if it's one of the server's kart mode,
+## only in the lobby; the server's AI karts pick their own; outside karts nobody has one.
+func test_kart_players_and_ai_pick_their_own_class() -> void:
+	var cfg := ServerConfig.defaults()
+	cfg.rotation[0]["class"] = "official.kart.medium"
+	var e := RaceEvent.new()
+	e.kind = "race"
+	e.ai_count = 6
+	e.ai_cars = "builtin"
+	cfg.rotation[0].event = e.to_dict()
+	_start(cfg)
+	var a := _client(["Ann"])
+	var box := _inbox(a)
+	assert_bool(_pump(func() -> bool: return a.state == NetClient.State.JOINED)).is_true()
+	var me := a.player_ids()[0]
+	var car := { "player": me, "car": "sha256:" + "a".repeat(64), "car_name": "Box", "family": "car" }
+	a.send(NetProtocol.Msg.PICK, car.merged({ "class": "official.kart.heavy" }))
+	assert_bool(_pump(func() -> bool:
+		var players: Array = _last(box, NetProtocol.Msg.LOBBY).get("players", [])
+		return players.any(func(d: Dictionary) -> bool: return d.id == me and d["class"] == "official.kart.heavy"))).is_true()
+	assert_object(NetPlayer.from_dict(server.players[me].to_dict())).is_not_null()
+	assert_str(NetPlayer.from_dict(server.players[me].to_dict()).kart_class).is_equal("official.kart.heavy")
+	# Not a kart class: the server's. A session keeps what it started with.
+	host.handle(server.players[me].peer, NetProtocol.Msg.PICK, car.merged({ "class": "official.track.gt" }))
+	assert_str(server.players[me].kart_class).is_empty()
+	host.handle(server.players[me].peer, NetProtocol.Msg.PICK, car.merged({ "class": "official.kart.light" }))
+	host.state = "session"
+	host.handle(server.players[me].peer, NetProtocol.Msg.PICK, car.merged({ "class": "official.kart.heavy" }))
+	assert_str(server.players[me].kart_class).is_equal("official.kart.light")
+	host.state = "lobby"
+	var kart_classes := GameModes.kart_classes("official.kart.medium")
+	for d: Dictionary in host.session_dict().roster.filter(func(d: Dictionary) -> bool: return d.get("ai", false)):
+		assert_object(NetPlayer.from_dict(d)).is_not_null()
+		assert_array(kart_classes).contains([d["class"]])
+
+
+func test_outside_karts_nobody_picks_a_class() -> void:
+	var cfg := ServerConfig.defaults()
+	var e := RaceEvent.new()
+	e.kind = "race"
+	e.ai_count = 2
+	e.ai_cars = "builtin"
+	cfg.rotation[0].event = e.to_dict()
+	_start(cfg)
+	var host_player: NetPlayer = server.players_of(1)[0]
+	host.handle(1, NetProtocol.Msg.PICK, { "player": host_player.id, "car": "sha256:" + "a".repeat(64), "car_name": "Box", "family": "car", "class": "official.kart.heavy" })
+	assert_str(host_player.kart_class).is_empty()
+	for d: Dictionary in host.session_dict().roster:
+		assert_str(String(d["class"])).is_empty()
+
+
 func test_ai_cars_bring_their_paint() -> void:
 	var cfg := ServerConfig.defaults()
 	var e := RaceEvent.new()

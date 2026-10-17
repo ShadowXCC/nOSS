@@ -46,11 +46,11 @@ Rules and flow for each mode. Every mode uses the same vehicle core ([PHYSICS.md
 
 ## 2. Kart
 
-*MODE-05, AI-02, EDT-04. Milestone M8 (D129–D148).*
+*MODE-05, AI-02, EDT-04. Milestone M8 (D129–D151).*
 
-Your own cars on the kart classes, with an arcade physics layer and items. It plays on **any track**; if a track has no item boxes, rows go about every third of a lap. It also plays on purpose-built **stunt tracks** (Gearworks, Skyhop Ridge) and plain kart tracks (Marble Mile), and battles on **arenas** (Crate Yard, Dust Bowl). From the title: **Kart**, then Race, Battle or Cup, then a kart class, then the players.
+Your own cars on the kart classes, with an arcade physics layer and items. It plays on **any track**; if a track has no item boxes, rows go about every third of a lap. It also plays on purpose-built **stunt tracks** (Gearworks, Skyhop Ridge) and plain kart tracks (Marble Mile), and battles on **arenas** (Crate Yard, Dust Bowl). From the title: **Kart**, then Race, Battle or Cup, then the players, each with a car and a class.
 
-- **Classes:** Light (160 kg, pulls hardest), Medium (200 kg), Heavy (260 kg, wins the bumps). Their top speeds are within 1% of each other, so lap times are within 2% at the same skill (D134). The built-in car is the nOSS Kart.
+- **Classes:** Light (160 kg, pulls hardest), Medium (200 kg), Heavy (260 kg, wins the bumps). Their top speeds are within 1% of each other, so lap times are within 2% at the same skill (D134). Every player picks their own class, and each AI kart picks its own (D149). The built-in car is the nOSS Kart; a bigger car is shrunk to kart size (D150).
 - **Drift:** hold Drift while steering into a corner at 8 m/s or more. The longer it's held, the bigger the boost when you let go: blue at 0.6 s, orange at 1.2 s, purple at 2.0 s (0.5, 0.9 and 1.4 s of boost). Boost pads give 0.8 s.
 - **Air:** off a jump, steer to turn and lean; press Drift just after take-off for a trick (a boost if you land upright). A kart left on its roof rights itself.
 - **Falling off:** the tow drone takes you back to the road in 1.5 s and puts you down rolling, for a moment a ghost. So does Reset, and a kart left stuck on another.
@@ -80,7 +80,7 @@ Original names and effects. Each racer holds one item, and triple items count as
 
 On an arena (track type `arena`). Each kart has 3 lives; a Bolt, Seeker, Oil Slick or EMP hit takes one, and after a hit items pass the kart by for 2 s.
 - **Last one standing:** a kart with no lives left is out (it drives on as a ghost, with no items). It ends with one kart left, or at the time limit; ranked by lives, then hits.
-- **Most hits:** nobody goes out; at the time limit (3 minutes by default), ranked by hits, then fewest taken.
+- **Most hits:** nobody goes out. The first to the hits target (10 by default; 5–20, or none) wins; otherwise at the time limit (3 minutes by default), ranked by hits, then fewest taken. The HUD shows your hits, the target, your place and the top of the table (D151).
 
 ### Cups
 
@@ -88,7 +88,7 @@ Four races for points (15, 12, 10, 8, 6, 4, 2, 1); ties go to the most wins, the
 
 ### Online
 
-Kart races and battles run on servers (protocol 5): the server rules on boxes, items and hits, and each game shows its own items at once (D141, NETWORKING.md §11). Host → Event offers Kart battle.
+Kart races and battles run on servers (protocol 5): the server rules on boxes, items and hits, and each game shows its own items at once (D141, NETWORKING.md §11). Host → Event offers Kart battle. In a kart lobby your row picks your car and your class; the server's AI karts pick their own.
 
 ## 3. Highway
 

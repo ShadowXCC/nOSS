@@ -51,6 +51,7 @@ Both run identical server code (`NetServer` for connections, `NetHost` for the l
 ```
 connect ─► join checks (versions, key, password, bans, room)
         ─► lobby: everyone's players, track (by hash), class, event, chat; each player picks a car
+           (and on kart classes, their own class: D149)
         ─► a client without the track gets it first ("Getting track 40%"); then Ready
         ─► the server fetches each picked car from its owner (§7); clients fetch everyone's
         ─► start (host, admin /start, or the dedicated server once all are ready)

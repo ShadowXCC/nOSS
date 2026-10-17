@@ -1,7 +1,7 @@
 class_name LobbyMenu
 extends Control
 ## An online lobby (docs/NETWORKING.md §5, MP-03, MP-07): the event, everyone in it with their
-## car, chat, and Ready. Your own players' rows pick their car; other players' rows mute them,
+## car, chat, and Ready. Your own players' rows pick their car (and kart class, D149); other players' rows mute them,
 ## and admins can kick or ban from there. The host (or an admin) starts the session. A track
 ## that isn't here yet comes first: Ready waits for it ("Getting track 40%", EDT-08).
 
@@ -25,6 +25,9 @@ var _focused_once := false
 var _track_check := 0.0
 ## What the Ready button says about the track ("": it's here; "?": not checked yet).
 var _track_shown := "?"
+## A kart lobby's classes ([[id, name]]) for the server's class, which they're for.
+var _classes: Array = []
+var _classes_for := "?"
 
 
 func _ready() -> void:
@@ -123,7 +126,8 @@ func _refresh() -> void:
 		return
 	_title.text = String(lobby.get("name", "Lobby"))
 	var e := RaceEvent.from_dict(lobby.get("event", {}))
-	var what := "Free drive" if e.kind == "free" else "Race, " + e.race_length_text()
+	var what := "Free drive" if e.kind == "free" else "Battle, " + ("most hits" if e.battle_rule == "hits" else "last one standing") \
+		if e.kind == "battle" else "Race, " + e.race_length_text()
 	_event_label.text = "%s   %s   %s   %d/%d players" % [what, lobby.get("track_name", ""), lobby.get("class_name", ""), Net.roster.size(), lobby.get("max", 16)]
 	_auto_pick()
 	var focused := get_viewport().gui_get_focus_owner()
@@ -135,13 +139,15 @@ func _refresh() -> void:
 	for p in Net.roster:
 		var mine := p.id in Net.my_ids
 		var bits := PackedStringArray([p.name, p.car_name if p.car_name else "No car yet"])
+		if not kart_classes().is_empty():
+			bits.append(class_label(p.kart_class))
 		if p.ready:
 			bits.append("Ready")
 		if p.admin:
 			bits.append("Admin")
 		if Net.muted.has(p.id):
 			bits.append("Muted")
-		var b := UiKit.button("", _on_player.bind(p.id), "Pick your car" if mine else "Mute%s" % (", kick or ban" if Net.is_admin() else ""))
+		var b := UiKit.button("", _on_player.bind(p.id), ("Pick your car and class" if not kart_classes().is_empty() else "Pick your car") if mine else "Mute%s" % (", kick or ban" if Net.is_admin() else ""))
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		UiKit.set_shown_text(b, "●  " + "   ".join(bits))
 		var dot := b.get_node(^"Shown") as Label
@@ -198,10 +204,42 @@ func _auto_pick() -> void:
 
 func _on_player(id: int) -> void:
 	var local := Array(Net.my_ids).find(id)
-	if local >= 0:
+	if local >= 0 and not kart_classes().is_empty():
+		var menu := OwnPick.new()
+		menu.lobby = self
+		menu.local = local
+		menu.player = Net.player(id)
+		_open_sub(menu)
+	elif local >= 0:
 		_pick_car(local)
 	else:
 		_player_actions(id)
+
+
+## The classes this lobby's karts pick from ([[id, name]]), none outside karts.
+func kart_classes() -> Array:
+	var id := String(Net.lobby.get("class", ""))
+	if id != _classes_for:
+		_classes_for = id
+		_classes = GameModes.classes(GameModes.mode_for(id)).map(func(r: PlatformLoader.Result) -> Array: return [r.platform.id, String(r.platform.name)]) \
+			if not GameModes.kart_classes(id).is_empty() else []
+	return _classes
+
+
+## A kart class's name ("" is the server's own).
+func class_label(id: String) -> String:
+	for c: Array in kart_classes():
+		if c[0] == id:
+			return c[1]
+	return String(Net.lobby.get("class_name", ""))
+
+
+## Player `local`'s kart class: sent with their car.
+func pick_class(local: int, id: String) -> void:
+	var profile := Players.slots[local].profile if local < Players.slots.size() else Settings.primary
+	profile.set_value("kart_class", id)
+	if _picked.has(local):
+		Net.pick_car(local, String(_picked[local]))
 
 
 func _pick_car(local: int) -> void:
@@ -270,6 +308,39 @@ func _unhandled_input(e: InputEvent) -> void:
 	if _sub == null and e.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
 		_leave()
+
+
+## Your own player in a kart lobby: their car and class.
+class OwnPick:
+	extends Control
+
+	signal closed
+
+	var lobby: LobbyMenu
+	var local := 0
+	var player: NetPlayer
+
+	func _ready() -> void:
+		theme = UiKit.theme_for(self)
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		var list := UiKit.panel(self, player.name if player else "Player", 600)
+		var classes := lobby.kart_classes()
+		var mine := player.kart_class if player and player.kart_class else String(Net.lobby.get("class", ""))
+		var rows: Array = [
+			UiKit.button("Car: " + (player.car_name if player and player.car_name else "None"), func() -> void:
+				closed.emit()
+				lobby._pick_car(local), "Pick your car"),
+			UiKit.spinner("Class", classes, mine, func(id: String) -> void: lobby.pick_class(local, id), "Light pulls hardest, Heavy wins the bumps"),
+			UiKit.button("Back", func() -> void: closed.emit()),
+		]
+		for r: Control in rows:
+			list.add_child(r)
+		UiKit.chain_focus(rows)
+
+	func _unhandled_input(e: InputEvent) -> void:
+		if e.is_action_pressed("ui_cancel"):
+			get_viewport().set_input_as_handled()
+			closed.emit()
 
 
 ## What can be done about another player: mute them, and for admins kick or ban.

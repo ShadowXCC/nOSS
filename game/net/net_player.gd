@@ -17,6 +17,8 @@ var admin := false
 var car := ""
 var car_name := ""
 var family := ""
+## A kart session's class this player picked (D149), "" for the server's.
+var kart_class := ""
 ## Why the car can't be shown ("Car too large for this server"), or "".
 var car_note := ""
 var ready := false
@@ -27,7 +29,7 @@ func to_dict() -> Dictionary:
 	return {
 		"id": id, "peer": peer, "local": local_index, "name": name, "color": color.to_html(false),
 		"fp": NetIdentity.short(fingerprint) if fingerprint else "", "admin": admin,
-		"car": car, "car_name": car_name, "family": family, "car_note": car_note, "ready": ready,
+		"car": car, "car_name": car_name, "family": family, "class": kart_class, "car_note": car_note, "ready": ready,
 	}
 
 
@@ -36,7 +38,7 @@ static func from_dict(d: Dictionary) -> NetPlayer:
 	if not NetProtocol.has_fields(d, {
 		"id": TYPE_INT, "peer": TYPE_INT, "local": TYPE_INT, "name": [TYPE_STRING, NetProtocol.MAX_NAME],
 		"color": [TYPE_STRING, 8], "fp": [TYPE_STRING, 24], "admin": TYPE_BOOL, "car": [TYPE_STRING, 80],
-		"car_name": [TYPE_STRING, 64], "family": [TYPE_STRING, 16], "car_note": [TYPE_STRING, 64], "ready": TYPE_BOOL,
+		"car_name": [TYPE_STRING, 64], "family": [TYPE_STRING, 16], "class": [TYPE_STRING, 64], "car_note": [TYPE_STRING, 64], "ready": TYPE_BOOL,
 	}):
 		return null
 	var p := NetPlayer.new()
@@ -50,6 +52,7 @@ static func from_dict(d: Dictionary) -> NetPlayer:
 	p.car = d.car
 	p.car_name = d.car_name
 	p.family = d.family
+	p.kart_class = d["class"]
 	p.car_note = d.car_note
 	p.ready = d.ready
 	return p
