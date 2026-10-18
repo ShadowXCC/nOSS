@@ -206,7 +206,7 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 
 | Step | What happens | Automatic? |
 |---|---|---|
-| 1. Import | Pick a `.glb`, `.gltf` or `.fbx` (Browse, or the `import/` folder next to the garage). It's checked, converted if needed and analysed on a worker thread. Name, author, license and type (car, open-wheel, truck) are set here. | Yes |
+| 1. Import | Pick a `.glb`, `.gltf`, `.fbx` or `.noss` (Browse, or the `import/` folder next to the garage). It's checked, converted if needed and analysed on a worker thread, with a bar naming each phase as it goes. Name, author, license and type (car, open-wheel, truck) are set here. | Yes |
 | 2. Orient | The yellow arrow shows the front. Buttons turn it 90°/180° or tip and roll it. | Yes, overridable |
 | 3. Wheels | Found wheels are shown as rings. Without any (or by choice), `stock` or `static` wheels are placed with sliders: front and rear axle, track, radius, height. | Mostly |
 | 4. Scale | From the wheelbase. The player can type the real length; the class may still scale it to fit (shown, e.g. "Scaled to 92%"). | Yes, overridable |
@@ -217,6 +217,7 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 
 - **Preview:** the car is always shown as the game will draw it, fitted to the chosen class, with that class's notes ("Scaled to 92%", "Wheels moved 4 cm in").
 - **Saving** generates the LODs (meshoptimizer, D50) and renders the 512×288 thumbnail.
+- **Importing a `.noss`** brings a packed car back in with its fit, paint, sound and own recordings, through the same loader the garage uses (§9 limits, every file hash-checked). The file picked is never written back over: if the garage already holds a car with that id, the bay asks whether to replace that copy, add it as a new car (a new id and " copy") or cancel. Otherwise it comes in keeping its id and is saved as a new garage car.
 - **Drafts** live in `user://fitting/<id>/` as unpacked packages while being fitted, and are removed once the car is saved or thrown away.
 - Not done: placing wheel anchors by clicking on the model. Editing a car keeps its recordings.
 
@@ -224,7 +225,8 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 
 *Requirements: PKG-05, PKG-06.*
 
-- The garage lists the built-in cars and `user://garage/*.noss` with thumbnail, name, author, family and triangle count (counts are cached in `user://cache/garage_index.json`). The selected car turns on a turntable. Actions: drive (pick a class that takes it), edit in the Fitting Bay, paint (presets, colours, finishes), sound (the bay's sound step), duplicate, copy sound to another car, delete (asks first). Built-in cars can be driven and copied; editing one makes a copy.
+- The garage lists the built-in cars and `user://garage/*.noss` with thumbnail, name, author, family and triangle count (counts are cached in `user://cache/garage_index.json`). The selected car turns on a turntable. Actions: drive (pick a class that takes it), edit in the Fitting Bay, paint (presets, colours, finishes), sound (the bay's sound step), duplicate, copy sound to another car, delete (asks first), and **Export…**, which writes the car out as a `.noss` anywhere on disk, exactly as it is (the manifest's own bytes are its content hash, so an export is the same package). Built-in cars can be driven, copied and exported; editing one makes a copy.
+- **Downloads** lists the cars that arrived from a host and sit in the content cache ([NETWORKING.md](NETWORKING.md) §7), each with Save to garage and Export…. The cache is cleared from time to time, so this is how a car from an online session is kept. A part-finished download is listed but can't be saved yet.
 - A car without `thumb.png` gets one rendered from the turntable, kept in `user://cache/thumbs/`.
 - Editing a car keeps its own LODs and thumbnail while its model stays the same.
 - **Hotswap** replaces only the visuals, engine sound and collision envelope. The platform and the physics state carry on, so the car keeps moving.

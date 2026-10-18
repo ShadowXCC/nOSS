@@ -491,7 +491,7 @@ func _import_package(path: String) -> void:
 		brought.edit_path = ""
 		_busy = false
 		_show_progress(false)
-		var owned := _garage_car_with_id(brought.id)
+		var owned := GarageFiles.with_id(brought.id)
 		if owned.is_empty():
 			_take_draft(brought, "Imported " + path.get_file())
 		else:
@@ -519,17 +519,6 @@ func _take_draft(brought: FittingDraft, status: String) -> void:
 	_set_status(status)
 
 
-## The garage file holding the car with this id, or "". Built-in cars don't count: editing one
-## has always made a copy.
-static func _garage_car_with_id(id: String) -> String:
-	for path in PackageLoader.list_available():
-		if path.begins_with("res://"):
-			continue
-		if String(PackageLoader.read_manifest(path).get("id", "")) == id:
-			return path
-	return ""
-
-
 ## An imported .noss the garage already has: overwrite that car, or keep both.
 func _ask_about_copy(brought: FittingDraft, owned: String, path: String) -> void:
 	var menu := Control.new()
@@ -551,10 +540,10 @@ func _ask_about_copy(brought: FittingDraft, owned: String, path: String) -> void
 	]
 	for b: Button in choices:
 		list.add_child(b)
-	_overlay_cancel = func() -> void:
+	_show_overlay(menu)
+	_overlay_cancel = func() -> void: # after _show_overlay: it closes whatever was open first
 		brought.free_scene()
 		_set_status("")
-	_show_overlay(menu)
 	UiKit.chain_focus(choices)
 
 
@@ -572,6 +561,7 @@ func _close_overlay() -> void:
 	_overlay_cancel = Callable()
 	if cancel.is_valid():
 		cancel.call()
+	_update_actions()
 
 
 func _show_progress(shown: bool) -> void:

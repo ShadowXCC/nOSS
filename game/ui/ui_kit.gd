@@ -385,7 +385,7 @@ static func save_dialog(host: Node, title: String, extension: String, suggested:
 		d.file_selected.disconnect(c.callable)
 	d.title = title
 	d.filters = PackedStringArray(["*%s ; %s files" % [extension, extension.trim_prefix(".").to_upper()]])
-	var file_name := suggested.replace("/", "_").replace("\\", "_").strip_edges()
+	var file_name := suggested.validate_filename().strip_edges()
 	if file_name.is_empty():
 		file_name = "untitled"
 	d.current_file = file_name if file_name.ends_with(extension) else file_name + extension

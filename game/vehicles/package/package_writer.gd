@@ -183,17 +183,48 @@ static func hash_files(files: Dictionary) -> Dictionary:
 
 ## A package zip at `path`: the manifest first, then the files in name order. Returns an error or "".
 static func write_zip(path: String, manifest: Dictionary, files: Dictionary) -> String:
+	return write_zip_bytes(path, canonical_json(manifest).to_utf8_buffer(), files)
+
+
+## As write_zip, with the manifest already written out. A copy of a package passes its own
+## bytes: they are its content hash, so re-encoding them would make it a different package.
+static func write_zip_bytes(path: String, manifest: PackedByteArray, files: Dictionary) -> String:
 	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
 	var zip := ZIPPacker.new()
 	if zip.open(path) != OK:
 		return "Can't write " + path
-	_add(zip, "manifest.json", canonical_json(manifest).to_utf8_buffer())
+	_add(zip, "manifest.json", manifest)
 	var names := files.keys()
 	names.sort()
 	for rel: String in names:
 		_add(zip, rel, files[rel])
 	zip.close()
 	return ""
+
+
+## Copies a package to `path` as it stands, manifest bytes and all (export, and keeping a
+## download). `loads` (path) -> error reads the new file back before it replaces anything, the
+## way write() does. Returns {ok, error, path}.
+static func write_copy(path: String, manifest: PackedByteArray, files: Dictionary, loads: Callable) -> Dictionary:
+	var result := { "ok": false, "error": "", "path": path }
+	if manifest.is_empty():
+		result.error = "No manifest.json"
+		return result
+	var tmp := path + ".tmp"
+	result.error = write_zip_bytes(tmp, manifest, files)
+	if result.error.is_empty():
+		result.error = String(loads.call(tmp))
+	if result.error:
+		DirAccess.remove_absolute(tmp)
+		return result
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+	if DirAccess.rename_absolute(tmp, path) != OK:
+		DirAccess.remove_absolute(tmp)
+		result.error = "Can't write " + path.get_file()
+		return result
+	result.ok = true
+	return result
 
 
 ## The two manifests agree on `keys` (a save that changed nothing keeps its version).

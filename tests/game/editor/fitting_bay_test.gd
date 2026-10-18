@@ -63,3 +63,53 @@ func test_draft_packs() -> void:
 	var pkg := PackageLoader.load_package(result.path)
 	assert_str(pkg.error).is_empty()
 	pkg.free_scenes()
+
+
+func test_a_noss_file_can_be_imported() -> void:
+	var path := _write_noss("user://tests/writer/bay_import.noss", "Bay Import")
+	_bay._import(path)
+	assert_bool(await _until(func() -> bool: return not _bay._busy)).is_true()
+	assert_str(_bay.draft.car_name).is_equal("Bay Import")
+	# The picked file is never written back over: the garage decides where it lands.
+	assert_str(_bay.draft.edit_path).is_empty()
+	assert_object(_bay.draft.scene).is_not_null()
+	assert_dict(_bay.draft.paint).contains_keys(["slots"])
+	assert_dict(_bay.draft.fit).contains_keys(["wheels", "model_transform"])
+	DirAccess.remove_absolute(path)
+
+
+func test_a_noss_already_in_the_garage_asks_first() -> void:
+	var path := _write_noss(PackageWriter.garage_path("Bay Twin", PackageWriter.new_uuid()), "Bay Twin")
+	var was := String(PackageLoader.read_manifest(path).id)
+	_bay._import(path)
+	assert_bool(await _until(func() -> bool: return is_instance_valid(_bay._overlay))).is_true()
+	# "Add as a new car" is the second choice; it keeps the garage car and renames the import.
+	var buttons: Array = _bay._overlay.find_children("*", "Button", true, false)
+	assert_int(buttons.size()).is_equal(3)
+	buttons[1].pressed.emit()
+	assert_str(_bay.draft.car_name).is_equal("Bay Twin copy")
+	assert_str(_bay.draft.id).is_not_equal(was)
+	assert_str(_bay.draft.edit_path).is_empty()
+	assert_object(_bay.draft.scene).is_not_null() # the question must not free it
+	assert_bool(is_instance_valid(_bay._overlay)).is_false()
+	DirAccess.remove_absolute(path)
+
+
+## A .noss of the built-in box at `path`, named `car_name`.
+func _write_noss(path: String, car_name: String) -> String:
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+	var written := PackageWriter.write(path, { "name": car_name, "author": "test", "license": "CC0-1.0", "family": "car" },
+		PackageWriter.read_folder("res://content/cars/noss_box"))
+	assert_str(String(written.error)).is_empty()
+	return path
+
+
+## Waits for `done` to come true, a frame at a time.
+func _until(done: Callable, frames := 900) -> bool:
+	for i in frames:
+		if done.call():
+			return true
+		await get_tree().process_frame
+	return false

@@ -305,6 +305,32 @@ func save() -> void:
 	_update_title()
 
 
+## Tracks a host sent, to keep in the library.
+func _open_downloads() -> void:
+	_close_overlay()
+	var menu := DownloadsMenu.new()
+	menu.kind = "tracks"
+	menu.saved.connect(func(path: String) -> void: say("Saved " + path.get_file()))
+	menu.closed.connect(_close_overlay)
+	_overlay = menu
+	add_child(menu)
+
+
+## Writes the track as it stands out to a file anywhere, leaving the library copy alone. The
+## saved track's version carries over, so an export says which one it is.
+func _export_track() -> void:
+	var track_name := String(draft.info.name)
+	UiKit.save_dialog(self, "Export " + track_name, ".nosstrack", track_name, func(dest: String) -> void:
+		await render_images()
+		var info := draft.manifest_info()
+		if draft.path:
+			info["version"] = int(TrackLoader.read_manifest(draft.path).get("version", 1))
+		if FileAccess.file_exists(dest):
+			DirAccess.remove_absolute(dest) # the save dialog already asked about replacing it
+		var r := TrackWriter.write(dest, info, draft.files())
+		say("Exported to " + dest.get_file() if r.ok else String(r.error)))
+
+
 ## The validator's errors now (the last checks', when nothing changed since).
 func _errors() -> Array:
 	if analysis.get("stamp", -1) == _changes and analysis.has("problems"):
@@ -629,6 +655,8 @@ class FileTool:
 		out.append(UiKit.button("New track", _new, "Start again"))
 		out.append(UiKit.button("Open track", _open, "Edit another track"))
 		out.append(UiKit.button("Import scene", editor._browse_scene, "A track from a 3D scene (glb, gltf, fbx)"))
+		out.append(UiKit.button("Downloaded tracks", editor._open_downloads, "Keep a track a host sent you"))
+		out.append(UiKit.button("Export…", editor._export_track, "Write this track out as a .nosstrack file"))
 		out.append(UiKit.button("Show track files", func() -> void:
 			DirAccess.make_dir_recursive_absolute(TrackLibrary.user_dir)
 			OS.shell_open(ProjectSettings.globalize_path(TrackLibrary.user_dir)), "Your .nosstrack files, to share"))

@@ -98,6 +98,38 @@ static func copy_car(path: String) -> Dictionary:
 	return PackageWriter.write(PackageWriter.garage_path(info.name, info.id), info, read_files(path))
 
 
+## The garage file holding the car with this id, or "". Built-in cars don't count: editing or
+## importing over one has always made a copy.
+static func with_id(id: String) -> String:
+	if id.is_empty():
+		return ""
+	for path in PackageLoader.list_available():
+		if not path.begins_with("res://") and String(PackageLoader.read_manifest(path).get("id", "")) == id:
+			return path
+	return ""
+
+
+## Writes a car out as a .noss at `dest`, exactly as it is: a garage file or a built-in folder
+## both come out as the same package, keeping the manifest's own bytes (its content hash).
+## Returns {ok, error, path}.
+static func export_car(path: String, dest: String) -> Dictionary:
+	var source := PackageSource.open(path, PackageLoader.DEFAULT_LIMITS)
+	if source.error:
+		var err := source.error
+		source.close()
+		return { "ok": false, "error": err, "path": dest }
+	var manifest := source.read("manifest.json")
+	var files := {}
+	for rel in source.files():
+		if rel != "manifest.json":
+			files[rel] = source.read(rel)
+	source.close()
+	return PackageWriter.write_copy(dest, manifest, files, func(p: String) -> String:
+		var check := PackageLoader.load_package(p)
+		check.free_scenes()
+		return check.error)
+
+
 ## Deletes a garage car. Official cars can't be deleted. Returns an error or "".
 static func delete(path: String) -> String:
 	if not path.begins_with(PackageLoader.GARAGE_DIR):

@@ -82,6 +82,31 @@ func _focused() -> Control:
 	return get_tree().root.gui_get_focus_owner()
 
 
+func test_with_id_finds_only_the_players_cars() -> void:
+	var box := PackageLoader.read_manifest("res://content/cars/noss_box")
+	assert_str(GarageFiles.with_id(String(box.id))).is_empty() # built-in cars don't count
+	assert_str(GarageFiles.with_id("")).is_empty()
+	var copy := GarageFiles.copy_car("res://content/cars/noss_box")
+	_made.append(String(copy.path))
+	assert_str(GarageFiles.with_id(String(copy.manifest.id))).is_equal(String(copy.path))
+
+
+func test_export_writes_a_file_that_loads() -> void:
+	var dest := "user://tests/writer/exported_box.noss"
+	DirAccess.make_dir_recursive_absolute("user://tests/writer")
+	_made.append(dest)
+	if FileAccess.file_exists(dest):
+		DirAccess.remove_absolute(dest)
+	var result := GarageFiles.export_car("res://content/cars/noss_box", dest)
+	assert_str(String(result.error)).is_empty()
+	var pkg := PackageLoader.load_package(dest)
+	assert_str(pkg.error).is_empty()
+	assert_str(pkg.manifest.name).is_equal("nOSS Box")
+	pkg.free_scenes()
+	# A built-in folder and the file exported from it are the same car, version and all.
+	assert_str(String(PackageLoader.read_manifest(dest).id)).is_equal(String(PackageLoader.read_manifest("res://content/cars/noss_box").id))
+
+
 ## Keyboard and controller (Changes.md): confirm on a car goes to its actions, left/right step
 ## through the enabled ones, back returns to the car; down from the last row reaches Back.
 ## Paint's Save and Cancel stay on screen.
@@ -105,6 +130,8 @@ func test_keys_reach_the_actions_and_paint_fits() -> void:
 	await _push("ui_cancel")
 	assert_object(_focused()).is_same(g._cards[0])
 	g._cards[-1].grab_focus()
+	await _push("ui_down")
+	assert_object(_focused()).is_same(g._downloads_button)
 	await _push("ui_down")
 	assert_object(_focused()).is_same(g._back_button)
 	# Paint on the copy: Save is on screen.

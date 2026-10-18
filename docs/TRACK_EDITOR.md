@@ -30,7 +30,7 @@ Endless mode generates its roads procedurally and doesn't use editor tracks. It 
 | **Stunts** | Kart pieces (M8, D136–D138), on road circuits and arenas: Add at cursor (boost pad, item boxes, jump, wall-ride, loop; in an arena boost pads and jumps anywhere), the list of pieces, pick one and drag it along the road (pads also sideways; in an arena anywhere) or step it 10 m, its fields by kind, Delete; item boxes Automatic (rows every third of a lap unless you place rows), Placed or None. In an arena: Add spawn at cursor (facing the middle), Add item boxes at cursor (a cluster of four), delete the last of each. A drag rebuilds only that piece. |
 | **Race** | Start line, sectors, checkpoints, grid, rolling start, gantry, AI caution, and the AI line: drag it sideways to pin it (§4). On a highway: the lap line, runs (click where one starts, then where it ends), speed traps, zones (speed limit, tunnel, which way) and the traffic (cars, share taking exits); no grid or AI line. |
 | **Check** | What the checks found (§6), errors first; each one shows where it is. |
-| **File** | Name, author, license; Save, Save as a copy, New track (from a template), Open track, Import scene, Show track files. |
+| **File** | Name, author, license; Save, Save as a copy, New track (from a template), Open track, Import scene, Downloaded tracks, Export…, Show track files. |
 
 Templates: Empty, Oval (1.2 km), Circuit (2.5 km), Figure 8 with a bridge, each on terrain sized round it with its start, grid and sectors set; Highway loop (4 km): flat concrete, 3 lanes each way, an exit and an entry each way and a flyover each way; Kart circuit (1.2 km, flat: a boost pad, a row of boxes and a jump on the start straight, a wall-ride round the outside of the first corner, the loop on the back straight); Arena (100 m, two jumps). A highway's test drive is Cruise with its traffic; any track's test drive with a kart class (the last one picked) is a kart free drive, an arena's a battle.
 
@@ -185,6 +185,8 @@ my_track.nosstrack
 - **Limits:** 100 MB zipped, 250 MB unpacked, 512 files; scenes up to 2 M triangles, 20 000 nodes and 4096² textures. Servers can lower them.
 - **Safety:** the same rules as car packages ([VEHICLE_PACKAGE.md §9](VEHICLE_PACKAGE.md#9-limits-and-safety)): every file is checked against the manifest's hash before any is used, sizes before anything is decompressed or decoded. Never Godot resource files or scripts.
 - **Where:** your tracks are `user://tracks/*.nosstrack` (File → Show track files); built-in tracks are folders in `content/tracks/`.
+- **Export…** writes the track as it stands to a file anywhere on disk, leaving the library copy alone; a saved track's version carries over, so an export says which one it is.
+- **Downloaded tracks** lists the tracks that arrived from a host and sit in the content cache ([NETWORKING.md §7](NETWORKING.md)), each with Save to my tracks and Export…: the cache is cleared from time to time, so this is how a track from an online session is kept.
 - **Sharing:** tracks go to players who don't have them when they join online (EDT-07, D98, [NETWORKING.md §7](NETWORKING.md)). Tracks marked "Personal use only" never go online.
 
 ## 6. Test-drive and editing comforts

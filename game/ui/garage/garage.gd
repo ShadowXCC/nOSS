@@ -18,6 +18,7 @@ var _status: Label
 var _loading := ""
 var _overlay: Control
 var _back_button: Button
+var _downloads_button: Button
 ## The selected car's enabled action buttons; the one that opened the overlay gets focus back.
 var _actions: Array[Button] = []
 var _last_action: Button
@@ -52,6 +53,8 @@ func _ready() -> void:
 	_grid.add_theme_constant_override("h_separation", 16)
 	_grid.add_theme_constant_override("v_separation", 16)
 	scroll.add_child(_grid)
+	_downloads_button = UiKit.button("Downloads", _open_downloads, "Keep a car a host sent you")
+	list.add_child(_downloads_button)
 	_back_button = UiKit.button("Back", _back, "Back to the title screen")
 	list.add_child(_back_button)
 
@@ -112,13 +115,15 @@ func _link_grid_focus() -> void:
 		var left := _cards[i - 1] if i % COLUMNS > 0 else c
 		var right := _cards[i + 1] if i % COLUMNS < COLUMNS - 1 and i + 1 < _cards.size() else c
 		var up := _cards[i - COLUMNS] if i >= COLUMNS else c
-		var down: Control = _cards[i + COLUMNS] if i + COLUMNS < _cards.size() else _back_button
+		var down: Control = _cards[i + COLUMNS] if i + COLUMNS < _cards.size() else _downloads_button
 		c.focus_neighbor_left = c.get_path_to(left)
 		c.focus_neighbor_right = c.get_path_to(right)
 		c.focus_neighbor_top = c.get_path_to(up)
 		c.focus_neighbor_bottom = c.get_path_to(down)
 	if not _cards.is_empty():
-		_back_button.focus_neighbor_top = _back_button.get_path_to(_cards[-1])
+		_downloads_button.focus_neighbor_top = _downloads_button.get_path_to(_cards[-1])
+		_downloads_button.focus_neighbor_bottom = _downloads_button.get_path_to(_back_button)
+		_back_button.focus_neighbor_top = _back_button.get_path_to(_downloads_button)
 		_back_button.focus_neighbor_bottom = _back_button.get_path_to(_cards[0])
 
 
@@ -155,6 +160,7 @@ func _select(i: int) -> void:
 		UiKit.button("Sound", _edit.bind("Sound"), "Tune its engine and tire sounds"),
 		UiKit.button("Duplicate", _duplicate, "Make a copy in the garage"),
 		UiKit.button("Copy sound to…", _copy_sound, "Give another car these sounds"),
+		UiKit.button("Export…", _export, "Write this car out as a .noss file"),
 		UiKit.button("Delete", _delete, "Delete this car"),
 	]
 	_actions.clear()
@@ -291,6 +297,29 @@ func _save_paint(paint: Dictionary) -> void:
 	if result.ok:
 		_selected = -1
 		_reload(path)
+
+
+## Writes the car out as a .noss anywhere the player picks, to share by hand or back up.
+func _export() -> void:
+	var car := _cars[_selected]
+	var car_name := String(car.manifest.name)
+	UiKit.save_dialog(self, "Export " + car_name, ".noss", car_name, func(dest: String) -> void:
+		var result := GarageFiles.export_car(String(car.path), dest)
+		_status.text = "Exported to " + dest.get_file() if result.ok else String(result.error))
+
+
+## Cars a host sent, to keep in the garage. The grid is rebuilt afterwards if any landed.
+func _open_downloads() -> void:
+	var menu := DownloadsMenu.new()
+	menu.kind = "cars"
+	var kept := { "path": "" }
+	menu.saved.connect(func(path: String) -> void: kept.path = path)
+	menu.closed.connect(func() -> void:
+		_close_overlay()
+		if kept.path:
+			_selected = -1
+			_reload(String(kept.path)))
+	_show_overlay(menu)
 
 
 func _duplicate() -> void:

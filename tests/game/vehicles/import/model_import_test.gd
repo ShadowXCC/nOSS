@@ -160,3 +160,40 @@ static func _merged_car(basis: Basis) -> Node3D:
 	root.add_child(mi)
 	mi.owner = root
 	return root
+
+
+## Records the phases import_file() reports, in order.
+class RecordingProgress:
+	extends ModelImport.Progress
+
+	var seen: Array[String] = []
+	var fractions: Array[float] = []
+
+	func report(fraction: float, phase: String) -> void:
+		super.report(fraction, phase)
+		if seen.is_empty() or seen[-1] != phase:
+			seen.append(phase)
+		fractions.append(fraction)
+
+
+func test_progress_runs_through_its_phases() -> void:
+	var progress := RecordingProgress.new()
+	var r := ModelImport.import_file(KENNEY + "sedan-sports.glb", PackageLoader.DEFAULT_LIMITS, progress)
+	assert_str(r.error).is_empty()
+	assert_array(progress.seen).is_equal([
+		"Reading sedan-sports.glb", "Checking the file", "Reading the model",
+		"Converting the model", "Checking the model", "Loading the model",
+	])
+	for i in range(1, progress.fractions.size()):
+		assert_float(progress.fractions[i]).is_greater_equal(progress.fractions[i - 1])
+	assert_float(progress.read().fraction).is_equal(1.0)
+	r.scene.free()
+
+
+func test_a_clean_glb_has_nothing_to_convert() -> void:
+	var progress := RecordingProgress.new()
+	var r := ModelImport.import_file("res://content/cars/noss_box/model/body.glb", PackageLoader.DEFAULT_LIMITS, progress)
+	assert_str(r.error).is_empty()
+	assert_bool("Converting the model" in progress.seen).is_false()
+	assert_float(progress.read().fraction).is_equal(1.0)
+	r.scene.free()
