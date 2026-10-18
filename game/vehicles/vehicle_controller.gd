@@ -100,7 +100,11 @@ func _physics_process(delta: float) -> void:
 		# Kart controls share inputs with the handbrake and the shifts, which karts don't use (D135).
 		vehicle.drift = input.held("drift")
 		vehicle.handbrake = 0.0
-		if input.just_pressed("use_item"):
+		if racer and racer.session.sumo:
+			# A sumo match has no items; Ram may share that input (D164).
+			if input.just_pressed("ram"):
+				racer.session.sumo.ram(racer)
+		elif input.just_pressed("use_item"):
 			item_requested.emit(input.held("throw_back"))
 			if racer and racer.session.kart:
 				racer.session.kart.use(racer, input.held("throw_back"))

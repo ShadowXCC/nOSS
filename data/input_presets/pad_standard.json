@@ -124,6 +124,11 @@
         "button": "right_stick"
       }
     ],
+    "ram": [
+      {
+        "button": "left_shoulder"
+      }
+    ],
     "menu_up": [
       {
         "button": "dpad_up"

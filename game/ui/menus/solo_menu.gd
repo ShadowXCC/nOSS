@@ -4,7 +4,7 @@ extends Control
 ## title entry. Picking one hides this menu; backing out of that mode's first screen shows it
 ## again on the same entry (`focus`).
 
-## `mode`: "free", "race", "time_trial", "highway", "kart" or "endless".
+## `mode`: "free", "race", "time_trial", "highway", "kart", "endless" or "mini_games".
 signal chosen(mode: String)
 signal closed
 
@@ -15,6 +15,7 @@ const MODES := [
 	["highway", "Highway", "Cruise, score attack, runs and laps through traffic"],
 	["kart", "Kart", "Kart races with items, battles and cups"],
 	["endless", "Endless", "A calm drive down a road that never ends"],
+	["mini_games", "Mini Games", "Short matches that aren't races"],
 ]
 
 var _rows: Array = []

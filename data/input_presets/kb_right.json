@@ -96,6 +96,11 @@
         "key": "Apostrophe"
       }
     ],
+    "ram": [
+      {
+        "key": "Period"
+      }
+    ],
     "menu_up": [
       {
         "key": "Up"

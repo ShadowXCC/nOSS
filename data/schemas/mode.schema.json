@@ -8,7 +8,7 @@
   "required": ["schema", "id", "name", "classes"],
   "properties": {
     "schema": { "const": "noss.mode/1" },
-    "id": { "enum": ["track", "kart", "highway", "endless"] },
+    "id": { "enum": ["track", "kart", "highway", "endless", "sumo"] },
     "name": { "type": "string", "minLength": 1, "maxLength": 32 },
     "classes": {
       "description": "Platform ids the mode offers, in display order.",

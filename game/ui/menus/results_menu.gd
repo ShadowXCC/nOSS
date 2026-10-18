@@ -33,9 +33,10 @@ const ASSIST_NAMES := { "abs": "ABS", "tcs": "TCS", "stability": "SC", "auto_gea
 func _ready() -> void:
 	theme = UiKit.theme()
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	var title: String = { "race": "Race results", "qualifying": "Qualifying", "practice": "Practice", "battle": "Battle results" }.get(kind, "Results")
+	var title: String = { "race": "Race results", "qualifying": "Qualifying", "practice": "Practice", "battle": "Battle results", "sumo": "Sumo results" }.get(kind, "Results")
 	var list := UiKit.panel(self, title, 1500)
 	var head := _line(["Pos", "Driver", "Car", "Lives", "Hits", "Taken", "", "Assists"] if kind == "battle" else
+		["Pos", "Driver", "Car", "Tier", "Lasted", "", "", "Assists"] if kind == "sumo" else
 		["Pos", "Driver", "Car", "Time" if kind == "race" else "Best", "Gap", "Laps", "Pen", "Assists"])
 	head.modulate = UiKit.ACCENT
 	list.add_child(head)
@@ -87,6 +88,8 @@ func row_text(i: int) -> String:
 func _row_button(row: Dictionary) -> Button:
 	if kind == "battle":
 		return _battle_row(row)
+	if kind == "sumo":
+		return _sumo_row(row)
 	var r: Racer = row.racer
 	var time := Hud.format_time(row.time) if kind == "race" else Hud.format_time(row.best)
 	if kind == "race" and row.dnf:
@@ -106,6 +109,29 @@ func _row_button(row: Dictionary) -> Button:
 		", penalty %d seconds" % roundi(row.penalty) if row.penalty > 0.0 else "",
 		", assists: " + assists if assists != "" else ""]
 	b.accessibility_name = spoken
+	if r.is_human:
+		b.add_theme_stylebox_override("normal", UiKit._box(Color(1, 1, 1, 0.06), Color(0, 0, 0, 0), 0, 6))
+	return b
+
+
+## A sumo row: the lowest platform the car reached, and how long it lasted ("Won" for the one
+## still up there when it ended).
+func _sumo_row(row: Dictionary) -> Button:
+	var r: Racer = row.racer
+	var assists := String(row.assists) if row.has("assists") else assists_text(r)
+	var out: bool = row.get("out", false)
+	var tier := int(row.get("tier", 1))
+	var lasted := Hud.format_time(float(row.get("lasted", 0.0))) if out else "Won"
+	var cells := ["P%d" % row.position, "%s%s" % ["#%d " % row.number if not r.is_human else "", row.name], row.car,
+		str(tier), lasted, "", "", assists]
+	var b := Button.new()
+	b.flat = true
+	b.focus_mode = Control.FOCUS_ALL
+	b.custom_minimum_size = Vector2(0, 52)
+	b.add_child(_line(cells))
+	b.accessibility_name = "P%d, %s, %s, tier %d, %s%s" % [row.position, row.name, row.car, tier,
+		("lasted " + lasted) if out else "won",
+		", assists: " + assists if assists != "" else ""]
 	if r.is_human:
 		b.add_theme_stylebox_override("normal", UiKit._box(Color(1, 1, 1, 0.06), Color(0, 0, 0, 0), 0, 6))
 	return b

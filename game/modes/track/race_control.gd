@@ -144,6 +144,11 @@ func session_text(r: Racer) -> String:
 			if phase in [Phase.LOADING, Phase.COUNTDOWN]:
 				return "Ready"
 			return _clock_text(maxf(event.battle_min * 60.0 - clock, 0.0))
+		"sumo":
+			# No time limit: the platform shrinking is the clock (D162).
+			if phase in [Phase.LOADING, Phase.COUNTDOWN]:
+				return "Ready"
+			return ""
 	return ""
 
 
@@ -176,7 +181,7 @@ func begin(session_kind: String) -> void:
 		r.dnf = false
 		_laps[r] = 0
 		r.held = false
-	var fixed := kind in ["race", "battle"]
+	var fixed := kind in ["race", "battle", "sumo"]
 	session.hotswap_allowed = not fixed and session.hotswap_rule != "never" or session.hotswap_rule == "always"
 	Players.joining = not session.solo and not fixed and not session.is_online()
 	match kind:
@@ -185,8 +190,8 @@ func begin(session_kind: String) -> void:
 			for i in order.size():
 				_place(order[i], i, event.start == "rolling")
 				order[i].held = true
-		"battle":
-			# Round the arena's middle (D144), held until the lights go out.
+		"battle", "sumo":
+			# Round the arena's middle (D144), or the top platform's (D162), held until lights out.
 			phase = Phase.LOADING
 			for i in order.size():
 				_place_arena(order[i], i)
@@ -408,7 +413,7 @@ func _go() -> void:
 
 ## An online race's grid (ghosted while cars are placed).
 func _online_grid() -> bool:
-	return session.is_online() and kind in ["race", "battle"]
+	return session.is_online() and kind in ["race", "battle", "sumo"]
 
 
 func _release_cars() -> void:
@@ -510,6 +515,8 @@ func end_session() -> void:
 		}
 		if session.battle:
 			row.merge(session.battle.row(r))
+		if session.sumo:
+			row.merge(session.sumo.row(r))
 		if kind == "race":
 			if r.dnf:
 				row.gap = "DNF"
@@ -619,7 +626,7 @@ func gap_seconds(r: Racer, ahead: Racer) -> float:
 
 
 func _update_flags() -> void:
-	if kind in ["free", "time_trial", "battle"]:
+	if kind in ["free", "time_trial", "battle", "sumo"]:
 		for r in session.racers:
 			r.flag = ""
 		return

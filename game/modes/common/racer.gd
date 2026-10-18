@@ -291,6 +291,9 @@ func update_track(delta: float) -> void:
 	if towed:
 		return # in the air under the tow drone (kart)
 	var com := vehicle.global_transform * vehicle.center_of_mass
+	if session.sumo:
+		_update_sumo(com)
+		return
 	if track.arena:
 		_update_arena(com)
 		return
@@ -333,6 +336,21 @@ func update_track(delta: float) -> void:
 			reset_car()
 	else:
 		_wrong_way_time = 0.0
+
+
+## Sumo (D162): no laps, no limits and no wrong way. Falling is the game, so nothing resets a
+## car here — the goo is what puts it out. Only a car somehow below the whole pit is recovered.
+func _update_sumo(com: Vector3) -> void:
+	speed = vehicle.speed()
+	var a := track.arena as SumoLayout
+	var tier := a.tier_at(com)
+	on_track = tier >= 0 and a.inside(com, 0.5) and vehicle.global_basis.y.y > 0.8
+	if on_track:
+		var fwd := vehicle.global_basis.z.slide(Vector3.UP).normalized()
+		if fwd.length() > 0.5:
+			last_valid_xform = Transform3D(Basis(Vector3.UP.cross(fwd), Vector3.UP, fwd), Vector3(com.x, a.floor_y_of(tier), com.z))
+	if com.y < track.kill_y and not waiting:
+		reset_car()
 
 
 ## An arena (D138): no laps, no wrong way. On its floor, upright, is where a tow puts it back.
@@ -380,6 +398,9 @@ func _check_track_limits() -> void:
 ## another car is in the way.
 func reset_car() -> void:
 	if vehicle == null or waiting:
+		return
+	if session.sumo:
+		session.sumo.recover(self)
 		return
 	if session.kart:
 		session.kart.tow(self)

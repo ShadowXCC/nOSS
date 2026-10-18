@@ -78,6 +78,11 @@
         "button": "dpad_left"
       }
     ],
+    "ram": [
+      {
+        "button": "dpad_up"
+      }
+    ],
     "menu_up": [
       {
         "button": "dpad_up"

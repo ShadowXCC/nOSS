@@ -21,7 +21,7 @@
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
-      "items": { "enum": ["track", "kart", "highway", "endless"] }
+      "items": { "enum": ["track", "kart", "highway", "endless", "sumo"] }
     },
     "accepts_families": {
       "description": "Model families that can mount this platform. Defaults to [family].",

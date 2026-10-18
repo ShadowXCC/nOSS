@@ -1,0 +1,77 @@
+{
+  "schema": "noss.platform/1",
+  "id": "official.sumo.standard",
+  "name": "Sumo",
+  "version": "0.1.0",
+  "family": "car",
+  "modes": ["sumo"],
+  "accepts_families": ["car", "open", "truck", "moto"],
+
+  "layout": {
+    "drive": "awd",
+    "axles": [
+      { "steer": true, "driven": true, "wheels": 2 },
+      { "steer": false, "driven": true, "wheels": 2 }
+    ]
+  },
+
+  "fit": { "wheelbase_max_m": 2.60 },
+  "geometry": {
+    "wheelbase_m": { "ref": 2.40, "min": 1.40, "max": 3.60 },
+    "track_m": { "ref": 1.70, "min": 1.10, "max": 2.40 },
+    "ride_height_m": { "ref": 0.12, "min": 0.04, "max": 0.35 },
+    "wheel_radius_m": { "ref": 0.32, "min": 0.18, "max": 0.55 },
+    "envelope_m": { "length": [1.5, 7.0], "width": [1.00, 2.80], "height": [0.60, 3.00] }
+  },
+
+  "mass": {
+    "kg": 900,
+    "front_weight": 0.50,
+    "cog_height_over_track": 0.20,
+    "yaw_dynamic_index": 0.85
+  },
+
+  "engine": {
+    "torque_curve_nm": [[1000, 110], [3000, 150], [5000, 145], [7000, 120]],
+    "idle_rpm": 900,
+    "redline_rpm": 6800,
+    "limiter_rpm": 7000,
+    "inertia_kgm2": 0.14,
+    "engine_brake_nm": 30
+  },
+  "gearbox": {
+    "type": "auto",
+    "ratios": [1.0],
+    "reverse": 1.0,
+    "final_drive": 11.7,
+    "shift_time_s": 0.0
+  },
+  "differential": { "type": "spool", "center": { "type": "locked", "front_share": 0.5 } },
+  "brakes": { "max_torque_nm": 2400, "bias_front": 0.55 },
+  "suspension": {
+    "type": "independent",
+    "front": { "freq_hz": 2.6, "damping_bump": 0.45, "damping_rebound": 0.65, "travel_m": 0.09 },
+    "rear": { "freq_hz": 2.6, "damping_bump": 0.45, "damping_rebound": 0.65, "travel_m": 0.09 },
+    "roll_gradient_deg_per_g": 2.4,
+    "roll_stiffness_front_share": 0.50
+  },
+  "steering": { "max_road_angle_deg": 32, "wheel_rotation_deg": 450 },
+  "aero": { "cd_a": 0.80, "cl_a_front": 0.0, "cl_a_rear": 0.0, "slipstream": false },
+  "tires": {
+    "model": "pacejka_lite",
+    "compound": "sumo",
+    "mu_peak": 1.45,
+    "load_sensitivity": 0.08,
+    "peak_slip_ratio": 0.14,
+    "peak_slip_angle_deg": 10.0,
+    "relaxation_length_m": 0.20,
+    "rolling_resistance": 0.015,
+    "wear": false,
+    "temperature": false
+  },
+
+  "assists_allowed": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid", "auto_throttle", "brake_assist", "steering_assist", "autodrive"],
+  "damage": { "cosmetic": true, "mechanical": [] },
+  "tunable": {},
+  "ffb": { "reference_rack_nm": 9.0 }
+}

@@ -26,7 +26,7 @@ extends Node
 ##   --fullscreen         fullscreen for this run; --no-vsync: no vsync (measurements)
 ##   --pause-at=<s>       open the last player's pause menu
 ##   --menu=<m>           title: open solo, classes, event, free, players, settings, online, online-players, tracks,
-##                        highway, kart or endless
+##                        highway, kart, endless or mini-games
 ##                        (--join=<n>: n devices join)
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
 ##   --track=<ref>        the track for --drive, --race and --time-trial: an id, a path or a hash
@@ -35,6 +35,8 @@ extends Node
 ##   --kart               a kart race right away (the first kart track, or --track; --race-laps, --race-ai, --platform)
 ##   --battle[=hits]      a battle right away (the first arena, or --track; --battle-min, --battle-hits, --race-ai)
 ##   --cup[=<id>]         a cup right away (the Spark Cup, or <id>; --race-ai)
+##   --sumo               a sumo match right away (--sumo-tiers=1|2|3, --sumo-hazard=lava|acid,
+##                        --sumo-shrink=smooth|crumble|stepped, --sumo-secs=<s>, --sumo-pillar, --race-ai)
 ##   --endless[=<code>]   an endless drive right away (a road code like FOREST-0000001, or a new road;
 ##                        --traffic=off|light|normal, --platform)
 ##   --kart-debug         online kart items: log every item more than 1 m off the server's
@@ -176,7 +178,7 @@ static func parse_args(engine_args: PackedStringArray, user_args: PackedStringAr
 
 ## First scene after boot.
 func first_scene() -> String:
-	return "" if dedicated or dev.has("drive") or dev.has("bay") or dev.has("garage") or dev.has("race") or dev.has("time-trial") or dev.has("highway") or dev.has("editor") or dev.has("endless") or dev_kart() else TITLE
+	return "" if dedicated or dev.has("drive") or dev.has("bay") or dev.has("garage") or dev.has("race") or dev.has("time-trial") or dev.has("highway") or dev.has("editor") or dev.has("endless") or dev.has("sumo") or dev_kart() else TITLE
 
 
 ## Dev: a kart race, battle or cup asked for on the command line.
@@ -189,6 +191,17 @@ func dev_kart() -> bool:
 func start_dev_event() -> void:
 	if dev_kart():
 		_start_dev_kart()
+		return
+	if dev.has("sumo"):
+		var su := RaceEvent.sumo(int(dev.get("sumo-tiers", "2")), String(dev.get("sumo-hazard", "lava")))
+		su.sumo_shrink = String(dev.get("sumo-shrink", "smooth"))
+		su.sumo_secs = int(dev.get("sumo-secs", "90"))
+		su.sumo_pillar = dev.has("sumo-pillar")
+		su.ai_count = int(dev.get("race-ai", "7"))
+		su.ai_skill = float(dev.get("ai-skill", "70"))
+		su.ai_cars = "builtin"
+		apply_dev_event(su)
+		start_event(su, String(dev.get("platform", "official.sumo.standard")))
 		return
 	if dev.has("endless"):
 		var code := EndlessCode.decode(String(dev.endless))
@@ -280,7 +293,8 @@ func selected_track(type := "") -> String:
 ## Starts `session`, its track loaded off the main thread first behind a loading screen (a
 ## preloaded track_package goes straight in).
 func open_session(session: TrackSession) -> void:
-	if (session.track_package and session.track_package.ok()) or session.event.kind == "endless": # endless makes its own road
+	# Endless makes its own road; sumo makes its own platforms (D162): neither loads a track file.
+	if (session.track_package and session.track_package.ok()) or session.event.kind in ["endless", "sumo"]:
 		_switch(session)
 		return
 	_switch(LoadingScreen.new())
@@ -325,7 +339,8 @@ func start_event(event: RaceEvent, platform_id: String, track := "") -> void:
 		return
 	get_tree().paused = false
 	var session := TrackSession.new()
-	session.track_path = track if track else selected_track("highway" if event.kind == "highway" else "arena" if event.kind == "battle" else "circuit")
+	if event.kind != "sumo": # the sumo arena is generated, so there is no track to pick
+		session.track_path = track if track else selected_track("highway" if event.kind == "highway" else "arena" if event.kind == "battle" else "circuit")
 	session.event = event
 	session.solo = event.kind == "time_trial"
 	session.platform_id = platform_id

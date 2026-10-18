@@ -1,0 +1,25 @@
+{
+  "schema": "noss.mode/1",
+  "id": "sumo",
+  "name": "Sumo",
+  "classes": ["official.sumo.standard"],
+  "default_car": "res://content/cars/noss_box",
+  "tuning": { "allow": [] },
+  "assists": {
+    "allowed": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid", "auto_throttle", "brake_assist", "steering_assist", "autodrive"],
+    "defaults": ["auto_gearbox", "auto_clutch"]
+  },
+  "damage": { "cosmetic": true, "mechanical": false },
+  "physics_layer": "kart_arcade",
+  "arcade": {
+    "grip": 1.15,
+    "drift": {
+      "min_speed": 10.0,
+      "boost_s": [0.0, 0.0, 0.0]
+    },
+    "boost": { "pad_s": 0.0 },
+    "bounce": { "wall": 0.5, "kart": 0.85, "min_dv": 0.8 },
+    "slipstream": { "range_m": 0.0 },
+    "right_after_s": 2.0
+  }
+}

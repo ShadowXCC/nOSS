@@ -17,7 +17,10 @@ var _online: OnlineMenu
 var _lobby: LobbyMenu
 var _kart_menu: KartMenu
 var _solo: SoloMenu
-## What the class picker leads to: "free", "race", "time_trial", "highway" or "kart".
+var _mini: MiniGamesMenu
+var _sumo_menu: SumoMenu
+## What the class picker leads to: "free", "race", "time_trial", "highway", "kart" or
+## "mini_games".
 var _mode := "free"
 
 
@@ -136,6 +139,7 @@ func _on_solo_chosen(mode: String) -> void:
 		"highway": _open_highway()
 		"kart": _open_kart()
 		"endless": _open_endless()
+		"mini_games": _open_mini_games()
 		_: _open_classes(mode)
 
 
@@ -289,6 +293,41 @@ func _open_endless() -> void:
 	add_child(menu)
 
 
+## Mini Games (Changes.md): the short matches that aren't races. Picking one opens its own
+## screen; backing out of that shows this list again, and backing out of this shows Solo Drive.
+func _open_mini_games() -> void:
+	_mode = "mini_games"
+	if is_instance_valid(_mini):
+		_mini.visible = true
+		_mini.grab_focus_first()
+		return
+	_mini = MiniGamesMenu.new()
+	_mini.name = "MiniGamesMenu"
+	_mini.chosen.connect(func(game: String) -> void:
+		_mini.visible = false
+		if game == "sumo":
+			_open_sumo())
+	_mini.closed.connect(func() -> void:
+		_mini.queue_free()
+		_back_to_solo())
+	add_child(_mini)
+
+
+## Sumo Wrestling (D162): its settings (SumoMenu), then the players. There is no class to pick:
+## the mode has one, and no track: the arena is made from the settings.
+func _open_sumo() -> void:
+	var menu := SumoMenu.new()
+	menu.name = "SumoMenu"
+	_sumo_menu = menu
+	menu.picked.connect(func(e: RaceEvent) -> void:
+		menu.visible = false
+		_open_players("official.sumo.standard", e))
+	menu.closed.connect(func() -> void:
+		menu.queue_free()
+		_open_mini_games())
+	add_child(menu)
+
+
 func _open_event(platform_id: String) -> void:
 	_event = EventMenu.new()
 	_event.picked.connect(func(e: RaceEvent) -> void:
@@ -320,6 +359,9 @@ func _open_players(platform_id: String, event: RaceEvent = null, track := "", st
 		if _mode == "kart" and is_instance_valid(_kart_menu): # kart: its menu, then the players
 			_kart_menu.visible = true
 			_kart_menu.grab_focus_first()
+		elif _mode == "mini_games" and is_instance_valid(_sumo_menu): # sumo: its menu, then the players
+			_sumo_menu.visible = true
+			_sumo_menu.grab_focus_first()
 		elif _mode in ["highway", "endless"] and is_instance_valid(_classes): # highway, endless: menu, class, players
 			_classes.visible = true
 			_classes.grab_focus_first()

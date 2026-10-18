@@ -112,6 +112,11 @@ var police: PoliceControl
 var kart: KartControl
 ## Battles (D144): lives and hits. Null otherwise.
 var battle: BattleControl
+## A sumo match (docs/GAMEMODES.md §5, D162): the platforms, their rules and the HUD; the world
+## is built here rather than from a track file.
+var sumo: SumoControl
+var sumo_world: SumoBuilder
+var sumo_hud: SumoHud
 ## A kart cup's race (D145): its standings after the results, its AI field. Null otherwise.
 var cup: CupRun
 ## Kart sessions (D149): AI karts pick a class of their own (off: they all take the session's,
@@ -187,6 +192,28 @@ func _load_endless() -> void:
 		origin.z = snappedf(c.z[0], FloatingOrigin.SNAP_M)
 
 
+## Sumo (D162): the platforms are generated from the match settings, so there is no track file
+## and nothing of the arena goes over the wire. A stand-in TrackData carries the layout, as an
+## arena track would.
+func _load_sumo() -> void:
+	var data := {
+		"schema": TrackFormat.SCHEMA,
+		"id": "sumo_arena",
+		"name": "Sumo",
+		"type": "arena",
+		"road": { "points": [] },
+		"race": { "grid": { "slots": ArenaLayout.AUTO_SPAWNS } },
+	}
+	for p in SumoLayout.ring(SumoLayout.RADII[0]):
+		(data.road.points as Array).append({ "p": [p.x, 0.0, p.y] })
+	track = TrackData.from_dict(data)
+	track.arena = SumoLayout.make(track, event)
+	# Below the pit, not below the top platform: falling between tiers is the game (D163).
+	track.kill_y = (track.arena as SumoLayout).hazard_y - 60.0
+	terrain = null
+	safe_rejoin = false
+
+
 ## Where this game's players start: online, behind whoever's furthest along (D159; the server
 ## stays at the start); otherwise near the road's start.
 func _endless_start() -> float:
@@ -255,6 +282,8 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
 	if event.kind == "endless":
 		_load_endless()
+	elif event.kind == "sumo":
+		_load_sumo()
 	else:
 		if track_package == null or not track_package.ok():
 			track_package = TrackLoader.load_package(track_path)
@@ -277,7 +306,13 @@ func _ready() -> void:
 		return racers.filter(func(r: Racer) -> bool: return r is SessionPlayer and r.vehicle != null).map(func(r: Racer) -> Vehicle: return r.vehicle)
 	add_child(env)
 	env.apply()
-	if endless_world:
+	if event.kind == "sumo":
+		sumo_world = SumoBuilder.new()
+		sumo_world.name = "SumoArena"
+		# The goo never flashes either way (ACC-04); Reduce flashing calms it further still.
+		sumo_world.setup(track.arena as SumoLayout, not dedicated, bool(Settings.profile.get("reduce_flashing", false)))
+		add_child(sumo_world)
+	elif endless_world:
 		add_child(endless_world)
 		endless_world.prime(endless_start_m)
 	else:
@@ -303,6 +338,10 @@ func _ready() -> void:
 		safe_rejoin = true
 	elif event.kind == "free":
 		ai_racers = clampi(ai_racers, 0, maxi(int(track.grid.slots) - maxi(Players.count(), 1), 0))
+	elif event.kind == "sumo":
+		ai_racers = clampi(event.ai_count, 0, maxi(track.arena.spawns.size() - maxi(Players.count(), 1), 0))
+		ai_skill = event.ai_skill
+		ai_builtin_cars = event.ai_cars == "builtin"
 	elif event.kind == "battle":
 		if track.arena == null or arcade.is_empty():
 			push_warning("A battle needs an arena and a kart class: free drive instead")
@@ -321,6 +360,8 @@ func _ready() -> void:
 		_ready_highway()
 	elif event.kind == "endless":
 		_ready_endless()
+	elif event.kind == "sumo":
+		_ready_sumo()
 	elif not arcade.is_empty() and event.kind != "time_trial":
 		_ready_kart()
 		if event.kind == "battle":
@@ -451,6 +492,8 @@ func _add_player(slot: PlayerSlot, at: Variant = null, kart_class := "") -> Sess
 	_add_racer(p)
 	if endless:
 		endless.apply_hud(p)
+	elif sumo_hud:
+		sumo_hud.apply_hud(p)
 	p.pause_requested.connect(_open_pause)
 	slot.profile.data.last_platform = platform_id
 	var path := car_path if car_path and slot.index == 0 else String(slot.profile.data.get("last_car", ""))
@@ -581,6 +624,28 @@ func _ready_battle() -> void:
 	race.standings_source = battle.standings
 
 
+## Sumo (D162): the platforms' rules, their HUD and their sounds, and the standings RaceControl
+## shows. No KartControl: there are no items, and nothing tows a car that was shoved off.
+func _ready_sumo() -> void:
+	sumo = SumoControl.new()
+	sumo.name = "SumoControl"
+	sumo.session = self
+	sumo.layout = track.arena as SumoLayout
+	sumo.builder = sumo_world
+	add_child(sumo)
+	race.standings_source = sumo.standings
+	if not dedicated and not Game.dev.has("bot"):
+		sumo_hud = SumoHud.new()
+		sumo_hud.name = "SumoHud"
+		sumo_hud.session = self
+		add_child(sumo_hud)
+		var s := SumoSounds.new()
+		s.name = "SumoSounds"
+		s.session = self
+		sumo.sounds = s
+		add_child(s)
+
+
 ## Highways: racer `i`'s starting direction.
 func direction_for(i: int) -> int:
 	if i < directions.size():
@@ -591,7 +656,7 @@ func direction_for(i: int) -> int:
 
 
 ## The node that drives `r` (an AI racer, a dev player): the racing AI on circuits, the lane
-## driver on highways, the battle AI in an arena.
+## driver on highways, the battle AI in an arena, the sumo AI on the platforms.
 func make_driver(r: Racer) -> Node:
 	if endless:
 		var e := EndlessDriver.new()
@@ -601,6 +666,11 @@ func make_driver(r: Racer) -> Node:
 		var d := HighwayDriver.new()
 		d.racer = r
 		return d
+	if sumo:
+		var su := SumoAI.new()
+		su.racer = r
+		su.skill = ai_skill
+		return su
 	if track.arena:
 		var b := BattleAI.new()
 		b.racer = r
@@ -624,6 +694,11 @@ func make_guide(r: Racer) -> Node:
 		d.racer = r
 		d.as_guide = true
 		return d
+	if sumo:
+		var su := SumoAI.new()
+		su.racer = r
+		su.as_guide = true
+		return su
 	if track.arena:
 		var b := BattleAI.new()
 		b.racer = r
@@ -868,6 +943,11 @@ func _add_racer(r: Racer) -> void:
 		r.wrong_way_respawn = false
 		r.direction = direction_for(racers.size())
 	elif endless:
+		r.limits = false
+		r.wrong_way_respawn = false
+		r.laps = false
+	elif sumo:
+		# No laps, no limits and no wrong way on a platform (D162).
 		r.limits = false
 		r.wrong_way_respawn = false
 		r.laps = false
