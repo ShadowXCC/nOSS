@@ -3,7 +3,7 @@ shader_type spatial;
 // each other so the surface churns slowly and a point never flashes (ACC-04); `calm` takes the
 // motion and the glow down for Reduce flashing. UV is in metres.
 
-uniform vec4 deep : source_color = vec4(0.35, 0.05, 0.02, 1.0);
+uniform vec4 deep : source_color = vec4(0.48, 0.07, 0.02, 1.0);
 uniform vec4 glow : source_color = vec4(1.0, 0.45, 0.07, 1.0);
 uniform vec4 crust : source_color = vec4(0.10, 0.07, 0.07, 1.0);
 uniform float speed = 0.035;
@@ -25,14 +25,17 @@ float noise(vec2 p) {
 
 void fragment() {
 	float t = TIME * speed * mix(1.0, 0.35, calm);
-	vec2 uv = UV * 0.04;
+	// UV is metres/4, so this puts a noise cell about every 8 m: features the eye can follow
+	// across the pit. Much smaller and the whole pool samples one cell and goes flat.
+	vec2 uv = UV * 0.5;
 	// Two octaves drifting apart: the pattern never repeats on the eye.
 	float a = noise(uv + vec2(t, t * 0.6));
 	float b = noise(uv * 2.3 - vec2(t * 0.8, t * 1.3));
 	float heat = clamp(a * 0.65 + b * 0.35, 0.0, 1.0);
-	// A wide smoothstep, so the crust fades in rather than snapping on.
-	float skin = smoothstep(0.42, 0.72, heat);
-	vec3 molten = mix(deep.rgb, glow.rgb, smoothstep(0.30, 0.95, heat));
+	// Mostly molten, with darker crust drifting over it; a wide smoothstep, so the crust fades
+	// in rather than snapping on.
+	float skin = smoothstep(0.28, 0.62, heat);
+	vec3 molten = mix(deep.rgb, glow.rgb, smoothstep(0.35, 0.95, heat));
 	ALBEDO = mix(crust.rgb, molten, skin);
 	EMISSION = glow.rgb * skin * emit * mix(1.0, 0.45, calm);
 	ROUGHNESS = 0.85;

@@ -11,11 +11,14 @@ extends ArenaLayout
 const RADII := [24.0, 36.0, 48.0]
 ## From one tier's floor down to the next (m).
 const DROP_M := 18.0
-## The goo's surface, below the lowest tier (m).
-const HAZARD_DROP_M := 16.0
-## The pit wall stands this far out from the widest tier, and this far above the top one.
-const PIT_MARGIN_M := 34.0
-const PIT_RIM_M := 26.0
+## The goo's surface, below the lowest tier (m). Shallow enough, against the pit's width, that
+## the pool is in view past the platform's rim rather than hidden behind it — and the band of it
+## widens as the platform shrinks, so the goo closes in on the eye as well as underfoot.
+const HAZARD_DROP_M := 5.0
+## The pit wall stands this far out from the widest tier, and this far above the top one: wide
+## enough that the pool is seen past the rim, high enough to still read as a wall.
+const PIT_MARGIN_M := 45.0
+const PIT_RIM_M := 22.0
 ## Sudden death: the bottom tier stops here instead of going altogether (m). It holds that size
 ## for a while, then goes after all, so two cautious drivers cannot stall the match for ever.
 const PILLAR_R := 6.0

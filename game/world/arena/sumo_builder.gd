@@ -156,14 +156,11 @@ func _pit() -> void:
 	var holder := Node3D.new()
 	holder.name = "Pit"
 	add_child(holder)
-	var rock := WorldMaterials.get_material("sumo_rock", RetroTextures.rock(), 0.95, 0.1, true, Vector2.ONE / 8.0)
+	var rock := WorldMaterials.get_material("sumo_rock", RetroTextures.rock(), 0.95, 0.1)
 	var wall := MeshBatch.new()
-	var path := PackedVector3Array()
-	for p in SumoLayout.ring(layout.pit_r):
-		path.append(Vector3(p.x, layout.hazard_y - PIT_FLOOR_DROP_M, p.y))
-	path.append(path[0])
-	var high := layout.floor_y_of(0) + SumoLayout.PIT_RIM_M - layout.hazard_y + PIT_FLOOR_DROP_M
-	wall.wall(path, high, 6.0)
+	var bottom := layout.hazard_y - PIT_FLOOR_DROP_M
+	var top := layout.floor_y_of(0) + SumoLayout.PIT_RIM_M
+	_cliff(wall, layout.pit_r, bottom, top)
 	_piece(holder, "PitWall", wall, rock, VehicleSim.SURFACE_CONCRETE)
 	var floor_batch := MeshBatch.new()
 	_disc(floor_batch, layout.pit_r, layout.hazard_y - PIT_FLOOR_DROP_M)
@@ -196,6 +193,34 @@ func material() -> ShaderMaterial:
 		m.set_shader_parameter("emit", 1.6)
 	m.set_shader_parameter("calm", 1.0 if calm else 0.0)
 	return m
+
+
+## The pit's rock face: a band round the inside of `radius` from `bottom` up to `top`. Its own
+## quads rather than MeshBatch.wall's boxes, so the texture tiles up the face instead of being
+## stretched once over the whole height (which reads as vertical streaks).
+func _cliff(b: MeshBatch, radius: float, bottom: float, top: float) -> void:
+	var n := SumoLayout.SEGMENTS
+	var step := TAU * radius / n
+	var rows := maxi(roundi((top - bottom) / TILE_M), 1)
+	for i in n:
+		var a0 := TAU * i / n
+		var a1 := TAU * (i + 1) / n
+		var d0 := Vector3(cos(a0), 0.0, sin(a0))
+		var d1 := Vector3(cos(a1), 0.0, sin(a1))
+		var u0 := step * i / TILE_M
+		var u1 := step * (i + 1) / TILE_M
+		for r in rows:
+			var y0 := lerpf(bottom, top, float(r) / rows)
+			var y1 := lerpf(bottom, top, float(r + 1) / rows)
+			# Facing inward, toward the middle.
+			var inward := -(d0 + d1).normalized()
+			var first := b.verts.size()
+			b.vertex(d0 * radius + Vector3.UP * y0, inward, Vector2(u0, float(r)))
+			b.vertex(d1 * radius + Vector3.UP * y0, inward, Vector2(u1, float(r)))
+			b.vertex(d1 * radius + Vector3.UP * y1, inward, Vector2(u1, float(r + 1)))
+			b.vertex(d0 * radius + Vector3.UP * y1, inward, Vector2(u0, float(r + 1)))
+			# Godot's fronts are clockwise, as _tri winds them.
+			b.index.append_array([first, first + 2, first + 1, first, first + 3, first + 2])
 
 
 ## A flat disc facing up at `y`.
