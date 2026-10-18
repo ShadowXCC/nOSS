@@ -174,6 +174,19 @@ func test_radii_go_over_the_wire_and_come_back() -> void:
 	assert_bool(client.live(0)).is_false()
 
 
+func test_a_restart_gives_the_platforms_back() -> void:
+	var a := _layout(2, "smooth", 60)
+	a.arm(0)
+	a.arm(1)
+	a.advance(61.0)
+	assert_bool(a.live(0)).is_false()
+	a.restore()
+	for i in 2:
+		assert_float(a.radius_of(i)).is_equal_approx(SumoLayout.RADII[i], 0.01)
+		assert_bool(a.live(i)).is_true()
+		assert_bool(a.armed(i)).is_false()
+
+
 func test_the_hazard_is_what_the_match_asked_for() -> void:
 	assert_str(_layout(1, "smooth", 90, false, "acid").hazard).is_equal("acid")
 	assert_str(_layout(1).hazard).is_equal("lava")

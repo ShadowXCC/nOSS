@@ -56,7 +56,7 @@
         "steer_left", "steer_right", "throttle", "brake", "handbrake", "clutch", "shift_up", "shift_down",
         "gear_r", "gear_n", "gear_1", "gear_2", "gear_3", "gear_4", "gear_5", "gear_6", "gear_7",
         "camera_next", "look_back", "look_left", "look_right", "look_up", "look_down", "reset_car", "hotswap_menu", "pause", "editor_back", "horn", "lights",
-        "drift", "use_item", "throw_back", "autodrive",
+        "drift", "use_item", "throw_back", "ram", "autodrive",
         "menu_up", "menu_down", "menu_left", "menu_right", "menu_confirm", "menu_cancel"
       ]
     },

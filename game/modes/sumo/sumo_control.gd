@@ -67,6 +67,9 @@ func reset() -> void:
 	_sinking.clear()
 	_charge.clear()
 	armed_by.clear()
+	layout.restore() # a restarted match gets its platforms back
+	if builder:
+		builder.refresh()
 	for r in session.racers:
 		_charge[r] = 1.0
 		_set_out(r, false)

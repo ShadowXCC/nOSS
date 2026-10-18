@@ -195,6 +195,15 @@ func advance(delta: float) -> Array[int]:
 	return gone
 
 
+## Every platform back to its full size, none of them going yet (a match restarted).
+func restore() -> void:
+	for t in tiers:
+		t.radius = float(t.start)
+		t.elapsed = 0.0
+		t.armed = false
+		t.live = true
+
+
 ## Every tier's radius, for a snapshot over the wire.
 func radii() -> PackedFloat32Array:
 	var out := PackedFloat32Array()
