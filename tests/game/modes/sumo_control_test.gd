@@ -162,6 +162,25 @@ func test_out_later_ranks_ahead() -> void:
 	assert_object(order[3]).is_same(a)
 
 
+## A whole ring going at once drops two cars in on the same tick; the one less far under the
+## surface got there later, so it ranks ahead (D167).
+func test_two_cars_in_on_one_tick_are_told_apart_by_depth() -> void:
+	await _start()
+	await _running()
+	_goo(a)
+	_goo(b)
+	# Both are under the surface on this tick, but c is deeper, so d held on longer.
+	c.vehicle.reset_to(Transform3D(Basis.IDENTITY, Vector3(0.0, sumo.layout.hazard_y - 8.0, 0.0)))
+	d.vehicle.reset_to(Transform3D(Basis.IDENTITY, Vector3(6.0, sumo.layout.hazard_y - 2.0, 0.0)))
+	sumo._check_goo()
+	assert_bool(c.out).is_true()
+	assert_bool(d.out).is_true()
+	assert_float(sumo.out_depth(c)).is_greater(sumo.out_depth(d))
+	var order := sumo.standings()
+	assert_object(order[0]).override_failure_message("the shallower car should rank ahead").is_same(d)
+	assert_object(order[1]).is_same(c)
+
+
 func test_results_carry_the_tier_and_how_long_each_lasted() -> void:
 	await _start()
 	await _running()

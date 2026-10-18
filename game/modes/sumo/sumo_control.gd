@@ -41,6 +41,9 @@ var _reached := {}
 var _out_order: Array[Racer] = []
 ## racer -> the race clock when it touched the goo
 var _out_at := {}
+## racer -> how far under the goo's surface it was when it went in: two cars in on one tick are
+## told apart by it (the one less deep touched later).
+var _out_depth := {}
 ## racer -> seconds of sinking left
 var _sinking := {}
 ## racer -> ram charge, 0..1
@@ -64,6 +67,7 @@ func reset() -> void:
 	_reached.clear()
 	_out_order.clear()
 	_out_at.clear()
+	_out_depth.clear()
 	_sinking.clear()
 	_charge.clear()
 	armed_by.clear()
@@ -170,7 +174,7 @@ func _hold_out() -> void:
 ## Cars that left the game drop out of the tables (they stay in the results they were in).
 func _forget_gone() -> void:
 	_out_order.assign(_out_order.filter(func(r: Variant) -> bool: return is_instance_valid(r)))
-	for d: Dictionary in [_tier, _reached, _out_at, _sinking, _charge]:
+	for d: Dictionary in [_tier, _reached, _out_at, _out_depth, _sinking, _charge]:
 		for k: Variant in d.keys():
 			if not is_instance_valid(k):
 				d.erase(k)
@@ -226,11 +230,19 @@ func _sink(delta: float) -> void:
 ## rules the same way on a dedicated server, where every car is a remote one the physics never
 ## really touches, as it does on a game driving its own.
 func _check_goo() -> void:
+	var going: Array[Racer] = []
 	for r in session.racers:
 		if r.out or r.vehicle == null or not is_instance_valid(r.vehicle):
 			continue
 		if r.com().y <= layout.hazard_y:
-			_knock_out(r)
+			going.append(r)
+	if going.size() > 1:
+		# A whole ring going at once can drop two cars in on the same tick. The one less far
+		# under the surface got there later, so it held on longer: that settles the order the
+		# clock is too coarse to, and keeps "last one in wins" from coming down to a coin toss.
+		going.sort_custom(func(a: Racer, b: Racer) -> bool: return a.com().y < b.com().y)
+	for r in going:
+		_knock_out(r)
 
 
 ## Out: timed now, whatever the sinking looks like afterwards.
@@ -239,6 +251,7 @@ func _knock_out(r: Racer) -> void:
 		return
 	_out_order.append(r)
 	_out_at[r] = session.race.clock
+	_out_depth[r] = layout.hazard_y - r.com().y if r.vehicle and is_instance_valid(r.vehicle) else 0.0
 	_tier[r] = -1
 	_set_out(r, true)
 	_start_sinking(r)
@@ -300,6 +313,12 @@ func standings() -> Array[Racer]:
 			return tier(a) < tier(b) # higher platform: ahead
 		return a.number < b.number)
 	return out
+
+
+## How far under the surface `r` was when it went in (the soak check tells a settled order from a
+## dead heat with it).
+func out_depth(r: Racer) -> float:
+	return float(_out_depth.get(r, 0.0))
 
 
 ## The sumo columns for `r`'s results row.
