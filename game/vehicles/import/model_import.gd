@@ -35,12 +35,36 @@ class Result:
 		return error.is_empty()
 
 
-## Imports on a worker thread; `on_done` gets the Result on the main thread.
-static func import_async(path: String, on_done: Callable, limits := PackageLoader.DEFAULT_LIMITS, timeout_s := TIMEOUT_S) -> void:
+## How far the import has got, for a progress bar. Godot's glTF and FBX parsers say nothing
+## while they run, so this counts phases, not bytes. Written on the worker, read on the main
+## thread, so a mutex guards both.
+class Progress:
+	var _mutex := Mutex.new()
+	var _fraction := 0.0
+	var _phase := ""
+
+	func report(fraction: float, phase: String) -> void:
+		_mutex.lock()
+		_fraction = fraction
+		_phase = phase
+		_mutex.unlock()
+
+	## {fraction (0..1), phase}.
+	func read() -> Dictionary:
+		_mutex.lock()
+		var out := { "fraction": _fraction, "phase": _phase }
+		_mutex.unlock()
+		return out
+
+
+## Imports on a worker thread; `on_done` gets the Result on the main thread. `progress` is
+## updated as it goes, for a progress bar.
+static func import_async(path: String, on_done: Callable, limits := PackageLoader.DEFAULT_LIMITS, timeout_s := TIMEOUT_S,
+		progress: Progress = null) -> void:
 	var job := _Job.new()
 	job.on_done = on_done
 	job.task = WorkerThreadPool.add_task(func() -> void:
-		var result := import_file(path, limits)
+		var result := import_file(path, limits, progress)
 		job.finish.call_deferred(result), true, "Import " + path.get_file())
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree:
@@ -48,9 +72,13 @@ static func import_async(path: String, on_done: Callable, limits := PackageLoade
 
 
 ## Blocking import. Check ok() on the result. `limits`: a car's (PackageLoader) or a scene's.
-static func import_file(path: String, limits := PackageLoader.DEFAULT_LIMITS) -> Result:
+static func import_file(path: String, limits := PackageLoader.DEFAULT_LIMITS, progress: Progress = null) -> Result:
 	var r := Result.new()
 	r.path = path
+	var say := func(fraction: float, phase: String) -> void:
+		if progress:
+			progress.report(fraction, phase)
+	say.call(0.02, "Reading " + path.get_file())
 	var os_path := ProjectSettings.globalize_path(path)
 	var ext := os_path.get_extension().to_lower()
 	if ext not in EXTENSIONS:
@@ -65,6 +93,7 @@ static func import_file(path: String, limits := PackageLoader.DEFAULT_LIMITS) ->
 		r.error = "File too large" if f else "Can't read the file"
 		return r
 	f.close()
+	say.call(0.05, "Checking the file")
 
 	var scene: Node3D
 	if ext == "glb":
@@ -82,6 +111,7 @@ static func import_file(path: String, limits := PackageLoader.DEFAULT_LIMITS) ->
 		if check.error.is_empty():
 			r.glb = bytes # already a clean package model: keep it exactly
 		else:
+			say.call(0.10, "Reading the model")
 			scene = _parse_glb(bytes, os_path.get_base_dir() + "/") # external textures sit next to the file
 	elif ext == "gltf":
 		var gltf: Variant = JSON.parse_string(FileAccess.get_file_as_string(os_path))
@@ -91,8 +121,10 @@ static func import_file(path: String, limits := PackageLoader.DEFAULT_LIMITS) ->
 		r.error = _unsupported(gltf)
 		if r.error:
 			return r
+		say.call(0.10, "Reading the model")
 		scene = _parse_file(GLTFDocument.new(), GLTFState.new(), os_path)
 	else:
+		say.call(0.10, "Reading the model")
 		scene = _parse_file(FBXDocument.new(), FBXState.new(), os_path)
 
 	if r.glb.is_empty():
@@ -100,11 +132,13 @@ static func import_file(path: String, limits := PackageLoader.DEFAULT_LIMITS) ->
 			r.error = "Model failed to load"
 			return r
 		r.converted = true
+		say.call(0.45, "Converting the model")
 		r.glb = export_glb(scene, limits)
 		scene.free()
 		if r.glb.is_empty():
 			r.error = "Model failed to convert"
 			return r
+	say.call(0.75, "Checking the model")
 	var check := PackageLoader.check_glb(r.glb, limits)
 	if check.error:
 		r.error = "Model can't be used: " + check.error
@@ -113,9 +147,11 @@ static func import_file(path: String, limits := PackageLoader.DEFAULT_LIMITS) ->
 	if check.triangles > int(limits.max_lod0_triangles):
 		r.error = "Too many triangles: %d" % check.triangles
 		return r
+	say.call(0.85, "Loading the model")
 	r.scene = _parse_glb(r.glb, "")
 	if r.scene == null:
 		r.error = "Model failed to load"
+	say.call(1.0, "Loading the model")
 	return r
 
 

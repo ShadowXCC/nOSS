@@ -57,6 +57,8 @@ static func _base_theme() -> Theme:
 	# A check's state shows in its switch, not as a pressed button.
 	for state in ["normal", "pressed", "hover", "hover_pressed"]:
 		t.set_stylebox(state, "CheckButton", _box(BUTTON if state.begins_with("hover") else Color(0, 0, 0, 0), Color(0, 0, 0, 0), 0, 10))
+	t.set_stylebox("background", "ProgressBar", _box(Color(0, 0, 0, 0.35), Color(0.3, 0.3, 0.34), 2, 0))
+	t.set_stylebox("fill", "ProgressBar", _box(ACCENT, Color(0, 0, 0, 0), 0, 0))
 	t.set_color("font_color", "Button", Color(0.95, 0.95, 0.93))
 	t.set_color("font_focus_color", "Button", Color.WHITE)
 	t.set_color("font_color", "Label", Color(0.95, 0.95, 0.93))
@@ -318,6 +320,79 @@ static func spinner(text: String, items: Array, value: Variant, on_changed: Call
 	b.accessibility_description = (description + ". " if description else "") + "Left and right to change"
 	show.call()
 	return b
+
+
+## A bar for work that takes a while (the Fitting Bay's import), with the phase under it and the
+## percentage beside it. Move it with set_progress().
+static func progress(phase := "") -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	var bar := ProgressBar.new()
+	bar.name = "Bar"
+	bar.min_value = 0.0
+	bar.max_value = 1.0
+	bar.step = 0.001
+	bar.show_percentage = false # shown beside the phase instead
+	bar.custom_minimum_size = Vector2(0, 20)
+	bar.focus_mode = Control.FOCUS_NONE
+	box.add_child(bar)
+	var row := HBoxContainer.new()
+	row.name = "Row"
+	var text := label(phase, 22)
+	text.name = "Phase"
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.clip_text = true
+	# Only the phase is spoken: a percentage changing every frame would flood a screen reader.
+	text.accessibility_live = AccessibilityServer.AccessibilityLiveMode.LIVE_POLITE
+	var pct := label("", 22)
+	pct.name = "Percent"
+	pct.custom_minimum_size = Vector2(70, 0)
+	pct.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(text)
+	row.add_child(pct)
+	box.add_child(row)
+	set_progress(box, 0.0, phase)
+	return box
+
+
+## Moves a progress() bar. The phase is only written when it changes, so each one is spoken once.
+static func set_progress(box: Control, fraction: float, phase := "") -> void:
+	var bar := box.get_node_or_null(^"Bar") as ProgressBar
+	if bar == null:
+		return
+	bar.value = clampf(fraction, 0.0, 1.0)
+	var pct := box.get_node_or_null(^"Row/Percent") as Label
+	if pct:
+		pct.text = "%d%%" % roundi(bar.value * 100.0)
+	var text := box.get_node_or_null(^"Row/Phase") as Label
+	if text and phase and text.text != phase:
+		text.text = phase
+		bar.accessibility_name = phase
+
+
+## A native "save as" dialog, kept on `host` and reused. `suggested` fills the name box and
+## `extension` (with its dot) is added if it's left off. `on_picked` gets the chosen path.
+static func save_dialog(host: Node, title: String, extension: String, suggested: String, on_picked: Callable) -> FileDialog:
+	var d := host.get_node_or_null(^"SaveDialog") as FileDialog
+	if d == null:
+		d = FileDialog.new()
+		d.name = "SaveDialog"
+		d.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+		d.access = FileDialog.ACCESS_FILESYSTEM
+		d.use_native_dialog = true
+		host.add_child(d)
+	for c in d.file_selected.get_connections():
+		d.file_selected.disconnect(c.callable)
+	d.title = title
+	d.filters = PackedStringArray(["*%s ; %s files" % [extension, extension.trim_prefix(".").to_upper()]])
+	var file_name := suggested.replace("/", "_").replace("\\", "_").strip_edges()
+	if file_name.is_empty():
+		file_name = "untitled"
+	d.current_file = file_name if file_name.ends_with(extension) else file_name + extension
+	d.file_selected.connect(func(path: String) -> void:
+		on_picked.call(path if path.ends_with(extension) else path + extension))
+	d.popup_file_dialog()
+	return d
 
 
 ## Shows `text` on a button through a child label, leaving the button's own text empty, so a

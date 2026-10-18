@@ -31,6 +31,14 @@ var _drive_button: Button
 var _save_button: Button
 var _dialog: FileDialog
 var _busy := false
+## Import progress: the bar, what the worker is reporting into, and the Import step's buttons
+## (greyed while a file is coming in).
+var _progress: VBoxContainer
+var _progress_src: ModelImport.Progress
+var _import_buttons: Array[Button] = []
+## The "already in your garage" question, and what to undo if it's dismissed.
+var _overlay: Control
+var _overlay_cancel := Callable()
 var _t_open := 0
 var _engine: EngineSound
 var _rev_time := 0.0
@@ -81,6 +89,9 @@ func _ready() -> void:
 	_content = VBoxContainer.new()
 	_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(_content)
+	_progress = UiKit.progress()
+	_progress.visible = false
+	side.add_child(_progress)
 	_status = UiKit.label("", 22)
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.accessibility_live = AccessibilityServer.AccessibilityLiveMode.LIVE_POLITE
@@ -142,14 +153,17 @@ func _show_step(step: String) -> void:
 
 func _step_import() -> Array:
 	var out := []
+	_import_buttons.clear()
 	if draft == null:
-		out.append(_text("Pick a .glb, .gltf or .fbx file. It doesn't need any preparation."))
-		out.append(UiKit.button("Browse…", _browse, "Choose a model file"))
+		out.append(_text("Pick a .glb, .gltf, .fbx or .noss file. It doesn't need any preparation."))
+		_import_buttons.append(UiKit.button("Browse…", _browse, "Choose a car or model file"))
 		DirAccess.make_dir_recursive_absolute(IMPORT_DIR)
 		var files := _import_folder_files()
+		out.append(_import_buttons[0])
 		out.append(_text("Or put files in the import folder:" if files.is_empty() else "From the import folder:"))
 		for f in files:
-			out.append(UiKit.button(f, _import.bind(IMPORT_DIR + f), "Import " + f))
+			_import_buttons.append(UiKit.button(f, _import.bind(IMPORT_DIR + f), "Import " + f))
+			out.append(_import_buttons[-1])
 		out.append(UiKit.button("Open import folder", func() -> void: OS.shell_open(ProjectSettings.globalize_path(IMPORT_DIR))))
 		return out
 	out.append(UiKit.text_field("Name", draft.car_name, func(t: String) -> void: draft.car_name = t.strip_edges() if t.strip_edges() else "New car"))
@@ -356,6 +370,9 @@ func _stop_engine() -> void:
 
 
 func _process(delta: float) -> void:
+	if _progress_src:
+		var p := _progress_src.read()
+		UiKit.set_progress(_progress, float(p.fraction), String(p.phase))
 	if _engine == null:
 		return
 	# A free-revving engine: up fast with throttle, back to idle without.
@@ -398,7 +415,9 @@ func _browse() -> void:
 		_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 		_dialog.access = FileDialog.ACCESS_FILESYSTEM
 		_dialog.use_native_dialog = true
-		_dialog.filters = PackedStringArray(["*.glb, *.gltf, *.fbx ; 3D models"])
+		_dialog.filters = PackedStringArray([
+			"*.glb, *.gltf, *.fbx, *.noss ; Cars and models", "*.glb, *.gltf, *.fbx ; 3D models", "*.noss ; nOSS cars",
+		])
 		_dialog.title = "Import a car"
 		_dialog.file_selected.connect(_import)
 		add_child(_dialog)
@@ -408,29 +427,159 @@ func _browse() -> void:
 func _import(path: String) -> void:
 	if _busy:
 		return
+	if path.get_extension().to_lower() == "noss":
+		_import_package(path)
+		return
 	_busy = true
 	_set_status("Importing " + path.get_file())
+	_progress_src = ModelImport.Progress.new()
+	_show_progress(true)
+	_update_actions()
 	var t0 := Time.get_ticks_msec()
 	ModelImport.import_async(path, func(result: ModelImport.Result) -> void:
-		_busy = false
 		if not is_inside_tree():
+			_busy = false
 			if result.scene:
 				result.scene.free()
 			return
 		if not result.ok():
-			_set_status(result.error)
-			print("Import failed: %s (%s)" % [path, result.error])
+			_import_failed(path, result.error)
 			return
+		# The analysis and the first draft write hold the frame, so no bar can move through
+		# them: name the phase and let it paint, rather than freeze on the last percentage.
+		_progress_src = null
+		UiKit.set_progress(_progress, 1.0, "Working out the fit")
+		await get_tree().process_frame
 		_discard_draft()
 		draft = FittingDraft.from_import(result)
 		Game.bay_draft = draft
 		_choose_platform()
 		draft.save_draft()
+		_busy = false
+		_show_progress(false)
 		print("Fitting Bay: imported %s in %d ms (%d tris)" % [path.get_file(), Time.get_ticks_msec() - t0, result.triangles])
 		_refresh()
 		_show_step(String(Game.dev.get("bay-step", "Import")).capitalize())
 		if auto:
-			_save_and_drive())
+			_save_and_drive(), PackageLoader.DEFAULT_LIMITS, ModelImport.TIMEOUT_S, _progress_src)
+
+
+## Brings in a .noss (PKG-04): its model, fit, paint and sound as they were packed. The loader
+## checks the zip, its limits and every file's hash first, so a file from anywhere is safe to
+## open. If the garage already holds that car, the player says what to do with it.
+func _import_package(path: String) -> void:
+	_busy = true
+	_set_status("Opening " + path.get_file())
+	_show_progress(true)
+	UiKit.set_progress(_progress, 0.3, "Reading " + path.get_file())
+	_update_actions()
+	PackageLoader.load_async(path, func(pkg: VehiclePackage) -> void:
+		if not is_inside_tree():
+			_busy = false
+			pkg.free_scenes()
+			return
+		if not pkg.ok():
+			pkg.free_scenes()
+			_import_failed(path, pkg.error if pkg.error else "Car failed to load")
+			return
+		UiKit.set_progress(_progress, 1.0, "Working out the fit")
+		await get_tree().process_frame
+		var brought := FittingDraft.from_package(pkg)
+		pkg.free_scenes()
+		# from_package() edits the file it came from. This one was picked off the player's
+		# disk, so the garage decides where it lands instead.
+		brought.edit_path = ""
+		_busy = false
+		_show_progress(false)
+		var owned := _garage_car_with_id(brought.id)
+		if owned.is_empty():
+			_take_draft(brought, "Imported " + path.get_file())
+		else:
+			_ask_about_copy(brought, owned, path))
+
+
+func _import_failed(path: String, error: String) -> void:
+	_busy = false
+	_progress_src = null
+	_show_progress(false)
+	_set_status(error)
+	_update_actions()
+	print("Import failed: %s (%s)" % [path, error])
+
+
+## Takes `brought` as the car being fitted and opens the Import step on it.
+func _take_draft(brought: FittingDraft, status: String) -> void:
+	_discard_draft()
+	draft = brought
+	Game.bay_draft = draft
+	_choose_platform()
+	draft.save_draft()
+	_refresh()
+	_show_step("Import")
+	_set_status(status)
+
+
+## The garage file holding the car with this id, or "". Built-in cars don't count: editing one
+## has always made a copy.
+static func _garage_car_with_id(id: String) -> String:
+	for path in PackageLoader.list_available():
+		if path.begins_with("res://"):
+			continue
+		if String(PackageLoader.read_manifest(path).get("id", "")) == id:
+			return path
+	return ""
+
+
+## An imported .noss the garage already has: overwrite that car, or keep both.
+func _ask_about_copy(brought: FittingDraft, owned: String, path: String) -> void:
+	var menu := Control.new()
+	menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var list := UiKit.panel(menu, "%s is already in your garage." % brought.car_name, 760)
+	var choices := [
+		UiKit.button("Replace my copy", func() -> void:
+			_overlay_cancel = Callable()
+			_close_overlay()
+			brought.edit_path = owned
+			_take_draft(brought, "Replacing " + owned.get_file()), "Save writes over it and counts up its version"),
+		UiKit.button("Add as a new car", func() -> void:
+			_overlay_cancel = Callable()
+			_close_overlay()
+			brought.id = PackageWriter.new_uuid()
+			brought.car_name = (brought.car_name + " copy").left(96)
+			_take_draft(brought, "Imported " + path.get_file() + " as a copy"), "Keeps the car you already have"),
+		UiKit.button("Cancel", _close_overlay, "Leave the garage as it is"),
+	]
+	for b: Button in choices:
+		list.add_child(b)
+	_overlay_cancel = func() -> void:
+		brought.free_scene()
+		_set_status("")
+	_show_overlay(menu)
+	UiKit.chain_focus(choices)
+
+
+func _show_overlay(control: Control) -> void:
+	_close_overlay()
+	_overlay = control
+	add_child(control)
+
+
+func _close_overlay() -> void:
+	if is_instance_valid(_overlay):
+		_overlay.queue_free()
+	_overlay = null
+	var cancel := _overlay_cancel
+	_overlay_cancel = Callable()
+	if cancel.is_valid():
+		cancel.call()
+
+
+func _show_progress(shown: bool) -> void:
+	if _progress == null:
+		return
+	_progress.visible = shown
+	if not shown:
+		UiKit.set_progress(_progress, 0.0)
 
 
 func _save() -> void:
@@ -669,6 +818,9 @@ func _refresh(rebuild := true) -> void:
 func _update_actions() -> void:
 	_drive_button.disabled = draft == null or _busy
 	_save_button.disabled = draft == null or _busy
+	for b in _import_buttons:
+		if is_instance_valid(b):
+			b.disabled = _busy
 
 
 func _set_status(text: String) -> void:
@@ -678,7 +830,8 @@ func _set_status(text: String) -> void:
 func _import_folder_files() -> PackedStringArray:
 	var out := PackedStringArray()
 	for f in DirAccess.get_files_at(IMPORT_DIR) if DirAccess.dir_exists_absolute(IMPORT_DIR) else PackedStringArray():
-		if f.get_extension().to_lower() in ModelImport.EXTENSIONS:
+		var ext := f.get_extension().to_lower()
+		if ext in ModelImport.EXTENSIONS or ext == "noss":
 			out.append(f)
 	return out
 
@@ -696,4 +849,7 @@ static func _focusable(controls: Array) -> Array:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel") and (_dialog == null or not _dialog.visible):
 		get_viewport().set_input_as_handled()
-		_exit()
+		if is_instance_valid(_overlay):
+			_close_overlay()
+		else:
+			_exit()
