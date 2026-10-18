@@ -15,7 +15,8 @@ const STUCK_S := 5.0
 const STUCK_SPEED := 0.8
 ## Margin on top of the time every platform needs to shrink away.
 const SLACK_S := 90.0
-## At most this share of the falls that had a platform below may miss it.
+## At most this share of the falls that had a platform below may miss it, and never on one fall
+## alone: a miss is meant to be rare, not impossible (D163), so a single one proves nothing.
 const MISS_RATE := 0.34
 
 var opts := { "cars": "8", "tiers": "2", "hazard": "lava", "shrink": "smooth", "secs": "90",
@@ -155,7 +156,7 @@ func _on_ended(_kind: String, results: Array) -> void:
 			problems.append("%d cars out on one tick (no winner to pick)" % int(out_ticks[t]))
 	# A miss is meant to be rare, not impossible (D163): a car flung hard off a vanishing ring can
 	# clear the one below. Most of them have to be caught, though.
-	if catchable > 0 and float(missed) / catchable > MISS_RATE:
+	if missed > 1 and float(missed) / catchable > MISS_RATE:
 		problems.append("%d of %d catchable fall(s) missed the platform below" % [missed, catchable])
 	var winner: Racer = results[0].racer if not results.is_empty() else null
 	print("Sumo: %.0f s, %d tier(s); winner %s (tier %d); radii %s; out: %s" % [session.race.clock, a.count(),

@@ -43,11 +43,11 @@
     "type": "auto",
     "ratios": [1.0],
     "reverse": 1.0,
-    "final_drive": 11.7,
+    "final_drive": 8.2,
     "shift_time_s": 0.0
   },
   "differential": { "type": "spool", "center": { "type": "locked", "front_share": 0.5 } },
-  "brakes": { "max_torque_nm": 2400, "bias_front": 0.55 },
+  "brakes": { "max_torque_nm": 5200, "bias_front": 0.55 },
   "suspension": {
     "type": "independent",
     "front": { "freq_hz": 2.6, "damping_bump": 0.45, "damping_rebound": 0.65, "travel_m": 0.09 },
@@ -60,7 +60,7 @@
   "tires": {
     "model": "pacejka_lite",
     "compound": "sumo",
-    "mu_peak": 1.45,
+    "mu_peak": 1.15,
     "load_sensitivity": 0.08,
     "peak_slip_ratio": 0.14,
     "peak_slip_angle_deg": 10.0,
