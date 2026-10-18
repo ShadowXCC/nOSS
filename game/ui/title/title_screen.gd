@@ -91,6 +91,11 @@ func _ready() -> void:
 		"highway": _open_highway()
 		"kart": _open_kart()
 		"endless": _open_endless()
+		"mini-games": _open_mini_games()
+		"sumo":
+			_open_mini_games()
+			_mini.visible = false
+			_open_sumo()
 		"online-players":
 			_open_online()
 			_online._open_players()

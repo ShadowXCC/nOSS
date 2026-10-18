@@ -182,10 +182,22 @@ func test_results_carry_the_tier_and_how_long_each_lasted() -> void:
 	assert_float(float(first_in.lasted)).is_greater(0.0)
 
 
+func test_a_reset_on_a_platform_sets_the_car_down_again() -> void:
+	await _start()
+	await _running()
+	# Still on a platform (stuck, or on its roof): put it back, don't put it out.
+	a.reset_car()
+	assert_bool(a.out).is_false()
+	assert_int(sumo.layout.tier_at(a.com())).is_equal(0)
+
+
 func test_nothing_tows_a_car_that_was_shoved_off() -> void:
 	await _start()
 	await _running()
-	# A reset in a sumo match is not a second chance: it goes in.
+	# Off the platforms there is nowhere to put it back: a reset puts it in the goo.
+	a.vehicle.reset_to(Transform3D(Basis.IDENTITY, Vector3(0.0, sumo.layout.hazard_y + 2.0, 0.0)))
+	for i in 2:
+		await get_tree().physics_frame
 	a.reset_car()
 	assert_bool(a.out).is_true()
 

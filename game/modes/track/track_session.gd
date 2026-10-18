@@ -153,13 +153,6 @@ var _sound_time := 0.0
 ## The sky (D153): the event's time and weather over the track's own, the style's sun; online, the
 ## server's (the same on every game, D159).
 func _env_state(style: StyleProfile) -> EnvState:
-	if sumo:
-		# The platforms online (D166): the server shrinks them and rules on who is in the goo.
-		sumo_net = SumoNet.new()
-		sumo_net.name = "SumoNet"
-		sumo_net.session = self
-		sumo_net.sumo = sumo
-		add_child(sumo_net)
 	var sky: Dictionary = online.get("environment", {})
 	var time := String(Game.dev.get("time", sky.get("time", event.time)))
 	var rate := int(Game.dev.get("time-rate", sky.get("time_rate", event.time_rate)))
@@ -493,6 +486,8 @@ func _add_player(slot: PlayerSlot, at: Variant = null, kart_class := "") -> Sess
 		p.spawn_at = highway.spawn_for(i, direction_for(i))
 	elif endless:
 		p.spawn_at = endless.spawn_for(i)
+	elif sumo:
+		p.spawn_at = arena_spawn(i)
 	else:
 		p.spawn_at = track.transform_at(_grid_distance(i), _grid_lateral(i)) if _spot_clear(_grid_distance(i), _grid_lateral(i)) else _free_grid_spot()
 	p.view = views.add(slot)
@@ -658,6 +653,14 @@ func _ready_sumo() -> void:
 		add_child(s)
 
 
+## Sumo: car `i`'s spot on the top platform's ring. The synthesised track's spline runs round
+## the platform's rim, so the usual grid would drop a car straight over the edge before the
+## lights; RaceControl places everyone properly again when the session begins.
+func arena_spawn(i: int) -> Transform3D:
+	var spawns := track.arena.spawns
+	return spawns[i % spawns.size()] if not spawns.is_empty() else Transform3D.IDENTITY
+
+
 ## Highways: racer `i`'s starting direction.
 func direction_for(i: int) -> int:
 	if i < directions.size():
@@ -741,6 +744,13 @@ func _ready_online() -> void:
 		kn.session = self
 		kn.kart = kart
 		add_child(kn)
+	if sumo:
+		# The platforms online (D166): the server shrinks them and rules on who is in the goo.
+		sumo_net = SumoNet.new()
+		sumo_net.name = "SumoNet"
+		sumo_net.session = self
+		sumo_net.sumo = sumo
+		add_child(sumo_net)
 	var sky: Dictionary = online.get("environment", {})
 	if not sky.is_empty():
 		var t0 := float(sky.t0)
@@ -808,8 +818,10 @@ func _on_chat(line: Dictionary) -> void:
 
 func _add_online_racer(d: Dictionary, index: int) -> Racer:
 	var id := int(d.id)
+	# By the roster's order, so players on different games never land on each other (D159).
 	var spot := highway.spawn_for(index, direction_for(index)) if highway \
 		else endless.spawn_for(_endless_file_index(id, index)) if endless \
+		else arena_spawn(index) if sumo \
 		else track.transform_at(_grid_distance(index), _grid_lateral(index))
 	if d.get("ai", false) and Net.is_server(): # the server's AI cars (D88)
 		var a := AiRacer.new()
@@ -981,7 +993,8 @@ func _add_ai(index: int, pool: PackedStringArray, skill: float) -> AiRacer:
 	if kept.has("paint"):
 		a.paint = kept.paint
 	var i := racers.size()
-	a.spawn_at = track.transform_at(_grid_distance(i), _grid_lateral(i)) if _spot_clear(_grid_distance(i), _grid_lateral(i)) else _free_grid_spot()
+	a.spawn_at = arena_spawn(i) if sumo else \
+		track.transform_at(_grid_distance(i), _grid_lateral(i)) if _spot_clear(_grid_distance(i), _grid_lateral(i)) else _free_grid_spot()
 	_add_racer(a)
 	a.load_car(String(kept.car) if kept.has("car") else pool[randi() % pool.size()] if not pool.is_empty() else _default_car)
 	return a

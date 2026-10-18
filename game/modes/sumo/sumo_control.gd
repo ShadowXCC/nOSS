@@ -22,6 +22,8 @@ const RAM_MIN_SPEED := 2.0
 ## Rising or falling faster than this it is passing through, not standing on anything: a car
 ## dropping between platforms crosses the one above's height band on its way down.
 const LAND_VY := 2.0
+## A car set down again after a Reset has no contact for this long.
+const GHOST_AFTER_RESET := 1.0
 ## HUD elements a sumo match never shows: it has no laps, no sectors and no racing line.
 const HUD_HIDDEN := ["timing", "delta", "position", "standings", "flags"]
 
@@ -123,8 +125,10 @@ func ram(r: Racer) -> bool:
 
 func _physics_process(delta: float) -> void:
 	_forget_gone()
-	for r: Racer in _charge.keys():
-		_charge[r] = minf(1.0, float(_charge[r]) + delta / RAM_RECHARGE_S)
+	_hold_out()
+	# Over every racer, not just the table's keys: a car that joined after the start has none yet.
+	for r in session.racers:
+		_charge[r] = minf(1.0, float(_charge.get(r, 1.0)) + delta / RAM_RECHARGE_S)
 	_sink(delta)
 	var running := session.race.phase == RaceControl.Phase.RUNNING
 	if running and not _started:
@@ -147,6 +151,17 @@ func _physics_process(delta: float) -> void:
 		if not order.is_empty() and not order[0].out:
 			order[0].notify("Winner", 4.0)
 		session.race.end_session()
+
+
+## The authority's word stands. A remote car takes its `out` from the states its own game sends
+## (NetRacer), so one still in flight when the server put the car out would clear the flag again;
+## without a time limit to fall back on, that alone could leave a match with nobody to declare.
+func _hold_out() -> void:
+	if not authority:
+		return
+	for r: Racer in _out_order:
+		if is_instance_valid(r) and not r.out:
+			_set_out(r, true)
 
 
 ## Cars that left the game drop out of the tables (they stay in the results they were in).
@@ -188,6 +203,9 @@ func _sink(delta: float) -> void:
 		var v: Variant = r.vehicle
 		if not is_instance_valid(v):
 			_sinking.erase(r)
+			continue
+		if (v as Vehicle).remote:
+			_sinking.erase(r) # its own game sinks it; moving it here only fights the states coming in
 			continue
 		var left := float(_sinking[r]) - delta
 		var car := v as Vehicle
@@ -233,8 +251,8 @@ func _knock_out(r: Racer) -> void:
 
 func _start_sinking(r: Racer) -> void:
 	var v := r.vehicle
-	if v == null or not is_instance_valid(v):
-		return
+	if v == null or not is_instance_valid(v) or v.remote:
+		return # a car another game drives is sunk there, and its states say where it is
 	_sinking[r] = SINK_S
 	v.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 	v.freeze = true
@@ -249,11 +267,21 @@ func _set_out(r: Racer, on: bool) -> void:
 	r.set_ghost(session.ghosted) # an out car stays a ghost (Racer.set_ghost)
 
 
-## Nothing tows a car here: being shoved off is the whole game. A car somehow under the pit is
-## the only thing worth putting out.
+## Nothing tows a car back onto a platform it was shoved off: that is the whole game. A Reset
+## while still over one only sets the car down again, upright, where it last stood; off the
+## platforms there is nowhere to put it, so it goes in.
 func recover(r: Racer) -> void:
-	if not r.out:
-		_knock_out(r)
+	if r.out:
+		return
+	var tier := layout.tier_at(r.com())
+	if tier >= 0 and r.vehicle and is_instance_valid(r.vehicle) and not r.vehicle.remote:
+		var at := r.last_valid_xform
+		if layout.tier_at(at.origin) != tier:
+			at = Transform3D(at.basis, Vector3(r.com().x, layout.floor_y_of(tier), r.com().z))
+		r.vehicle.reset_to(at)
+		r.ghost_for(GHOST_AFTER_RESET)
+		return
+	_knock_out(r)
 
 
 ## The order now (RaceControl's standings in a sumo match): cars still in first, by how high they
