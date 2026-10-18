@@ -117,6 +117,7 @@ var battle: BattleControl
 var sumo: SumoControl
 var sumo_world: SumoBuilder
 var sumo_hud: SumoHud
+var sumo_net: SumoNet
 ## A kart cup's race (D145): its standings after the results, its AI field. Null otherwise.
 var cup: CupRun
 ## Kart sessions (D149): AI karts pick a class of their own (off: they all take the session's,
@@ -152,6 +153,13 @@ var _sound_time := 0.0
 ## The sky (D153): the event's time and weather over the track's own, the style's sun; online, the
 ## server's (the same on every game, D159).
 func _env_state(style: StyleProfile) -> EnvState:
+	if sumo:
+		# The platforms online (D166): the server shrinks them and rules on who is in the goo.
+		sumo_net = SumoNet.new()
+		sumo_net.name = "SumoNet"
+		sumo_net.session = self
+		sumo_net.sumo = sumo
+		add_child(sumo_net)
 	var sky: Dictionary = online.get("environment", {})
 	var time := String(Game.dev.get("time", sky.get("time", event.time)))
 	var rate := int(Game.dev.get("time-rate", sky.get("time_rate", event.time_rate)))
@@ -494,6 +502,10 @@ func _add_player(slot: PlayerSlot, at: Variant = null, kart_class := "") -> Sess
 		endless.apply_hud(p)
 	elif sumo_hud:
 		sumo_hud.apply_hud(p)
+	elif battle:
+		# A battle has no laps or sectors to show either (Changes.md).
+		p.hud.session_hidden = PackedStringArray(BattleControl.HUD_HIDDEN)
+		p.hud.apply_profile(p.slot.profile)
 	p.pause_requested.connect(_open_pause)
 	slot.profile.data.last_platform = platform_id
 	var path := car_path if car_path and slot.index == 0 else String(slot.profile.data.get("last_car", ""))
@@ -1079,7 +1091,11 @@ func _on_session_ended(kind: String, results: Array) -> void:
 		print("%s results: %s" % [kind.capitalize(), ", ".join(PackedStringArray(results.map(func(row: Dictionary) -> String: return "%d %s" % [row.position, row.name])))])
 		print("NETCHECK_RESULTS " + JSON.stringify({ "kind": kind, "rows": results.map(func(row: Dictionary) -> Dictionary:
 			return { "position": row.position, "name": row.name, "laps": row.laps, "dnf": row.dnf, "time": row.time, "best": row.best,
-				"ai": not (row.racer as Racer).is_human, "lives": row.get("lives", -1), "hits": row.get("hits", 0) }) }))
+				"ai": not (row.racer as Racer).is_human, "lives": row.get("lives", -1), "hits": row.get("hits", 0),
+				"tier": row.get("tier", 0), "lasted": row.get("lasted", 0.0), "out": row.get("out", false) }) }))
+		var sn := get_node_or_null(^"SumoNet") as SumoNet
+		if sn:
+			print("NETCHECK_SUMO_SERVER " + JSON.stringify({ "outs": sn.outs, "tiers": sumo.layout.count() }))
 		var kn := get_node_or_null(^"KartNet") as KartNet
 		if kn:
 			print("NETCHECK_KART_SERVER " + JSON.stringify({ "validated": kn.validated, "rejected": kn.rejected, "forced": kn.forced,

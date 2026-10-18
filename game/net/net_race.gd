@@ -279,10 +279,12 @@ func _rows(raw: Array) -> Array:
 				"flagged": TYPE_BOOL }):
 			continue
 		var row: Dictionary = v.duplicate()
-		# A battle's columns (D144), when there.
-		for key: String in ["lives", "hits", "taken"]:
+		# A battle's columns (D144) and a sumo match's tier (D162), when there.
+		for key: String in ["lives", "hits", "taken", "tier"]:
 			if row.has(key) and typeof(row[key]) != TYPE_INT:
 				row.erase(key)
+		if row.has("lasted") and typeof(row.lasted) != TYPE_FLOAT:
+			row.erase("lasted")
 		if row.has("out") and typeof(row.out) != TYPE_BOOL:
 			row.erase("out")
 		var r: Racer = net.racers.get(row.id)

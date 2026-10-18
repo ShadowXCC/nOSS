@@ -179,7 +179,30 @@ A calm, never-ending drive, like Slow Roads.
 - **Players on one PC** stay on one stretch of road. Past 2.5 km apart they're warned; past 3 km the event's rule acts: **Bring up the one behind**, or **Hold the leader back**.
 - **Online (D159):** everyone drives the same road. Each game builds the road round its own players and keeps its own origin, so players spread out freely; **Join** in the pause menu puts you just behind another player, at their speed. At the start everyone lines up in single file in the roster's order; a joiner starts just behind whoever's furthest along. Online cars start ghosted for 3 s. One game drives each traffic car near players and the others show it; a slot used up on one game is used up on all. The server checks the road chunks each game made against its own.
 
-## 5. Light career
+## 5. Sumo Wrestling
+
+*Mini Games. D162–D166.*
+
+Shove everyone else off a floating platform. It plays on **generated platforms**, not a track: the arena is built from the match's own settings, so there is nothing to pick, nothing to download and nothing of it on the wire. From the title: **Solo Drive → Mini Games → Sumo Wrestling**.
+
+- **The arena (D162):** 1 to 3 discs stacked on one centre inside a rock pit, with lava or acid at the bottom. The top one is 24 m across the radius, each one below is wider (36 m, 48 m) and 18 m further down, so a car knocked off lands on the next rather than sailing past it (D163). The platforms have a sloped rim that catches a car landing on the edge; the rim is not floor to drive on.
+- **The shrink:** the top platform starts shrinking when the lights go out; a lower one only once a car has actually landed on it, so the tiers below stay full size until they are needed. A platform takes **Short (60 s), Normal (90 s) or Long (150 s)** to go, and shrinks one of three ways:
+  - **Smooth:** the edge creeps in steadily.
+  - **Stepped:** a whole ring goes every sixth of the time, with a warning just before.
+  - **Crumbling:** the same, with the lost ring breaking into lumps that tumble into the goo.
+- **Falling:** nothing tows you back. Knocked off the top platform you fall to the next one; off the bottom one you are in the goo. Air control works on the way down, so the fall can be steered.
+- **The goo:** touch the lava or acid and you are **out** — a splash, the car sinks over a second and drives on no more. The moment of contact is what counts, not the sinking.
+- **Winning:** the **last car not in the goo**. The platforms are the extra lives, not ranks: a survivor down on the third beats everyone already in. Cars that are out are ranked by when they went in, the last one first — so with the floor vanishing under the last two, whoever holds on a fraction longer wins.
+- **Sudden death (off by default):** the bottom platform stops at a 6 m pillar instead of going altogether. It holds for 25 s and then gives way too, so two cautious drivers cannot stall a match for ever.
+- **Ram boost (D164):** a rechargeable lunge on its own **Ram** button (about 5 s to charge, shown as a bar). It only fires while you are moving, so it is a shove and not a standing start. There are no items.
+- **The class:** one class, **Sumo** — 900 kg, all-wheel drive, grippy and slow, so every car shoves the same. **Any model may be mounted**, car, open-wheeler, truck or bike; an oversized one is scaled down as karts do (D150). Mass and grip come from the class, never the model, so nobody wins by bringing a lorry.
+- **HUD:** cars left, which platform you are on and how much of it is left, and the ram's charge. No laps, sectors, places or flags. Short lines only: "Tier 2", "Shrinking", "Out", "Last one", "Winner".
+- **AI (D165):** bots hunt the nearest car on their own platform, break off when the edge gets close (the better the driver, the later), and spend their ram when the target is close, lined up, and nearer the edge than they are.
+- **Local players:** up to 4 in splitscreen, each with their own car.
+- **Online (D166):** the server shrinks the platforms and rules on who is in the goo. Only the radii and each car's platform, out and ram charge go over (protocol 7) — the arena itself needs no syncing, since the same settings build the same platforms everywhere. A ring-out is sent at once so the splash lands on the tick it happened. Nobody joins a match in progress; they are in the next one.
+- **Results:** the platform each car reached and how long it lasted, with the winner shown as "Won".
+
+## 6. Light career
 
 *MODE-07. Milestone M10.*
 
@@ -192,7 +215,7 @@ A calm, never-ending drive, like Slow Roads.
 - **Rewards are cosmetic only:** paint finishes, decals (once the livery editor exists), nameplates, HUD themes, horn sounds.
 - Progress is saved locally. Online play is unranked.
 
-## 6. Leaderboards
+## 7. Leaderboards
 
 - **Local:** per track, platform and mode.
 - **Per server:** kept by the host or dedicated server.

@@ -14,11 +14,11 @@ const TILE_M := 4.0
 const REBUILD_M := 0.05
 ## Out cars rest here, under the goo and out of sight.
 const PIT_FLOOR_DROP_M := 3.0
-## The goo's own Area3D reaches this far below its surface.
-const HAZARD_DEPTH_M := 20.0
-
-## Fires when a car touches the goo.
-signal entered_hazard(body: Node3D)
+## Crumbling: chunks broken off a lost ring, how long they fall for, and how fast they tumble.
+const CHUNKS := 14
+const CHUNK_LIFE_S := 4.0
+const CHUNK_SPIN := 2.5
+const GRAVITY := 9.81
 
 var layout: SumoLayout
 var visual := true
@@ -27,6 +27,8 @@ var calm := false
 
 var _slabs: Array[Node3D] = []
 var _built_r := PackedFloat32Array()
+## Lumps of a crumbled ring on their way into the goo: [{node, vel, spin, life}].
+var _debris: Array[Dictionary] = []
 
 
 func setup(a: SumoLayout, with_visuals := true, reduce_flashing := false) -> void:
@@ -56,6 +58,9 @@ func refresh() -> void:
 			continue
 		if absf(r - _built_r[i]) < REBUILD_M:
 			continue
+		# A crumbling platform throws the ring it just lost into the goo (D162).
+		if visual and layout.style == "crumble" and _built_r[i] > r + SumoLayout.LIP_M:
+			_crumble(r, _built_r[i], layout.floor_y_of(i))
 		_built_r[i] = r
 		_clear(_slabs[i])
 		_slab(_slabs[i], r, layout.floor_y_of(i))
@@ -65,6 +70,55 @@ func _clear(under: Node3D) -> void:
 	for c in under.get_children():
 		under.remove_child(c)
 		c.queue_free()
+
+
+## Throws the ring between `inner` and `outer` off as lumps that tumble into the goo. They are
+## scenery only: the floor has already gone, so nothing drives on them.
+func _crumble(inner: float, outer: float, y: float) -> void:
+	var mid := (inner + outer) / 2.0
+	var width := maxf(outer - inner, 1.0)
+	var material := WorldMaterials.surface(VehicleSim.SURFACE_CONCRETE)
+	for i in CHUNKS:
+		var ang := TAU * (i + randf() * 0.6) / CHUNKS
+		var dir := Vector3(cos(ang), 0.0, sin(ang))
+		var at := dir * mid + Vector3.UP * (y - THICK_M / 2.0)
+		var b := MeshBatch.new()
+		var basis := Basis(Vector3.UP, ang)
+		b.box(Vector3.ZERO, basis, Vector3(width * randf_range(0.5, 0.9), THICK_M, TAU * mid / CHUNKS * randf_range(0.5, 0.9)))
+		var mi := MeshInstance3D.new()
+		mi.mesh = b.mesh()
+		mi.material_override = material
+		mi.position = at
+		add_child(mi)
+		_debris.append({
+			"node": mi,
+			"vel": dir * randf_range(0.5, 2.5) + Vector3.UP * randf_range(-0.5, 1.5),
+			"spin": Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)).normalized() * CHUNK_SPIN * randf(),
+			"life": CHUNK_LIFE_S,
+		})
+
+
+func _process(delta: float) -> void:
+	if _debris.is_empty():
+		return
+	var still: Array[Dictionary] = []
+	for d in _debris:
+		var mi: Variant = d.node
+		if not is_instance_valid(mi):
+			continue
+		d.life = float(d.life) - delta
+		# Gone once it has had its time, or once the goo has swallowed it.
+		if float(d.life) <= 0.0 or (mi as Node3D).position.y < layout.hazard_y - 2.0:
+			(mi as Node3D).queue_free()
+			continue
+		d.vel = (d.vel as Vector3) + Vector3.DOWN * GRAVITY * delta
+		var node := mi as Node3D
+		node.position += (d.vel as Vector3) * delta
+		node.rotate_x(float((d.spin as Vector3).x) * delta)
+		node.rotate_y(float((d.spin as Vector3).y) * delta)
+		node.rotate_z(float((d.spin as Vector3).z) * delta)
+		still.append(d)
+	_debris = still
 
 
 ## One tier: a disc of `radius` at `y`, with a rim sloping out to the lip and a side down to the
@@ -116,35 +170,19 @@ func _pit() -> void:
 	_piece(holder, "PitFloor", floor_batch, rock, VehicleSim.SURFACE_CONCRETE)
 
 
-## The goo: a glowing surface and the volume that catches a car touching it.
+## The goo: a glowing surface, drawn only. Whether a car is in it is a height test in
+## SumoControl, so a dedicated server rules the same way without any physics contact.
 func _goo() -> void:
-	var holder := Node3D.new()
-	holder.name = "Hazard"
-	add_child(holder)
-	if visual:
-		var b := MeshBatch.new()
-		_disc(b, layout.pit_r, layout.hazard_y)
-		var mi := MeshInstance3D.new()
-		mi.name = "Goo"
-		mi.mesh = b.mesh()
-		mi.material_override = material()
-		holder.add_child(mi)
-	var area := Area3D.new()
-	area.name = "Goo Area"
-	area.monitorable = false
-	# Cars are on LAYER_VEHICLES, so the area has to watch that, not the default world layer.
-	area.collision_mask = Vehicle.LAYER_VEHICLES
-	area.set_meta(&"noss_hazard", layout.hazard)
-	var cs := CollisionShape3D.new()
-	var shape := CylinderShape3D.new()
-	shape.radius = layout.pit_r
-	shape.height = HAZARD_DEPTH_M
-	cs.shape = shape
-	# The top face sits on the goo's surface, so contact fires as a car touches it.
-	cs.position = Vector3(0, layout.hazard_y - HAZARD_DEPTH_M / 2.0, 0)
-	area.add_child(cs)
-	area.body_entered.connect(func(body: Node3D) -> void: entered_hazard.emit(body))
-	holder.add_child(area)
+	if not visual:
+		return
+	var b := MeshBatch.new()
+	_disc(b, layout.pit_r, layout.hazard_y)
+	var mi := MeshInstance3D.new()
+	mi.name = "Goo"
+	mi.mesh = b.mesh()
+	mi.material_override = material()
+	mi.set_meta(&"noss_hazard", layout.hazard)
+	add_child(mi)
 
 
 ## The goo's material: lava, or acid in the same shader.

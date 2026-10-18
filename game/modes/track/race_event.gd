@@ -39,6 +39,7 @@ var ai_cars := "garage"
 var items := true
 var battle_rule := "standing"
 var battle_min := 5
+var battle_hits := 10
 ## Sumo (docs/GAMEMODES.md §5): how many platforms are stacked (1-3), what's underneath
 ## ("lava" or "acid"), how a platform shrinks ("smooth", "crumble" or "stepped"), how long one
 ## takes to shrink away, and whether the bottom one stops at a pillar instead of vanishing.

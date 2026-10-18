@@ -139,11 +139,11 @@ func platform(i: int) -> PlatformLoader.Result:
 	return PlatformLoader.load_file(PlatformLoader.USER_DIR + id + PlatformLoader.SUFFIX)
 
 
-## Rotation item `i`'s event (online: free drive, a race weekend, a highway, a kart battle or an
-## endless road).
+## Rotation item `i`'s event (online: free drive, a race weekend, a highway, a kart battle, an
+## endless road or a sumo match).
 func event(i: int) -> RaceEvent:
 	var e := RaceEvent.from_dict(rotation[i].get("event", {}))
-	if e.kind not in ["free", "race", "highway", "battle", "endless"]:
+	if e.kind not in ["free", "race", "highway", "battle", "endless", "sumo"]:
 		e.kind = "free"
 	return e
 

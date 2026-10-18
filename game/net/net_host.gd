@@ -396,7 +396,7 @@ func _ai_entries() -> Array:
 	var e := event()
 	var out := []
 	_ai_paths.clear()
-	if e.kind not in ["race", "battle"]:
+	if e.kind not in ["race", "battle", "sumo"]:
 		return out
 	var count := mini(e.ai_count, NetProtocol.MAX_PLAYERS - server.player_count())
 	if count <= 0:
@@ -525,13 +525,13 @@ func _on_joined(peer: int) -> void:
 	_say("%s joined" % ", ".join(names))
 	if config.motd:
 		_notice(peer, config.motd)
-	if state == "session" and event().kind not in ["race", "battle"]: # joins the drive in progress
+	if state == "session" and event().kind not in ["race", "battle", "sumo"]: # joins the drive in progress
 		for p in server.players_of(peer):
 			_in_session[p.id] = true
 		server.send(peer, NetProtocol.Msg.SESSION, session_dict())
 		_roster_changed(peer)
 	elif state == "session":
-		_notice(peer, "%s on: you're in the next one" % ("Battle" if event().kind == "battle" else "Race"))
+		_notice(peer, "%s on: you're in the next one" % { "battle": "Battle", "sumo": "Sumo" }.get(event().kind, "Race"))
 	_dirty = true
 
 

@@ -1,6 +1,6 @@
 class_name LeaderboardMenu
 extends Control
-## A local leaderboard for this track and class (docs/GAMEMODES.md §6): fastest laps (or runs)
+## A local leaderboard for this track and class (docs/GAMEMODES.md §7): fastest laps (or runs)
 ## with driver, car and assists, or the most points (score attack). Each line is focusable and
 ## reads in full to a screen reader.
 

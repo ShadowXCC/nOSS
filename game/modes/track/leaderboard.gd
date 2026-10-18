@@ -1,6 +1,6 @@
 class_name Leaderboard
 extends RefCounted
-## Local leaderboards (docs/GAMEMODES.md §6, D118), one file per track:
+## Local leaderboards (docs/GAMEMODES.md §7, D118), one file per track:
 ## user://leaderboards/<track>.json, a list per board. A board is a platform's id (time-trial
 ## laps), or a platform's id and what's timed or scored after "|": "|score" (score attack, most
 ## points first), "|loop+1" and "|loop-1" (a highway loop's laps each way), "|run:<id>" (a run).

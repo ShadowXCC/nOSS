@@ -51,8 +51,6 @@ var _started := false
 
 func _ready() -> void:
 	process_physics_priority = -53 # after RaceControl, before the drivers
-	if builder:
-		builder.entered_hazard.connect(_on_goo)
 	session.race.session_started.connect(func(_kind: String) -> void: reset())
 
 
@@ -141,6 +139,7 @@ func _physics_process(delta: float) -> void:
 	_follow_tiers(running)
 	if not authority or ended or not running:
 		return
+	_check_goo()
 	# One car left (or none: the goo took the last of them on the same tick).
 	if session.racers.size() > 1 and standing().size() <= 1:
 		ended = true
@@ -202,14 +201,15 @@ func _sink(delta: float) -> void:
 			_sinking[r] = left
 
 
-## `body` touched the goo.
-func _on_goo(body: Node3D) -> void:
-	if ended or session.race.phase != RaceControl.Phase.RUNNING:
-		return
+## Anyone down in the goo is out. This is a height test rather than the hazard's Area3D, so it
+## rules the same way on a dedicated server, where every car is a remote one the physics never
+## really touches, as it does on a game driving its own.
+func _check_goo() -> void:
 	for r in session.racers:
-		if r.vehicle == body and not r.out:
+		if r.out or r.vehicle == null or not is_instance_valid(r.vehicle):
+			continue
+		if r.com().y <= layout.hazard_y:
 			_knock_out(r)
-			return
 
 
 ## Out: timed now, whatever the sinking looks like afterwards.

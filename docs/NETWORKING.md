@@ -206,4 +206,18 @@ Every game makes the same road and the same traffic schedule from the event's se
 
 Measured: see §10 (Endless convoy).
 
+## 13. Sumo platforms (D166)
+
+Every game builds the same platforms from the event's settings alone (D162), so the arena itself is never sent — no track to agree on, nothing to download, and nothing to check. All that goes over is how far each platform has shrunk and where each car stands.
+
+- **The server decides** everything: it shrinks the platforms, sees every fall and rules on who is in the goo. Clients turn `SumoControl.authority` off and follow; they have nothing to report, since the server sees each fall itself.
+- **A ring-out** goes out at once, reliably, so the splash, the message and the car ghosting all land on the tick it happened rather than up to 200 ms later.
+- **Five times a second** the server sends how things stand: every platform's radius and every car's platform, out and ram charge. That heals drift and brings a joiner up to date. A client works out from the radii alone which platforms are going, so nothing else has to be sent for it to show the right thing.
+- **Nobody joins a match in progress** ("Sumo on: you're in the next one"), as in a race or a battle.
+
+| Message | Way | Contents |
+|---|---|---|
+| `SUMO_STATE` (107) | server → clients, 5 Hz | `tiers` u8 · radius f32 × tiers · cars u8 × 5 B (id u16 · tier i8, −1 in the air or gone · flags u8, 1 = out · ram charge u8) |
+| `SUMO_EVENTS` (113) | server → clients, reliable | 8-byte records: kind u8 (1 out, 2 a platform set going) · car u16 · tier u8 · time u32 (ms) |
+
 **Replays and ghosts** can reuse the same car-state format (AV-08).

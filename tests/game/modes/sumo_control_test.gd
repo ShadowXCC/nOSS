@@ -61,9 +61,10 @@ func _running() -> void:
 		await get_tree().physics_frame
 
 
-## Puts `r` in the goo, as touching it would.
+## Drops `r` into the goo, as being shoved off would.
 func _goo(r: Racer) -> void:
-	sumo._on_goo(r.vehicle)
+	r.vehicle.reset_to(Transform3D(Basis.IDENTITY, Vector3(0.0, sumo.layout.hazard_y - 1.0, 0.0)))
+	sumo._check_goo()
 
 
 func test_the_arena_is_generated_with_no_track_file() -> void:

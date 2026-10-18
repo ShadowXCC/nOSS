@@ -16,6 +16,9 @@ signal knocked_out(r: Racer)
 const LIVES := 3
 const LIFE_KINDS := ["bolt", "seeker", "oil_slick", "emp"]
 const GRACE_S := 2.0
+## HUD elements a battle never shows: there are no laps to time or deltas to hold against
+## (Changes.md). Places and the board come from KartPanel instead.
+const HUD_HIDDEN := ["timing", "delta"]
 
 var session: TrackSession
 var authority := true
