@@ -199,12 +199,18 @@ func apply_profile(profile: PlayerProfile) -> void:
 	for item: Array in [["speed", [_speed, _unit, _gear, _rpm]], ["timing", [_time, _last, _best]], ["car", [_car]]]:
 		for c: CanvasItem in item[1]:
 			c.visible = not _hidden.has(item[0])
+	# A mode with a tachometer of its own keeps the speed and the gear but drops this one, so the
+	# driver has one needle to read rather than two that disagree (D169).
+	_rpm.visible = _rpm.visible and session_rpm
 	queue_redraw()
 
 
 ## Elements this session hides whatever the player's choice (endless: everything, until they
 ## show it; timing always, there are no laps). Set it, then apply_profile().
 var session_hidden := PackedStringArray()
+## The RPM bar, which a mode with its own tachometer turns off (a drag pass, D169). The speed and
+## the gear stay. Set it, then apply_profile().
+var session_rpm := true
 
 
 ## Whether a HUD element is shown (not hidden by the player's preset or choice).

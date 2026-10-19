@@ -17,9 +17,13 @@ const STUCK_S := 5.0
 ## What a tree allows: a bot that reacts slower than this is asleep, and under this is a red
 ## light the check expects to be marked as one.
 const REACTION_MAX_S := 1.2
-## At this skill and up, most shifts should land in the window.
+## With every bot at this skill or better, most shifts should land in the window; with any field
+## whose best bots are good, a decent share should. Below that, missing the window is the point
+## of a skill setting, so nothing is asserted beyond "they shift at all".
 const SHARP_SKILL := 85.0
 const SHARP_PERFECT := 0.6
+const DECENT_SKILL := 80.0
+const DECENT_PERFECT := 0.25
 ## At most this share of passes may be lost to the centreline: bots are meant to hold a lane.
 const CENTRELINE_RATE := 0.15
 ## Margin on top of what every pass could take.
@@ -200,11 +204,15 @@ func _on_ended(_kind: String, results: Array) -> void:
 	var shifts := int(grades.perfect) + int(grades.good) + int(grades.miss)
 	if session.event.drag_timing and shifts == 0:
 		problems.append("not one shift was graded: the field never shifted")
-	var skill_top := float(String(opts.skill).split("-")[-1])
-	if session.event.drag_timing and shifts > 0 and skill_top >= SHARP_SKILL:
+	var parts := String(opts.skill).split("-")
+	var skill_low := float(parts[0])
+	var skill_top := float(parts[-1])
+	if session.event.drag_timing and shifts > 0:
 		var rate := float(grades.perfect) / shifts
-		if rate < SHARP_PERFECT:
-			problems.append("only %.0f%% of %d shifts were perfect at skill up to %.0f" % [rate * 100.0, shifts, skill_top])
+		if skill_low >= SHARP_SKILL and rate < SHARP_PERFECT:
+			problems.append("only %.0f%% of %d shifts were perfect with every bot at skill %.0f+" % [rate * 100.0, shifts, skill_low])
+		elif skill_top >= DECENT_SKILL and rate < DECENT_PERFECT:
+			problems.append("only %.0f%% of %d shifts were perfect with bots up to skill %.0f" % [rate * 100.0, shifts, skill_top])
 	if session.event.drag_centreline and d.passes_run > 0:
 		var rate := float(int(fouls.get("centreline", 0))) / float(d.passes_run * 2)
 		if rate > CENTRELINE_RATE:

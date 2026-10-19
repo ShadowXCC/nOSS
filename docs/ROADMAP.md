@@ -192,10 +192,10 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
 - Online (protocol 8): the server runs the tree, grades the shifts and rules on the fouls.
 
 **Acceptance:**
-- [ ] A drag match runs its whole ladder to a single winner, on every class and length.
-- [ ] The three classes pass conformance.
-- [ ] Bots hold their lane, react like drivers and shift on the needle.
-- [ ] A drag match online.
+- [x] A drag match runs its whole ladder to a single winner, on every class and length. *`tools/drag_check.sh` (4 cars, skill 70-90, one seed): all 9 of Street, Pro and Top Fuel x 1/8, 1/4 and 1/2 mile. Each runs its 3 passes, eliminates one car a pass, ends with exactly one car in and nobody in the sand. A whole 4-car ladder takes 54-90 s. Fields of 6 and 8 run their 5 and 7 passes the same way. The check's own work costs 9-12 µs a tick.*
+- [x] The three classes pass conformance. *All three within 2% across their geometry grid, weather included, and every other platform still passes: `tools/run_conformance.sh` 0 failed. Top Fuel had to come down from 820 kW to 620 kW (0.62 kW/kg, about Formula's) — above that it could not get round the Proving Ground for the conformance lap at all, whatever its steering lock.*
+- [x] Bots hold their lane, react like drivers and shift on the needle. *Reactions 0.05-0.24 s, no centreline fouls in any sweep run. Skill separates them: with every bot at 88+ all 18 shifts were perfect; at 60-90 it is 18 perfect to 22 good. The first lane keeper had its signs inverted and lost 75% of its passes over the centreline (D174).*
+- [x] A drag match online. *`tools/net_check.py --event drag --clients 2 --ai 3 --length 201 --rtt 150 --jitter 10 --loss 1`: 2 bots and 3 AI, 4 passes, one winner, every car classified with its round. Clients' ETs 8.30 s against the AI's 7.50-7.63 s, reactions 0.12-0.18 s, 8 shift grades taken from clients, remote cars within 0.00 m (median) and 0.20-0.27 m (95%), 8 KB/s down per bot, no contacts and no plausibility flags. Found on the way: `NetRace.KINDS` had neither `sumo` nor `drag`, so those clients dropped every race state and their RaceControl sat in LOADING for the whole session — a sumo bug too, fixed here; a snapshot arriving late could set a client's car back on the line mid-run (now guarded by the pass number on the wire); and every game parked its own waiting cars by `number`, which is 1 for each game's first player, so two games parked on the same spot and saw each other there (45 contacts a match, now 0).*
 - [ ] The screen-reader walk covers the new menu and the panel.
 
 ## M10+: Backlog (order to be decided)

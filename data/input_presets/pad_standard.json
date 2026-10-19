@@ -131,7 +131,7 @@
     ],
     "boost": [
       {
-        "button": "left_shoulder"
+        "button": "a"
       }
     ],
     "menu_up": [

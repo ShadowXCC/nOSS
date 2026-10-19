@@ -33,9 +33,11 @@ func _ready() -> void:
 			_news(r, "Shake"))
 
 
-## A drag pass has no laps, sectors or places to show.
+## A drag pass has no laps, sectors or places to show. With the shifts timed, the engine's own
+## RPM bar goes too: the panel's needle is the one to read (D169).
 func apply_hud(p: SessionPlayer) -> void:
 	p.hud.session_hidden = PackedStringArray(DragControl.HUD_HIDDEN)
+	p.hud.session_rpm = not session.event.drag_timing
 	p.hud.apply_profile(p.slot.profile)
 
 

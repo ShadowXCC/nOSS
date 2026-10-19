@@ -75,14 +75,18 @@ const DEAD_SPEED := 2.0
 const DEAD_S := 3.0
 ## After the last car resolves, this long to roll out before the next pass.
 const SETTLE_S := 3.0
-## Where cars wait their turn.
+## Where cars wait their turn, spaced by car id. Not by `number`: every game calls its own first
+## player P1, so two games would park their own cars in the same spot and see each other's there.
 const PARK_Y := -600.0
+const PARK_GAP_M := 8.0
 
 var session: TrackSession
 var layout: DragLayout
 var builder: DragBuilder
 var ladder := DragLadder.new()
 var sounds: DragSounds
+## Online: the server's side of it (DragNet). Null offline.
+var net: DragNet
 var authority := true
 ## The ladder's draw seed (0: drawn freshly). Dev and tests set it so a match repeats.
 var drag_seed := 0
@@ -97,6 +101,8 @@ var cars: Array[Racer] = []
 var _run := {}
 ## Ambers already lit this tree, so each one is heard once.
 var _ambers_lit := 0
+## Client: the pass number the server's snapshots are talking about (-1: none seen yet).
+var _net_pass := -1
 ## racer -> the best numbers it has set in the match: {reaction, et, trap}.
 var _best := {}
 ## Passes run, for the soak check.
@@ -115,6 +121,7 @@ func reset() -> void:
 	ended = false
 	phase = Phase.IDLE
 	phase_time = 0.0
+	_net_pass = -1
 	cars = []
 	passes_run = 0
 	_run.clear()
@@ -243,15 +250,27 @@ func recover(r: Racer) -> void:
 		at = layout.spawn_of(lane)
 	r.vehicle.reset_to(at)
 	r.ghost_for(1.0)
-	if phase == Phase.RUN and _run.has(r) and not bool(_run[r].done):
+	# Only the authority rules on a pass. Online, a client that resets is set back on the line and
+	# loses the pass on the clock, rather than showing itself a foul the server never saw.
+	if authority and phase == Phase.RUN and _run.has(r) and not bool(_run[r].done):
 		_foul(r, "reset")
 
 
 func _physics_process(delta: float) -> void:
 	_forget_gone()
+	if Game.dev.has("drag-debug") and Engine.get_physics_frames() % 30 == 0:
+		var names := ", ".join(PackedStringArray(cars.map(func(c: Racer) -> String:
+			return "%s l%s n%.2f g%d" % [c.display_name, _run.get(c, {}).get("lane", -1),
+				float(_run.get(c, {}).get("needle", -1.0)),
+				c.vehicle.sim.get_gear() if c.vehicle and is_instance_valid(c.vehicle) else -9])))
+		print("DRAG_DEBUG auth %s racephase %d phase %d t %.2f ended %s cars[%d] %s" % [
+			authority, session.race.phase, phase, phase_time, ended, cars.size(), names])
 	if ended or session.race.phase != RaceControl.Phase.RUNNING:
 		return
 	phase_time += delta
+	if not authority:
+		_tick_client(delta)
+		return
 	match phase:
 		Phase.IDLE:
 			_begin_pass()
@@ -266,6 +285,40 @@ func _physics_process(delta: float) -> void:
 		Phase.SETTLE:
 			if phase_time >= SETTLE_S:
 				_end_pass()
+
+
+## Online client (D175): the pass is the server's, but the car is this game's. It reads its own
+## controls, sweeps its own needle, grades its own shifts and feels its own surge at once rather
+## than a round trip later; the tree, the fouls, the lights and the ladder come from the server.
+func _tick_client(delta: float) -> void:
+	_read_drivers(delta)
+	if phase == Phase.TREE or phase == Phase.STAGE:
+		_show_tree()
+		return
+	if phase != Phase.RUN:
+		return
+	for r in cars:
+		var s: Dictionary = _run.get(r, {})
+		if s.is_empty() or r.vehicle == null or not is_instance_valid(r.vehicle) or r.vehicle.remote:
+			continue
+		_watch_shift(r, s)
+		_advance_needle(r, s, delta)
+		_shake(r, s, delta)
+		_timers(s, delta)
+		_apply(r, s, delta)
+
+
+## The bulbs as they stand, from the phase and its clock (the server's, on a client).
+func _show_tree() -> void:
+	if builder == null:
+		return
+	var lit := mini(int(phase_time / AMBER_S), AMBERS) if phase == Phase.TREE else 0
+	for r in cars:
+		var lane := int(_run.get(r, {}).get("lane", 0))
+		builder.set_bulb(lane, DragBuilder.Bulb.PRE_STAGE, true)
+		builder.set_bulb(lane, DragBuilder.Bulb.STAGE, true)
+		for i in AMBERS:
+			builder.set_bulb(lane, DragBuilder.Bulb.AMBER_1 + i, i < lit)
 
 
 ## Cars that left the game drop out of the tables (they keep the results they were in).
@@ -354,7 +407,7 @@ func _park(r: Racer) -> void:
 	if r.vehicle and is_instance_valid(r.vehicle) and not r.vehicle.remote:
 		r.vehicle.visible = false
 		r.vehicle.set_ghost(true, false)
-		r.vehicle.reset_to(Transform3D(Basis.IDENTITY, Vector3(0.0, PARK_Y - r.number * 10.0, 0.0)))
+		r.vehicle.reset_to(Transform3D(Basis.IDENTITY, Vector3(0.0, PARK_Y - maxi(r.net_id, r.number) * PARK_GAP_M, 0.0)))
 		r.vehicle.freeze = true
 
 
@@ -430,6 +483,8 @@ func _tick_tree(delta: float) -> void:
 
 func _green() -> void:
 	_to(Phase.RUN)
+	if net:
+		net.send_green()
 	if sounds and not cars.is_empty() and cars[0].vehicle and is_instance_valid(cars[0].vehicle):
 		sounds.bulb(cars[0].vehicle.global_position, true)
 	_hold(false)
@@ -465,6 +520,10 @@ func _tick_run(delta: float) -> void:
 			continue
 		var com := r.com()
 		s.furthest = maxf(float(s.furthest), com.z)
+		# Away, whatever the driver did with the launch input: a car over the line has left, so
+		# its reaction is timed from there rather than left unmeasured.
+		if not bool(s.launched) and layout.distance_from_start(com) > 0.5:
+			launch(r)
 		if session.event.drag_centreline and layout.crossed_centreline(com, int(s.lane)):
 			_foul(r, "centreline")
 			continue
@@ -751,6 +810,8 @@ static func _better(a: Array, b: Array) -> bool:
 func _finish_match() -> void:
 	ended = true
 	var won := ladder.winner
+	if net:
+		net.send_match_end(won)
 	if won:
 		won.notify("Winner", 4.0)
 	for r in session.racers:
@@ -758,6 +819,174 @@ func _finish_match() -> void:
 	session.race.end_session()
 
 
-## Online client: the pass as the server has it (DragNet).
-func apply_net(_r: Racer, _state: Dictionary) -> void:
-	pass
+## Online client: the phase and its clock as the server has them. A phase that has moved on is
+## taken at once; the clock is only nudged, so the tree does not stutter between snapshots.
+func apply_net_phase(at_phase: int, at_time: float, at_pass := -1) -> void:
+	# A snapshot that arrived late must not drag the pass backwards: being set back on the line
+	# mid-run teleports the car, which reads as a jump to the server's own plausibility checks
+	# (D87). A phase behind this one is only believed when it belongs to a later pass.
+	var new_pass := at_pass >= 0 and at_pass != _net_pass
+	if new_pass:
+		_net_pass = at_pass
+	elif at_phase < phase and at_phase != Phase.IDLE:
+		return
+	if at_phase == phase:
+		phase_time = lerpf(phase_time, at_time, 0.25)
+		return
+	phase = at_phase
+	phase_time = at_time
+	_ambers_lit = 0
+	match phase:
+		Phase.BURNOUT:
+			_hold(false)
+			_place_local(true)
+		Phase.STAGE:
+			# The server sets its own cars back on the line here, so this game does the same.
+			_place_local(false)
+			_hold(true)
+		Phase.TREE:
+			_hold(true)
+		Phase.RUN:
+			_hold(false)
+		Phase.IDLE, Phase.SETTLE:
+			if builder:
+				builder.reset_tree()
+
+
+## Online client: its own cars at the water box or on the line. The server never moves a car
+## another game drives (D84), so each game sets its own down.
+func _place_local(at_burnout: bool) -> void:
+	for r in cars:
+		if r.vehicle == null or not is_instance_valid(r.vehicle) or r.vehicle.remote:
+			continue
+		var lane := int(_run.get(r, {}).get("lane", 0))
+		var at := layout.burnout_of(lane) if at_burnout else layout.spawn_of(lane)
+		at.origin.y += 0.05
+		r.spawn_at = at
+		r.last_valid_xform = at
+		r.vehicle.reset_to(at)
+		r.vehicle.sim.select_gear(1)
+
+
+## Online client: car `r` as the server has it.
+func apply_net(r: Racer, state: Dictionary) -> void:
+	var in_pass := bool(state.in_pass)
+	if in_pass:
+		if not _run.has(r):
+			_run[r] = _blank_run(int(state.lane))
+		if r not in cars:
+			cars.append(r)
+		if r.parked:
+			_unpark(r)
+			_place_local(phase == Phase.BURNOUT)
+	else:
+		# Out of the pass: both tables, whichever of them still holds it. A car can be in `cars`
+		# from a PASS event with no state yet, or the other way about.
+		_run.erase(r)
+		cars.erase(r)
+		if not r.parked:
+			_park(r)
+	if bool(state.out) != r.out:
+		r.out = bool(state.out)
+		r.set_ghost(session.ghosted)
+	if not _run.has(r):
+		return
+	var s: Dictionary = _run[r]
+	s.lane = int(state.lane)
+	s.launched = bool(state.launched) or bool(s.launched)
+	s.blown = bool(state.blown)
+	s.boosts = int(state.boosts)
+	if String(state.foul) and not String(s.foul):
+		s.foul = String(state.foul)
+	if float(state.reaction) >= 0.0 and float(s.reaction) < 0.0:
+		s.reaction = float(state.reaction)
+	if float(state.et) >= 0.0 and float(s.et) < 0.0:
+		s.et = float(state.et)
+	s.done = bool(state.done) or bool(s.done)
+
+
+## Online client: a car is in this pass, in this lane.
+func net_pass_car(r: Racer, lane: int) -> void:
+	if not _run.has(r):
+		_run[r] = _blank_run(lane)
+	_run[r].lane = lane
+	if r not in cars:
+		cars.append(r)
+	_unpark(r)
+	_place_local(phase == Phase.BURNOUT or phase == Phase.IDLE)
+	pass_started.emit(cars.duplicate())
+
+
+## Online client: the lights went green on the server.
+func net_green() -> void:
+	_to(Phase.RUN)
+	_hold(false)
+	if builder:
+		for r in cars:
+			var lane := int(_run.get(r, {}).get("lane", 0))
+			for i in AMBERS:
+				builder.set_bulb(lane, DragBuilder.Bulb.AMBER_1 + i, false)
+			builder.set_bulb(lane, DragBuilder.Bulb.GREEN, String(_run.get(r, {}).get("foul", "")) != "red")
+
+
+## Online client: the server's word on a foul, a finish, a pass and the match.
+func net_foul(r: Racer, why: String) -> void:
+	if _run.has(r) and String(_run[r].foul).is_empty():
+		_foul(r, why)
+
+
+func net_finish(r: Racer, et: float) -> void:
+	if not _run.has(r):
+		return
+	var s: Dictionary = _run[r]
+	if bool(s.done):
+		return
+	s.et = et
+	s.crossed = et + maxf(float(s.reaction), 0.0)
+	s.trap = absf(r.vehicle.speed()) if r.vehicle and is_instance_valid(r.vehicle) else 0.0
+	s.done = true
+	run_finished.emit(r, et, float(s.trap))
+
+
+func net_pass_end(won: Racer) -> void:
+	pass_ended.emit(won)
+	if builder:
+		builder.reset_tree()
+
+
+func net_match_end(won: Racer) -> void:
+	ended = true
+	ladder.winner = won
+	if won:
+		won.notify("Winner", 4.0)
+
+
+## Server: what a client's own game saw of its own car (DragNet). Its reaction and its shift
+## grades are the two things only the driver's own game can see.
+func take_net_reaction(r: Racer, reaction: float) -> void:
+	var s: Dictionary = _run.get(r, {})
+	if s.is_empty() or float(s.reaction) >= 0.0 or reaction < 0.0 or reaction > _pass_limit():
+		return
+	s.reaction = reaction
+	if not bool(s.launched):
+		s.launched = true
+
+
+func take_net_grade(r: Racer, grade: String) -> void:
+	var s: Dictionary = _run.get(r, {})
+	if s.is_empty() or grade.is_empty():
+		return
+	match grade:
+		"perfect":
+			s.chain = mini(int(s.chain) + 1, CHAIN_MAX) if session.event.drag_chain else 0
+		"miss":
+			s.chain = 0
+	shift_graded.emit(r, grade, maxi(r.vehicle.sim.get_gear(), 1) if r.vehicle and is_instance_valid(r.vehicle) else 1)
+
+
+func take_net_boost(r: Racer) -> void:
+	var s: Dictionary = _run.get(r, {})
+	if s.is_empty() or int(s.boosts) <= 0:
+		return
+	s.boosts = int(s.boosts) - 1
+	boost_used.emit(r)

@@ -115,8 +115,10 @@ func _markings() -> void:
 	# The centreline runs the length of the racing surface, the edges down each lane's outside.
 	_along(b, 0.0, CENTRE_W_M, layout.back_z(), layout.length_m)
 	for lane in 2:
-		var outer := layout.lane_x(lane) + signf(layout.lane_x(lane)) * DragLayout.LANE_W * 0.5
-		_along(b, outer, EDGE_W_M, layout.back_z(), layout.length_m)
+		var side := signf(layout.lane_x(lane))
+		_along(b, side * DragLayout.surface_half(), EDGE_W_M, layout.back_z(), layout.length_m)
+		# The inside edge of each lane, so the gap round the centreline reads as a gap.
+		_along(b, side * DragLayout.LANE_GAP_M * 0.5, EDGE_W_M, layout.back_z(), layout.length_m)
 	var mi := MeshInstance3D.new()
 	mi.name = "Markings"
 	mi.mesh = b.mesh()
@@ -126,7 +128,7 @@ func _markings() -> void:
 
 ## A band across both lanes at `z`.
 func _across(b: MeshBatch, z: float, width: float) -> void:
-	var x := DragLayout.LANE_W
+	var x := DragLayout.surface_half()
 	_paint(b, -x, x, z - width * 0.5, z + width * 0.5)
 
 

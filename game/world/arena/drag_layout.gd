@@ -8,12 +8,19 @@ extends ArenaLayout
 ## The outline is a long rectangle, so ArenaLayout's floor and wall and ArenaBuilder's deck serve
 ## as they stand; DragBuilder only adds the markings and the sand.
 
-## Lane width and the gap each side of the centreline. A lane's middle is half a lane out.
-const LANE_W := 4.0
+## A lane's width, and the gap between the two of them with the centreline down its middle. A
+## strip puts its lanes well apart: 8 m between the middles here, so two wide models (the class
+## takes trucks) never brush on the line.
+const LANE_W := 5.0
+const LANE_GAP_M := 3.0
 ## Deck past the outer lane edges: room to correct, and where the wall stands.
 const SHOULDER_M := 3.0
-## Behind the start line: the staging lanes and, further back, the water box.
-const STAGE_BACK_M := 50.0
+## Behind the start line: the water box, and behind that the staging lanes the rest of the field
+## waits in. Long enough that a full field of 16 queues up rather than stacking on the line.
+const STAGE_BACK_M := 130.0
+## The queue starts this far back, with a row every this far.
+const QUEUE_FROM_M := -60.0
+const QUEUE_ROW_M := 10.0
 ## Where a car stages, just short of the line, and where a burnout is done.
 const STAGE_Z := -3.0
 const BURNOUT_Z := -30.0
@@ -37,7 +44,7 @@ static func make(t: TrackData, event: RaceEvent) -> DragLayout:
 	a.length_m = float(clampi(int(event.drag_length_m), LENGTHS[0], LENGTHS[LENGTHS.size() - 1]))
 	a.shutdown_m = clampf(a.length_m, SHUTDOWN_MIN_M, SHUTDOWN_MAX_M)
 	a.floor_y = 0.0
-	a.half_width = LANE_W + SHOULDER_M
+	a.half_width = surface_half() + SHOULDER_M
 	a.outline = rect_of(a.half_width, a.back_z(), a.end_z())
 	a.centre = Vector2(0.0, (a.back_z() + a.end_z()) / 2.0)
 	a.area = 2.0 * a.half_width * (a.end_z() - a.back_z())
@@ -50,7 +57,7 @@ var length_m := 402.0
 ## Shutdown past the finish, sand included.
 var shutdown_m := 402.0
 ## Deck from the centreline to its edge.
-var half_width := LANE_W + SHOULDER_M
+var half_width := LANE_GAP_M * 0.5 + LANE_W + SHOULDER_M
 
 
 ## Behind the start line, and the far end of the deck.
@@ -69,7 +76,12 @@ func trap_z() -> float:
 
 ## The middle of lane `lane` (0: left, 1: right).
 func lane_x(lane: int) -> float:
-	return (LANE_W * 0.5) * (1.0 if lane == 1 else -1.0)
+	return ((LANE_W + LANE_GAP_M) * 0.5) * (1.0 if lane == 1 else -1.0)
+
+
+## From the centreline to the outer edge of the racing surface (the shoulders are past it).
+static func surface_half() -> float:
+	return LANE_GAP_M * 0.5 + LANE_W
 
 
 ## Where car `lane` stages, facing down the strip (+Z is forward).
@@ -127,7 +139,7 @@ func off_deck(pos: Vector3) -> bool:
 static func outline_for(event: RaceEvent) -> PackedVector2Array:
 	var length := float(clampi(int(event.drag_length_m), LENGTHS[0], LENGTHS[LENGTHS.size() - 1]))
 	var shutdown := clampf(length, SHUTDOWN_MIN_M, SHUTDOWN_MAX_M)
-	return rect_of(LANE_W + SHOULDER_M, -STAGE_BACK_M, length + shutdown)
+	return rect_of(surface_half() + SHOULDER_M, -STAGE_BACK_M, length + shutdown)
 
 
 ## A rectangle, counter-clockwise (x, z).
@@ -140,8 +152,13 @@ static func rect_of(half_w: float, z0: float, z1: float) -> PackedVector2Array:
 	return out
 
 
-## Two spawns, one a lane, staged and facing down the strip. The field is paired two at a time
-## (D170), so a pass only ever needs these two.
+## The two spots on the line, then the staging lanes behind them: a spot for every car of a full
+## field, so the cars waiting their turn (D170) queue up instead of being stacked two deep on the
+## line before the first pass parks them.
 func _lane_spawns() -> void:
 	for lane in 2:
 		spawns.append(spawn_of(lane))
+	for row in 7:
+		for lane in 2:
+			var z := QUEUE_FROM_M - row * QUEUE_ROW_M
+			spawns.append(Transform3D(Basis.IDENTITY, Vector3(lane_x(lane), floor_y, z)))

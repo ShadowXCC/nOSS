@@ -20,6 +20,7 @@ and exits 0 (PASS) or 1 (FAIL).
   tools/net_check.py --event battle --clients 4 --ai 4 --track crate_yard --rule hits   # M8
   tools/net_check.py --event endless --clients 3 --late 40 --duration 150   # M9: an endless convoy
   tools/net_check.py --event sumo --clients 3 --ai 4 --tiers 2 --rtt 150   # a sumo match
+  tools/net_check.py --event drag --clients 3 --ai 4 --length 402 --rtt 150 # a drag ladder
   tools/net_check.py --event endless --clients 2 --exported --duration 120  # exported builds (tools/export.sh)
 
 On a highway (--event highway, the Lumen Ring and the Street class unless given) every bot also
@@ -138,9 +139,12 @@ def main(argv=None):
     p.add_argument("--clients", type=int, default=3, help="bots with one player each")
     p.add_argument("--quad", type=int, default=0, help="bots with four players each (splitscreen guests)")
     p.add_argument("--duration", type=float, default=60.0, help="seconds of driving (free drive)")
-    p.add_argument("--event", choices=["free", "race", "highway", "kart", "battle", "endless", "sumo"], default="free")
+    p.add_argument("--event", choices=["free", "race", "highway", "kart", "battle", "endless", "sumo", "drag"], default="free")
     p.add_argument("--rule", choices=["standing", "hits"], default="standing", help="battle: last one standing or most hits")
     p.add_argument("--tiers", type=int, default=2, help="sumo: how many platforms are stacked (1-3)")
+    p.add_argument("--length", type=int, default=402, help="drag: the strip in metres (201, 402 or 805)")
+    p.add_argument("--boost", type=int, default=1, help="drag: bottles each driver gets (0-3)")
+    p.add_argument("--drag-class", choices=["street", "pro", "top_fuel"], default="street", help="drag: the class the field drives")
     p.add_argument("--hazard", choices=["lava", "acid"], default="lava", help="sumo: what is under the platforms")
     p.add_argument("--shrink", choices=["smooth", "crumble", "stepped"], default="smooth", help="sumo: how a platform shrinks")
     p.add_argument("--platform-secs", type=int, default=60, help="sumo: how long one platform takes to go")
@@ -183,9 +187,10 @@ def main(argv=None):
     karts = args.event in ["kart", "battle"]
     endless = args.event == "endless"
     sumo = args.event == "sumo"
+    drag = args.event == "drag"
     args.klass = args.klass or ("official.highway.street" if highway else "official.kart.medium" if karts
                                 else "official.endless.cruiser" if endless else "official.sumo.standard" if sumo
-                                else "official.track.gt")
+                                else ("official.drag." + args.drag_class) if drag else "official.track.gt")
     args.track = args.track or ("lumen_ring" if highway else "gearworks" if args.event == "kart" else "crate_yard" if args.event == "battle"
                                 else "endless" if endless else "proving_ground")
 
@@ -199,7 +204,7 @@ def main(argv=None):
     track = args.track
     if Path(track).exists():  # a path here, not an id: the config lives in the logs' folder
         track = str(Path(track).resolve())
-    builtin_track = (ROOT / "content" / "tracks" / args.track).is_dir() or endless or sumo
+    builtin_track = (ROOT / "content" / "tracks" / args.track).is_dir() or endless or sumo or drag
     event = {"kind": "race" if args.event == "kart" else args.event}
     if highway:
         event.update({"sub": args.sub, "traffic": args.traffic, "direction": 0 if args.dirs == "opposite" else 1, "police": args.police})
@@ -209,6 +214,10 @@ def main(argv=None):
         # The arena is generated from these, so there is no track to agree on (D162).
         event.update({"sumo_tiers": args.tiers, "sumo_hazard": args.hazard, "sumo_shrink": args.shrink,
                       "sumo_secs": args.platform_secs, "ai_count": args.ai, "ai_cars": "builtin"})
+    if drag:
+        # The strip is generated from these, so there is no track to agree on (D168).
+        event.update({"drag_length_m": args.length, "drag_boost": args.boost,
+                      "ai_count": args.ai, "ai_cars": "builtin"})
     if args.event == "battle":
         event.update({"battle_rule": args.rule, "battle_min": args.minutes, "ai_count": args.ai, "ai_cars": "builtin"})
     if args.event in ["race", "kart"]:
@@ -282,7 +291,7 @@ def main(argv=None):
         threading.Thread(target=sim.run, daemon=True).start()
         port = sim.port
 
-    quit_flag = ["--quit-after-results"] if args.event in ["race", "kart", "battle", "sumo"] else [f"--quit-at={args.duration + 15}"]
+    quit_flag = ["--quit-after-results"] if args.event in ["race", "kart", "battle", "sumo", "drag"] else [f"--quit-at={args.duration + 15}"]
     if args.fresh:
         cache = logs / "fresh_cache"
         import shutil
@@ -330,6 +339,7 @@ def main(argv=None):
     server_stats = {}
     endless_server = None
     kart_server = None
+    drag_server = None
     loop = None
     track_ms = {}
     for name, proc, _ in procs:
@@ -353,6 +363,8 @@ def main(argv=None):
                 endless_server = json.loads(line[len("NETCHECK_ENDLESS_SERVER "):])
             elif line.startswith("NETCHECK_KART_SERVER "):
                 kart_server = json.loads(line[len("NETCHECK_KART_SERVER "):])
+            elif line.startswith("NETCHECK_DRAG_SERVER "):
+                drag_server = json.loads(line[len("NETCHECK_DRAG_SERVER "):])
             elif line.startswith("NETCHECK_CONTACT "):
                 t, a, b, x, y, z = line.split()[1:]
                 contacts.append({"t": float(t), "a": int(a), "b": int(b), "pos": (float(x), float(y), float(z))})
@@ -489,6 +501,33 @@ def main(argv=None):
                       "  (AI)" if r["ai"] else ""))
             if len(rows) != players + args.ai:
                 fails.append("%d karts in the results, not %d" % (len(rows), players + args.ai))
+    elif args.event == "drag":
+        if results is None:
+            fails.append("no drag results")
+        else:
+            rows = results["rows"]
+            print("drag results (%d m, %s):" % (args.length, args.drag_class))
+            for r in rows:
+                print("  P%-2d %-16s round %s, %s, %s%s" % (r["position"], r["name"], r.get("round", "-"),
+                      "RT %.3f" % r["reaction"] if r.get("reaction", -1.0) >= 0.0 else "RT -",
+                      "ET %.3f" % r["et"] if r.get("et", -1.0) >= 0.0 else "ET -", "  (AI)" if r["ai"] else ""))
+            if len(rows) != players + args.ai:
+                fails.append("%d cars in the results, not %d" % (len(rows), players + args.ai))
+            # One winner, and everyone else out of the ladder behind it.
+            if rows and int(rows[0].get("round", 0)) <= 0:
+                fails.append("the leader never reached a round")
+            # The ladder eliminates one car a pass, so a field of n takes n-1 passes.
+            server = drag_server or {}
+            if server:
+                print("  server: %d events, %d grades taken from clients, %d passes" % (
+                    server.get("events", 0), server.get("grades", 0), server.get("passes", 0)))
+                want = max(len(rows) - 1, 1)
+                if int(server.get("passes", 0)) != want:
+                    fails.append("%d passes run, %d expected for %d cars" % (server["passes"], want, len(rows)))
+                if not server.get("winner"):
+                    fails.append("the server's ladder has no winner")
+                if int(server.get("grades", 0)) == 0 and players > 0:
+                    fails.append("the server took no shift grades from any client")
     elif args.event == "sumo":
         if results is None:
             fails.append("no sumo results")

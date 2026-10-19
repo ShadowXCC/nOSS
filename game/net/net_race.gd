@@ -8,7 +8,10 @@ extends Node
 
 const MSG_STATE := 103
 const STATE_HZ := 10.0
-const KINDS := ["free", "time_trial", "practice", "qualifying", "race", "battle"]
+## Session kinds on the wire, by index: a client drops a race state whose kind is not the one it
+## began, so a kind missing here leaves that client's RaceControl stuck in LOADING for the whole
+## session. Appended to, never reordered (protocol 8 added sumo and drag).
+const KINDS := ["free", "time_trial", "practice", "qualifying", "race", "battle", "sumo", "drag"]
 const FLAGS := ["", "green", "yellow", "blue", "checkered"]
 const HEADER := 32
 const CAR_SIZE := 21
@@ -279,12 +282,14 @@ func _rows(raw: Array) -> Array:
 				"flagged": TYPE_BOOL }):
 			continue
 		var row: Dictionary = v.duplicate()
-		# A battle's columns (D144) and a sumo match's tier (D162), when there.
-		for key: String in ["lives", "hits", "taken", "tier"]:
+		# A battle's columns (D144), a sumo match's tier (D162) and a drag pass's round (D168),
+		# when there.
+		for key: String in ["lives", "hits", "taken", "tier", "round"]:
 			if row.has(key) and typeof(row[key]) != TYPE_INT:
 				row.erase(key)
-		if row.has("lasted") and typeof(row.lasted) != TYPE_FLOAT:
-			row.erase("lasted")
+		for key: String in ["lasted", "reaction", "et", "trap"]:
+			if row.has(key) and typeof(row[key]) != TYPE_FLOAT:
+				row.erase(key)
 		if row.has("out") and typeof(row.out) != TYPE_BOOL:
 			row.erase("out")
 		var r: Racer = net.racers.get(row.id)

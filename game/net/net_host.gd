@@ -396,7 +396,7 @@ func _ai_entries() -> Array:
 	var e := event()
 	var out := []
 	_ai_paths.clear()
-	if e.kind not in ["race", "battle", "sumo"]:
+	if e.kind not in ["race", "battle", "sumo", "drag"]:
 		return out
 	var count := mini(e.ai_count, NetProtocol.MAX_PLAYERS - server.player_count())
 	if count <= 0:

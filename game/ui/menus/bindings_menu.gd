@@ -81,6 +81,8 @@ func _build() -> void:
 			rows.add_child(UiKit.label("Kart", 24)) # its actions share inputs kart ignores (D135)
 		if action == Bindings.SUMO[0]:
 			rows.add_child(UiKit.label("Sumo", 24)) # a sumo match has no items, so Ram may share that
+		if action == Bindings.DRAG[0]:
+			rows.add_child(UiKit.label("Drag", 24)) # a drag pass has no items or ram, so Boost may share those
 		var refs: Array = map.get(action, [])
 		var label := Bindings.refs_label(refs, kind)
 		var dupes := _also(map, action)

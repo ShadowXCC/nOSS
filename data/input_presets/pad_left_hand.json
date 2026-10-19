@@ -85,7 +85,7 @@
     ],
     "boost": [
       {
-        "button": "dpad_up"
+        "button": "left_stick"
       }
     ],
     "menu_up": [

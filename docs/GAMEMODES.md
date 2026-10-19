@@ -208,7 +208,7 @@ Shove everyone else off a floating platform. It plays on **generated platforms**
 
 Two cars, two lanes, one straight line. It plays on a **generated strip**, not a track: the strip is built from the match's own settings, so there is nothing to pick, nothing to download and nothing of it on the wire. From the title: **Solo Drive → Mini Games → Drag Strip**.
 
-- **The strip (D168):** two 4 m lanes with a painted centreline, a water box and the staging lanes behind the line, and past the finish a **shutdown as long again as the strip** (250–700 m) ending in **sand** for anyone who never got on the brakes. Lengths: **1/8 mile (201 m), 1/4 mile (402 m) or 1/2 mile (805 m)** — named in miles or in metres, whichever the player's units are set to.
+- **The strip (D168):** two 5 m lanes 8 m apart, with a painted centreline down the gap between them, a water box and the staging lanes behind the line, and past the finish a **shutdown as long again as the strip** (250–700 m) ending in **sand** for anyone who never got on the brakes. Lengths: **1/8 mile (201 m), 1/4 mile (402 m) or 1/2 mile (805 m)** — named in miles or in metres, whichever the player's units are set to.
 - **A pass, in order:**
   - **Burnout** (optional): a few seconds in the water box. Throttle against the brake heats the tires and buys grip at the launch; cook them past about four seconds and you have thrown it away (D172).
   - **Staging:** both cars are set on the line and held. With the **two-step** on, hold the revs in the band on the tach — low bogs the launch, high roasts the tires.

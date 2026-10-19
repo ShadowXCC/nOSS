@@ -140,10 +140,10 @@ func platform(i: int) -> PlatformLoader.Result:
 
 
 ## Rotation item `i`'s event (online: free drive, a race weekend, a highway, a kart battle, an
-## endless road or a sumo match).
+## endless road, a sumo match or a drag strip).
 func event(i: int) -> RaceEvent:
 	var e := RaceEvent.from_dict(rotation[i].get("event", {}))
-	if e.kind not in ["free", "race", "highway", "battle", "endless", "sumo"]:
+	if e.kind not in ["free", "race", "highway", "battle", "endless", "sumo", "drag"]:
 		e.kind = "free"
 	return e
 

@@ -218,22 +218,27 @@ func test_presets_have_the_horn_and_lights_and_no_clashes() -> void:
 			for r: Dictionary in b.get(action, []):
 				var key := JSON.stringify(r)
 				var other: String = seen.get(key, "")
-				# Kart actions only share with what kart sessions ignore (D135), sumo ones likewise (D164).
+				# Kart actions only share with what kart sessions ignore (D135); the sumo and drag
+				# ones likewise (D164, D173).
 				var allowed: bool = (action in Bindings.KART and other in Bindings.KART_SHARES[action]) \
-					or (action in Bindings.SUMO and other in Bindings.SUMO_SHARES[action])
+					or (action in Bindings.SUMO and other in Bindings.SUMO_SHARES[action]) \
+					or (action in Bindings.DRAG and other in Bindings.DRAG_SHARES[action])
 				assert_bool(other.is_empty() or allowed).override_failure_message("%s: %s and %s share %s" % [id, other, action, key]).is_true()
 				if other.is_empty():
 					seen[key] = action
 
 
-## Every preset with buttons to spare has the kart and sumo actions (D135, D164).
+## Every preset with buttons to spare has the kart, sumo and drag actions (D135, D164, D173).
 func test_presets_have_the_kart_actions() -> void:
 	for id in ["kb_full", "kb_left", "kb_right", "pad_standard", "pad_left_hand", "pad_right_hand"]:
 		var b := Bindings.effective(id)
-		for action: String in Bindings.KART + Bindings.SUMO:
+		for action: String in Bindings.KART + Bindings.SUMO + Bindings.DRAG:
 			assert_array(b.get(action, [])).override_failure_message("%s: %s" % [id, action]).is_not_empty()
 	assert_array(Bindings.effective("pad_standard").drift).is_equal([{ "button": JOY_BUTTON_RIGHT_SHOULDER }])
 	assert_array(Bindings.effective("kb_full").use_item).is_equal([{ "key": KEY_E }])
 	assert_bool("drift" in Bindings.HOLD).is_true()
-	# Ram shares the item button, which a sumo match has no use for (D164).
+	# Ram shares the item button, which a sumo match has no use for (D164). The bottle cannot go
+	# there: the ram sits on shift up, and a drag pass is all about the shifts, so it takes the
+	# handbrake instead (D173).
 	assert_array(Bindings.effective("kb_full").ram).is_equal([{ "key": KEY_E }])
+	assert_array(Bindings.effective("kb_full").boost).is_equal([{ "key": KEY_SPACE }])

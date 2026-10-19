@@ -123,6 +123,7 @@ var sumo_net: SumoNet
 var drag: DragControl
 var drag_world: DragBuilder
 var drag_hud: DragHud
+var drag_net: DragNet
 ## Dev and tests: the ladder's draw seed (0: drawn freshly).
 var drag_seed := 0
 ## A kart cup's race (D145): its standings after the results, its AI field. Null otherwise.
@@ -160,6 +161,15 @@ var _sound_time := 0.0
 ## The sky (D153): the event's time and weather over the track's own, the style's sun; online, the
 ## server's (the same on every game, D159).
 func _env_state(style: StyleProfile) -> EnvState:
+	if drag:
+		# The pass online (D175): the server runs the tree, rules on the lane and the lights, and
+		# says who won; each game grades its own shifts and reports them up.
+		drag_net = DragNet.new()
+		drag_net.name = "DragNet"
+		drag_net.session = self
+		drag_net.drag = drag
+		drag.net = drag_net
+		add_child(drag_net)
 	var sky: Dictionary = online.get("environment", {})
 	var time := String(Game.dev.get("time", sky.get("time", event.time)))
 	var rate := int(Game.dev.get("time-rate", sky.get("time_rate", event.time_rate)))
@@ -827,6 +837,15 @@ func _ready_online() -> void:
 		sumo_net.session = self
 		sumo_net.sumo = sumo
 		add_child(sumo_net)
+	if drag:
+		# The pass online (D175): the server runs the tree, rules on the lane and the lights, and
+		# says who won; each game grades its own shifts and reports them up.
+		drag_net = DragNet.new()
+		drag_net.name = "DragNet"
+		drag_net.session = self
+		drag_net.drag = drag
+		drag.net = drag_net
+		add_child(drag_net)
 	var sky: Dictionary = online.get("environment", {})
 	if not sky.is_empty():
 		var t0 := float(sky.t0)
@@ -1181,10 +1200,15 @@ func _on_session_ended(kind: String, results: Array) -> void:
 		print("NETCHECK_RESULTS " + JSON.stringify({ "kind": kind, "rows": results.map(func(row: Dictionary) -> Dictionary:
 			return { "position": row.position, "name": row.name, "laps": row.laps, "dnf": row.dnf, "time": row.time, "best": row.best,
 				"ai": not (row.racer as Racer).is_human, "lives": row.get("lives", -1), "hits": row.get("hits", 0),
-				"tier": row.get("tier", 0), "lasted": row.get("lasted", 0.0), "out": row.get("out", false) }) }))
+				"tier": row.get("tier", 0), "lasted": row.get("lasted", 0.0), "out": row.get("out", false),
+				"reaction": row.get("reaction", -1.0), "et": row.get("et", -1.0), "round": row.get("round", 0) }) }))
 		var sn := get_node_or_null(^"SumoNet") as SumoNet
 		if sn:
 			print("NETCHECK_SUMO_SERVER " + JSON.stringify({ "outs": sn.outs, "tiers": sumo.layout.count() }))
+		var dn := get_node_or_null(^"DragNet") as DragNet
+		if dn:
+			print("NETCHECK_DRAG_SERVER " + JSON.stringify({ "events": dn.events, "grades": dn.grades_taken,
+				"passes": drag.passes_run, "winner": drag.ladder.winner.display_name if drag.ladder.winner else "" }))
 		var kn := get_node_or_null(^"KartNet") as KartNet
 		if kn:
 			print("NETCHECK_KART_SERVER " + JSON.stringify({ "validated": kn.validated, "rejected": kn.rejected, "forced": kn.forced,

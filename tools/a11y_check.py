@@ -25,6 +25,7 @@ display. Writes no settings or profiles (--no-save).
     tools/a11y_check.py --kart-only    # just the kart menus (race, battle, cup builder)
     tools/a11y_check.py --endless-only # just the endless menus
     tools/a11y_check.py --sumo-only    # just the Mini Games submenu and the sumo menu
+    tools/a11y_check.py --drag-only    # just the Mini Games submenu and the drag menu
 """
 import os
 import subprocess
@@ -311,6 +312,21 @@ def sumo_menus():
     return ok
 
 
+def drag_menus():
+    """Title -> Solo Drive -> Mini Games -> Drag Strip -> its menu -> Players, and back out.
+    There is no class or track to pick on their own screens: the class is one of the menu's own
+    rows and the strip is made from the settings (D168)."""
+    log("Mini Games and drag menus")
+    ok = step("Title (drag)", "Solo Drive")
+    ok = ok and step("Solo Drive (drag)", "Mini Games")
+    ok = ok and step("Mini Games (drag)", "Drag Strip")
+    ok = ok and step("Drag: menu", "Next")
+    for label, anchor in (("Drag: players", "Ready"), ("Drag: menu again", "Next"),
+                          ("Mini Games again (drag)", "Drag Strip"), ("Solo Drive (after drag)", "Mini Games")):
+        ok = ok and back_from(label, anchor)
+    return ok
+
+
 def back_from(label, anchor):
     """Waits for the screen with `anchor` (a name prefix), checks it, and presses its Back."""
     if find(anchor, "button", timeout=30.0, prefix=True) is None:
@@ -425,6 +441,10 @@ def main():
             if find("Solo Drive", "button", timeout=60.0) is not None:
                 sumo_menus()
             raise SystemExit(report())
+        if "--drag-only" in sys.argv:
+            if find("Solo Drive", "button", timeout=60.0) is not None:
+                drag_menus()
+            raise SystemExit(report())
         log("Title")
         ok = step("Title", "Solo Drive")
         ok = ok and step("Solo Drive", "Race")
@@ -470,6 +490,10 @@ def main():
                     sumo_menus()
                 else:
                     problems.append("Back at the title: no Solo Drive button")
+                if find("Solo Drive", "button", timeout=20.0) is not None:
+                    drag_menus()
+                else:
+                    problems.append("Back at the title: no Solo Drive button")
                 if find("Track Editor", "button", timeout=20.0) is not None:
                     editor_walk()
                 else:
@@ -480,7 +504,7 @@ def main():
 
 
 def finish():
-    if not any(f in sys.argv for f in ("--editor-only", "--kart-only", "--endless-only", "--sumo-only")):
+    if not any(f in sys.argv for f in ("--editor-only", "--kart-only", "--endless-only", "--sumo-only", "--drag-only")):
         highway_pause_walk()
     return report()
 

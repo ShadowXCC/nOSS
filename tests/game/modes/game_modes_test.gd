@@ -4,7 +4,7 @@ extends GdUnitTestSuite
 
 func test_modes_list_their_classes() -> void:
 	var modes := GameModes.list()
-	assert_array(modes.map(func(m: Dictionary) -> String: return m.id)).contains_exactly(["track", "kart", "highway", "endless", "sumo"])
+	assert_array(modes.map(func(m: Dictionary) -> String: return m.id)).contains_exactly(["track", "kart", "highway", "endless", "sumo", "drag"])
 	for mode in modes:
 		var classes := GameModes.classes(mode)
 		assert_int(classes.size()).override_failure_message(mode.id).is_equal(mode.classes.size())

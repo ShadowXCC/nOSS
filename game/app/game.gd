@@ -42,6 +42,7 @@ extends Node
 ##                        --drag-no-timing, --drag-no-qtes, --drag-no-tree, --drag-no-two-step,
 ##                        --drag-no-burnout, --drag-no-shake, --drag-no-chain, --drag-no-money-shift,
 ##                        --drag-no-centreline, --race-ai)
+##   --drag-debug         online: print what the pass is doing on this game, twice a second
 ##   --endless[=<code>]   an endless drive right away (a road code like FOREST-0000001, or a new road;
 ##                        --traffic=off|light|normal, --platform)
 ##   --kart-debug         online kart items: log every item more than 1 m off the server's

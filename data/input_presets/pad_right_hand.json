@@ -85,7 +85,7 @@
     ],
     "boost": [
       {
-        "button": "y"
+        "button": "right_stick"
       }
     ],
     "menu_up": [

@@ -35,14 +35,15 @@ Each local player has their own set of actions:
 | Back to editor (test drives) | F5 | F5 | F8 | D-pad down |
 | Horn, flash lights (M7) | H, L | V, T | M, L | L3, X |
 | Kart: drift, use item, throw back (M8) | Space, E, B | Space, E, X | /, `.`, ' | RB, LB, R3 |
-| Sumo: ram · Drag: boost | E | E | `.` | LB |
+| Sumo: ram | E | E | `.` | LB |
+| Drag: boost | Space | Space | / | A |
 | Autodrive (M9) | O | — | — | — (the pause menu) |
 | Menu confirm, back | Enter or Space, Esc or Backspace | Space or F, Esc or G | Enter, Backspace | A, B |
 | Frame rate | F3 (any keyboard) | | | — |
 
 One-handed controller layouts (`pad_left_hand`, `pad_right_hand`) put driving on one half of the pad; reset, change car and back to editor are then in the pause menu, and the horn, lights and free look are unbound (D119).
 
-**Free look:** at full deflection a chase camera orbits up to 120° round the car (up to 10° lower, 25° higher), and the hood, bumper and cockpit views turn up to 100° to the side and 30° up or down. The stick uses the player's stick deadzone, straight. It works with Look back. Keyboards have it unbound; any keys can be bound to it. No two driving actions share an input on any preset (a test checks it), except the kart actions: they share with what kart sessions ignore (handbrake, the shifts, and look back for throw back), so the Kart row above reuses those keys. One-handed pads: drift L3, use item D-pad up, throw back D-pad left (left hand); R3, Y and B (right hand). The wheel preset binds none; bind them yourself. In a kart session the handbrake and shifts do nothing (the karts' gearbox is automatic). A sumo match's **Ram** (D164) and a drag pass's **Boost** (D173) share in the same way: both sit on the shift-up input by default, since a sumo match has no gearbox to use it and a drag pass has no handbrake, items or ram.
+**Free look:** at full deflection a chase camera orbits up to 120° round the car (up to 10° lower, 25° higher), and the hood, bumper and cockpit views turn up to 100° to the side and 30° up or down. The stick uses the player's stick deadzone, straight. It works with Look back. Keyboards have it unbound; any keys can be bound to it. No two driving actions share an input on any preset (a test checks it), except the kart actions: they share with what kart sessions ignore (handbrake, the shifts, and look back for throw back), so the Kart row above reuses those keys. One-handed pads: drift L3, use item D-pad up, throw back D-pad left (left hand); R3, Y and B (right hand). The wheel preset binds none; bind them yourself. In a kart session the handbrake and shifts do nothing (the karts' gearbox is automatic). A sumo match's **Ram** (D164) shares in the same way: it sits on the shift-up input, since a sumo match has no gearbox to use it. A drag pass's **Boost** (D173) cannot go there — the shifts are its whole game — so it takes the **handbrake** instead, which a pass has no use for either (the hold on the line is the mode's, not the driver's).
 
 ## 1.1 Prompts that name the input (D169)
 

@@ -68,10 +68,12 @@ const KART_SHARES := {
 ## plus the item button, since a sumo match has no items.
 const SUMO := ["ram"]
 const SUMO_SHARES := { "ram": ["handbrake", "shift_up", "shift_down", "use_item"] }
-## Drag actions (D173): the bottle. A drag pass has no handbrake, no items and no ram, so it may
-## share any of their inputs; the shifts it very much does use.
+## Drag actions (D173): the bottle. A drag pass has no handbrake of its own (the staging hold is
+## the mode's), no items and no drift, so it may share any of those; what it may **not** share is
+## the shifts, which are the whole game — and the sumo ram sits on them, so the bottle does not go
+## where the ram does.
 const DRAG := ["boost"]
-const DRAG_SHARES := { "boost": ["handbrake", "use_item", "throw_back", "ram", "drift"] }
+const DRAG_SHARES := { "boost": ["handbrake", "use_item", "throw_back", "drift"] }
 ## H-shifter gates (docs/INPUT.md §5): action -> gear (-1 reverse, 0 neutral).
 const GEARS := { "gear_r": -1, "gear_n": 0, "gear_1": 1, "gear_2": 2, "gear_3": 3, "gear_4": 4, "gear_5": 5, "gear_6": 6, "gear_7": 7 }
 const MENU := ["menu_up", "menu_down", "menu_left", "menu_right", "menu_confirm", "menu_cancel"]
