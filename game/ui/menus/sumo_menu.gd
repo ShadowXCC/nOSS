@@ -49,6 +49,8 @@ func _build(focus := "") -> void:
 	for n in range(0, 101, 5):
 		skills.append([float(n), "%d" % n])
 	_add(UiKit.spinner("AI skill", skills, snappedf(event.ai_skill, 5.0), func(v: float) -> void: event.ai_skill = v))
+	_add(UiKit.spinner("AI models", [["garage", "Garage"], ["builtin", "Built-in"]], event.ai_cars, func(v: String) -> void:
+		event.ai_cars = v, "Garage: bots bring your own cars too"))
 	for row in SkyRows.rows(event):
 		_add(row)
 	_add(UiKit.button("Next", _next, "The players: each picks a car"))
@@ -87,7 +89,7 @@ func _next() -> void:
 	e.sumo_pillar = event.sumo_pillar
 	e.ai_count = event.ai_count
 	e.ai_skill = event.ai_skill
-	e.ai_cars = "builtin"
+	e.ai_cars = event.ai_cars
 	e.time = event.time
 	e.time_rate = event.time_rate
 	e.weather = event.weather

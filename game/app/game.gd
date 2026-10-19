@@ -36,7 +36,8 @@ extends Node
 ##   --battle[=hits]      a battle right away (the first arena, or --track; --battle-min, --battle-hits, --race-ai)
 ##   --cup[=<id>]         a cup right away (the Spark Cup, or <id>; --race-ai)
 ##   --sumo               a sumo match right away (--sumo-tiers=1|2|3, --sumo-hazard=lava|acid,
-##                        --sumo-shrink=smooth|crumble|stepped, --sumo-secs=<s>, --sumo-pillar, --race-ai)
+##                        --sumo-shrink=smooth|crumble|stepped, --sumo-secs=<s>, --sumo-pillar,
+##                        --sumo-garage-ai, --race-ai)
 ##   --drag               a drag match right away (--drag-length=201|402|805, --drag-boost=0-3,
 ##                        --drag-class=street|pro|top_fuel, --drag-seed=<n> the ladder's draw,
 ##                        --drag-no-timing, --drag-no-qtes, --drag-no-tree, --drag-no-two-step,
@@ -205,7 +206,7 @@ func start_dev_event() -> void:
 		su.sumo_pillar = dev.has("sumo-pillar")
 		su.ai_count = int(dev.get("race-ai", "7"))
 		su.ai_skill = float(dev.get("ai-skill", "70"))
-		su.ai_cars = "builtin"
+		su.ai_cars = "builtin" if not dev.has("sumo-garage-ai") else "garage"
 		apply_dev_event(su)
 		start_event(su, String(dev.get("platform", "official.sumo.standard")))
 		return
