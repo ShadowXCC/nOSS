@@ -35,7 +35,7 @@ extends Node
 ##   --kart               a kart race right away (the first kart track, or --track; --race-laps, --race-ai, --platform)
 ##   --battle[=hits]      a battle right away (the first arena, or --track; --battle-min, --battle-hits, --race-ai)
 ##   --cup[=<id>]         a cup right away (the Spark Cup, or <id>; --race-ai)
-##   --sumo               a sumo match right away (--sumo-tiers=1|2|3, --sumo-hazard=lava|acid,
+##   --sumo               a sumo match right away (--sumo-tiers=1-5, --sumo-hazard=lava|acid,
 ##                        --sumo-shrink=smooth|crumble|stepped, --sumo-secs=<s>, --sumo-pillar,
 ##                        --sumo-drift=off|drift|boost, --sumo-garage-ai, --race-ai)
 ##   --drag               a drag match right away (--drag-length=201|402|805, --drag-boost=0-3,

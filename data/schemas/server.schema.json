@@ -113,7 +113,7 @@
         "battle_rule": { "description": "Battles: last one standing or most hits.", "enum": ["standing", "hits"] },
         "battle_min": { "description": "Battles: minutes at most.", "type": "integer", "minimum": 1, "maximum": 15 },
         "battle_hits": { "description": "Most-hits battles: the first to this many wins (0: the most when time's up).", "type": "integer", "minimum": 0, "maximum": 50 },
-        "sumo_tiers": { "description": "Sumo: platforms stacked, each wider than the one above.", "type": "integer", "minimum": 1, "maximum": 3 },
+        "sumo_tiers": { "description": "Sumo: platforms stacked, each wider than the one above.", "type": "integer", "minimum": 1, "maximum": 5 },
         "sumo_hazard": { "description": "Sumo: what is under the platforms.", "enum": ["lava", "acid"] },
         "sumo_shrink": { "description": "Sumo: how a platform shrinks away.", "enum": ["smooth", "crumble", "stepped"] },
         "sumo_secs": { "description": "Sumo: how long one platform takes to shrink away.", "type": "integer", "minimum": 30, "maximum": 300 },

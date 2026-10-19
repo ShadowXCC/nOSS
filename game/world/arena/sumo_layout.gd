@@ -1,6 +1,6 @@
 class_name SumoLayout
 extends ArenaLayout
-## Sumo platforms (D162): 1-3 discs stacked on one centre, each lower one wider, floating in a
+## Sumo platforms (D162): 1-5 discs stacked on one centre, each lower one wider, floating in a
 ## pit over lava or acid. A disc shrinks once a car is on it; when it has gone, whoever was still
 ## on it falls to the next one, or into the goo. Built from the match settings alone, so every
 ## game makes the same arena without a track file and nothing but the radii go on the wire.
@@ -8,7 +8,7 @@ extends ArenaLayout
 ## Each tier's starting radius, the top one first (m). Lower tiers are wider, so a car knocked
 ## off one lands on the next (D163). The steps are wide enough to catch a car thrown off by a
 ## whole ring going at once, which is the longest fall a stepped or crumbling platform makes.
-const RADII := [24.0, 36.0, 48.0]
+const RADII := [24.0, 36.0, 48.0, 60.0, 72.0]
 ## From one tier's floor down to the next (m).
 const DROP_M := 18.0
 ## The goo's surface, below the lowest tier (m). Shallow enough, against the pit's width, that

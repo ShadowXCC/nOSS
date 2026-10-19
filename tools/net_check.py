@@ -141,7 +141,7 @@ def main(argv=None):
     p.add_argument("--duration", type=float, default=60.0, help="seconds of driving (free drive)")
     p.add_argument("--event", choices=["free", "race", "highway", "kart", "battle", "endless", "sumo", "drag"], default="free")
     p.add_argument("--rule", choices=["standing", "hits"], default="standing", help="battle: last one standing or most hits")
-    p.add_argument("--tiers", type=int, default=2, help="sumo: how many platforms are stacked (1-3)")
+    p.add_argument("--tiers", type=int, default=2, help="sumo: how many platforms are stacked (1-5)")
     p.add_argument("--length", type=int, default=402, help="drag: the strip in metres (201, 402 or 805)")
     p.add_argument("--boost", type=int, default=1, help="drag: bottles each driver gets (0-3)")
     p.add_argument("--drag-class", choices=["street", "pro", "top_fuel"], default="street", help="drag: the class the field drives")

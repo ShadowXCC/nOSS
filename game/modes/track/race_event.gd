@@ -247,7 +247,7 @@ static func from_dict(d: Dictionary) -> RaceEvent:
 	e.run = e.run.left(32)
 	e.battle_min = clampi(e.battle_min, 1, 15)
 	e.battle_hits = clampi(e.battle_hits, 0, 50)
-	e.sumo_tiers = clampi(e.sumo_tiers, 1, 3)
+	e.sumo_tiers = clampi(e.sumo_tiers, 1, SumoLayout.RADII.size())
 	e.sumo_secs = clampi(e.sumo_secs, 30, 300)
 	e.drag_length_m = clampi(e.drag_length_m, DragLayout.LENGTHS[0], DragLayout.LENGTHS[DragLayout.LENGTHS.size() - 1])
 	e.drag_boost = clampi(e.drag_boost, 0, 3)

@@ -8,7 +8,7 @@ extends Control
 signal picked(event: RaceEvent)
 signal closed
 
-const TIERS := [[1, "1"], [2, "2"], [3, "3"]]
+const TIERS := [[1, "1"], [2, "2"], [3, "3"], [4, "4"], [5, "5"]]
 const HAZARDS := [["lava", "Lava"], ["acid", "Acid"]]
 const SHRINKS := [["smooth", "Smooth"], ["crumble", "Crumbling"], ["stepped", "Stepped"]]
 const LENGTHS := [[60, "Short"], [90, "Normal"], [150, "Long"]]
@@ -35,7 +35,7 @@ func _build(focus := "") -> void:
 	for c: Control in _rows:
 		c.queue_free()
 	_rows.clear()
-	_add(UiKit.spinner("Platforms", TIERS, clampi(event.sumo_tiers, 1, 3), func(v: int) -> void:
+	_add(UiKit.spinner("Platforms", TIERS, clampi(event.sumo_tiers, 1, TIERS.size()), func(v: int) -> void:
 		event.sumo_tiers = v, "Stacked, each wider than the one above: a fall is a second chance"))
 	_add(UiKit.spinner("Underneath", HAZARDS, event.sumo_hazard, func(v: String) -> void:
 		event.sumo_hazard = v, "Touch it and you're out"))

@@ -190,3 +190,17 @@ func test_a_restart_gives_the_platforms_back() -> void:
 func test_the_hazard_is_what_the_match_asked_for() -> void:
 	assert_str(_layout(1, "smooth", 90, false, "acid").hazard).is_equal("acid")
 	assert_str(_layout(1).hazard).is_equal("lava")
+## Five platforms (D184): the stack keeps its 12 m steps and 18 m drops all the way down, and the
+## pit and the goo follow the widest one rather than a fixed size.
+func test_a_five_high_stack_keeps_its_steps_and_clears_the_pit() -> void:
+	var a := _layout(5)
+	assert_int(a.count()).is_equal(5)
+	for i in 4:
+		assert_float(a.radius_of(i + 1) - a.radius_of(i)).override_failure_message("step %d" % i).is_equal_approx(12.0, 0.01)
+		assert_float(a.floor_y_of(i) - a.floor_y_of(i + 1)).is_equal_approx(SumoLayout.DROP_M, 0.01)
+	assert_float(a.hazard_y).is_less(a.floor_y_of(4))
+	assert_float(a.pit_r).is_greater(a.radius_of(4))
+	# The spawns still ring the top platform, which does not grow with the stack.
+	assert_float(a.radius_of(0)).is_equal_approx(SumoLayout.RADII[0], 0.01)
+	for at: Transform3D in a.spawns:
+		assert_float(Vector2(at.origin.x, at.origin.z).length()).is_less(a.radius_of(0))
