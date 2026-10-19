@@ -42,7 +42,8 @@ func _process(_delta: float) -> void:
 		var tier := sumo.tier(p)
 		var shrink := 1.0 if tier < 0 else layout.shrink_of(tier)
 		var warn := tier >= 0 and layout.stepping(tier)
-		panel.show_sumo(left, session.racers.size(), tier, layout.count(), shrink, sumo.charge(p), warn, p.out)
+		var watching := session.sumo_watch.watching_text(p) if session.sumo_watch else ""
+		panel.show_sumo(left, session.racers.size(), tier, layout.count(), shrink, sumo.charge(p), warn, p.out, watching)
 		if warn and int(_warned.get(p, -2)) != tier:
 			_warned[p] = tier
 			_news(p, "Shrinking")

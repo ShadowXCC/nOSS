@@ -119,6 +119,7 @@ var battle: BattleControl
 var sumo: SumoControl
 var sumo_world: SumoBuilder
 var sumo_hud: SumoHud
+var sumo_watch: SumoWatch
 var sumo_net: SumoNet
 ## A drag match (docs/GAMEMODES.md §6, D168): the passes, the ladder and the HUD; the strip is
 ## built here rather than from a track file.
@@ -716,6 +717,11 @@ func _ready_sumo() -> void:
 		sumo_hud.name = "SumoHud"
 		sumo_hud.session = self
 		add_child(sumo_hud)
+		# The camera for a player in the goo, who has the rest of the match to watch (D185).
+		sumo_watch = SumoWatch.new()
+		sumo_watch.name = "SumoWatch"
+		sumo_watch.session = self
+		add_child(sumo_watch)
 		var s := SumoSounds.new()
 		s.name = "SumoSounds"
 		s.session = self

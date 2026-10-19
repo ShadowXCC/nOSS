@@ -40,11 +40,13 @@ func _init() -> void:
 ## `left`: cars still in, of `total`. `tier`: the platform this car is on (0 is the top; -1 in
 ## the air or gone), of `tiers`. `shrink`: how much of that platform is left, 0..1. `charge`: the
 ## ram boost, 0..1. `warn`: the platform is about to lose a ring. `out`: this car is out.
-func show_sumo(left: int, total: int, tier: int, tiers: int, shrink: float, charge: float, warn: bool, out: bool) -> void:
-	_cars.text = "Out" if out else "%d left" % left
+## `watching`: what an out car is being shown instead of its own (D185).
+func show_sumo(left: int, total: int, tier: int, tiers: int, shrink: float, charge: float, warn: bool, out: bool, watching := "") -> void:
+	# Out, how many are left still matters: that is the match you are watching.
+	_cars.text = ("Out  ·  %d left" % left) if out else "%d left" % left
 	_cars.add_theme_color_override("font_color", Hud.DIM if out else Hud.TEXT)
 	if out:
-		_tier.text = ""
+		_tier.text = watching
 	elif tier < 0:
 		_tier.text = "Falling"
 	else:
