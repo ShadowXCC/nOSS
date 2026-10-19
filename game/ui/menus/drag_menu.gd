@@ -23,6 +23,13 @@ var event := RaceEvent.drag()
 var class_id := CLASSES[0][0]
 var _rows: Array = []
 var _list: VBoxContainer
+## The settings scroll and the rows inside it. There are too many settings for one screen, so
+## they scroll; `follow_focus` brings the focused row into view, which is how a controller or a
+## keyboard scrolls it. Next and Back stay outside, always on screen.
+var _scroll: ScrollContainer
+var _box: VBoxContainer
+## The section labels; not focusable, so they are kept apart from `_rows`.
+var _headings: Array = []
 
 
 func _ready() -> void:
@@ -37,13 +44,23 @@ func _ready() -> void:
 	if saved is String and _known_class(String(saved)):
 		class_id = String(saved)
 	_list = UiKit.panel(self, "Drag Strip", 880)
+	_scroll = ScrollContainer.new()
+	# UiKit.panel shrinks this to the room there is (a small splitscreen view, big text).
+	_scroll.custom_minimum_size = Vector2(0, 620)
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_scroll.follow_focus = true
+	_list.add_child(_scroll)
+	_box = VBoxContainer.new()
+	_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll.add_child(_box)
 	_build()
 
 
 func _build(focus := "") -> void:
-	for c: Control in _rows:
+	for c: Control in _rows + _headings:
 		c.queue_free()
 	_rows.clear()
+	_headings.clear()
 	_add(UiKit.spinner("Class", _class_items(), class_id, func(v: String) -> void:
 		class_id = v, "Everyone runs the same class, whatever model they bring"))
 	_add(UiKit.spinner("Length", _length_items(), _nearest_length(), func(v: int) -> void:
@@ -80,8 +97,11 @@ func _build(focus := "") -> void:
 		event.ai_cars = v, "Garage: bots bring your own cars too"))
 	for row in SkyRows.rows(event):
 		_add(row)
-	_add(UiKit.button("Next", _next, "The players: each picks a car"))
-	_add(UiKit.button("Back", func() -> void: closed.emit()))
+	# Outside the scroll, so they are there whatever the settings are scrolled to.
+	for b: Button in [UiKit.button("Next", _next, "The players: each picks a car"),
+			UiKit.button("Back", func() -> void: closed.emit())]:
+		_list.add_child(b)
+		_rows.append(b)
 	UiKit.chain_focus(_rows, focus.is_empty())
 	for c: Control in _rows:
 		if focus and String(c.accessibility_name).get_slice(":", 0) == focus:
@@ -125,11 +145,12 @@ func _known_class(id: String) -> bool:
 func _section(title: String) -> void:
 	var l := UiKit.label(title, 24)
 	l.modulate = UiKit.ACCENT
-	_list.add_child(l)
+	_box.add_child(l)
+	_headings.append(l)
 
 
 func _add(c: Control) -> void:
-	_list.add_child(c)
+	_box.add_child(c)
 	_rows.append(c)
 
 
