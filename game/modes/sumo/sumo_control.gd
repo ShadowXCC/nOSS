@@ -73,7 +73,7 @@ func reset() -> void:
 	armed_by.clear()
 	layout.restore() # a restarted match gets its platforms back
 	if builder:
-		builder.refresh()
+		builder.restore()
 	for r in session.racers:
 		_charge[r] = 1.0
 		_set_out(r, false)

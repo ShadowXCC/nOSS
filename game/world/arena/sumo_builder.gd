@@ -5,6 +5,7 @@ extends Node3D
 ## pit and the goo are built once. Nothing here is read from a track file.
 
 const HAZARD_SHADER := preload("res://game/world/arena/sumo_hazard.gdshader")
+const WARN_SHADER := preload("res://game/world/arena/sumo_warn.gdshader")
 ## A slab is this thick, and its rim drops this far over the lip.
 const THICK_M := 1.6
 const LIP_DROP_M := 0.7
@@ -15,10 +16,16 @@ const REBUILD_M := 0.05
 ## Out cars rest here, under the goo and out of sight.
 const PIT_FLOOR_DROP_M := 3.0
 ## Crumbling: chunks broken off a lost ring, how long they fall for, and how fast they tumble.
+## They do not all go at once -- each lump waits its turn, up to CHUNK_DELAY_S, so the ring calves
+## round rather than bursting (D182).
 const CHUNKS := 14
 const CHUNK_LIFE_S := 4.0
 const CHUNK_SPIN := 2.5
+const CHUNK_DELAY_S := 0.35
 const GRAVITY := 9.81
+## The warning band sits this far above the floor, so it reads as light on the deck instead of
+## fighting it for the same depth.
+const WARN_LIFT_M := 0.06
 
 var layout: SumoLayout
 var visual := true
@@ -27,8 +34,12 @@ var calm := false
 
 var _slabs: Array[Node3D] = []
 var _built_r := PackedFloat32Array()
-## Lumps of a crumbled ring on their way into the goo: [{node, vel, spin, life}].
+## Lumps of a crumbled ring on their way into the goo: [{node, vel, spin, life, delay}].
 var _debris: Array[Dictionary] = []
+## The warning bands (D182), one mesh a tier, and what each was last built from.
+var _warn := Node3D.new()
+var _warn_meshes: Array[MeshInstance3D] = []
+var _warn_keys := PackedInt64Array()
 
 
 func setup(a: SumoLayout, with_visuals := true, reduce_flashing := false) -> void:
@@ -43,7 +54,28 @@ func setup(a: SumoLayout, with_visuals := true, reduce_flashing := false) -> voi
 		add_child(slab)
 		_slabs.append(slab)
 		_built_r.append(-1.0)
+	_warning()
 	refresh()
+
+
+## The warning bands: one mesh a tier, made once and then only ever reshaped or hidden, so a
+## platform marking its next ring costs no allocation. Drawn only, and only on a game with a
+## screen -- a dedicated server has nothing to warn.
+func _warning() -> void:
+	if not visual:
+		return
+	_warn.name = "Warn"
+	add_child(_warn)
+	var material := warn_material()
+	for i in layout.count():
+		var mi := MeshInstance3D.new()
+		mi.name = "Warn%d" % (i + 1)
+		mi.material_override = material
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.visible = false
+		_warn.add_child(mi)
+		_warn_meshes.append(mi)
+		_warn_keys.append(-1)
 
 
 ## Remakes any slab that has shrunk since it was last built, and clears away the ones that have
@@ -53,17 +85,78 @@ func refresh() -> void:
 		var r := layout.radius_of(i)
 		if not layout.live(i):
 			if _built_r[i] != 0.0:
+				# The last ring of all goes into the goo like the others did, rather than
+				# vanishing where it stood.
+				if visual and layout.style == "crumble" and _built_r[i] > 0.0:
+					_crumble(0.0, _built_r[i], layout.floor_y_of(i))
 				_clear(_slabs[i])
 				_built_r[i] = 0.0
 			continue
 		if absf(r - _built_r[i]) < REBUILD_M:
 			continue
 		# A crumbling platform throws the ring it just lost into the goo (D162).
-		if visual and layout.style == "crumble" and _built_r[i] > r + SumoLayout.LIP_M:
+		if visual and layout.style == "crumble" and _built_r[i] > r:
 			_crumble(r, _built_r[i], layout.floor_y_of(i))
 		_built_r[i] = r
 		_clear(_slabs[i])
 		_slab(_slabs[i], r, layout.floor_y_of(i))
+	_warn_refresh()
+
+
+## The band over the floor that is about to go (D182). Rebuilt only when the marked floor really
+## changes -- about once a ring for a stepped platform -- so calling it every frame costs nothing.
+func _warn_refresh() -> void:
+	for i in _warn_meshes.size():
+		var mask := layout.warning(i)
+		var mi := _warn_meshes[i]
+		if mask == 0 or not layout.live(i):
+			if _warn_keys[i] != -1:
+				_warn_keys[i] = -1
+				mi.visible = false
+				mi.mesh = null
+			continue
+		var radii := layout.wedge_radii(i)
+		var key := hash([mask, radii])
+		if key == _warn_keys[i]:
+			continue
+		_warn_keys[i] = key
+		var b := MeshBatch.new()
+		var y := layout.floor_y_of(i) + WARN_LIFT_M
+		for w in SumoLayout.SECTORS:
+			if mask & (1 << w) != 0:
+				_band(b, layout.next_radius(i, w), radii[w], y, w)
+		mi.mesh = b.mesh() if not b.is_empty() else null
+		mi.visible = mi.mesh != null
+
+
+## One wedge's band of floor, `inner` out to `outer` at `y`, facing up.
+func _band(b: MeshBatch, inner: float, outer: float, y: float, w: int) -> void:
+	if outer <= inner + 0.01:
+		return
+	var per: int = SumoLayout.SEGMENTS / SumoLayout.SECTORS
+	for k in per:
+		var a0 := TAU * (w * per + k) / SumoLayout.SEGMENTS
+		var a1 := TAU * (w * per + k + 1) / SumoLayout.SEGMENTS
+		var d0 := Vector3(cos(a0), 0.0, sin(a0))
+		var d1 := Vector3(cos(a1), 0.0, sin(a1))
+		_quad(b, [d0 * inner + Vector3.UP * y, d1 * inner + Vector3.UP * y,
+			d1 * outer + Vector3.UP * y, d0 * outer + Vector3.UP * y], Vector3.UP)
+
+
+## A new match: the slabs are built again from scratch, the warning bands come down, and anything
+## still falling from the last match is cleared away rather than dropping through this one.
+func restore() -> void:
+	for d in _debris:
+		if is_instance_valid(d.node):
+			(d.node as Node3D).queue_free()
+	_debris.clear()
+	for i in _built_r.size():
+		_built_r[i] = -1.0
+	for i in _warn_meshes.size():
+		_warn_keys[i] = -1
+		_warn_meshes[i].visible = false
+		_warn_meshes[i].mesh = null
+	refresh()
 
 
 func _clear(under: Node3D) -> void:
@@ -72,29 +165,35 @@ func _clear(under: Node3D) -> void:
 		c.queue_free()
 
 
-## Throws the ring between `inner` and `outer` off as lumps that tumble into the goo. They are
-## scenery only: the floor has already gone, so nothing drives on them.
-func _crumble(inner: float, outer: float, y: float) -> void:
+## Throws the floor between `inner` and `outer`, over the arc from `a0` to `a1`, off as lumps that
+## tumble into the goo. They are scenery only: the floor has already gone, so nothing drives on
+## them. Each lump waits a little longer than the one before it, so the piece calves round from
+## one end instead of the whole of it leaving on a single tick (D182).
+func _crumble(inner: float, outer: float, y: float, a0 := 0.0, a1 := TAU, lumps := CHUNKS) -> void:
 	var mid := (inner + outer) / 2.0
 	var width := maxf(outer - inner, 1.0)
+	var span := a1 - a0
 	var material := WorldMaterials.surface(VehicleSim.SURFACE_CONCRETE)
-	for i in CHUNKS:
-		var ang := TAU * (i + randf() * 0.6) / CHUNKS
+	for i in lumps:
+		var ang := a0 + span * (i + randf() * 0.6) / lumps
 		var dir := Vector3(cos(ang), 0.0, sin(ang))
 		var at := dir * mid + Vector3.UP * (y - THICK_M / 2.0)
 		var b := MeshBatch.new()
 		var basis := Basis(Vector3.UP, ang)
-		b.box(Vector3.ZERO, basis, Vector3(width * randf_range(0.5, 0.9), THICK_M, TAU * mid / CHUNKS * randf_range(0.5, 0.9)))
+		b.box(Vector3.ZERO, basis, Vector3(width * randf_range(0.5, 0.9), THICK_M, span * mid / lumps * randf_range(0.5, 0.9)))
+		var delay := CHUNK_DELAY_S * float(i) / maxf(float(lumps - 1), 1.0)
 		var mi := MeshInstance3D.new()
 		mi.mesh = b.mesh()
 		mi.material_override = material
 		mi.position = at
+		mi.visible = is_zero_approx(delay)
 		add_child(mi)
 		_debris.append({
 			"node": mi,
 			"vel": dir * randf_range(0.5, 2.5) + Vector3.UP * randf_range(-0.5, 1.5),
 			"spin": Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)).normalized() * CHUNK_SPIN * randf(),
 			"life": CHUNK_LIFE_S,
+			"delay": delay,
 		})
 
 
@@ -105,6 +204,13 @@ func _process(delta: float) -> void:
 	for d in _debris:
 		var mi: Variant = d.node
 		if not is_instance_valid(mi):
+			continue
+		if float(d.delay) > 0.0:
+			# Still attached, waiting its turn.
+			d.delay = float(d.delay) - delta
+			if float(d.delay) <= 0.0:
+				(mi as Node3D).visible = true
+			still.append(d)
 			continue
 		d.life = float(d.life) - delta
 		# Gone once it has had its time, or once the goo has swallowed it.
@@ -191,6 +297,16 @@ func material() -> ShaderMaterial:
 		m.set_shader_parameter("glow", Color(0.49, 1.0, 0.16))
 		m.set_shader_parameter("crust", Color(0.06, 0.13, 0.05))
 		m.set_shader_parameter("emit", 1.6)
+	m.set_shader_parameter("calm", 1.0 if calm else 0.0)
+	return m
+
+
+## The warning band's material (D182): the goo's own colour, so the band says what that floor is
+## about to become. Steady and dimmer with reduce flashing, as the goo itself is (ACC-04).
+func warn_material() -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = WARN_SHADER
+	m.set_shader_parameter("tint", Color(0.49, 1.0, 0.16) if layout.hazard == "acid" else Color(1.0, 0.45, 0.08))
 	m.set_shader_parameter("calm", 1.0 if calm else 0.0)
 	return m
 

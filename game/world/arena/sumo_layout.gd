@@ -37,8 +37,14 @@ const STEPS := 6
 const WARN_S := 1.5
 ## Points round a disc's edge: enough that it reads as a circle, few enough to rebuild often.
 const SEGMENTS := 48
+## The wedges a platform is thought of in: what the warning before a ring goes is marked in, and
+## what a crumbling platform comes off in (D182). SEGMENTS divides by it.
+const SECTORS := 16
+## Every wedge at once: a whole ring is on its way out, not a piece of one.
+const ALL_WEDGES := (1 << SECTORS) - 1
 
-## [{ start, radius, floor_y, live, armed, elapsed }], the top tier first.
+## [{ start, radius, floor_y, live, armed, elapsed, warn }], the top tier first. `warn` is a
+## bitmask of the wedges about to go, which the authority works out and a client is told (D183).
 var tiers: Array[Dictionary] = []
 ## "lava" or "acid".
 var hazard := "lava"
@@ -63,7 +69,8 @@ static func make(t: TrackData, event: RaceEvent) -> SumoLayout:
 	a.pillar = bool(event.sumo_pillar)
 	var count := clampi(int(event.sumo_tiers), 1, RADII.size())
 	for i in count:
-		a.tiers.append({ "start": RADII[i], "radius": RADII[i], "floor_y": -DROP_M * i, "live": true, "armed": false, "elapsed": 0.0 })
+		a.tiers.append({ "start": RADII[i], "radius": RADII[i], "floor_y": -DROP_M * i, "live": true,
+			"armed": false, "elapsed": 0.0, "warn": 0 })
 	a.floor_y = 0.0
 	a.centre = Vector2.ZERO
 	a.hazard_y = -DROP_M * (count - 1) - HAZARD_DROP_M
@@ -155,13 +162,50 @@ func armed(i: int) -> bool:
 	return i >= 0 and i < tiers.size() and bool(tiers[i].armed)
 
 
-## Tier `i` is about to lose a ring (stepped and crumbling only), so the HUD can warn.
+## The wedges of tier `i` about to go, as a bitmask of SECTORS bits (0: none are). Stored rather
+## than worked out on the spot, because a client never shrinks a platform of its own -- it has no
+## clock to read -- and so had no warning at all before this (D183).
+func warning(i: int) -> int:
+	return int(tiers[i].warn) if i >= 0 and i < tiers.size() else 0
+
+
+## Tier `i` is about to lose a whole ring, so the HUD can say so: stepped, and the last ring of a
+## crumbling platform. A crumbling platform taking one wedge marks that wedge alone, which is for
+## the arena to show and not worth a word.
 func stepping(i: int) -> bool:
+	return warning(i) == ALL_WEDGES
+
+
+## Every wedge's radius on tier `i`: all the same on a disc that shrinks whole.
+func wedge_radii(i: int) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	if i < 0 or i >= tiers.size():
+		return out
+	out.resize(SECTORS)
+	out.fill(float(tiers[i].radius))
+	return out
+
+
+## What wedge `w` of tier `i` is left with once the floor now marked has gone: one step further
+## in, or the sudden-death pillar.
+func next_radius(i: int, w: int) -> float:
+	var at := wedge_radii(i)
+	if w < 0 or w >= at.size():
+		return 0.0
+	return maxf(at[w] - float(tiers[i].start) / float(STEPS), floor_radius(i))
+
+
+## Which wedges of tier `i` are on their way out. Smooth creeps in evenly on every edge, so there
+## is nothing to point at; stepped loses a whole ring, marked WARN_S before it goes.
+func _warn_mask(i: int) -> int:
 	if style == "smooth" or not armed(i) or not live(i):
-		return false
+		return 0
+	# Holding at the pillar, or fading with it: what goes next is the pillar, and it goes smoothly.
+	if float(tiers[i].radius) <= floor_radius(i):
+		return 0
 	var per := secs / float(STEPS)
 	var into := fmod(float(tiers[i].elapsed), per)
-	return into >= per - WARN_S
+	return ALL_WEDGES if into >= per - WARN_S else 0
 
 
 ## The smallest a tier may get: nothing, or the sudden-death pillar on the bottom one.
@@ -195,6 +239,9 @@ func advance(delta: float) -> Array[int]:
 			t.live = false
 			t.radius = 0.0
 			gone.append(i)
+	# Over every tier, not only the ones that moved: an unarmed one must not be left marked.
+	for i in tiers.size():
+		tiers[i].warn = _warn_mask(i)
 	return gone
 
 
@@ -205,6 +252,7 @@ func restore() -> void:
 		t.elapsed = 0.0
 		t.armed = false
 		t.live = true
+		t.warn = 0
 
 
 ## Every tier's radius, for a snapshot over the wire.
@@ -215,13 +263,22 @@ func radii() -> PackedFloat32Array:
 	return out
 
 
-## A server's radii (online clients follow rather than shrink on their own).
-func apply_radii(from: PackedFloat32Array) -> void:
+## A server's platforms (online clients follow rather than shrink on their own): how far each one
+## has shrunk, and the wedges it has marked as about to go.
+func apply_state(from: PackedFloat32Array, warns: PackedInt32Array) -> void:
 	for i in mini(from.size(), tiers.size()):
 		var r := float(from[i])
 		tiers[i].radius = r
-		tiers[i].armed = bool(tiers[i].armed) or r < float(tiers[i].start) - 0.01
+		tiers[i].warn = int(warns[i]) if i < warns.size() else 0
+		# A marked tier is a going tier, which is how a client knows one is armed on the step
+		# before it has lost anything yet.
+		tiers[i].armed = bool(tiers[i].armed) or r < float(tiers[i].start) - 0.01 or int(tiers[i].warn) != 0
 		tiers[i].live = r > 0.0 or floor_radius(i) > 0.0
+
+
+## A server's radii alone.
+func apply_radii(from: PackedFloat32Array) -> void:
+	apply_state(from, PackedInt32Array())
 
 
 ## A ring of spawns part way out on the top tier, every car facing the middle.

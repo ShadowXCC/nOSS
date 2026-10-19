@@ -204,3 +204,56 @@ func test_a_five_high_stack_keeps_its_steps_and_clears_the_pit() -> void:
 	assert_float(a.radius_of(0)).is_equal_approx(SumoLayout.RADII[0], 0.01)
 	for at: Transform3D in a.spawns:
 		assert_float(Vector2(at.origin.x, at.origin.z).length()).is_less(a.radius_of(0))
+## The warning (D183): which floor is about to go, marked on the platform rather than worked out
+## from a clock, because a client has no clock to work it out from.
+func test_a_stepped_platform_marks_the_whole_ring_it_is_about_to_lose() -> void:
+	var a := _layout(1, "stepped", 60)
+	a.arm(0)
+	var per := 60.0 / SumoLayout.STEPS
+	a.advance(per * 0.2)
+	assert_int(a.warning(0)).override_failure_message("marked far too early").is_equal(0)
+	a.advance(per * 0.8 - SumoLayout.WARN_S / 2.0)
+	assert_int(a.warning(0)).is_equal(SumoLayout.ALL_WEDGES)
+	assert_bool(a.stepping(0)).is_true()
+	# The band covers one step's worth of floor, from where the edge is now.
+	assert_float(a.next_radius(0, 0)).is_equal_approx(a.radius_of(0) - SumoLayout.RADII[0] / SumoLayout.STEPS, 0.01)
+
+
+func test_a_smooth_platform_marks_nothing_and_an_unarmed_one_neither() -> void:
+	var a := _layout(2, "smooth", 60)
+	a.arm(0)
+	a.advance(59.0)
+	assert_int(a.warning(0)).override_failure_message("smooth creeps in evenly: nothing to point at").is_equal(0)
+	assert_bool(a.stepping(0)).is_false()
+	var b := _layout(2, "stepped", 60)
+	b.arm(0)
+	b.advance(60.0 / SumoLayout.STEPS - SumoLayout.WARN_S / 2.0)
+	assert_int(b.warning(0)).is_equal(SumoLayout.ALL_WEDGES)
+	assert_int(b.warning(1)).override_failure_message("a platform nobody has landed on is not going").is_equal(0)
+
+
+func test_the_warning_goes_over_the_wire() -> void:
+	var server := _layout(2, "stepped", 60)
+	server.arm(0)
+	server.advance(60.0 / SumoLayout.STEPS - SumoLayout.WARN_S / 2.0)
+	# A client never shrinks a platform of its own, so without this it would never warn at all.
+	var client := _layout(2, "stepped", 60)
+	assert_bool(client.stepping(0)).is_false()
+	var warns := PackedInt32Array()
+	for i in server.count():
+		warns.append(server.warning(i))
+	client.apply_state(server.radii(), warns)
+	assert_int(client.warning(0)).is_equal(server.warning(0))
+	assert_bool(client.stepping(0)).is_true()
+	# A marked platform is a going platform, even before it has lost anything.
+	assert_bool(client.armed(0)).is_true()
+	assert_bool(client.armed(1)).is_false()
+
+
+func test_a_restart_takes_the_warning_down() -> void:
+	var a := _layout(1, "stepped", 60)
+	a.arm(0)
+	a.advance(60.0 / SumoLayout.STEPS - SumoLayout.WARN_S / 2.0)
+	assert_int(a.warning(0)).is_not_equal(0)
+	a.restore()
+	assert_int(a.warning(0)).is_equal(0)

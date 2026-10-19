@@ -6,8 +6,12 @@ extends Node
 ## each one has shrunk and where each car stands. A ring-out goes out at once as a reliable event,
 ## so the splash and the message land on the tick they happened; five times a second the server
 ## sends how things stand, which heals drift and brings a joiner up to date.
-##   [107][tiers u8][radius f32 × tiers][cars u8 × 5 B]   SUMO_STATE, server -> clients, 5 Hz
+##   [107][tiers u8][radius f32 × tiers][wedges u8][hits u8 × wedges × tiers][warn u16 × tiers][cars u8 × 5 B]
+##     SUMO_STATE, server -> clients, 5 Hz
 ## A car: id u16 · tier i8 (-1: in the air or gone) · flags u8 (1: out) · charge u8 (ram, 0-255).
+## `warn` is the wedges a platform has marked as about to go, which a client cannot work out for
+## itself: it never shrinks a platform, so it has no clock to read (D183). `wedges` is 0 while
+## every platform is a plain disc, and the wedge depths follow it for a crumbling one (D182).
 ##   [113][8-byte records…]   SUMO_EVENTS, server -> clients, reliable
 ## A record: kind u8 · car u16 · tier u8 · time u32 (ms).
 
@@ -83,6 +87,14 @@ func pack_state() -> PackedByteArray:
 	p[head] = tiers
 	for i in tiers:
 		p.encode_float(head + 1 + i * 4, layout.radius_of(i))
+	# The wedges: none while a platform shrinks whole, and then the warning each one is marked with.
+	var wedges := 0
+	head = p.size()
+	p.resize(head + 1 + wedges * tiers + tiers * 2)
+	p[head] = wedges
+	var marks := head + 1 + wedges * tiers
+	for i in tiers:
+		p.encode_u16(marks + i * 2, layout.warning(i))
 	var cars := session.racers.filter(func(r: Racer) -> bool: return r.vehicle != null).slice(0, 255)
 	head = p.size()
 	p.resize(head + 1 + cars.size() * CAR_BYTES)
@@ -111,8 +123,18 @@ func _on_state(bytes: PackedByteArray) -> void:
 	radius_error = 0.0
 	for i in mini(tiers, layout.count()):
 		radius_error = maxf(radius_error, absf(layout.radius_of(i) - radii[i]))
-	layout.apply_radii(radii)
 	var at := 2 + tiers * 4
+	if bytes.size() <= at:
+		return
+	var wedges: int = bytes[at]
+	at += 1 + wedges * tiers
+	if bytes.size() < at + tiers * 2:
+		return
+	var warns := PackedInt32Array()
+	for i in tiers:
+		warns.append(bytes.decode_u16(at + i * 2))
+	at += tiers * 2
+	layout.apply_state(radii, warns)
 	if bytes.size() <= at:
 		return
 	var cars: int = bytes[at]
