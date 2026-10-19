@@ -22,6 +22,9 @@ const CHUNKS := 14
 const CHUNK_LIFE_S := 4.0
 const CHUNK_SPIN := 2.5
 const CHUNK_DELAY_S := 0.35
+## Lumps thrown by one wedge's bite. A whole ring going at once shares CHUNKS between its wedges
+## instead, so the finale is a ring's worth of debris and not sixteen times one.
+const WEDGE_CHUNKS := 5
 const GRAVITY := 9.81
 ## The warning band sits this far above the floor, so it reads as light on the deck instead of
 ## fighting it for the same depth.
@@ -33,11 +36,13 @@ var visual := true
 var calm := false
 
 var _slabs: Array[Node3D] = []
-var _built_r := PackedFloat32Array()
+## Each tier's wedge radii as its slab was last built from them.
+var _built: Array[PackedFloat32Array] = []
 ## Lumps of a crumbled ring on their way into the goo: [{node, vel, spin, life, delay}].
 var _debris: Array[Dictionary] = []
-## The warning bands (D182), one mesh a tier, and what each was last built from.
-var _warn := Node3D.new()
+## The warning bands (D182), one mesh a tier, and what each was last built from. Nothing is made
+## at all on a game with no screen, which is why this is not built until _warning says so.
+var _warn: Node3D
 var _warn_meshes: Array[MeshInstance3D] = []
 var _warn_keys := PackedInt64Array()
 
@@ -53,7 +58,7 @@ func setup(a: SumoLayout, with_visuals := true, reduce_flashing := false) -> voi
 		slab.name = "Tier%d" % (i + 1)
 		add_child(slab)
 		_slabs.append(slab)
-		_built_r.append(-1.0)
+		_built.append(PackedFloat32Array())
 	_warning()
 	refresh()
 
@@ -64,6 +69,7 @@ func setup(a: SumoLayout, with_visuals := true, reduce_flashing := false) -> voi
 func _warning() -> void:
 	if not visual:
 		return
+	_warn = Node3D.new()
 	_warn.name = "Warn"
 	add_child(_warn)
 	var material := warn_material()
@@ -82,25 +88,51 @@ func _warning() -> void:
 ## gone. Cheap enough to call every frame; it only does work when a radius has really moved.
 func refresh() -> void:
 	for i in _slabs.size():
-		var r := layout.radius_of(i)
-		if not layout.live(i):
-			if _built_r[i] != 0.0:
-				# The last ring of all goes into the goo like the others did, rather than
-				# vanishing where it stood.
-				if visual and layout.style == "crumble" and _built_r[i] > 0.0:
-					_crumble(0.0, _built_r[i], layout.floor_y_of(i))
-				_clear(_slabs[i])
-				_built_r[i] = 0.0
+		# A platform that has gone reads as every wedge at nothing, so the last of it is thrown
+		# into the goo like the rest was rather than vanishing where it stood.
+		var radii := layout.wedge_radii(i)
+		if not _moved(i, radii):
 			continue
-		if absf(r - _built_r[i]) < REBUILD_M:
-			continue
-		# A crumbling platform throws the ring it just lost into the goo (D162).
-		if visual and layout.style == "crumble" and _built_r[i] > r:
-			_crumble(r, _built_r[i], layout.floor_y_of(i))
-		_built_r[i] = r
+		# A crumbling platform throws the floor it just lost into the goo (D162).
+		if visual and layout.style == "crumble":
+			_calve(i, radii)
+		_built[i] = radii
 		_clear(_slabs[i])
-		_slab(_slabs[i], r, layout.floor_y_of(i))
+		if layout.live(i):
+			_slab(_slabs[i], radii, layout.floor_y_of(i))
 	_warn_refresh()
+
+
+## Whether any of tier `i`'s wedges has moved far enough to be worth building again.
+func _moved(i: int, radii: PackedFloat32Array) -> bool:
+	var was: PackedFloat32Array = _built[i]
+	if was.size() != radii.size():
+		return true
+	for w in radii.size():
+		if absf(radii[w] - was[w]) >= REBUILD_M:
+			return true
+	return false
+
+
+## Throws into the goo whatever each wedge has lost since the slab was last built: one bite from
+## one wedge most of the time, and the whole of the last ring at the end.
+func _calve(i: int, radii: PackedFloat32Array) -> void:
+	var was: PackedFloat32Array = _built[i]
+	if was.size() != radii.size():
+		return
+	var losing := 0
+	for w in radii.size():
+		if was[w] > radii[w] + 0.01:
+			losing += 1
+	if losing == 0:
+		return
+	var lumps := WEDGE_CHUNKS if losing <= 2 else maxi(CHUNKS / losing, 1)
+	var per: int = SumoLayout.SEGMENTS / SumoLayout.SECTORS
+	for w in radii.size():
+		if was[w] <= radii[w] + 0.01:
+			continue
+		_crumble(radii[w], was[w], layout.floor_y_of(i),
+			TAU * (w * per) / SumoLayout.SEGMENTS, TAU * (w * per + per) / SumoLayout.SEGMENTS, lumps)
 
 
 ## The band over the floor that is about to go (D182). Rebuilt only when the marked floor really
@@ -150,8 +182,8 @@ func restore() -> void:
 		if is_instance_valid(d.node):
 			(d.node as Node3D).queue_free()
 	_debris.clear()
-	for i in _built_r.size():
-		_built_r[i] = -1.0
+	for i in _built.size():
+		_built[i] = PackedFloat32Array()
 	for i in _warn_meshes.size():
 		_warn_keys[i] = -1
 		_warn_meshes[i].visible = false
@@ -227,34 +259,61 @@ func _process(delta: float) -> void:
 	_debris = still
 
 
-## One tier: a disc of `radius` at `y`, with a rim sloping out to the lip and a side down to the
-## underside. The lip is not playable floor; it is there to catch a car that lands on the edge.
-func _slab(under: Node3D, radius: float, y: float) -> void:
-	if radius <= 0.01:
-		return
+## One tier, a wedge at a time: the floor out to each wedge's own radius at `y`, a rim sloping out
+## to the lip and a side down to the underside. The lip is not playable floor; it is there to catch
+## a car that lands on the edge. One mesh and one collision shape for the whole tier, as before --
+## a crumbling platform is rebuilt about once a second, where a smooth one is rebuilt five times.
+func _slab(under: Node3D, radii: PackedFloat32Array, y: float) -> void:
 	var b := MeshBatch.new()
-	var n := SumoLayout.SEGMENTS
-	var lip := radius + SumoLayout.LIP_M
+	var per: int = SumoLayout.SEGMENTS / SumoLayout.SECTORS
 	var low := y - THICK_M
 	var rim := y - LIP_DROP_M
-	var top := PackedVector3Array()
-	var edge := PackedVector3Array()
-	var under_ring := PackedVector3Array()
-	for i in n:
-		var ang := TAU * i / n
-		var d := Vector3(cos(ang), 0.0, sin(ang))
-		top.append(d * radius + Vector3.UP * y)
-		edge.append(d * lip + Vector3.UP * rim)
-		under_ring.append(d * lip + Vector3.UP * low)
 	var mid := Vector3(0, y, 0)
 	var below := Vector3(0, low, 0)
-	for i in n:
-		var j := (i + 1) % n
-		_tri(b, mid, top[i], top[j], Vector3.UP) # the floor
-		_quad(b, [top[i], top[j], edge[j], edge[i]], Vector3.UP) # the catch lip
-		_quad(b, [edge[i], edge[j], under_ring[j], under_ring[i]], edge[i].normalized()) # the side
-		_tri(b, below, under_ring[j], under_ring[i], Vector3.DOWN) # the underside
+	for w in radii.size():
+		var r: float = radii[w]
+		if r <= 0.01:
+			continue
+		var lip := r + SumoLayout.LIP_M
+		for k in per:
+			var a0 := TAU * (w * per + k) / SumoLayout.SEGMENTS
+			var a1 := TAU * (w * per + k + 1) / SumoLayout.SEGMENTS
+			var d0 := Vector3(cos(a0), 0.0, sin(a0))
+			var d1 := Vector3(cos(a1), 0.0, sin(a1))
+			var t0 := d0 * r + Vector3.UP * y
+			var t1 := d1 * r + Vector3.UP * y
+			var e0 := d0 * lip + Vector3.UP * rim
+			var e1 := d1 * lip + Vector3.UP * rim
+			var u0 := d0 * lip + Vector3.UP * low
+			var u1 := d1 * lip + Vector3.UP * low
+			_tri(b, mid, t0, t1, Vector3.UP) # the floor
+			_quad(b, [t0, t1, e1, e0], Vector3.UP) # the catch lip
+			_quad(b, [e0, e1, u1, u0], (d0 + d1).normalized()) # the side
+			_tri(b, below, u1, u0, Vector3.DOWN) # the underside
+		_cap(b, radii, w, y, low)
+	if b.is_empty():
+		return
 	_piece(under, "Deck", b, WorldMaterials.surface(VehicleSim.SURFACE_CONCRETE), VehicleSim.SURFACE_CONCRETE)
+
+
+## The wall that closes the step where wedge `w` stands taller than the wedge beside it. Only the
+## taller side of a boundary draws one, so two wedges never put a face in the same place, and it
+## covers the taller wedge's whole cross-section, so nothing is ever seen through the slab.
+func _cap(b: MeshBatch, radii: PackedFloat32Array, w: int, y: float, low: float) -> void:
+	var r: float = radii[w]
+	var per: int = SumoLayout.SEGMENTS / SumoLayout.SECTORS
+	for side: int in [-1, 1]:
+		var nb := (w + side + SumoLayout.SECTORS) % SumoLayout.SECTORS
+		if radii[nb] >= r - 0.001:
+			continue
+		var ang := TAU * (w * per + (per if side > 0 else 0)) / SumoLayout.SEGMENTS
+		var d := Vector3(cos(ang), 0.0, sin(ang))
+		var inner: float = maxf(radii[nb], 0.0)
+		var outer := r + SumoLayout.LIP_M
+		# Facing the shorter wedge, round the way the angles run.
+		var towards := Vector3(-sin(ang), 0.0, cos(ang)) * (1.0 if side > 0 else -1.0)
+		_quad(b, [d * inner + Vector3.UP * y, d * outer + Vector3.UP * y,
+			d * outer + Vector3.UP * low, d * inner + Vector3.UP * low], towards)
 
 
 ## The pit the platforms hang in: a rock wall round them and a floor under the goo.

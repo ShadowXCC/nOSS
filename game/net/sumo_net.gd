@@ -87,11 +87,16 @@ func pack_state() -> PackedByteArray:
 	p[head] = tiers
 	for i in tiers:
 		p.encode_float(head + 1 + i * 4, layout.radius_of(i))
-	# The wedges: none while a platform shrinks whole, and then the warning each one is marked with.
-	var wedges := 0
+	# The wedges: how deep each one has been bitten on a crumbling platform (D182), none at all on
+	# one that shrinks whole, and then the warning each tier is marked with.
+	var wedges := SumoLayout.SECTORS if layout.style == "crumble" else 0
 	head = p.size()
 	p.resize(head + 1 + wedges * tiers + tiers * 2)
 	p[head] = wedges
+	for i in tiers:
+		var hits := layout.hits_of(i)
+		for w in wedges:
+			p[head + 1 + i * wedges + w] = hits[w] if w < hits.size() else 0
 	var marks := head + 1 + wedges * tiers
 	for i in tiers:
 		p.encode_u16(marks + i * 2, layout.warning(i))
@@ -120,21 +125,33 @@ func _on_state(bytes: PackedByteArray) -> void:
 	var radii := PackedFloat32Array()
 	for i in tiers:
 		radii.append(bytes.decode_float(2 + i * 4))
-	radius_error = 0.0
-	for i in mini(tiers, layout.count()):
-		radius_error = maxf(radius_error, absf(layout.radius_of(i) - radii[i]))
 	var at := 2 + tiers * 4
 	if bytes.size() <= at:
 		return
 	var wedges: int = bytes[at]
-	at += 1 + wedges * tiers
-	if bytes.size() < at + tiers * 2:
+	at += 1
+	var hits := PackedByteArray()
+	if bytes.size() < at + wedges * tiers + tiers * 2:
 		return
+	if wedges > 0:
+		hits = bytes.slice(at, at + wedges * tiers)
+		at += wedges * tiers
 	var warns := PackedInt32Array()
 	for i in tiers:
 		warns.append(bytes.decode_u16(at + i * 2))
 	at += tiers * 2
-	layout.apply_state(radii, warns)
+	# How far this game's platforms had drifted from the server's, wedge by wedge: what they were
+	# against what the server's word makes them.
+	var before: Array[PackedFloat32Array] = []
+	for i in layout.count():
+		before.append(layout.wedge_radii(i))
+	layout.apply_state(radii, wedges, hits, warns)
+	radius_error = 0.0
+	for i in mini(tiers, layout.count()):
+		var now := layout.wedge_radii(i)
+		var was: PackedFloat32Array = before[i]
+		for w in mini(now.size(), was.size()):
+			radius_error = maxf(radius_error, absf(now[w] - was[w]))
 	if bytes.size() <= at:
 		return
 	var cars: int = bytes[at]

@@ -40,10 +40,7 @@ func _process(_delta: float) -> void:
 		panel.palette = Palette.of(p.slot.profile)
 		panel.calm = bool(p.slot.profile.data.get("reduce_flashing", false))
 		var tier := sumo.tier(p)
-		var shrink := 1.0
-		if tier >= 0:
-			var t: Dictionary = layout.tiers[tier]
-			shrink = float(t.radius) / maxf(float(t.start), 0.01)
+		var shrink := 1.0 if tier < 0 else layout.shrink_of(tier)
 		var warn := tier >= 0 and layout.stepping(tier)
 		panel.show_sumo(left, session.racers.size(), tier, layout.count(), shrink, sumo.charge(p), warn, p.out)
 		if warn and int(_warned.get(p, -2)) != tier:

@@ -124,7 +124,9 @@ func _goal(tier: int) -> Vector3:
 func _near_edge(tier: int) -> bool:
 	var layout: SumoLayout = racer.session.sumo.layout
 	var radius := layout.radius_of(tier)
-	var margin := radius - Vector2(racer.com().x, racer.com().z).length()
+	# The nearest edge of all: on a crumbling platform that counts the hole beside it, which is how
+	# a bot keeps off a wedge bitten back under it instead of driving along the drop.
+	var margin := layout.edge_distance(racer.com())
 	var safety := lerpf(EDGE_SAFETY.x, EDGE_SAFETY.y, clampf(skill / 100.0, 0.0, 1.0))
 	# Roughly how far it needs to turn away at this speed, with a floor for a standing car. Never
 	# more than part of the platform, or on a shrunken one every spot would count as the edge and

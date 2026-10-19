@@ -121,16 +121,158 @@ func test_a_stepped_platform_holds_its_size_between_rings() -> void:
 	assert_bool(c.stepping(0)).override_failure_message("a smooth platform never steps").is_false()
 
 
-func test_crumbling_shrinks_the_same_as_stepped() -> void:
-	# Crumbling differs only in how it looks, so the floor underfoot matches (D162).
+## Crumbling (D182): the floor comes off a wedge at a time, in a shuffled order, every wedge once
+## a step. The whole platform still goes in the same time a stepped one does.
+func test_crumbling_comes_off_one_wedge_at_a_time() -> void:
+	var a := _layout(1, "crumble", 60)
+	a.arm(0)
+	var start := a.radius_of(0)
+	a.advance(60.0 / SumoLayout.SLOTS * 1.1) # one bite in
+	var short := 0
+	for w in SumoLayout.SECTORS:
+		if a.wedge_radius(0, w) < start - 0.01:
+			short += 1
+	assert_int(short).override_failure_message("one bite should take one wedge").is_equal(1)
+	# The platform still reads as its full size, because its widest wedge is untouched.
+	assert_float(a.radius_of(0)).is_equal_approx(start, 0.01)
+	assert_float(a.wedge_radius(0, 0)).is_greater(0.0)
+
+
+func test_crumbling_never_leaves_a_wedge_more_than_one_bite_behind() -> void:
+	var a := _layout(1, "crumble", 60)
+	a.arm(0)
+	var start := SumoLayout.RADII[0]
+	var bite := start / float(SumoLayout.STEPS)
+	for _i in 60 * 120:
+		a.advance(1.0 / 120.0)
+		if not a.live(0):
+			break
+		var widest := 0.0
+		var narrowest := INF
+		for w in SumoLayout.SECTORS:
+			widest = maxf(widest, a.wedge_radius(0, w))
+			narrowest = minf(narrowest, a.wedge_radius(0, w))
+		# Ragged, but never out of round by more than one bite, and never cut to the middle: a
+		# wedge at nothing would be a slice taken out to the centre.
+		assert_float(widest - narrowest).override_failure_message("out of round by more than a bite").is_less_equal(bite + 0.01)
+		assert_float(narrowest).override_failure_message("a wedge was cut to the middle").is_greater(0.0)
+
+
+func test_crumbling_empties_a_platform_in_the_same_time_as_stepped() -> void:
 	var stepped := _layout(1, "stepped", 60)
 	var crumble := _layout(1, "crumble", 60)
 	stepped.arm(0)
 	crumble.arm(0)
-	for i in 20:
-		stepped.advance(3.0)
-		crumble.advance(3.0)
-		assert_float(crumble.radius_of(0)).is_equal_approx(stepped.radius_of(0), 0.001)
+	for _i in 20:
+		var a := stepped.advance(3.0)
+		var b := crumble.advance(3.0)
+		assert_bool(crumble.live(0)).override_failure_message("one went before the other").is_equal(stepped.live(0))
+		assert_array(b).is_equal(a)
+		# How much is left agrees to within one bite the whole way down.
+		assert_float(absf(crumble.shrink_of(0) - stepped.shrink_of(0))).is_less_equal(1.0 / SumoLayout.STEPS + 0.01)
+	assert_bool(crumble.live(0)).is_false()
+
+
+func test_the_last_ring_of_a_crumbling_platform_goes_as_one() -> void:
+	var a := _layout(1, "crumble", 60)
+	a.arm(0)
+	a.advance(60.0 * 5.0 / 6.0 + 0.1) # into the last step, every bite taken
+	var first := a.wedge_radius(0, 0)
+	for w in SumoLayout.SECTORS:
+		assert_float(a.wedge_radius(0, w)).override_failure_message("wedge %d is out of line" % w).is_equal_approx(first, 0.01)
+	# Nothing is marked yet: the last ring has the whole of the last step to stand in.
+	assert_int(a.warning(0)).is_equal(0)
+	a.advance(60.0 / 6.0 - 0.1 - SumoLayout.WARN_S / 2.0)
+	assert_int(a.warning(0)).override_failure_message("the last ring goes unannounced").is_equal(SumoLayout.ALL_WEDGES)
+	assert_bool(a.stepping(0)).override_failure_message("a whole ring going is worth a word").is_true()
+	var gone := a.advance(SumoLayout.WARN_S)
+	assert_array(gone).contains([0])
+
+
+func test_a_crumbling_platform_marks_the_wedge_it_will_take_next() -> void:
+	var a := _layout(2, "crumble", 60)
+	a.arm(0)
+	a.advance(0.1)
+	var mask := a.warning(0)
+	# One wedge, and the one the plan says is next.
+	var bits := 0
+	for w in SumoLayout.SECTORS:
+		bits += 1 if mask & (1 << w) != 0 else 0
+	assert_int(bits).override_failure_message("exactly one wedge is next").is_equal(1)
+	assert_int(mask).is_equal(1 << int((a.tiers[0].plan as PackedByteArray)[0]))
+	assert_bool(a.stepping(0)).override_failure_message("one wedge is not a ring").is_false()
+	assert_int(a.warning(1)).override_failure_message("a platform nobody has landed on is not going").is_equal(0)
+	# It keeps marking: the band is always somewhere, not a blink before each bite.
+	a.advance(60.0 / SumoLayout.SLOTS * 1.1)
+	assert_int(a.warning(0)).is_not_equal(0)
+
+
+func test_edge_distance_sees_the_hole_beside_a_car() -> void:
+	var a := _layout(1, "crumble", 60)
+	a.arm(0)
+	a.advance(60.0 / SumoLayout.SLOTS * 1.1)
+	# Find the wedge that was bitten, and stand just inside the wedge next to it.
+	var start := SumoLayout.RADII[0]
+	var bitten := -1
+	for w in SumoLayout.SECTORS:
+		if a.wedge_radius(0, w) < start - 0.01:
+			bitten = w
+	assert_int(bitten).is_greater_equal(0)
+	var neighbour := (bitten + 1) % SumoLayout.SECTORS
+	# Two metres in from the rim, a hand's breadth the neighbour's side of the boundary they share.
+	var bound := TAU * float(neighbour) / float(SumoLayout.SECTORS)
+	var r := start - 2.0
+	var ang := bound + 0.2 / r
+	var at := Vector3(cos(ang) * r, 0.5, sin(ang) * r)
+	assert_int(a.wedge_at(at)).override_failure_message("test stood in the wrong wedge").is_equal(neighbour)
+	# Well inside its own wedge, but a step from the drop beside it.
+	assert_float(a.wedge_radius(0, neighbour) - r).is_greater(1.0)
+	assert_float(a.edge_distance(at)).is_equal_approx(0.2, 0.05)
+	assert_bool(a.inside(at, 0.5)).override_failure_message("that is not a safe place to stand").is_false()
+
+
+func test_wedges_go_over_the_wire_and_come_back() -> void:
+	var server := _layout(2, "crumble", 60)
+	server.arm(0)
+	server.advance(60.0 / SumoLayout.SLOTS * 2.5) # a couple of bites in
+	var client := _layout(2, "crumble", 60)
+	var warns := PackedInt32Array()
+	var hits := PackedByteArray()
+	for i in server.count():
+		warns.append(server.warning(i))
+		hits.append_array(server.hits_of(i))
+	client.apply_state(server.radii(), SumoLayout.SECTORS, hits, warns)
+	for w in SumoLayout.SECTORS:
+		assert_float(client.wedge_radius(0, w)).override_failure_message("wedge %d" % w).is_equal_approx(server.wedge_radius(0, w), 0.01)
+	# A bitten platform is a going platform, even before its widest wedge has lost anything.
+	assert_bool(client.armed(0)).is_true()
+	assert_bool(client.armed(1)).is_false()
+
+
+func test_a_restart_gives_a_crumbled_platform_back() -> void:
+	var a := _layout(1, "crumble", 60)
+	a.arm(0)
+	a.advance(30.0)
+	a.restore()
+	for w in SumoLayout.SECTORS:
+		assert_float(a.wedge_radius(0, w)).is_equal_approx(SumoLayout.RADII[0], 0.01)
+	assert_int(a.warning(0)).is_equal(0)
+	assert_bool(a.armed(0)).is_false()
+	# The order it comes off in is kept, so a restarted match is the same match again.
+	assert_int((a.tiers[0].plan as PackedByteArray).size()).is_equal(SumoLayout.EVENTS)
+
+
+func test_sudden_death_holds_a_crumbling_platform_at_the_pillar() -> void:
+	var a := _layout(1, "crumble", 60, true)
+	a.arm(0)
+	a.advance(60.0)
+	assert_bool(a.live(0)).is_true()
+	# The pillar is a disc, not a ragged one: every wedge holds at it.
+	for w in SumoLayout.SECTORS:
+		assert_float(a.wedge_radius(0, w)).is_equal_approx(SumoLayout.PILLAR_R, 0.01)
+	assert_int(a.warning(0)).override_failure_message("the pillar goes smoothly: nothing to mark").is_equal(0)
+	a.advance(SumoLayout.PILLAR_HOLD_S + SumoLayout.PILLAR_FADE_S)
+	assert_bool(a.live(0)).is_false()
 
 
 func test_sudden_death_holds_the_bottom_tier_at_a_pillar_then_lets_it_go() -> void:
@@ -242,7 +384,7 @@ func test_the_warning_goes_over_the_wire() -> void:
 	var warns := PackedInt32Array()
 	for i in server.count():
 		warns.append(server.warning(i))
-	client.apply_state(server.radii(), warns)
+	client.apply_state(server.radii(), 0, PackedByteArray(), warns)
 	assert_int(client.warning(0)).is_equal(server.warning(0))
 	assert_bool(client.stepping(0)).is_true()
 	# A marked platform is a going platform, even before it has lost anything.

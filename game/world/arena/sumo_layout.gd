@@ -42,9 +42,19 @@ const SEGMENTS := 48
 const SECTORS := 16
 ## Every wedge at once: a whole ring is on its way out, not a piece of one.
 const ALL_WEDGES := (1 << SECTORS) - 1
+## A crumbling platform's bites (D182): each wedge takes one a step, in a shuffled order, so the
+## rim goes ragged without ever being more than one bite out of round. The last step is left to
+## come off as a whole ring, because a wedge bitten STEPS times is a slice cut to the middle, and
+## then there is no floor at the centre and nothing sensible to say about a car parked on it.
+const BITES := STEPS - 1
+const EVENTS := BITES * SECTORS
+const SLOTS := STEPS * SECTORS
 
-## [{ start, radius, floor_y, live, armed, elapsed, warn }], the top tier first. `warn` is a
-## bitmask of the wedges about to go, which the authority works out and a client is told (D183).
+## [{ start, radius, floor_y, live, armed, elapsed, warn, hits, done, plan }], the top tier first.
+## `warn` is a bitmask of the wedges about to go, which the authority works out and a client is
+## told (D183). `radius` is the widest wedge, which is also the bound they are all held under.
+## `hits` is how many bites each wedge has taken, `plan` the order they come off in and `done` how
+## far through it this tier is (crumbling only, D182).
 var tiers: Array[Dictionary] = []
 ## "lava" or "acid".
 var hazard := "lava"
@@ -70,7 +80,8 @@ static func make(t: TrackData, event: RaceEvent) -> SumoLayout:
 	var count := clampi(int(event.sumo_tiers), 1, RADII.size())
 	for i in count:
 		a.tiers.append({ "start": RADII[i], "radius": RADII[i], "floor_y": -DROP_M * i, "live": true,
-			"armed": false, "elapsed": 0.0, "warn": 0 })
+			"armed": false, "elapsed": 0.0, "warn": 0, "hits": no_bites(), "done": 0,
+			"plan": crumble_plan() if a.style == "crumble" else PackedByteArray() })
 	a.floor_y = 0.0
 	a.centre = Vector2.ZERO
 	a.hazard_y = -DROP_M * (count - 1) - HAZARD_DROP_M
@@ -79,6 +90,41 @@ static func make(t: TrackData, event: RaceEvent) -> SumoLayout:
 	a.area = PI * RADII[0] * RADII[0]
 	a._sumo_spawns()
 	return a
+
+
+## The order a crumbling platform's wedges come off in: every wedge once a step, shuffled within
+## each step. That is what keeps the depths within one bite of each other, so the rim is ragged but
+## still roughly round -- no deep slot, no island, and no spike for a car or a bot to trip on. From
+## the game's own random numbers, so a seeded soak check replays a match exactly; nothing needs it
+## to match between machines, because the depths themselves go on the wire.
+static func crumble_plan() -> PackedByteArray:
+	var out := PackedByteArray()
+	for _step in BITES:
+		var wedges: Array[int] = []
+		for w in SECTORS:
+			wedges.append(w)
+		wedges.shuffle()
+		for w in wedges:
+			out.append(w)
+	return out
+
+
+## A platform nothing has been taken out of yet.
+static func no_bites() -> PackedByteArray:
+	var out := PackedByteArray()
+	out.resize(SECTORS)
+	out.fill(0)
+	return out
+
+
+## The wedge an angle round the middle belongs to.
+static func wedge_of(angle: float) -> int:
+	return mini(int(fposmod(angle, TAU) / TAU * SECTORS), SECTORS - 1)
+
+
+## The wedge `pos` is over.
+static func wedge_at(pos: Vector3) -> int:
+	return wedge_of(atan2(pos.z, pos.x))
 
 
 ## A circle of `n` points round the middle, counter-clockwise (x, z).
@@ -94,6 +140,8 @@ func count() -> int:
 	return tiers.size()
 
 
+## The widest wedge of tier `i`: the size the platform reads as, and the bound every wedge of a
+## crumbling one is held under.
 func radius_of(i: int) -> float:
 	return float(tiers[i].radius) if i >= 0 and i < tiers.size() else 0.0
 
@@ -106,17 +154,45 @@ func live(i: int) -> bool:
 	return i >= 0 and i < tiers.size() and bool(tiers[i].live)
 
 
+## Wedge `w`'s radius on tier `i`. On anything but a crumbling platform every wedge is the disc's
+## own radius; on one, a wedge is as far in as its bites have taken it, under the bound the whole
+## platform is held to and no further in than the sudden-death pillar -- until the pillar itself
+## starts to go, when the platform is below the pillar and the wedges go down with it.
+func wedge_radius(i: int, w: int) -> float:
+	if i < 0 or i >= tiers.size():
+		return 0.0
+	var t := tiers[i]
+	if style != "crumble":
+		return float(t.radius)
+	var hits: PackedByteArray = t.hits
+	var bitten := float(t.start) * (1.0 - float(hits[w]) / float(STEPS))
+	return clampf(bitten, least_radius(i), float(t.radius))
+
+
+## The smallest a wedge of tier `i` may be: the pillar while it stands, and the platform itself
+## once the pillar is fading (a match always ends).
+func least_radius(i: int) -> float:
+	return minf(floor_radius(i), float(tiers[i].radius))
+
+
+## The radius of the wedge `pos` is over on tier `i`.
+func radius_at(i: int, pos: Vector3) -> float:
+	return wedge_radius(i, wedge_at(pos))
+
+
 ## The tier `pos` is on, or -1 for none: a live disc whose floor is within a band of `pos` and
 ## whose edge it is inside. Tiers are tested top down, so a car falling past one belongs to the
-## one it is about to land on.
+## one it is about to land on. The radial test only, so a car straddling two wedges still belongs
+## to the platform it is driving on rather than flickering into the air between them.
 func tier_at(pos: Vector3) -> int:
 	var r := Vector2(pos.x, pos.z).length()
+	var w := wedge_at(pos)
 	for i in tiers.size():
 		var t := tiers[i]
 		if not t.live:
 			continue
 		var y := float(t.floor_y)
-		if pos.y <= y + BAND_ABOVE_M and pos.y >= y - BAND_BELOW_M and r <= float(t.radius):
+		if pos.y <= y + BAND_ABOVE_M and pos.y >= y - BAND_BELOW_M and r <= wedge_radius(i, w):
 			return i
 	return -1
 
@@ -130,18 +206,33 @@ func standing_on(pos: Vector3) -> int:
 	return i
 
 
-## On a platform, at least `margin` from its edge (ArenaLayout.inside, for a stack of discs).
+## On a platform, at least `margin` from any edge of it (ArenaLayout.inside, for a stack of discs).
 func inside(pos: Vector3, margin := 0.0) -> bool:
-	var i := tier_at(pos)
-	return i >= 0 and Vector2(pos.x, pos.z).length() <= float(tiers[i].radius) - margin
+	return edge_distance(pos) >= margin
 
 
-## How far `pos` is from the edge of the tier it is on (negative: off the edge).
+## How far `pos` is from the nearest edge of the tier it is on (negative: off the edge). On a
+## crumbling platform that counts the hole beside it as well as the rim ahead: a car can be well
+## inside its own wedge and a hand's breadth from the drop where a bitten neighbour starts.
 func edge_distance(pos: Vector3) -> float:
 	var i := tier_at(pos)
 	if i < 0:
 		return -INF
-	return float(tiers[i].radius) - Vector2(pos.x, pos.z).length()
+	var flat := Vector2(pos.x, pos.z)
+	var r := flat.length()
+	var w := wedge_at(pos)
+	var mine := wedge_radius(i, w)
+	var best := mine - r
+	if style != "crumble":
+		return best
+	var ang := atan2(flat.y, flat.x)
+	for side: int in [-1, 1]:
+		if wedge_radius(i, (w + side + SECTORS) % SECTORS) >= mine - 0.001:
+			continue
+		# How far it is from the boundary they share, measured across it.
+		var bound := TAU * float(w + maxi(side, 0)) / float(SECTORS)
+		best = minf(best, absf(r * sin(ang - bound)))
+	return best
 
 
 ## The lowest tier still standing, or -1 when the goo is all that's left.
@@ -182,29 +273,60 @@ func wedge_radii(i: int) -> PackedFloat32Array:
 	if i < 0 or i >= tiers.size():
 		return out
 	out.resize(SECTORS)
-	out.fill(float(tiers[i].radius))
+	if style != "crumble":
+		out.fill(float(tiers[i].radius))
+		return out
+	for w in SECTORS:
+		out[w] = wedge_radius(i, w)
 	return out
 
 
 ## What wedge `w` of tier `i` is left with once the floor now marked has gone: one step further
 ## in, or the sudden-death pillar.
 func next_radius(i: int, w: int) -> float:
-	var at := wedge_radii(i)
-	if w < 0 or w >= at.size():
+	if i < 0 or i >= tiers.size() or w < 0 or w >= SECTORS:
 		return 0.0
-	return maxf(at[w] - float(tiers[i].start) / float(STEPS), floor_radius(i))
+	return maxf(wedge_radius(i, w) - float(tiers[i].start) / float(STEPS), least_radius(i))
+
+
+## How much of tier `i` is left, 0..1 of its radius. On a crumbling platform, the radius a disc of
+## the same area would have, so the HUD's percentage means the same in all three styles and comes
+## down a bite at a time rather than a sixth at a time.
+func shrink_of(i: int) -> float:
+	if i < 0 or i >= tiers.size():
+		return 0.0
+	var start := maxf(float(tiers[i].start), 0.01)
+	if style != "crumble":
+		return clampf(float(tiers[i].radius) / start, 0.0, 1.0)
+	var sum := 0.0
+	for w in SECTORS:
+		var part := wedge_radius(i, w) / start
+		sum += part * part
+	return clampf(sqrt(sum / float(SECTORS)), 0.0, 1.0)
+
+
+## Tier `i`'s wedge depths, for a snapshot over the wire.
+func hits_of(i: int) -> PackedByteArray:
+	return tiers[i].hits if i >= 0 and i < tiers.size() else PackedByteArray()
 
 
 ## Which wedges of tier `i` are on their way out. Smooth creeps in evenly on every edge, so there
-## is nothing to point at; stepped loses a whole ring, marked WARN_S before it goes.
+## is nothing to point at; stepped loses a whole ring, marked WARN_S before it goes; a crumbling
+## one marks the wedge its next bite will take for the whole of that bite's turn, so there is
+## always somewhere to look, and its last ring like a stepped one's.
 func _warn_mask(i: int) -> int:
 	if style == "smooth" or not armed(i) or not live(i):
 		return 0
 	# Holding at the pillar, or fading with it: what goes next is the pillar, and it goes smoothly.
-	if float(tiers[i].radius) <= floor_radius(i):
+	var t := tiers[i]
+	if float(t.radius) <= floor_radius(i):
 		return 0
 	var per := secs / float(STEPS)
-	var into := fmod(float(tiers[i].elapsed), per)
+	var into := fmod(float(t.elapsed), per)
+	if style == "crumble":
+		var plan: PackedByteArray = t.plan
+		if int(t.done) < plan.size():
+			return 1 << int(plan[int(t.done)])
 	return ALL_WEDGES if into >= per - WARN_S else 0
 
 
@@ -225,7 +347,8 @@ func advance(delta: float) -> Array[int]:
 		var at := clampf(float(t.elapsed) / maxf(secs, 1.0), 0.0, 1.0)
 		var left := 1.0 - at
 		if style != "smooth":
-			# Rings come off a step at a time; crumbling only differs in how it looks.
+			# Rings come off a step at a time. A crumbling platform takes its wedges out of the step
+			# it is in (D182), so this is the bound they are held under rather than the floor itself.
 			left = 1.0 - clampf(floorf(at * STEPS) / float(STEPS), 0.0, 1.0)
 		var least := floor_radius(i)
 		var want := start * left
@@ -235,6 +358,8 @@ func advance(delta: float) -> Array[int]:
 			t.radius = least if held <= 0.0 else maxf(least * (1.0 - held / PILLAR_FADE_S), 0.0)
 		else:
 			t.radius = maxf(want, least)
+		if style == "crumble":
+			_bite(i, at)
 		if float(t.radius) <= 0.0:
 			t.live = false
 			t.radius = 0.0
@@ -245,6 +370,27 @@ func advance(delta: float) -> Array[int]:
 	return gone
 
 
+## Takes whatever bites tier `i` is due by now, and leaves its radius at the widest wedge. The
+## count is worked out from the clock rather than added up tick by tick, so a big step of the clock
+## takes every bite it should and nothing drifts apart over a long match.
+func _bite(i: int, at: float) -> void:
+	var t := tiers[i]
+	var plan: PackedByteArray = t.plan
+	var want := mini(floori(at * float(SLOTS)), plan.size())
+	if int(t.done) < want:
+		# Packed arrays are values, not references: this has to be written back.
+		var hits: PackedByteArray = t.hits
+		while int(t.done) < want:
+			var w := int(plan[int(t.done)])
+			hits[w] = mini(int(hits[w]) + 1, BITES)
+			t.done = int(t.done) + 1
+		t.hits = hits
+	var widest := 0.0
+	for w in SECTORS:
+		widest = maxf(widest, wedge_radius(i, w))
+	t.radius = widest
+
+
 ## Every platform back to its full size, none of them going yet (a match restarted).
 func restore() -> void:
 	for t in tiers:
@@ -253,6 +399,8 @@ func restore() -> void:
 		t.armed = false
 		t.live = true
 		t.warn = 0
+		t.hits = no_bites()
+		t.done = 0
 
 
 ## Every tier's radius, for a snapshot over the wire.
@@ -265,20 +413,31 @@ func radii() -> PackedFloat32Array:
 
 ## A server's platforms (online clients follow rather than shrink on their own): how far each one
 ## has shrunk, and the wedges it has marked as about to go.
-func apply_state(from: PackedFloat32Array, warns: PackedInt32Array) -> void:
+func apply_state(from: PackedFloat32Array, wedges: int, hits: PackedByteArray, warns: PackedInt32Array) -> void:
 	for i in mini(from.size(), tiers.size()):
 		var r := float(from[i])
 		tiers[i].radius = r
 		tiers[i].warn = int(warns[i]) if i < warns.size() else 0
-		# A marked tier is a going tier, which is how a client knows one is armed on the step
-		# before it has lost anything yet.
-		tiers[i].armed = bool(tiers[i].armed) or r < float(tiers[i].start) - 0.01 or int(tiers[i].warn) != 0
+		if wedges == SECTORS and hits.size() >= (i + 1) * SECTORS:
+			tiers[i].hits = hits.slice(i * SECTORS, (i + 1) * SECTORS)
+		# A marked or a bitten tier is a going tier, which is how a client knows one is armed
+		# before its widest wedge has lost anything.
+		tiers[i].armed = bool(tiers[i].armed) or r < float(tiers[i].start) - 0.01 \
+			or int(tiers[i].warn) != 0 or _bitten(i)
 		tiers[i].live = r > 0.0 or floor_radius(i) > 0.0
 
 
-## A server's radii alone.
+## Whether any of tier `i`'s wedges has been bitten.
+func _bitten(i: int) -> bool:
+	for h in (tiers[i].hits as PackedByteArray):
+		if h > 0:
+			return true
+	return false
+
+
+## A server's radii alone (a layout whose platforms shrink whole).
 func apply_radii(from: PackedFloat32Array) -> void:
-	apply_state(from, PackedInt32Array())
+	apply_state(from, 0, PackedByteArray(), PackedInt32Array())
 
 
 ## A ring of spawns part way out on the top tier, every car facing the middle.
