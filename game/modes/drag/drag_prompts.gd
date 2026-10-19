@@ -98,6 +98,15 @@ static func boost_text(r: Racer) -> String:
 	return "Boost: %s" % b if b else "Boost"
 
 
+## Hurrying a pass of bots along while they wait (D178): the Boost input does it, which is what a
+## parked car has no use for. "Skip: Space".
+static func skip_text(r: Racer) -> String:
+	if input_of(r) == null:
+		return ""
+	var b := label(r, "boost")
+	return "Skip: %s" % b if b else "Skip"
+
+
 ## The two-step, named for what they are holding: "Hold Space, revs in the band".
 static func two_step_text(r: Racer, action: String) -> String:
 	if input_of(r) == null:

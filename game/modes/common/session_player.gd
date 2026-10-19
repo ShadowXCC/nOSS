@@ -17,6 +17,9 @@ var hud := Hud.new()
 var bay_return := false
 ## This player's own menu (pause, car picker), or null.
 var overlay: Control
+## A mode may take the camera button while the player is not driving (drag: the views of a pass
+## they are watching, D176). Returns true when it has dealt with the press.
+var camera_hook := Callable()
 
 var _paused_tree := false
 ## Drives the car home after the flag (players' cars take a cool-down lap too).
@@ -364,6 +367,8 @@ func update_track(delta: float) -> void:
 
 
 func _next_camera() -> void:
+	if camera_hook.is_valid() and bool(camera_hook.call()):
+		return
 	cameras.next_mode()
 	slot.profile.set_value("camera", cameras.mode)
 

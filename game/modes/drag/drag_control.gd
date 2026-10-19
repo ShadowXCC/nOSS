@@ -12,6 +12,8 @@ extends Node
 ## The authority decides (offline: this game); RaceControl runs the session and the results. It
 ## is given no lights of its own for a drag session: the tree here is the countdown.
 
+## The pair the next pass is waiting on, while the drivers in it lock in (D177).
+signal pass_armed(cars: Array)
 signal pass_started(cars: Array)
 signal pass_ended(won: Racer)
 ## grade: "perfect", "good" or "miss".
@@ -57,7 +59,7 @@ const TWO_STEP_BAND := Vector2(0.55, 0.85)
 const LAUNCH_ASSIST_ACCEL := 2.4
 const LAUNCH_S := 1.2
 ## The burnout: how long the box is open, the heat that pays best, and where it turns against you.
-const BURNOUT_S := 5.0
+const BURNOUT_S := 8.0
 const HEAT_BEST_S := 2.0
 const HEAT_MAX_S := 4.2
 ## Staging before the tree starts, then an amber every this long, three of them.
@@ -75,6 +77,10 @@ const DEAD_SPEED := 2.0
 const DEAD_S := 3.0
 ## After the last car resolves, this long to roll out before the next pass.
 const SETTLE_S := 3.0
+## Hurrying a pass of bots along (D178): how many times real time it runs at.
+const SKIP_SPEED := 4.0
+## Online, how long the ladder waits for a driver to lock in before it goes without them.
+const READY_TIMEOUT_S := 20.0
 ## Where cars wait their turn, spaced by car id. Not by `number`: every game calls its own first
 ## player P1, so two games would park their own cars in the same spot and see each other's there.
 const PARK_Y := -600.0
@@ -96,6 +102,17 @@ var phase := Phase.IDLE
 var phase_time := 0.0
 ## The cars in the pass now, lane 0 first.
 var cars: Array[Racer] = []
+## The pair the next pass is held for, until the drivers in it have locked in (D177). Empty
+## when nothing is waiting on anybody.
+var armed: Array[Racer] = []
+## racer -> locked in for this pass.
+var locked_in := {}
+## Whether a pass waits for its drivers at all (D177): on in a session (TrackSession sets it,
+## a dedicated server included), off for the soak check and the suites, which have nobody to
+## press Ready. A field of bots never holds it up either way.
+var ready_gate := false
+## A pass of bots is being hurried along (D178).
+var skipping := false
 
 ## racer -> this pass's state (_blank_run).
 var _run := {}
@@ -103,6 +120,8 @@ var _run := {}
 var _ambers_lit := 0
 ## Client: the pass number the server's snapshots are talking about (-1: none seen yet).
 var _net_pass := -1
+## The seed the field was drawn with, kept so a restart runs the same ladder again (D179).
+var _drawn_seed := 0
 ## racer -> the best numbers it has set in the match: {reaction, et, trap}.
 var _best := {}
 ## Passes run, for the soak check.
@@ -123,7 +142,10 @@ func reset() -> void:
 	phase_time = 0.0
 	_net_pass = -1
 	cars = []
+	armed = []
 	passes_run = 0
+	skip(false)
+	locked_in.clear()
 	_run.clear()
 	_best.clear()
 	if builder:
@@ -131,8 +153,14 @@ func reset() -> void:
 	for r in session.racers:
 		r.out = false
 		r.finished = false
+		# RaceControl has already put every car back on the deck and shown it (_place_arena), so
+		# the parking has to be forgotten here or _park would take the cars that were out of play
+		# for parked still and leave them standing on the strip through the next pass.
+		r.parked = false
 	if authority:
-		ladder.seed_field(session.racers, drag_seed)
+		if _drawn_seed == 0:
+			_drawn_seed = drag_seed if drag_seed != 0 else maxi(randi(), 1)
+		ladder.seed_field(session.racers, _drawn_seed)
 
 
 ## Cars still in the ladder.
@@ -324,7 +352,8 @@ func _show_tree() -> void:
 ## Cars that left the game drop out of the tables (they keep the results they were in).
 func _forget_gone() -> void:
 	cars.assign(cars.filter(func(r: Variant) -> bool: return is_instance_valid(r)))
-	for d: Dictionary in [_run, _best]:
+	armed.assign(armed.filter(func(r: Variant) -> bool: return is_instance_valid(r)))
+	for d: Dictionary in [_run, _best, locked_in]:
 		for k: Variant in d.keys():
 			if not is_instance_valid(k):
 				d.erase(k)
@@ -338,7 +367,10 @@ func _begin_pass() -> void:
 	if pair.is_empty():
 		_finish_match()
 		return
+	if not _locked_in(pair):
+		return
 	cars = pair
+	locked_in.clear()
 	for r in session.racers:
 		if r in cars:
 			continue
@@ -355,6 +387,59 @@ func _begin_pass() -> void:
 	pass_started.emit(cars.duplicate())
 	for r in cars:
 		r.notify("Burnout" if burnout else "Stage", 2.0)
+
+
+## Nobody runs a pass before the drivers in it say they are ready (D177): their card names whose
+## turn it is, on what they are holding, and what a pass asks of them. Online the wait has a
+## deadline, so one driver who has walked away cannot hold the ladder up.
+func _locked_in(pair: Array) -> bool:
+	if not ready_gate:
+		return true
+	# A driver who left the game cannot be asked, and the ladder still has their car in its pairs:
+	# leave that pass to _begin_pass, which has always had it.
+	if pair.any(func(r: Variant) -> bool: return not is_instance_valid(r)):
+		return true
+	if pair.all(func(r: Racer) -> bool: return not r.is_human or locked_in.has(r)):
+		armed = []
+		return true
+	if armed != pair:
+		armed.assign(pair)
+		if net:
+			net.send_arm(pair)
+		pass_armed.emit(pair.duplicate())
+	if net and phase_time >= READY_TIMEOUT_S:
+		armed = []
+		return true
+	return false
+
+
+## This driver is ready for their pass. On a client the server owns the gate, so it is told.
+func lock_in(r: Racer) -> void:
+	if locked_in.has(r):
+		return
+	locked_in[r] = true
+	if net and not authority:
+		net.send_ready(r)
+
+
+## This car is being waited on: a driver with a card up. A bot is never asked.
+func needs_lock_in(r: Racer) -> bool:
+	return r.is_human and r in armed and not locked_in.has(r)
+
+
+## Watching two bots run is not the game, so a player waiting their turn may hurry the pass along
+## (D178). It runs for real, only faster, so its numbers are the ones the sim would have given it.
+## Offline only: online the clock is the server's, and every car on the wire keeps it.
+func can_skip() -> bool:
+	return authority and net == null and not ended and not cars.is_empty() \
+		and not cars.any(func(r: Racer) -> bool: return r.is_human)
+
+
+func skip(on: bool) -> void:
+	if skipping == on or (on and not can_skip()):
+		return
+	skipping = on
+	session.apply_game_speed()
 
 
 func _blank_run(lane: int) -> Dictionary:
@@ -748,6 +833,7 @@ func _pass_limit() -> float:
 
 ## The pass is over: who won it goes to the ladder, then the next pair.
 func _end_pass() -> void:
+	skip(false)
 	if cars.is_empty():
 		_to(Phase.IDLE)
 		return
@@ -809,6 +895,7 @@ static func _better(a: Array, b: Array) -> bool:
 ## The match is over: the winner is told, and RaceControl shows the results.
 func _finish_match() -> void:
 	ended = true
+	skip(false)
 	var won := ladder.winner
 	if net:
 		net.send_match_end(won)
@@ -905,8 +992,23 @@ func apply_net(r: Racer, state: Dictionary) -> void:
 	s.done = bool(state.done) or bool(s.done)
 
 
+## Online client: the pair the server is waiting on, so their cards go up here too.
+func net_arm(pair: Array) -> void:
+	armed.assign(pair)
+	locked_in.clear()
+	pass_armed.emit(armed.duplicate())
+
+
+## Server: a client says one of its drivers is ready.
+func take_net_ready(r: Racer) -> void:
+	if authority:
+		locked_in[r] = true
+
+
 ## Online client: a car is in this pass, in this lane.
 func net_pass_car(r: Racer, lane: int) -> void:
+	armed = []
+	locked_in.clear()
 	if not _run.has(r):
 		_run[r] = _blank_run(lane)
 	_run[r].lane = lane

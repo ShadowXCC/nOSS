@@ -13,8 +13,8 @@ extends Node
 ##   [114][12-byte records...]   DRAG_EVENTS, server -> clients, reliable
 ## A record: kind u8 · car u16 · value f32 · time u32 (ms).
 ##   [115][12-byte records...]   DRAG_REPORT, client -> server, reliable
-## The same records, for the two things only the driver's own game sees: its reaction and its
-## shift grades.
+## The same records, for the three things only the driver's own game sees: its reaction, its
+## shift grades, and that it is ready for its pass (D177).
 
 const MSG_STATE := 108
 const MSG_EVENTS := 114
@@ -25,7 +25,7 @@ const STATE_HZ := 5.0
 ## A pass's elapsed time on the wire: hundredths, up to 655 s.
 const ET_SCALE := 100.0
 
-enum Ev { PASS = 1, GREEN, FOUL, FINISH, PASS_END, MATCH_END, REACTION, GRADE, BOOST }
+enum Ev { PASS = 1, GREEN, FOUL, FINISH, PASS_END, MATCH_END, REACTION, GRADE, BOOST, ARM, READY }
 ## Foul codes, so a client shows the same words for it.
 const FOULS := ["", "red", "centreline", "off", "reset", "stopped", "timeout"]
 const GRADES := ["", "perfect", "good", "miss"]
@@ -166,6 +166,8 @@ func _on_state(bytes: PackedByteArray) -> void:
 ## Client: the moments, as they happened.
 func _on_events(bytes: PackedByteArray) -> void:
 	var n := (bytes.size() - 1) / RECORD
+	# The pair being waited on comes as one record a car, in lane order, and is taken as a whole.
+	var armed: Array[Racer] = []
 	for i in n:
 		var at := 1 + i * RECORD
 		var kind: int = bytes[at]
@@ -188,6 +190,11 @@ func _on_events(bytes: PackedByteArray) -> void:
 				drag.net_pass_end(r)
 			Ev.MATCH_END:
 				drag.net_match_end(r)
+			Ev.ARM:
+				if r:
+					armed.append(r)
+	if not armed.is_empty():
+		drag.net_arm(armed)
 
 
 ## Server: what a client's own game saw of its own car.
@@ -208,6 +215,8 @@ func _on_server_raw(peer: int, bytes: PackedByteArray) -> void:
 				drag.take_net_grade(r, GRADES[clampi(int(bytes.decode_float(at + 3)), 0, GRADES.size() - 1)])
 			Ev.BOOST:
 				drag.take_net_boost(r)
+			Ev.READY:
+				drag.take_net_ready(r)
 
 
 func _on_client_raw(bytes: PackedByteArray) -> void:
@@ -226,6 +235,19 @@ func _send_pass(cars: Array) -> void:
 	for r: Racer in cars:
 		recs.append(_record(Ev.PASS, r.net_id, float(int(drag.run_of(r).get("lane", 0)))))
 	_broadcast(recs)
+
+
+## Server: the pair the ladder is waiting on, so the cards go up on the clients too (D177).
+func send_arm(pair: Array) -> void:
+	var recs: Array = []
+	for i in pair.size():
+		recs.append(_record(Ev.ARM, (pair[i] as Racer).net_id, float(i)))
+	_broadcast(recs)
+
+
+## Client: one of its drivers has locked in for the pass the server is waiting on.
+func send_ready(r: Racer) -> void:
+	_report([_record(Ev.READY, r.net_id, 0.0)])
 
 
 ## Called by DragControl on the server when the lights go green, and at the end of the match.

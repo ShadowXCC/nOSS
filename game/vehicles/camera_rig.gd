@@ -4,7 +4,8 @@ extends Node3D
 ## AV-04), with that player's comfort options (docs/ACCESSIBILITY.md §4): camera shake, head
 ## movement, speed FOV and horizon lock. Free look (the right stick, docs/INPUT.md §1) turns the
 ## view while it's held and swings back to the camera when it's let go. The camera is current in the viewport the rig is in,
-## so in splitscreen each player's view has its own.
+## so in splitscreen each player's view has its own. A mode may also `watch`: the camera is put
+## where the mode says and the car is ignored (a drag pass the player is not in, D176).
 
 const MODES := ["chase_near", "chase_far", "hood", "bumper", "cockpit"]
 const MOUNTED_FOV := { "hood": 70.0, "bumper": 76.0 }
@@ -27,6 +28,8 @@ var vehicle: Vehicle
 var input: PlayerInput
 var mode := "chase_near"
 var camera := Camera3D.new()
+## Spectating (D176): the camera is placed by the mode instead of following `vehicle`.
+var watching := false
 ## Every player's rig in the scene (cars far from them all skip wheel animation).
 static var rigs: Array[CameraRig] = []
 
@@ -36,6 +39,8 @@ var _yaw_dir := Vector3.FORWARD
 var _head := Vector3.ZERO
 ## Free look now, radians: x turns right, y looks up.
 var _look := Vector2.ZERO
+var _watch_xf := Transform3D()
+var _watch_fov := 65.0
 var _shake_time := 0.0
 var _initialized := false
 
@@ -64,6 +69,22 @@ func set_vehicle(v: Vehicle) -> void:
 	_initialized = false
 
 
+## Spectating: the camera sits where it is put and the car is ignored, so a player whose own car
+## is out of play (a drag pass they are not in, D176) still sees what is going on.
+func watch(xf: Transform3D, at_fov: float) -> void:
+	watching = true
+	_watch_xf = xf
+	_watch_fov = at_fov
+
+
+## Back to the car: the chase camera starts where the car is, not where the view was left.
+func unwatch() -> void:
+	if not watching:
+		return
+	watching = false
+	_initialized = false
+
+
 func next_mode() -> void:
 	set_mode(MODES[(MODES.find(mode) + 1) % MODES.size()])
 
@@ -74,6 +95,10 @@ func set_mode(new_mode: String) -> void:
 
 
 func _process(delta: float) -> void:
+	if watching:
+		camera.global_transform = _watch_xf
+		camera.fov = _watch_fov
+		return
 	if vehicle == null or not is_instance_valid(vehicle):
 		return
 	var xf := vehicle.get_global_transform_interpolated()

@@ -32,6 +32,10 @@ var can_change_car := true
 ## Practice and qualifying can be ended early; sessions can be restarted.
 var can_end_session := false
 var can_restart := false
+## What restarting is called here, and whether it asks first: a drag match is a whole ladder to
+## lose by a stray press (D179).
+var restart_text := "Restart"
+var confirm_restart := false
 ## The car's setup can be changed (not during a race).
 var can_setup := false
 var setup: Setup
@@ -73,7 +77,7 @@ func _ready() -> void:
 	if can_end_session:
 		_buttons.append(UiKit.button("End session", func() -> void: end_session.emit(), "Results now"))
 	if can_restart:
-		_buttons.append(UiKit.button("Restart", func() -> void: restart.emit(), "Start this session again"))
+		_buttons.append(UiKit.button(restart_text, _restart_pressed, "Start this session again"))
 	if online:
 		_buttons.append(UiKit.button("Chat", _open_chat, "Read and send messages"))
 	if is_host:
@@ -112,6 +116,18 @@ func _open_setup() -> void:
 	UiKit.open_sub(self, menu, func() -> void:
 		setup_closed.emit()
 		_ready_focus())
+
+
+func _restart_pressed() -> void:
+	if not confirm_restart:
+		restart.emit()
+		return
+	var menu := ConfirmMenu.new()
+	menu.title = "%s?" % restart_text
+	menu.yes_text = restart_text
+	menu.yes_hint = "Start this session again"
+	menu.confirmed.connect(func() -> void: restart.emit())
+	UiKit.open_sub(self, menu, _ready_focus)
 
 
 func _open_leaderboard() -> void:
@@ -167,5 +183,36 @@ class ChatMenu:
 
 	func _unhandled_input(e: InputEvent) -> void:
 		if e.is_action_pressed("ui_cancel"):
+			get_viewport().set_input_as_handled()
+			closed.emit()
+
+
+## A second press before something that cannot be taken back. The safe answer is the focused one.
+class ConfirmMenu:
+	extends Control
+
+	signal closed
+	signal confirmed
+
+	var title := ""
+	var yes_text := "Yes"
+	var yes_hint := ""
+	var no_text := "Keep going"
+
+
+	func _ready() -> void:
+		theme = UiKit.theme_for(self)
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		process_mode = Node.PROCESS_MODE_ALWAYS
+		var list := UiKit.panel(self, title, 620)
+		var no := UiKit.button(no_text, func() -> void: closed.emit(), "Back to the pause menu")
+		var yes := UiKit.button(yes_text, func() -> void: confirmed.emit(), yes_hint)
+		list.add_child(no)
+		list.add_child(yes)
+		UiKit.chain_focus([no, yes])
+
+
+	func _unhandled_input(event: InputEvent) -> void:
+		if event.is_action_pressed("ui_cancel"):
 			get_viewport().set_input_as_handled()
 			closed.emit()

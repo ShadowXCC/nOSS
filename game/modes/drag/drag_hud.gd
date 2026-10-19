@@ -64,7 +64,7 @@ func _read(drag: DragControl, p: SessionPlayer) -> Dictionary:
 	var state: Dictionary = drag.run_of(p)
 	var units := String(Settings.units)
 	if state.is_empty():
-		return { "state": _waiting_text(drag, p), "units": units }
+		return { "state": _waiting_text(drag, p), "prompt": _watch_text(drag, p), "units": units }
 	var gear := p.vehicle.sim.get_gear() if p.vehicle else 0
 	return {
 		"state": _state_text(drag, state),
@@ -96,7 +96,16 @@ func _waiting_text(drag: DragControl, p: SessionPlayer) -> String:
 	for r in drag.cars:
 		names.append(r.display_name)
 	var who := " vs ".join(names)
-	return "%s  ·  %s" % [who, "your turn next" if _next_up(drag, p) else "watching"]
+	var what := "skipping" if drag.skipping else ("your turn next" if _next_up(drag, p) else "watching")
+	return "%s  ·  %s" % [who, what]
+
+
+## What a waiting player can do about it: hurry a pass of bots along (D178). Nothing to say when
+## one of the cars is somebody's.
+func _watch_text(drag: DragControl, p: SessionPlayer) -> String:
+	if not drag.skipping and not drag.can_skip():
+		return ""
+	return _cached(p, "skip", "", func() -> String: return DragPrompts.skip_text(p))
 
 
 ## This player is in the pair that runs after this one.

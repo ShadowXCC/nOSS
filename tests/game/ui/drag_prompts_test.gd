@@ -65,6 +65,7 @@ func test_prompts_say_nothing_for_a_bot() -> void:
 	assert_str(DragPrompts.launch_text(bot, "brake")).is_empty()
 	assert_str(DragPrompts.shake_text(bot)).is_empty()
 	assert_str(DragPrompts.two_step_text(bot, "clutch")).is_empty()
+	assert_str(DragPrompts.skip_text(bot)).is_empty()
 	bot.free()
 
 

@@ -97,8 +97,12 @@ static func push_action(viewport: Viewport, action: String) -> void:
 static func track_focus(viewport: Viewport) -> void:
 	viewport.gui_focus_changed.connect(func(c: Control) -> void:
 		viewport.set_meta(&"player_focus", c)
-		# After this frame's input: taking the window's focus now would cut the view's off.
-		ViewFocusBridge.point_at.call_deferred(c))
+		# After this frame's input: taking the window's focus now would cut the view's off. By id,
+		# not the control itself: a menu that closes while it is focused (a drag card locked in,
+		# D177) is gone by then, and a freed instance fails the call's own type check.
+		var id := c.get_instance_id() if c else 0
+		(func() -> void:
+			ViewFocusBridge.point_at(instance_from_id(id) as Control if is_instance_id_valid(id) else null)).call_deferred())
 
 
 ## The control a player's viewport last focused, if it's still there and visible.

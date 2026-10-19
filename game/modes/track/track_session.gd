@@ -122,6 +122,7 @@ var sumo_net: SumoNet
 ## built here rather than from a track file.
 var drag: DragControl
 var drag_world: DragBuilder
+var drag_watch: DragWatch
 var drag_hud: DragHud
 var drag_net: DragNet
 ## Dev and tests: the ladder's draw seed (0: drawn freshly).
@@ -717,11 +718,19 @@ func _ready_drag() -> void:
 	drag.drag_seed = drag_seed if drag_seed != 0 else int(Game.dev.get("drag-seed", "0"))
 	add_child(drag)
 	race.standings_source = drag.standings
+	# No pass runs before its drivers have locked in (D177). The authority holds the ladder even
+	# with no cards of its own to show: on a dedicated server every driver is somebody else's.
+	drag.ready_gate = true
 	if not dedicated and not Game.dev.has("bot"):
 		drag_hud = DragHud.new()
 		drag_hud.name = "DragHud"
 		drag_hud.session = self
 		add_child(drag_hud)
+		# The cards, and the camera on a pass somebody else is running (D176-D178).
+		drag_watch = DragWatch.new()
+		drag_watch.name = "DragWatch"
+		drag_watch.session = self
+		add_child(drag_watch)
 		var ds := DragSounds.new()
 		ds.name = "DragSounds"
 		ds.session = self
@@ -1183,7 +1192,9 @@ func apply_game_speed() -> void:
 	var speed := 1.0
 	if humans.size() == 1 and not is_online():
 		speed = clampf(float(humans[0].slot.profile.data.get("game_speed", 1.0)), 0.5, 1.0)
-	Engine.time_scale = speed
+	# A pass of bots being hurried along (D178) takes the clock with it, and only the clock: the
+	# tick rate stays, so the sim steps the same slice of game time a driven pass does.
+	Engine.time_scale = speed * (DragControl.SKIP_SPEED if drag and drag.skipping else 1.0)
 	Engine.physics_ticks_per_second = roundi(PHYSICS_HZ * speed)
 	if speed < 1.0:
 		for p: SessionPlayer in humans:
@@ -1491,7 +1502,11 @@ func _open_pause(p: SessionPlayer) -> void:
 	menu.can_change_car = hotswap_allowed
 	menu.can_end_session = race.kind in ["practice", "qualifying"]
 	menu.allowed_assists = AssistRules.allowed(platform.platform, mode)
-	menu.can_restart = race.kind in ["race", "practice", "qualifying"] and not race.mirror
+	menu.can_restart = race.kind in ["race", "practice", "qualifying", "drag"] and not race.mirror
+	if race.kind == "drag":
+		# A ladder is a long thing to lose to a stray press, so this one asks first (D179).
+		menu.restart_text = "Restart event"
+		menu.confirm_restart = true
 	menu.can_end_session = menu.can_end_session and not race.mirror
 	menu.online = is_online()
 	menu.is_host = is_online() and Net.is_server()

@@ -42,6 +42,9 @@ func _start(length := 402, boost := 1) -> void:
 		r.driver.process_mode = Node.PROCESS_MODE_DISABLED
 	s.race.session_ended.connect(func(kind: String, rows: Array) -> void: ended.append([kind, rows]))
 	drag = s.drag
+	# These tests are about what a pass does, not about pressing Ready on the card that holds it
+	# for its drivers (D177); the tests below that are about the card turn the gate back on.
+	drag.ready_gate = false
 	a = s.racers[0]
 	b = s.racers[1]
 	c = s.racers[2]
@@ -371,3 +374,110 @@ func test_no_automatic_gearbox_is_allowed_here() -> void:
 func test_the_hud_hides_what_a_strip_has_none_of() -> void:
 	await _start()
 	assert_array(DragControl.HUD_HIDDEN).contains(["timing", "position", "standings", "flags"])
+
+
+## The pairs as they stand, by name, to see a restart draw the same ones again.
+func _pair_names() -> Array:
+	return drag.ladder.pairs.map(func(pair: Array) -> String:
+		return "%s/%s" % [pair[0].display_name if pair[0] else "-", pair[1].display_name if pair[1] else "-"])
+
+
+func test_a_pass_waits_for_its_drivers_to_lock_in() -> void:
+	await _start()
+	await _pass_set_up()
+	# Back to the top of the ladder with the cards on and the player drawn into the first pair.
+	drag.ready_gate = true
+	drag.reset()
+	drag.ladder.pairs = [[a, b], [c, d]]
+	drag.ladder.pair_index = 0
+	assert_bool(a.is_human).override_failure_message("the first racer is meant to be the player").is_true()
+	for i in 120:
+		if not drag.armed.is_empty():
+			break
+		await get_tree().physics_frame
+	# The pair is drawn and waiting, but no pass sets up until the driver says they are ready.
+	assert_bool(a in drag.armed and b in drag.armed).is_true()
+	assert_array(drag.cars).is_empty()
+	assert_int(drag.phase).is_equal(DragControl.Phase.IDLE)
+	assert_bool(drag.needs_lock_in(a)).is_true()
+	assert_bool(drag.needs_lock_in(b)).override_failure_message("a bot is never asked").is_false()
+	drag.lock_in(a)
+	for i in 10:
+		await get_tree().physics_frame
+	assert_bool(a in drag.cars and b in drag.cars).is_true()
+	assert_array(drag.armed).is_empty()
+
+
+func test_only_a_pass_of_bots_can_be_hurried_along() -> void:
+	await _start()
+	await _pass_set_up()
+	# A pass with a player in it is the game, not something to skip.
+	drag.reset()
+	drag.ladder.pairs = [[a, b], [c, d]]
+	drag.ladder.pair_index = 0
+	await _pass_set_up()
+	assert_bool(drag.can_skip()).is_false()
+	drag.skip(true)
+	assert_bool(drag.skipping).is_false()
+	assert_float(Engine.time_scale).is_equal_approx(1.0, 0.01)
+	# Two bots: it runs faster, at the same tick rate, so the pass is the sim's own either way.
+	drag.reset()
+	drag.ladder.pairs = [[c, d]]
+	drag.ladder.pair_index = 0
+	await _pass_set_up()
+	assert_bool(drag.can_skip()).is_true()
+	drag.skip(true)
+	assert_bool(drag.skipping).is_true()
+	assert_float(Engine.time_scale).is_equal_approx(DragControl.SKIP_SPEED, 0.01)
+	assert_int(Engine.physics_ticks_per_second).is_equal(TrackSession.PHYSICS_HZ)
+	# The clock comes back when the pass is over.
+	for r: Racer in drag.cars:
+		var state: Dictionary = drag.run_of(r)
+		state.done = true
+		state.crossed = 9.0
+		state.et = 9.0
+	drag._to(DragControl.Phase.SETTLE)
+	drag.phase_time = DragControl.SETTLE_S + 1.0
+	for i in 6:
+		await get_tree().physics_frame
+	assert_bool(drag.skipping).is_false()
+	assert_float(Engine.time_scale).is_equal_approx(1.0, 0.01)
+
+
+func test_a_restart_runs_the_same_ladder_and_puts_the_waiting_cars_away_again() -> void:
+	await _start()
+	await _pass_set_up()
+	# With no seed set the draw is random, so the one it used is kept for a restart (D179).
+	drag.drag_seed = 0
+	drag._drawn_seed = 0
+	drag.reset()
+	var drawn := _pair_names()
+	s.race.restart_session()
+	await _pass_set_up()
+	assert_array(_pair_names()).override_failure_message("the restart drew a different ladder").is_equal(drawn)
+	# The cars that were parked before the restart are parked again, not left on the strip: the
+	# flag has to be cleared, because _park takes a car that still carries it for put away.
+	var waiting := s.racers.filter(func(r: Racer) -> bool: return r not in drag.cars)
+	assert_array(waiting).is_not_empty()
+	for r: Racer in waiting:
+		assert_bool(r.parked).is_true()
+		assert_bool(r.vehicle.visible).override_failure_message("%s left standing on the strip" % r.display_name).is_false()
+func test_the_pair_being_waited_on_goes_over_the_wire() -> void:
+	await _start()
+	await _pass_set_up()
+	# The record itself: one a car, the lane in its value (DragNet, protocol 9).
+	var net := DragNet.new()
+	var rec := net._record(DragNet.Ev.ARM, 7, 1.0)
+	assert_int(rec.size()).is_equal(DragNet.RECORD)
+	assert_int(rec[0]).is_equal(DragNet.Ev.ARM)
+	assert_int(rec.decode_u16(1)).is_equal(7)
+	assert_float(rec.decode_float(3)).is_equal_approx(1.0, 0.001)
+	assert_int(net._record(DragNet.Ev.READY, 7, 0.0)[0]).is_equal(DragNet.Ev.READY)
+	net.free()
+	# A client takes the pair from it and puts its own driver's card up.
+	drag.net_arm([a, b])
+	assert_bool(drag.needs_lock_in(a)).is_true()
+	assert_bool(drag.needs_lock_in(b)).is_false() # a bot is nobody's card
+	# The server takes the client's word for it.
+	drag.take_net_ready(a)
+	assert_bool(drag.needs_lock_in(a)).is_false()

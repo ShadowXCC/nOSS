@@ -34,7 +34,7 @@ func test_a_car_state_carries_the_kart_word() -> void:
 	assert_int(CarState.SIZE).is_equal(48)
 	var back := CarState.decode(bytes, 0)
 	assert_int(back.kart).is_equal(st.kart)
-	assert_int(NetProtocol.VERSION).is_equal(8)
+	assert_int(NetProtocol.VERSION).is_equal(9)
 
 
 func test_a_record_keeps_what_it_says() -> void:

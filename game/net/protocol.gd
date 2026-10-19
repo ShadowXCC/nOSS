@@ -6,7 +6,7 @@ extends RefCounted
 ## before decoding, its fields after. Car states and content chunks have their own packed formats.
 
 ## Bumped whenever messages change: a client and server must match.
-const VERSION := 8
+const VERSION := 9
 const DEFAULT_PORT := 47800
 ## Channels beyond Godot's channel 0 (which carries reliable control messages).
 const EXTRA_CHANNELS := 3
