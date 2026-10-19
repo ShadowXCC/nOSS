@@ -220,7 +220,7 @@ Every game builds the same platforms from the event's settings alone (D162), so 
 | `SUMO_STATE` (107) | server → clients, 5 Hz | `tiers` u8 · radius f32 × tiers · cars u8 × 5 B (id u16 · tier i8, −1 in the air or gone · flags u8, 1 = out · ram charge u8) |
 | `SUMO_EVENTS` (113) | server → clients, reliable | 8-byte records: kind u8 (1 out, 2 a platform set going) · car u16 · tier u8 · time u32 (ms) |
 
-## 14. Drag passes (D175)
+## 14. Drag passes (D175, D177)
 
 Every game builds the same strip from the event's settings alone (D168), so the strip itself is never sent. What goes over is what the pass is doing and where each car stands in it.
 
@@ -228,12 +228,13 @@ Every game builds the same strip from the event's settings alone (D168), so the 
 - **Each game still grades its own shifts.** A game drives its own car, and the two things that decide a shift — the driver's input and the mode's own needle — are only visible where the driver is. Waiting a round trip to be told whether a shift was perfect would make the one mechanic the mode is built on feel late, so a client grades its own, feels its own surge or bog at once, and **reports** the grade and its reaction time up for the record. The server takes a report only for a car that peer owns, and only once for a reaction.
 - **The moments** (the pair and their lanes, the green, a foul, a car through the lights, the pass's winner, the match's winner) go out at once, reliably, so a red light and a splash of news land on the tick they happened.
 - **Five times a second** the server sends how the pass stands: its phase and clock, and each car's lane, launched/done/blown/out, foul, bottles left, reaction and time. That heals drift and brings a joiner up to date. A client takes a phase that has moved on at once and only nudges the clock, so the tree never stutters between snapshots. The snapshot carries the pass's number, so a packet that arrives late cannot drag the pass backwards: being set back on the line mid-run would teleport the car, which the server's own plausibility checks would read as a jump (D87).
+- **A pass waits for its drivers (D177).** Before a pair runs, the server sends the pair it is holding the ladder for and waits for each human in it to lock in; a client puts the card up for its own drivers and reports `READY` when one dismisses it. The wait has a 20 s deadline, so a driver who has walked away does not stall fifteen other people. Skipping a pass is not on the wire at all: it moves the clock, which every car on the wire keeps time by (D84).
 - **Nobody joins a pass in progress**; they are drawn into the next round.
 
 | Message | Way | Contents |
 |---|---|---|
 | `DRAG_STATE` (108) | server → clients, 5 Hz | `phase` u8 · time f32 · pass u8 · cars u8 × 12 B (id u16 · lane i8 · flags u8, 1 in the pass / 2 launched / 4 done / 8 blown / 16 out · foul u8 · bottles u8 · reaction f32 · time u16, hundredths) |
-| `DRAG_EVENTS` (114) | server → clients, reliable | 12-byte records: kind u8 (1 pass, 2 green, 3 foul, 4 through the lights, 5 pass over, 6 match over) · car u16 · value f32 · time u32 (ms) |
-| `DRAG_REPORT` (115) | client → server, reliable | the same records, for what only the driver's own game sees: 7 its reaction, 8 a shift's grade, 9 a bottle spent |
+| `DRAG_EVENTS` (114) | server → clients, reliable | 12-byte records: kind u8 (1 pass, 2 green, 3 foul, 4 through the lights, 5 pass over, 6 match over, 10 the pair being waited on, one record a car in lane order) · car u16 · value f32 · time u32 (ms) |
+| `DRAG_REPORT` (115) | client → server, reliable | the same records, for what only the driver's own game sees: 7 its reaction, 8 a shift's grade, 9 a bottle spent, 11 ready for the pass |
 
 **Replays and ghosts** can reuse the same car-state format (AV-08).

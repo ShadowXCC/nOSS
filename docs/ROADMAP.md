@@ -184,12 +184,19 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
 
 ## Mini Games: Drag Strip
 
-*The second game under Mini Games (D168-D174).*
+*The second game under Mini Games (D168-D179).*
 
 - **Drag Strip** (`game/modes/drag/`, `game/world/arena/drag_{layout,builder}.gd`, D168-D174): two lanes, one straight line, and an elimination ladder. A pass runs burnout, staging, the Christmas tree, the strip and the shutdown. Shifts are timed against a **fake tachometer** — the mode's own needle, one sweep rate for every car, class and model, with a window that moves and tightens gear by gear — while the real gearbox still does the shifting underneath. Reaction times to the thousandth and red lights for leaving early. Six gimmicks, each on its own setting: the tree, the two-step rev hold, the burnout, the tire-shake save, the perfect-shift chain and the money shift. 0-3 bottles of boost. Crossing the centreline loses the pass. 1/8, 1/4 or 1/2 mile. Three classes (Street, Pro, Top Fuel) that any model may mount. **No automatic gearbox**: an automatic would play the game for you.
 - **Prompts follow the device:** a prompt names the input the driver is holding — "Release Space", "A", "Release the clutch", "3rd gate" — from what they last drove with and what they have bound.
 - The strip is generated from the match settings, so there is no track file, nothing to download and nothing of it on the wire.
-- Online (protocol 8): the server runs the tree, grades the shifts and rules on the fouls.
+- Online (protocol 8, 9): the server runs the tree, grades the shifts, rules on the fouls and holds
+  the ladder until the drivers in the next pair have locked in.
+- **Between passes** (`game/modes/drag/drag_watch.gd`, `game/ui/menus/drag_ready_card.gd`,
+  D176-D179): the camera goes on the pass a waiting player is watching (their own car is parked
+  600 m under the strip, and the rig follows the car it is bolted to), the Camera button cycles
+  that view with a chase on either car, the Boost input hurries a pass of bots along at 4x
+  offline, a card names the next driver and what the pass asks of them and holds the ladder until
+  they dismiss it, and the pause menu restarts the event on the same draw.
 
 **Acceptance:**
 - [x] A drag match runs its whole ladder to a single winner, on every class and length. *`tools/drag_check.sh` (4 cars, skill 70-90, one seed): all 9 of Street, Pro and Top Fuel x 1/8, 1/4 and 1/2 mile. Each runs its 3 passes, eliminates one car a pass, ends with exactly one car in and nobody in the sand. A whole 4-car ladder takes 54-90 s. Fields of 6 and 8 run their 5 and 7 passes the same way. The check's own work costs 9-12 µs a tick.*
@@ -199,6 +206,10 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
 - [x] The screen-reader walk covers the new menu and the panel. *`tools/a11y_check.py --drag-only`: Title → Solo Drive → Mini Games → Drag Strip → its menu (focus on "Class: Street") → Players, and back out a screen at a time. The settings
   scroll, so only the rows on screen are reported over AT-SPI at any moment and the focus brings
   the rest into view, as the Settings and Bindings menus have always done. The panel's lines are covered by `tests/game/ui/drag_prompts_test.gd`, which checks that every state it shows in colour it also says in words ("Shift now", "Over-revving", "Engine gone") and that the whole panel reads out.*
+- [x] A player waiting their turn is shown the pass they are watching. *`tests/game/modes/drag_watch_test.gd`: while the player is parked, their own car is still hidden 600 m under the deck and the camera is above the strip, behind the pair and over the centreline, with both cars and the strip ahead of them inside its own frustum; the Camera button walks the view onto either car's chase camera and back round, and a view picked for watching is never saved over the camera they drive with. The frustum check stands in for a screenshot on purpose: a windowed run draws no frames at all while the monitors are asleep, so a picture proves nothing there.*
+- [x] A pass waits for its drivers, and a pass of bots can be hurried along. *`tests/game/modes/drag_control_test.gd`: the ladder holds in `IDLE` with the pair armed and nothing on the line until `lock_in`, and a bot in that pair is never asked; `skip` is refused while a human is in the pass, runs at 4x when there is not with the tick rate left at 120 Hz, and gives the clock back when the pass ends. The card comes up as the player's own overlay, names them and the devices in their hands, and goes when they lock in (`drag_watch_test`). The ARM and READY records and both ends of them are covered there too: `net_check`'s field is all bots, which the gate never holds, so nothing online would exercise them.*
+- [x] A restart runs the same ladder again. *`drag_control_test`: the seed the field was drawn with survives `race.restart_session()` and the pairs come out in the same order; every car that was parked before the restart is parked and hidden again after it, which it was not before — `_place_arena` never cleared the flag, so `_park` took those cars for already put away and left them standing on the strip through the next pass.*
+- [x] The mode still holds up with the longer burnout and the new protocol. *`tools/drag_check.sh --cars=6 --length=201 --skill=60-90 --seed=1`: 5 passes, one winner, 18 perfect to 22 good shifts, no fouls, 0.010 ms a tick. `--cars=4 --class=top_fuel --length=805 --skill=88-95 --seed=2`: 3 passes in 85 s, 18 perfect shifts, none blown. `net_check.py --event drag --clients 2 --ai 3 --length 201 --duration 200 --rtt 150 --jitter 10 --loss 1` on protocol 9: 4 passes, 31 events, 8 grades taken from clients, remote cars within 0.00 m (median) and 0.33 m (95%), 7.1 KB/s down per bot, 0 contacts. `tools/a11y_check.py --drag-only` walks the menus as before.*
 
 ## M10+: Backlog (order to be decided)
 
