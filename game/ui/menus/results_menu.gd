@@ -12,7 +12,7 @@ signal quit_to_title
 ## Online host: back to the lobby.
 signal to_lobby
 
-## "race", "qualifying", "practice" or "battle".
+## "race", "qualifying", "practice", "battle", "sumo" or "drag".
 var kind := "race"
 ## RaceControl.results rows.
 var results: Array = []
@@ -33,10 +33,11 @@ const ASSIST_NAMES := { "abs": "ABS", "tcs": "TCS", "stability": "SC", "auto_gea
 func _ready() -> void:
 	theme = UiKit.theme()
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	var title: String = { "race": "Race results", "qualifying": "Qualifying", "practice": "Practice", "battle": "Battle results", "sumo": "Sumo results" }.get(kind, "Results")
+	var title: String = { "race": "Race results", "qualifying": "Qualifying", "practice": "Practice", "battle": "Battle results", "sumo": "Sumo results", "drag": "Drag results" }.get(kind, "Results")
 	var list := UiKit.panel(self, title, 1500)
 	var head := _line(["Pos", "Driver", "Car", "Lives", "Hits", "Taken", "", "Assists"] if kind == "battle" else
 		["Pos", "Driver", "Car", "Tier", "Lasted", "", "", "Assists"] if kind == "sumo" else
+		["Pos", "Driver", "Car", "Round", "Reaction", "Best ET", "Speed", "Assists"] if kind == "drag" else
 		["Pos", "Driver", "Car", "Time" if kind == "race" else "Best", "Gap", "Laps", "Pen", "Assists"])
 	head.modulate = UiKit.ACCENT
 	list.add_child(head)
@@ -90,6 +91,8 @@ func _row_button(row: Dictionary) -> Button:
 		return _battle_row(row)
 	if kind == "sumo":
 		return _sumo_row(row)
+	if kind == "drag":
+		return _drag_row(row)
 	var r: Racer = row.racer
 	var time := Hud.format_time(row.time) if kind == "race" else Hud.format_time(row.best)
 	if kind == "race" and row.dnf:
@@ -135,6 +138,37 @@ func _sumo_row(row: Dictionary) -> Button:
 	if r.is_human:
 		b.add_theme_stylebox_override("normal", UiKit._box(Color(1, 1, 1, 0.06), Color(0, 0, 0, 0), 0, 6))
 	return b
+
+
+## A drag row: how far up the ladder the car got, its best reaction, its best time through the
+## lights and what it was doing when it got there ("-" for a pass it never completed).
+func _drag_row(row: Dictionary) -> Button:
+	var r: Racer = row.racer
+	var assists := String(row.assists) if row.has("assists") else assists_text(r)
+	var reaction := float(row.get("reaction", -1.0))
+	var et := float(row.get("et", -1.0))
+	var trap := float(row.get("trap", -1.0))
+	var round_text := "Round %d" % int(row.get("round", 0)) if int(row.get("round", 0)) > 0 else "-"
+	var reaction_text := "%.3f" % reaction if reaction >= 0.0 else "-"
+	var et_text := "%.3f" % et if et >= 0.0 else "-"
+	var trap_text := _speed_text(trap) if trap >= 0.0 else "-"
+	var cells := ["P%d" % row.position, "%s%s" % ["#%d " % row.number if not r.is_human else "", row.name], row.car,
+		round_text, reaction_text, et_text, trap_text, assists]
+	var b := Button.new()
+	b.flat = true
+	b.focus_mode = Control.FOCUS_ALL
+	b.custom_minimum_size = Vector2(0, 52)
+	b.add_child(_line(cells))
+	b.accessibility_name = "P%d, %s, %s, %s, reaction %s, best %s, %s%s" % [row.position, row.name, row.car,
+		round_text, reaction_text, et_text, trap_text,
+		", assists: " + assists if assists != "" else ""]
+	if r.is_human:
+		b.add_theme_stylebox_override("normal", UiKit._box(Color(1, 1, 1, 0.06), Color(0, 0, 0, 0), 0, 6))
+	return b
+
+
+static func _speed_text(speed: float) -> String:
+	return "%d mph" % roundi(speed * 2.23694) if String(Settings.units) == "imperial" else "%d km/h" % roundi(speed * 3.6)
 
 
 func _battle_row(row: Dictionary) -> Button:

@@ -1,0 +1,13 @@
+{
+  "schema": "noss.mode/1",
+  "id": "drag",
+  "name": "Drag",
+  "classes": ["official.drag.street", "official.drag.pro", "official.drag.top_fuel"],
+  "default_car": "res://content/cars/noss_box",
+  "tuning": { "allow": [] },
+  "assists": {
+    "allowed": ["abs", "tcs", "stability", "auto_clutch", "steer_aid", "steering_assist"],
+    "defaults": ["auto_clutch"]
+  },
+  "damage": { "cosmetic": true, "mechanical": false }
+}

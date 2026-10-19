@@ -121,6 +121,19 @@ func has_binding(action: String) -> bool:
 	return not _refs.get(action, []).is_empty()
 
 
+## What to call the input bound to `action` on screen ("W", "RB", "Button 4"), for a prompt that
+## has to name a button (DragPrompts). `prefer` is the kind of device to look at first — the one
+## the player is actually using — and "" takes whatever is bound. Empty if nothing is.
+func label_for(action: String, prefer := "") -> String:
+	var refs: Array = _refs.get(action, [])
+	var kinds := ([prefer] if prefer else []) + ["keyboard", "gamepad", "sim"]
+	for want: String in kinds:
+		for b: Dictionary in refs:
+			if String(b.kind) == want:
+				return Bindings.ref_label(b.ref, want)
+	return ""
+
+
 func held(action: String) -> bool:
 	return analog(action) > PRESS
 

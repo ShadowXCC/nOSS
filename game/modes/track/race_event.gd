@@ -6,7 +6,7 @@ extends RefCounted
 ## event (§3) runs as one free session with its own rules (HighwayControl).
 
 ## "free" (free drive), "race" (a race weekend), "time_trial", "highway", "battle" (kart, an
-## arena) or "sumo" (a mini-game on shrinking platforms).
+## arena), "sumo" (a mini-game on shrinking platforms) or "drag" (a mini-game on a strip).
 var kind := "free"
 ## Highway: "cruise", "score" (score attack), "run" or "loop"; police on; traffic cars (-1: the
 ## track's own count); the run's id; the direction players start in (1 or -1; 0: both ways,
@@ -48,6 +48,22 @@ var sumo_hazard := "lava"
 var sumo_shrink := "smooth"
 var sumo_secs := 90
 var sumo_pillar := false
+## Drag (docs/GAMEMODES.md §6, D168-D173): the strip's length in metres (1/8, 1/4 or 1/2 mile),
+## how many boost charges each driver gets (0-3), whether shifts are timed against the tach and
+## whether the QTEs fire at all, then each gimmick on its own: the Christmas tree (with reaction
+## times and red lights), the two-step rev hold, the burnout, the tire-shake save, the
+## perfect-shift chain, over-rev strain, and whether crossing the centreline loses the pass.
+var drag_length_m := 402
+var drag_boost := 1
+var drag_timing := true
+var drag_qtes := true
+var drag_tree := true
+var drag_two_step := true
+var drag_burnout := true
+var drag_shake := true
+var drag_chain := true
+var drag_money_shift := true
+var drag_centreline := true
 ## The sky (ENV-01…03, D153): the time of day ("track": the track's own fixed sun, or a time),
 ## how fast it runs (game minutes per real minute; 0 stands still), the weather ("track": the
 ## track's own, "changing": fronts come and go), and the seed of the weather's fronts (0: picked
@@ -67,7 +83,7 @@ var spread := "bring"
 
 ## The values each text field may take; the first is the default.
 const CHOICES := {
-	"kind": ["free", "race", "time_trial", "highway", "battle", "endless", "sumo"], "start": ["standing", "rolling"], "grid": ["qualifying", "reverse", "random"],
+	"kind": ["free", "race", "time_trial", "highway", "battle", "endless", "sumo", "drag"], "start": ["standing", "rolling"], "grid": ["qualifying", "reverse", "random"],
 	"track_limits": ["lenient", "off", "strict"], "ai_cars": ["garage", "builtin"], "sub": ["cruise", "score", "run", "loop"],
 	"battle_rule": ["standing", "hits"],
 	"sumo_hazard": ["lava", "acid"], "sumo_shrink": ["smooth", "crumble", "stepped"],
@@ -81,6 +97,8 @@ const KEYS := ["kind", "practice_min", "qualifying_min", "race_laps", "race_min"
 	"start", "grid", "collisions", "track_limits", "ai_cars", "sub", "police", "traffic", "run", "direction",
 	"items", "battle_rule", "battle_min", "battle_hits",
 	"sumo_tiers", "sumo_hazard", "sumo_shrink", "sumo_secs", "sumo_pillar",
+	"drag_length_m", "drag_boost", "drag_timing", "drag_qtes", "drag_tree", "drag_two_step",
+	"drag_burnout", "drag_shake", "drag_chain", "drag_money_shift", "drag_centreline",
 	"time", "time_rate", "weather", "env_seed",
 	"road_seed", "biome", "endless_traffic", "oncoming", "spread"]
 ## Written only for highway events (circuit events stay as older games and servers know them).
@@ -89,6 +107,9 @@ const HIGHWAY_KEYS := ["sub", "police", "traffic", "run", "direction"]
 const KART_KEYS := ["items", "battle_rule", "battle_min", "battle_hits"]
 ## Written only for sumo matches.
 const SUMO_KEYS := ["sumo_tiers", "sumo_hazard", "sumo_shrink", "sumo_secs", "sumo_pillar"]
+## Written only for drag matches.
+const DRAG_KEYS := ["drag_length_m", "drag_boost", "drag_timing", "drag_qtes", "drag_tree",
+	"drag_two_step", "drag_burnout", "drag_shake", "drag_chain", "drag_money_shift", "drag_centreline"]
 ## Written only for endless events.
 const ENDLESS_KEYS := ["road_seed", "biome", "endless_traffic", "oncoming", "spread"]
 ## Traffic cars at most.
@@ -130,6 +151,17 @@ static func sumo(tiers := 2, hazard := "lava") -> RaceEvent:
 	return e
 
 
+## A drag match: passes down a strip, two lanes at a time, until one car is left (D168).
+static func drag(length_m := 402, boost := 1) -> RaceEvent:
+	var e := RaceEvent.new()
+	e.kind = "drag"
+	e.ai_count = 7
+	e.drag_length_m = length_m
+	e.drag_boost = boost
+	e.track_limits = "off" # the strip has its own rule: the centreline (D171)
+	return e
+
+
 ## An endless drive (D157): the day and the weather go by on their own unless set.
 static func endless(seed_value := 1, start_biome := 1) -> RaceEvent:
 	var e := RaceEvent.new()
@@ -164,6 +196,8 @@ func sessions() -> PackedStringArray:
 		return PackedStringArray(["battle"])
 	if kind == "sumo":
 		return PackedStringArray(["sumo"])
+	if kind == "drag":
+		return PackedStringArray(["drag"])
 	if kind != "race":
 		return PackedStringArray([kind])
 	var out := PackedStringArray()
@@ -183,6 +217,8 @@ func to_dict() -> Dictionary:
 		if key in KART_KEYS and kind != "battle" and items:
 			continue
 		if key in SUMO_KEYS and kind != "sumo":
+			continue
+		if key in DRAG_KEYS and kind != "drag":
 			continue
 		if key in ENDLESS_KEYS and kind != "endless":
 			continue
@@ -209,6 +245,8 @@ static func from_dict(d: Dictionary) -> RaceEvent:
 	e.battle_hits = clampi(e.battle_hits, 0, 50)
 	e.sumo_tiers = clampi(e.sumo_tiers, 1, 3)
 	e.sumo_secs = clampi(e.sumo_secs, 30, 300)
+	e.drag_length_m = clampi(e.drag_length_m, DragLayout.LENGTHS[0], DragLayout.LENGTHS[DragLayout.LENGTHS.size() - 1])
+	e.drag_boost = clampi(e.drag_boost, 0, 3)
 	e.time_rate = clampi(e.time_rate, 0, 600)
 	e.env_seed = clampi(e.env_seed, 0, 0x7FFFFFFF)
 	e.road_seed = clampi(e.road_seed, 0, 0x7FFFFFFF)

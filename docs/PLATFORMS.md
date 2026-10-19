@@ -247,8 +247,13 @@ Rough targets, tuned during development. Power figures are peak.
 | Highway | Interceptor | car | AWD | 450 kW | 1700 kg | Police only (AI, and later players) |
 | Endless | Cruiser | car, truck | RWD | 150 kW | 1400 kg | Calm, assists on |
 | Endless | Sport | car | RWD | 260 kW | 1350 kg | Spirited |
+| Drag | Street | car, open, truck, moto | RWD | 265 kW | 1400 kg | 6 gears: five shifts to time |
+| Drag | Pro | car, open, truck, moto | RWD | 470 kW | 1150 kg | 5 gears, and it bites |
+| Drag | Top Fuel | car, open, truck, moto | RWD | 620 kW | 1000 kg | 4 gears, no mistakes |
 | Track (M10) | Race Truck | truck | RWD | 750 kW | 5300 kg | Truck racing |
 
 **Shipped in M2:** Track Touring, GT, Prototype and Formula, Kart Medium (a prototype on the core sim), and Highway Street. **M8:** Kart Light and Heavy, and the `kart_arcade` layer on all three; they pass conformance with it on, with the `drift` and `boost` maneuvers too; their default car is the built-in **nOSS Kart**. **M7:** Highway Super (about 506 kW, 1450 kg) and Interceptor (about 449 kW, 1700 kg, police only), and the traffic platforms `official.traffic.car`, `van`, `truck` and `bus` (family car, highway only; trucks 9 t and buses 12 t), which drive the traffic near players (D117); the endless road's traffic uses them too. **M9:** Endless Cruiser (about 151 kW, 1400 kg) and Sport (about 260 kW, 1350 kg), both rear drive, with assists allowed and on, the autodrive included (`data/modes/endless.mode.json`). Every one passes conformance across its geometry grid (§5). The kart's ranges are wide (wheelbase 1.1–2.8 m) so cars, karts and trucks all fit without much scaling. Formula only takes `open` models; the built-in **nOSS Open** is its default car.
+
+**Mini games:** **Sumo** (900 kg, all-wheel drive, one gear) and the three **Drag** classes, all of which any model may mount, so nobody wins a mini game by what they brought. The drag classes are sequential-box rear drive with real gearing, because timing the shifts is the game (D169) — the mode allows no automatic gearbox at all. Their gearing is set so the mode's fixed needle sweep lands near the real power band, and their power-to-weight is kept inside what the conformance lap can hold: Top Fuel is about 0.62 kW/kg, in Formula's neighbourhood, rather than the 0.82 it started at, which could not get round the Proving Ground at all.
 
 Free Drive asks for the class first (how the car drives), then the car (how it looks); the car list only shows models the class accepts.

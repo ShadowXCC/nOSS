@@ -48,7 +48,8 @@ var phase := Phase.LOADING
 var clock := 0.0
 ## Countdown lights lit, 0 to light_count.
 var lights := 0
-## Lights in this session's countdown: LIGHTS for a race, SHORT_LIGHTS otherwise.
+## Lights in this session's countdown: LIGHTS for a race, SHORT_LIGHTS otherwise; none down a
+## strip, where DragControl runs its own tree (D169) and holds its own cars.
 var light_count := LIGHTS
 ## Online server: the games that have the session's cars, and the games (NetHost.sync_state); the
 ## start waits for them all (D127). Clients get `synced` with the race state.
@@ -149,6 +150,9 @@ func session_text(r: Racer) -> String:
 			if phase in [Phase.LOADING, Phase.COUNTDOWN]:
 				return "Ready"
 			return ""
+		"drag":
+			# The pass is the clock; DragControl's own panel says where it is up to (D168).
+			return session.drag.session_text() if session.drag else ""
 	return ""
 
 
@@ -164,7 +168,7 @@ func begin_mirror(session_kind: String, session_index: int, grid_ids: Array) -> 
 func begin(session_kind: String) -> void:
 	kind = session_kind
 	go_at = -1.0
-	light_count = LIGHTS if kind == "race" else SHORT_LIGHTS
+	light_count = 0 if kind == "drag" else LIGHTS if kind == "race" else SHORT_LIGHTS
 	_loading_time = 0.0
 	clock = 0.0
 	lights = 0
@@ -181,7 +185,7 @@ func begin(session_kind: String) -> void:
 		r.dnf = false
 		_laps[r] = 0
 		r.held = false
-	var fixed := kind in ["race", "battle", "sumo"]
+	var fixed := kind in ["race", "battle", "sumo", "drag"]
 	session.hotswap_allowed = not fixed and session.hotswap_rule != "never" or session.hotswap_rule == "always"
 	Players.joining = not session.solo and not fixed and not session.is_online()
 	match kind:
@@ -190,8 +194,9 @@ func begin(session_kind: String) -> void:
 			for i in order.size():
 				_place(order[i], i, event.start == "rolling")
 				order[i].held = true
-		"battle", "sumo":
-			# Round the arena's middle (D144), or the top platform's (D162), held until lights out.
+		"battle", "sumo", "drag":
+			# Round the arena's middle (D144), the top platform's (D162) or the strip's two lanes
+			# (D168), held until lights out.
 			phase = Phase.LOADING
 			for i in order.size():
 				_place_arena(order[i], i)
@@ -413,7 +418,7 @@ func _go() -> void:
 
 ## An online race's grid (ghosted while cars are placed).
 func _online_grid() -> bool:
-	return session.is_online() and kind in ["race", "battle", "sumo"]
+	return session.is_online() and kind in ["race", "battle", "sumo", "drag"]
 
 
 func _release_cars() -> void:
@@ -517,6 +522,8 @@ func end_session() -> void:
 			row.merge(session.battle.row(r))
 		if session.sumo:
 			row.merge(session.sumo.row(r))
+		if session.drag:
+			row.merge(session.drag.row(r))
 		if kind == "race":
 			if r.dnf:
 				row.gap = "DNF"
@@ -626,7 +633,7 @@ func gap_seconds(r: Racer, ahead: Racer) -> float:
 
 
 func _update_flags() -> void:
-	if kind in ["free", "time_trial", "battle", "sumo"]:
+	if kind in ["free", "time_trial", "battle", "sumo", "drag"]:
 		for r in session.racers:
 			r.flag = ""
 		return

@@ -3,7 +3,7 @@ extends RefCounted
 ## Gamemodes and the platform classes they offer (data/modes/*.mode.json, docs/PLATFORMS.md §3).
 
 const DIR := "res://data/modes/"
-const ORDER := ["track", "kart", "highway", "endless", "sumo"]
+const ORDER := ["track", "kart", "highway", "endless", "sumo", "drag"]
 ## Built-in cars, tried in order when a platform needs a default.
 const DEFAULT_CARS := ["res://content/cars/noss_box", "res://content/cars/noss_open"]
 ## The kart_arcade layer's numbers (docs/PHYSICS.md §9, D130-D133); a mode's "arcade" block

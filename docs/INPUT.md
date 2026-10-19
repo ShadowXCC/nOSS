@@ -15,6 +15,7 @@ Each local player has their own set of actions:
 | View | `camera_next`, `look_back`, free look: `look_left`, `look_right`, `look_up`, `look_down` (0…1; the view turns while held and swings back to the camera when let go) |
 | Car | `horn`, `lights`, `reset_car`, `hotswap_menu` |
 | Kart | `use_item`, `throw_back` (hold), `drift` (hold) (M8, D135) |
+| Mini games | `ram` (sumo: the shove, D164), `boost` (drag: the bottle, D173) |
 | UI | `pause`, `chat`, `scoreboard`, `confirm`, `cancel`, `editor_back` (a test drive back to the track editor, M6), `autodrive` (endless: the car drives itself, and back, M9) |
 
 **Defaults** come from presets (§7); every action, menus included, can be rebound per player on every device.
@@ -34,13 +35,24 @@ Each local player has their own set of actions:
 | Back to editor (test drives) | F5 | F5 | F8 | D-pad down |
 | Horn, flash lights (M7) | H, L | V, T | M, L | L3, X |
 | Kart: drift, use item, throw back (M8) | Space, E, B | Space, E, X | /, `.`, ' | RB, LB, R3 |
+| Sumo: ram · Drag: boost | E | E | `.` | LB |
 | Autodrive (M9) | O | — | — | — (the pause menu) |
 | Menu confirm, back | Enter or Space, Esc or Backspace | Space or F, Esc or G | Enter, Backspace | A, B |
 | Frame rate | F3 (any keyboard) | | | — |
 
 One-handed controller layouts (`pad_left_hand`, `pad_right_hand`) put driving on one half of the pad; reset, change car and back to editor are then in the pause menu, and the horn, lights and free look are unbound (D119).
 
-**Free look:** at full deflection a chase camera orbits up to 120° round the car (up to 10° lower, 25° higher), and the hood, bumper and cockpit views turn up to 100° to the side and 30° up or down. The stick uses the player's stick deadzone, straight. It works with Look back. Keyboards have it unbound; any keys can be bound to it. No two driving actions share an input on any preset (a test checks it), except the kart actions: they share with what kart sessions ignore (handbrake, the shifts, and look back for throw back), so the Kart row above reuses those keys. One-handed pads: drift L3, use item D-pad up, throw back D-pad left (left hand); R3, Y and B (right hand). The wheel preset binds none; bind them yourself. In a kart session the handbrake and shifts do nothing (the karts' gearbox is automatic).
+**Free look:** at full deflection a chase camera orbits up to 120° round the car (up to 10° lower, 25° higher), and the hood, bumper and cockpit views turn up to 100° to the side and 30° up or down. The stick uses the player's stick deadzone, straight. It works with Look back. Keyboards have it unbound; any keys can be bound to it. No two driving actions share an input on any preset (a test checks it), except the kart actions: they share with what kart sessions ignore (handbrake, the shifts, and look back for throw back), so the Kart row above reuses those keys. One-handed pads: drift L3, use item D-pad up, throw back D-pad left (left hand); R3, Y and B (right hand). The wheel preset binds none; bind them yourself. In a kart session the handbrake and shifts do nothing (the karts' gearbox is automatic). A sumo match's **Ram** (D164) and a drag pass's **Boost** (D173) share in the same way: both sit on the shift-up input by default, since a sumo match has no gearbox to use it and a drag pass has no handbrake, items or ram.
+
+## 1.1 Prompts that name the input (D169)
+
+A mini-game that asks for a particular input names the one the driver is actually holding rather than saying "press the button". Three things decide it, and nothing new is needed for any of them:
+
+- **Which device** they are on: `VehicleController.active_device` ("keyboard", "gamepad" or "wheel"), kept current from whatever they last steered or pressed.
+- **What they have**: `PlayerInput.has_binding` for an action (the `gear_1`…`gear_7` gates mean an H-shifter), and `WheelInput.has_clutch` for a clutch pedal.
+- **What to call it**: `Bindings.ref_label` through `PlayerInput.label_for`, which picks the binding on the device in their hands.
+
+So the Drag Strip's launch prompt reads "Release Space" on a keyboard, "Release A" on a pad and "Release the clutch" on a wheel that has one, and its shift prompt names the **gate** ("3rd gate") for anyone with an H-shifter instead of "shift up". `DragPrompts` is the one place that puts those together.
 
 The **track editor** has its own controls for its view (mouse, keyboard or controller with a crosshair; [TRACK_EDITOR.md §2](TRACK_EDITOR.md#2-editor-tools)). They can't be rebound yet (D103).
 
@@ -153,6 +165,6 @@ All of these are in the player's Wheel setup (M4). Effects are mixed natively at
 ## 8. Assists (summary)
 
 ABS, TCS, stability control, steer aid, auto-clutch, automatic gearbox and racing line ([PHYSICS.md §8](PHYSICS.md#8-steering-and-assists)).
-- **Defaults by device:** keyboard and controller default to steer aid, auto-clutch and the automatic gearbox. Wheels default to none of those. *M4: these three are Auto / On / Off; Auto follows the device (auto-clutch: off with a clutch pedal or binding).*
+- **Defaults by device:** keyboard and controller default to steer aid, auto-clutch and the automatic gearbox. Wheels default to none of those. The **Drag Strip allows no automatic gearbox at all** (D169): timing the shifts is the game, so an automatic would play it for you. Auto-clutch stays, and is forced on without a clutch pedal, so a pad or a keyboard drives it fine. *M4: these three are Auto / On / Off; Auto follows the device (auto-clutch: off with a clutch pedal or binding).*
 - What can be enabled is limited by the platform, mode and server rules.
 - **Access assists** (auto-throttle, brake and steering assist), hold/toggle and one-handed presets: [ACCESSIBILITY.md §5](ACCESSIBILITY.md#5-motor-and-input).

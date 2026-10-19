@@ -19,6 +19,7 @@ var _kart_menu: KartMenu
 var _solo: SoloMenu
 var _mini: MiniGamesMenu
 var _sumo_menu: SumoMenu
+var _drag_menu: DragMenu
 ## What the class picker leads to: "free", "race", "time_trial", "highway", "kart" or
 ## "mini_games".
 var _mode := "free"
@@ -96,6 +97,10 @@ func _ready() -> void:
 			_open_mini_games()
 			_mini.visible = false
 			_open_sumo()
+		"drag":
+			_open_mini_games()
+			_mini.visible = false
+			_open_drag()
 		"online-players":
 			_open_online()
 			_online._open_players()
@@ -311,7 +316,9 @@ func _open_mini_games() -> void:
 	_mini.chosen.connect(func(game: String) -> void:
 		_mini.visible = false
 		if game == "sumo":
-			_open_sumo())
+			_open_sumo()
+		elif game == "drag":
+			_open_drag())
 	_mini.closed.connect(func() -> void:
 		_mini.queue_free()
 		_back_to_solo())
@@ -327,6 +334,21 @@ func _open_sumo() -> void:
 	menu.picked.connect(func(e: RaceEvent) -> void:
 		menu.visible = false
 		_open_players("official.sumo.standard", e))
+	menu.closed.connect(func() -> void:
+		menu.queue_free()
+		_open_mini_games())
+	add_child(menu)
+
+
+## Drag Strip (D168): its settings (DragMenu), then the players. The class is one of its own
+## rows rather than the class picker, and there is no track: the strip is made from the settings.
+func _open_drag() -> void:
+	var menu := DragMenu.new()
+	menu.name = "DragMenu"
+	_drag_menu = menu
+	menu.picked.connect(func(e: RaceEvent, class_id: String) -> void:
+		menu.visible = false
+		_open_players(class_id, e))
 	menu.closed.connect(func() -> void:
 		menu.queue_free()
 		_open_mini_games())
@@ -364,6 +386,9 @@ func _open_players(platform_id: String, event: RaceEvent = null, track := "", st
 		if _mode == "kart" and is_instance_valid(_kart_menu): # kart: its menu, then the players
 			_kart_menu.visible = true
 			_kart_menu.grab_focus_first()
+		elif _mode == "mini_games" and is_instance_valid(_drag_menu): # drag: its menu, then the players
+			_drag_menu.visible = true
+			_drag_menu.grab_focus_first()
 		elif _mode == "mini_games" and is_instance_valid(_sumo_menu): # sumo: its menu, then the players
 			_sumo_menu.visible = true
 			_sumo_menu.grab_focus_first()

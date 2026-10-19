@@ -118,6 +118,11 @@
         "key": "E"
       }
     ],
+    "boost": [
+      {
+        "key": "E"
+      }
+    ],
     "menu_up": [
       {
         "key": "Up"

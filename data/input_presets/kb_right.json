@@ -101,6 +101,11 @@
         "key": "Period"
       }
     ],
+    "boost": [
+      {
+        "key": "Period"
+      }
+    ],
     "menu_up": [
       {
         "key": "Up"

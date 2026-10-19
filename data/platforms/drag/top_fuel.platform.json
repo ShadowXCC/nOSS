@@ -1,0 +1,182 @@
+{
+  "schema": "noss.platform/1",
+  "id": "official.drag.top_fuel",
+  "name": "Top Fuel",
+  "version": "0.1.0",
+  "family": "car",
+  "modes": [
+    "drag"
+  ],
+  "accepts_families": [
+    "car",
+    "open",
+    "truck",
+    "moto"
+  ],
+  "layout": {
+    "drive": "rwd",
+    "axles": [
+      {
+        "steer": true,
+        "driven": false,
+        "wheels": 2
+      },
+      {
+        "steer": false,
+        "driven": true,
+        "wheels": 2
+      }
+    ]
+  },
+  "fit": {
+    "wheelbase_max_m": 2.6
+  },
+  "geometry": {
+    "wheelbase_m": {
+      "ref": 2.4,
+      "min": 1.4,
+      "max": 3.6
+    },
+    "track_m": {
+      "ref": 1.7,
+      "min": 1.1,
+      "max": 2.4
+    },
+    "ride_height_m": {
+      "ref": 0.12,
+      "min": 0.04,
+      "max": 0.35
+    },
+    "wheel_radius_m": {
+      "ref": 0.32,
+      "min": 0.18,
+      "max": 0.55
+    },
+    "envelope_m": {
+      "length": [
+        1.5,
+        7.0
+      ],
+      "width": [
+        1.0,
+        2.8
+      ],
+      "height": [
+        0.6,
+        3.0
+      ]
+    }
+  },
+  "mass": {
+    "kg": 1000,
+    "front_weight": 0.4,
+    "cog_height_over_track": 0.2,
+    "yaw_dynamic_index": 0.95
+  },
+  "engine": {
+    "torque_curve_nm": [
+      [
+        1000,
+        530
+      ],
+      [
+        3000,
+        740
+      ],
+      [
+        6000,
+        800
+      ],
+      [
+        8000,
+        740
+      ],
+      [
+        8600,
+        665
+      ]
+    ],
+    "idle_rpm": 950,
+    "redline_rpm": 8200,
+    "limiter_rpm": 8600,
+    "inertia_kgm2": 0.16,
+    "engine_brake_nm": 60
+  },
+  "gearbox": {
+    "type": "sequential",
+    "ratios": [
+      2.2,
+      1.55,
+      1.18,
+      0.95
+    ],
+    "reverse": 3.0,
+    "final_drive": 3.1,
+    "shift_time_s": 0.04
+  },
+  "differential": {
+    "type": "lsd_clutch",
+    "preload_nm": 90,
+    "power_lock": 0.55,
+    "coast_lock": 0.25
+  },
+  "brakes": {
+    "max_torque_nm": 5600,
+    "bias_front": 0.62
+  },
+  "suspension": {
+    "type": "independent",
+    "front": {
+      "freq_hz": 2.4,
+      "damping_bump": 0.5,
+      "damping_rebound": 0.7,
+      "travel_m": 0.1
+    },
+    "rear": {
+      "freq_hz": 2.1,
+      "damping_bump": 0.45,
+      "damping_rebound": 0.65,
+      "travel_m": 0.12
+    },
+    "roll_gradient_deg_per_g": 1.6,
+    "roll_stiffness_front_share": 0.58
+  },
+  "steering": {
+    "max_road_angle_deg": 22,
+    "wheel_rotation_deg": 540
+  },
+  "aero": {
+    "cd_a": 0.52,
+    "cl_a_front": -0.25,
+    "cl_a_rear": -0.7,
+    "slipstream": false
+  },
+  "tires": {
+    "model": "pacejka_lite",
+    "compound": "drag_slick",
+    "mu_peak": 1.6,
+    "load_sensitivity": 0.08,
+    "peak_slip_ratio": 0.14,
+    "peak_slip_angle_deg": 8.5,
+    "relaxation_length_m": 0.24,
+    "rolling_resistance": 0.013,
+    "wear": false,
+    "temperature": false
+  },
+  "assists_allowed": [
+    "abs",
+    "tcs",
+    "stability",
+    "auto_clutch",
+    "steer_aid",
+    "steering_assist"
+  ],
+  "damage": {
+    "cosmetic": true,
+    "mechanical": []
+  },
+  "tunable": {},
+  "ffb": {
+    "reference_rack_nm": 9.0
+  }
+}

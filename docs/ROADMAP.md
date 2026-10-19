@@ -171,7 +171,7 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
 *A new Solo Drive category for short matches that aren't races, and the first game in it (D162-D166).*
 
 - **Sumo Wrestling** (`game/modes/sumo/`, `game/world/arena/`, D162-D167): 1-3 floating platforms stacked over lava or acid, each lower one wider than the one above. The top one shrinks from the green light, a lower one once a car lands on it; the last car not in the goo wins. Three shrink styles (smooth, crumbling, stepped), a sudden-death pillar, and a rechargeable ram boost on its own action. One class, **Sumo**, that any model may mount. The arena is generated from the match settings, so there is no track file, nothing to download and nothing of it on the wire.
-- **Mini Games** on Solo Drive, built to take more games (a Drag Strip is next).
+- **Mini Games** on Solo Drive, built to take more games (the Drag Strip followed).
 - Online (protocol 7): the server shrinks the platforms and rules on the goo.
 - Also fixed: a Kart Battle no longer shows lap times or a delta bar, which it has no use for (Changes.md).
 
@@ -181,6 +181,22 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
 - [x] A sumo match online. *`tools/net_check.py --event sumo --clients 3 --ai 2 --tiers 2 --platform-secs 40 --rtt 150 --jitter 10 --loss 1`: 3 bots and 2 AI, all 5 classified with staggered times out (9.0-37.1 s) and one winner; remote cars within 0.17-0.19 m (95%), 10.7-10.8 KB/s down per bot, no plausibility flags. One car went in from the top platform without reaching the one below, which the rules allow (D163). With one platform, the same run ends with every car's time out recorded and the last one standing declared. The pile-up rule is off for sumo as it is for a battle: shoving is the whole match.*
 
 **Notes:** Whether a car is in the goo is a height test, not the hazard's Area3D: an area watches the default collision layer rather than the one cars are on, and more to the point a dedicated server holds every player's car as a kinematic remote that the physics never really touches, so only a height test rules the same way everywhere. Online, the server's word kept being undone: NetRacer takes a car's `out` from the states its owner's game sends, so one still in flight when the server put the car out cleared the flag again, and with no time limit to fall back on the match simply never ended (a battle's timer hides the same race). The authority now re-asserts it each tick, and a remote car is sunk by its own game rather than here. The first build had the platforms armed by any car passing through their height band, so the lower ones were half gone before anyone reached them and every fall went straight into the goo; a platform now only starts when a car is within 2.5 m of its floor and under 2 m/s vertically (D162). The goo's Area3D watched the default collision layer, not the one cars are on, so nothing ever went out. Sudden death deadlocked with three cars circling a 6 m pillar: the AI counted every spot on it as "near the edge" and never hunted, so the edge term is now capped at part of the platform's radius (D165), and the pillar gives way after 25 s so a match always ends. A stepped or crumbling platform drops two cars in on one tick every time a whole ring goes under both, which "last one in wins" cannot separate: they are now ranked by how deep each was when the authority saw them (D167), since that is what the clock is too coarse to measure. The class first failed its weather conformance (braking wet 1.00x, lap wet 1.01x): its brakes were too weak to lock the wheels and its grip too high ever to bind, so wet and dry came out the same; with stronger brakes, less grip and a higher top it brakes wet 1.29x and laps wet 1.07x, in line with every other class. Drawn in a window the arena needed three fixes no headless check could catch: the pit wall was wound the other way from the rest of the builder and so was culled from inside; the goo's noise sampled less than one cell across the whole pool and came out flat near-black; and the pool was far enough under a wide platform that its own rim hid it from any camera on it, so the pit is wider and the goo shallower. The `--sumo` dev flag itself did nothing at first: boot.gd keeps its own list of the flags that start an event, and sumo was not on it. Still to do by hand (the owner): the lava and acid in a window, splitscreen, and a LAN match with the GTX 1060 PC.
+
+## Mini Games: Drag Strip
+
+*The second game under Mini Games (D168-D174).*
+
+- **Drag Strip** (`game/modes/drag/`, `game/world/arena/drag_{layout,builder}.gd`, D168-D174): two lanes, one straight line, and an elimination ladder. A pass runs burnout, staging, the Christmas tree, the strip and the shutdown. Shifts are timed against a **fake tachometer** — the mode's own needle, one sweep rate for every car, class and model, with a window that moves and tightens gear by gear — while the real gearbox still does the shifting underneath. Reaction times to the thousandth and red lights for leaving early. Six gimmicks, each on its own setting: the tree, the two-step rev hold, the burnout, the tire-shake save, the perfect-shift chain and the money shift. 0-3 bottles of boost. Crossing the centreline loses the pass. 1/8, 1/4 or 1/2 mile. Three classes (Street, Pro, Top Fuel) that any model may mount. **No automatic gearbox**: an automatic would play the game for you.
+- **Prompts follow the device:** a prompt names the input the driver is holding — "Release Space", "A", "Release the clutch", "3rd gate" — from what they last drove with and what they have bound.
+- The strip is generated from the match settings, so there is no track file, nothing to download and nothing of it on the wire.
+- Online (protocol 8): the server runs the tree, grades the shifts and rules on the fouls.
+
+**Acceptance:**
+- [ ] A drag match runs its whole ladder to a single winner, on every class and length.
+- [ ] The three classes pass conformance.
+- [ ] Bots hold their lane, react like drivers and shift on the needle.
+- [ ] A drag match online.
+- [ ] The screen-reader walk covers the new menu and the panel.
 
 ## M10+: Backlog (order to be decided)
 

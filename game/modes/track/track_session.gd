@@ -118,6 +118,13 @@ var sumo: SumoControl
 var sumo_world: SumoBuilder
 var sumo_hud: SumoHud
 var sumo_net: SumoNet
+## A drag match (docs/GAMEMODES.md §6, D168): the passes, the ladder and the HUD; the strip is
+## built here rather than from a track file.
+var drag: DragControl
+var drag_world: DragBuilder
+var drag_hud: DragHud
+## Dev and tests: the ladder's draw seed (0: drawn freshly).
+var drag_seed := 0
 ## A kart cup's race (D145): its standings after the results, its AI field. Null otherwise.
 var cup: CupRun
 ## Kart sessions (D149): AI karts pick a class of their own (off: they all take the session's,
@@ -215,6 +222,26 @@ func _load_sumo() -> void:
 	safe_rejoin = false
 
 
+## Drag (D168): the strip is generated from the match settings, so there is no track file and
+## nothing of it goes over the wire. A stand-in TrackData carries the layout, as an arena would.
+func _load_drag() -> void:
+	var data := {
+		"schema": TrackFormat.SCHEMA,
+		"id": "drag_strip",
+		"name": "Drag Strip",
+		"type": "arena",
+		"road": { "points": [] },
+		"race": { "grid": { "slots": 2 } },
+	}
+	for p in DragLayout.outline_for(event):
+		(data.road.points as Array).append({ "p": [p.x, 0.0, p.y] })
+	track = TrackData.from_dict(data)
+	track.arena = DragLayout.make(track, event)
+	track.kill_y = -60.0
+	terrain = null
+	safe_rejoin = false
+
+
 ## Where this game's players start: online, behind whoever's furthest along (D159; the server
 ## stays at the start); otherwise near the road's start.
 func _endless_start() -> float:
@@ -285,6 +312,8 @@ func _ready() -> void:
 		_load_endless()
 	elif event.kind == "sumo":
 		_load_sumo()
+	elif event.kind == "drag":
+		_load_drag()
 	else:
 		if track_package == null or not track_package.ok():
 			track_package = TrackLoader.load_package(track_path)
@@ -313,6 +342,11 @@ func _ready() -> void:
 		# The goo never flashes either way (ACC-04); Reduce flashing calms it further still.
 		sumo_world.setup(track.arena as SumoLayout, not dedicated, bool(Settings.profile.get("reduce_flashing", false)))
 		add_child(sumo_world)
+	elif event.kind == "drag":
+		drag_world = DragBuilder.new()
+		drag_world.name = "DragStrip"
+		drag_world.setup(track.arena as DragLayout, not dedicated, bool(Settings.profile.get("reduce_flashing", false)))
+		add_child(drag_world)
 	elif endless_world:
 		add_child(endless_world)
 		endless_world.prime(endless_start_m)
@@ -343,6 +377,11 @@ func _ready() -> void:
 		ai_racers = clampi(event.ai_count, 0, maxi(track.arena.spawns.size() - maxi(Players.count(), 1), 0))
 		ai_skill = event.ai_skill
 		ai_builtin_cars = event.ai_cars == "builtin"
+	elif event.kind == "drag":
+		# Two cars a pass, the rest waiting their turn: the ladder takes the whole field (D170).
+		ai_racers = clampi(event.ai_count, 0, maxi(NetProtocol.MAX_PLAYERS - maxi(Players.count(), 1), 0))
+		ai_skill = event.ai_skill
+		ai_builtin_cars = event.ai_cars == "builtin"
 	elif event.kind == "battle":
 		if track.arena == null or arcade.is_empty():
 			push_warning("A battle needs an arena and a kart class: free drive instead")
@@ -363,6 +402,8 @@ func _ready() -> void:
 		_ready_endless()
 	elif event.kind == "sumo":
 		_ready_sumo()
+	elif event.kind == "drag":
+		_ready_drag()
 	elif not arcade.is_empty() and event.kind != "time_trial":
 		_ready_kart()
 		if event.kind == "battle":
@@ -486,7 +527,7 @@ func _add_player(slot: PlayerSlot, at: Variant = null, kart_class := "") -> Sess
 		p.spawn_at = highway.spawn_for(i, direction_for(i))
 	elif endless:
 		p.spawn_at = endless.spawn_for(i)
-	elif sumo:
+	elif sumo or drag:
 		p.spawn_at = arena_spawn(i)
 	else:
 		p.spawn_at = track.transform_at(_grid_distance(i), _grid_lateral(i)) if _spot_clear(_grid_distance(i), _grid_lateral(i)) else _free_grid_spot()
@@ -497,6 +538,8 @@ func _add_player(slot: PlayerSlot, at: Variant = null, kart_class := "") -> Sess
 		endless.apply_hud(p)
 	elif sumo_hud:
 		sumo_hud.apply_hud(p)
+	elif drag_hud:
+		drag_hud.apply_hud(p)
 	elif battle:
 		# A battle has no laps or sectors to show either (Changes.md).
 		p.hud.session_hidden = PackedStringArray(BattleControl.HUD_HIDDEN)
@@ -653,6 +696,29 @@ func _ready_sumo() -> void:
 		add_child(s)
 
 
+## Drag (D168): the passes, the ladder, their HUD and their sounds, and the standings
+## RaceControl shows. No KartControl: the full sim runs, which is what gives it a gearbox.
+func _ready_drag() -> void:
+	drag = DragControl.new()
+	drag.name = "DragControl"
+	drag.session = self
+	drag.layout = track.arena as DragLayout
+	drag.builder = drag_world
+	drag.drag_seed = drag_seed if drag_seed != 0 else int(Game.dev.get("drag-seed", "0"))
+	add_child(drag)
+	race.standings_source = drag.standings
+	if not dedicated and not Game.dev.has("bot"):
+		drag_hud = DragHud.new()
+		drag_hud.name = "DragHud"
+		drag_hud.session = self
+		add_child(drag_hud)
+		var ds := DragSounds.new()
+		ds.name = "DragSounds"
+		ds.session = self
+		drag.sounds = ds
+		add_child(ds)
+
+
 ## Sumo: car `i`'s spot on the top platform's ring. The synthesised track's spline runs round
 ## the platform's rim, so the usual grid would drop a car straight over the edge before the
 ## lights; RaceControl places everyone properly again when the session begins.
@@ -686,6 +752,11 @@ func make_driver(r: Racer) -> Node:
 		su.racer = r
 		su.skill = ai_skill
 		return su
+	if drag:
+		var dr := DragAI.new()
+		dr.racer = r
+		dr.skill = ai_skill
+		return dr
 	if track.arena:
 		var b := BattleAI.new()
 		b.racer = r
@@ -714,6 +785,11 @@ func make_guide(r: Racer) -> Node:
 		su.racer = r
 		su.as_guide = true
 		return su
+	if drag:
+		var dr := DragAI.new()
+		dr.racer = r
+		dr.as_guide = true
+		return dr
 	if track.arena:
 		var b := BattleAI.new()
 		b.racer = r

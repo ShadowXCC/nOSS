@@ -43,6 +43,7 @@ const ACTIONS := {
 	"use_item": { "name": "Use item" },
 	"throw_back": { "name": "Throw back" },
 	"ram": { "name": "Ram boost" },
+	"boost": { "name": "Boost" },
 	"autodrive": { "name": "Autodrive" },
 	"menu_up": { "name": "Menu up", "repeat": true },
 	"menu_down": { "name": "Menu down", "repeat": true },
@@ -54,7 +55,7 @@ const ACTIONS := {
 const DRIVING := ["steer_left", "steer_right", "throttle", "brake", "handbrake", "clutch", "shift_up", "shift_down",
 	"gear_r", "gear_n", "gear_1", "gear_2", "gear_3", "gear_4", "gear_5", "gear_6", "gear_7",
 	"camera_next", "look_back", "look_left", "look_right", "look_up", "look_down", "reset_car", "hotswap_menu",
-	"pause", "editor_back", "horn", "lights", "drift", "use_item", "throw_back", "ram", "autodrive"]
+	"pause", "editor_back", "horn", "lights", "drift", "use_item", "throw_back", "ram", "boost", "autodrive"]
 ## Kart actions (D135), and the driving actions each may share an input with: ones kart sessions
 ## ignore (no handbrake, a one-gear automatic), and looking back for throwing back.
 const KART := ["drift", "use_item", "throw_back"]
@@ -67,6 +68,10 @@ const KART_SHARES := {
 ## plus the item button, since a sumo match has no items.
 const SUMO := ["ram"]
 const SUMO_SHARES := { "ram": ["handbrake", "shift_up", "shift_down", "use_item"] }
+## Drag actions (D173): the bottle. A drag pass has no handbrake, no items and no ram, so it may
+## share any of their inputs; the shifts it very much does use.
+const DRAG := ["boost"]
+const DRAG_SHARES := { "boost": ["handbrake", "use_item", "throw_back", "ram", "drift"] }
 ## H-shifter gates (docs/INPUT.md §5): action -> gear (-1 reverse, 0 neutral).
 const GEARS := { "gear_r": -1, "gear_n": 0, "gear_1": 1, "gear_2": 2, "gear_3": 3, "gear_4": 4, "gear_5": 5, "gear_6": 6, "gear_7": 7 }
 const MENU := ["menu_up", "menu_down", "menu_left", "menu_right", "menu_confirm", "menu_cancel"]
@@ -202,6 +207,10 @@ static func normalize_ref(r: Variant) -> Dictionary:
 ## Short label for a ref on a kind of device: "W", "RB", "Left stick left", "Button 4".
 static func ref_label(r: Dictionary, device: String) -> String:
 	if r.has("key"):
+		# Physical to printed key needs a real display server; headless has none, so the physical
+		# key's own name stands in (the same letter on a QWERTY layout).
+		if DisplayServer.get_name() == "headless":
+			return OS.get_keycode_string(r.key)
 		return OS.get_keycode_string(DisplayServer.keyboard_get_keycode_from_physical(r.key))
 	if r.has("button"):
 		return PAD_BUTTON_LABELS.get(r.button, "Button %d" % r.button) if device == "gamepad" else "Button %d" % (r.button + 1)

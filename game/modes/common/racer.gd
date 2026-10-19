@@ -70,6 +70,9 @@ var held := false
 var finished := false
 ## Waiting off the track to rejoin after a reset (hidden, no collisions).
 var waiting := false
+## Parked out of play with nothing to rejoin: a drag strip puts the cars that are not in this
+## pass away until their turn comes (D170). Waiting, but never placed back on its own.
+var parked := false
 ## Kart: carried by the tow drone (D132).
 var towed := false
 ## Where the car was last on the road (or an arena's floor), upright: a tow puts it back there.
@@ -264,6 +267,8 @@ func _swap(pkg: VehiclePackage, nudge := false) -> void:
 func _physics_process(delta: float) -> void:
 	if vehicle == null:
 		return
+	if parked:
+		return # out of play between passes: nothing to rejoin, nothing to time
 	if waiting:
 		_wait_time += delta
 		if _wait_time >= REJOIN_MAX_WAIT_S or _rejoin_clear():
@@ -293,6 +298,9 @@ func update_track(delta: float) -> void:
 	var com := vehicle.global_transform * vehicle.center_of_mass
 	if session.sumo:
 		_update_sumo(com)
+		return
+	if session.drag:
+		_update_drag(com)
 		return
 	if track.arena:
 		_update_arena(com)
@@ -353,6 +361,22 @@ func _update_sumo(com: Vector3) -> void:
 		reset_car()
 
 
+## A drag strip (D168): no laps and no track limits — the lane is the rule, and DragControl keeps
+## it. A reset puts the car back in its lane where it last was, so it is the strip, not the road,
+## that says where "back" is.
+func _update_drag(com: Vector3) -> void:
+	speed = vehicle.speed()
+	var strip := track.arena as DragLayout
+	on_track = not strip.off_deck(com) and vehicle.global_basis.y.y > 0.8
+	if on_track:
+		# Facing down the strip, in the middle of the lane it is in: where a reset sets it down.
+		var lane := strip.lane_of(com)
+		var x: float = strip.lane_x(lane) if lane >= 0 else com.x
+		last_valid_xform = Transform3D(Basis.IDENTITY, Vector3(x, strip.floor_y, com.z))
+	if com.y < track.kill_y and not waiting:
+		reset_car()
+
+
 ## An arena (D138): no laps, no wrong way. On its floor, upright, is where a tow puts it back.
 func _update_arena(com: Vector3) -> void:
 	speed = vehicle.speed()
@@ -401,6 +425,9 @@ func reset_car() -> void:
 		return
 	if session.sumo:
 		session.sumo.recover(self)
+		return
+	if session.drag:
+		session.drag.recover(self)
 		return
 	if session.kart:
 		session.kart.tow(self)

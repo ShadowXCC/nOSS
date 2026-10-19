@@ -4,12 +4,13 @@ extends Control
 ## Drive entry. Picking one hides this menu; backing out of that game's first screen shows it
 ## again on the same entry (`focus`), as Solo Drive itself does.
 
-## `game`: "sumo" for now.
+## `game`: "sumo" or "drag".
 signal chosen(game: String)
 signal closed
 
 const GAMES := [
 	["sumo", "Sumo Wrestling", "Shove the others off a shrinking platform"],
+	["drag", "Drag Strip", "Time the lights, the shifts and the bottle"],
 ]
 
 var _rows: Array = []

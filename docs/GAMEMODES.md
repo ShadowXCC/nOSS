@@ -202,7 +202,38 @@ Shove everyone else off a floating platform. It plays on **generated platforms**
 - **Online (D166):** the server shrinks the platforms and rules on who is in the goo. Only the radii and each car's platform, out and ram charge go over (protocol 7) — the arena itself needs no syncing, since the same settings build the same platforms everywhere. A ring-out is sent at once so the splash lands on the tick it happened. Nobody joins a match in progress; they are in the next one.
 - **Results:** the platform each car reached and how long it lasted, with the winner shown as "Won".
 
-## 6. Light career
+## 6. Drag Strip
+
+*Mini Games. D168–D174.*
+
+Two cars, two lanes, one straight line. It plays on a **generated strip**, not a track: the strip is built from the match's own settings, so there is nothing to pick, nothing to download and nothing of it on the wire. From the title: **Solo Drive → Mini Games → Drag Strip**.
+
+- **The strip (D168):** two 4 m lanes with a painted centreline, a water box and the staging lanes behind the line, and past the finish a **shutdown as long again as the strip** (250–700 m) ending in **sand** for anyone who never got on the brakes. Lengths: **1/8 mile (201 m), 1/4 mile (402 m) or 1/2 mile (805 m)** — named in miles or in metres, whichever the player's units are set to.
+- **A pass, in order:**
+  - **Burnout** (optional): a few seconds in the water box. Throttle against the brake heats the tires and buys grip at the launch; cook them past about four seconds and you have thrown it away (D172).
+  - **Staging:** both cars are set on the line and held. With the **two-step** on, hold the revs in the band on the tach — low bogs the launch, high roasts the tires.
+  - **The tree (D169):** pre-stage, stage, three ambers half a second apart, green. Your **reaction time** is measured and shown to the thousandth, and **leaving before the green is a red light**: the pass is lost. With the tree off it is a plain countdown and nothing is timed.
+  - **Down the strip:** shift on the needle (below), spend the bottle when it suits you, and hold your lane.
+  - **The line:** the **elapsed time from the launch** (not from the green — the reaction is its own number, as a real strip has it) and the **trap speed**. Then room to stop.
+- **The fake tachometer (D169):** the needle is **the mode's own, not the engine's**. It sweeps every gear at one fixed rate for every car, class and model, so nobody times their shifts better by what they brought. The real gearbox still shifts and still loses drive out of its band — **the needle only says when**. Each gear has a window that sits later and narrower than the last:
+  - **Perfect** (inside half a window of its centre): a short surge of power.
+  - **Good** (inside a whole window): nothing either way.
+  - **Missed:** a grind, the throttle cut for a moment, and whatever the engine makes of being out of its band on top.
+- **The chain:** perfect shifts in a row build the surge, up to four deep; one bad shift breaks it.
+- **Money shift:** sitting past the end of the needle loses power, and far enough past it the engine lets go — smoke, and the pass is over. **Top gear costs nothing**: there is nothing left to shift into, so the needle simply rests at its end.
+- **Tire shake:** a launch that lights the tires up opens a brief window to **feather it** — ease off (or stab the clutch, if there is one) and you save the run; miss it and it costs you a tenth or three. Once a pass, caught or not.
+- **Boost:** **0 to 3 bottles** each (one by default), each a surge of about a second, spent whenever the driver likes. It is a force scaled by mass, so the change in speed is the same whatever the car weighs (as the sumo ram is, D164).
+- **The lane (D171):** you steer the car. **Crossing the centreline loses the pass**, as it does on a real strip; a setting makes it forgiving instead, leaving the walls to bounce off. Leaving the deck altogether, stopping on the strip or taking a reset all lose the pass too.
+- **Winning (D170):** an **elimination ladder**. The field is drawn into pairs, two cars run a pass, the winner goes through, and the last car standing takes the match. A field that is not a power of two gives **byes** in the first round; a bye does not run a pass. A one-car field runs a single **shakedown** pass. Pairs run **back to back**, so in splitscreen you watch the others' passes and are told when your turn is next. The pass goes to the clean run over the foul, the lower time over the higher, and with neither car through the lights to whoever got furthest; two red lights go to the **later** one, since the first to leave is the one who lost it.
+- **No automatic gearbox.** `auto_gearbox` is not an allowed assist here — an automatic would play the game for you. Nor are the assists that drive the car but never shift it (auto throttle, brake assist, autodrive). **Auto clutch stays**, and is forced on for anyone without a clutch pedal, so a pad or a keyboard drives it fine. ABS, TCS, stability and steering assist are all allowed.
+- **The prompts follow the device (D169):** a prompt never says "press the button" — it names the input the driver is actually holding, from what they last drove with and what they have bound. A keyboard reads "Release Space", a pad reads "A" or "RB", a wheel with a clutch reads "Release the clutch", and an H-shifter is told which **gate** to take ("3rd gate") instead of "shift up".
+- **The classes:** three, and everyone in a match drives the same one — **Street** (6 gears, 265 kW), **Pro** (5 gears, 470 kW) and **Top Fuel** (4 gears, 620 kW), so the class and the length together decide how busy a pass is. **Any model may be mounted**, car, open-wheeler, truck or bike; an oversized one is scaled down as karts are (D150). Mass, power and gearing come from the class, never the model.
+- **HUD:** the tach with its window, the gear, the chain, the bottles left, the prompt, and the pass's numbers. No laps, sectors, places or flags. Short lines only: "Stage", "Go", "Perfect", "Missed it", "Red light", "Shake", "Won it".
+- **AI (D174):** bots heat their tires, hold the revs on the line, leave on the green with a reaction of their own (a poor one now and then goes red), shift against the same needle the players read with an error their skill sets, spend their bottle and hold their lane. No pathfinding — it is a straight line.
+- **Local players:** up to 4 in splitscreen, each with their own car; they are drawn into the ladder with the bots.
+- **Results:** the round each car reached, its best reaction, its best time through the lights and the speed it did it at.
+
+## 7. Light career
 
 *MODE-07. Milestone M10.*
 
@@ -215,7 +246,7 @@ Shove everyone else off a floating platform. It plays on **generated platforms**
 - **Rewards are cosmetic only:** paint finishes, decals (once the livery editor exists), nameplates, HUD themes, horn sounds.
 - Progress is saved locally. Online play is unranked.
 
-## 7. Leaderboards
+## 8. Leaderboards
 
 - **Local:** per track, platform and mode.
 - **Per server:** kept by the host or dedicated server.
