@@ -18,7 +18,7 @@ Both run identical server code (`NetServer` for connections, `NetHost` for the l
 ## 2. Transport
 
 - **ENet** (UDP) through Godot's `ENetMultiplayerPeer`, polled by our own `SceneMultiplayer`. Default port **UDP 47800**, configurable (D83).
-- **Protocol version 8** (Mini Games: drag passes, D175; version 7: sumo platforms, D166; version 6, M9: world positions in car states, knocks relative to the car, the sky and endless roads, D159; version 5, M8: the kart word in car states and kart items, D142; version 4: the start waits for every game's cars, D127; version 3, M7: 16-bit car ids, a second flags byte, highway traffic, D112; version 2 brought the track by hash, D98). A client and server must match it and the game version ("Version mismatch").
+- **Protocol version 10** (sumo wedges and the warning on a platform, D182, D183; version 9: a drag pass waits for its drivers to lock in, D177; version 8: Mini Games: drag passes, D175; version 7: sumo platforms, D166; version 6, M9: world positions in car states, knocks relative to the car, the sky and endless roads, D159; version 5, M8: the kart word in car states and kart items, D142; version 4: the start waits for every game's cars, D127; version 3, M7: 16-bit car ids, a second flags byte, highway traffic, D112; version 2 brought the track by hash, D98). A client and server must match it and the game version ("Version mismatch").
 - **No RPCs** (D78). Every message is raw bytes (`send_bytes`): one type byte, then either a `var_to_bytes` Dictionary (control messages; never objects; size-checked before decoding, field-checked after) or a packed binary layout (car states, race state, content).
 - **Channels:**
 
@@ -212,12 +212,12 @@ Every game builds the same platforms from the event's settings alone (D162), so 
 
 - **The server decides** everything: it shrinks the platforms, sees every fall and rules on who is in the goo. Clients turn `SumoControl.authority` off and follow; they have nothing to report, since the server sees each fall itself.
 - **A ring-out** goes out at once, reliably, so the splash, the message and the car ghosting all land on the tick it happened rather than up to 200 ms later.
-- **Five times a second** the server sends how things stand: every platform's radius and every car's platform, out and ram charge. That heals drift and brings a joiner up to date. A client works out from the radii alone which platforms are going, so nothing else has to be sent for it to show the right thing.
+- **Five times a second** the server sends how things stand: every platform's radius, the wedges it has marked as about to go, how deep each wedge has been bitten on a crumbling platform (D182), and every car's platform, out and ram charge. That heals drift and brings a joiner up to date. A client works out from the radii alone which platforms are going, so nothing else has to be sent for it to show the right thing.
 - **Nobody joins a match in progress** ("Sumo on: you're in the next one"), as in a race or a battle.
 
 | Message | Way | Contents |
 |---|---|---|
-| `SUMO_STATE` (107) | server → clients, 5 Hz | `tiers` u8 · radius f32 × tiers · cars u8 × 5 B (id u16 · tier i8, −1 in the air or gone · flags u8, 1 = out · ram charge u8) |
+| `SUMO_STATE` (107) | server → clients, 5 Hz | `tiers` u8 · radius f32 × tiers · `wedges` u8 (16 crumbling, else 0) · bites u8 × wedges × tiers · warning u16 × tiers · cars u8 × 5 B (id u16 · tier i8, −1 in the air or gone · flags u8, 1 = out · ram charge u8) |
 | `SUMO_EVENTS` (113) | server → clients, reliable | 8-byte records: kind u8 (1 out, 2 a platform set going) · car u16 · tier u8 · time u32 (ms) |
 
 ## 14. Drag passes (D175, D177)

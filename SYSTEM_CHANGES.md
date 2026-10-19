@@ -20,6 +20,7 @@ Changes made outside this project directory, to be reversed later if wanted.
 | Router port mapping UDP 47800 (or the port picked) via UPnP, leased for 2 hours | Hosting from the menu with **Open port** on (M5). None made so far: tests, `tools/net_check.py` and `tools/a11y_check.py` don't ask the router. | Removed when hosting stops; otherwise it expires within 2 hours, or delete it on the router's UPnP page |
 | Windows: a Windows Defender Firewall rule allowing nOSS on the network | Windows asks the first time nOSS hosts or joins (M5, on the Windows test PC) | Windows Security → Firewall → Allow an app through firewall → remove nOSS |
 
+| `~/.local/share/nOSS/tests/sumo_check/` and `sumo_control/`, `sumo_watch/`; `profiles/player1.json` gains `last_sumo` (the last sumo match set up) | Running the sumo checks and tests (Sumo Wrestling). Part of the game's `user://` folder. | Covered by `rm -rf ~/.local/share/nOSS`; or `rm -rf ~/.local/share/nOSS/tests` |
 | `~/.local/share/nOSS/tests/drag_check/` and `drag_control/`, `drag_prompts/`, `drag_watch/`; `profiles/player1.json` gains `last_drag` and `last_drag_class` (the last drag match set up) | Running the drag checks and tests (Drag Strip). Part of the game's `user://` folder. | Covered by `rm -rf ~/.local/share/nOSS`; or `rm -rf ~/.local/share/nOSS/tests` |
 
 Not system changes:

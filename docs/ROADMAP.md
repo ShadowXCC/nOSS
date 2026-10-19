@@ -174,6 +174,26 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
 - **Mini Games** on Solo Drive, built to take more games (the Drag Strip followed).
 - Online (protocol 7): the server shrinks the platforms and rules on the goo.
 - Also fixed: a Kart Battle no longer shows lap times or a delta bar, which it has no use for (Changes.md).
+- **After playing it** (D180-D185): the bots bring garage cars on a setting, the kart drift is a
+  setting with three modes, Crumbling comes off a wedge at a time instead of a ring, the floor
+  about to go lights up (and the mark travels, which is what finally made the stepped warning work
+  online), a player in the goo watches the rest of the match, and the stack goes to five.
+
+**Acceptance (the second pass):**
+- [x] Crumbling loses its floor unevenly and never leaves a platform unfair. *`sumo_layout_test`
+  ticks a whole platform away at 120 Hz and asserts the wedges stay within one bite of each other
+  and none is ever cut to the middle; `sumo_build_test` raycasts the real collision, so the bitten
+  floor is gone, the floor beside it is there, and the step between them is closed.*
+- [x] The warning says what is going, offline and on. *`sumo_layout_test` pins one wedge for
+  crumbling, the whole ring for stepped, nothing for smooth, and a client with no clock of its own
+  warning from the server's word alone.*
+- [x] A player in the goo is shown the fight. *`sumo_watch_test` puts the player in and asserts
+  every car still in is inside the camera's own frustum, that the Camera button cycles them, and
+  that the camera they drive with is never saved over.*
+- [x] Five platforms, crumbling, with sudden death. *`tools/sumo_check.sh --cars=8 --tiers=5
+  --secs=20 --shrink=crumble --pillar`: a winner on the pillar, all five platforms set going by
+  cars landing on them. Online: `tools/net_check.py --event sumo --shrink crumble --clients 3
+  --ai 2 --tiers 2 --platform-secs 40 --rtt 150 --jitter 10 --loss 1`, 11.0 KB/s a client.*
 
 **Acceptance:**
 - [x] A sumo match runs to a single winner on every shrink style and every number of platforms. *`tools/sumo_check.sh` (6 AI cars, 60 s a platform): all 54 of 1, 2 and 3 platforms x smooth, crumbling and stepped x with and without sudden death x three seeds. Each ends with exactly one car still up, no platform shrinking before a car has stood on it, no car stuck, and no two cars out on the same tick. A 1-platform smooth match runs about 45 s, a 3-platform one about 75-110 s. The check's own work costs 24-30 µs a tick.*
