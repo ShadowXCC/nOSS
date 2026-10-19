@@ -9,6 +9,10 @@ func before() -> void:
 	Settings.use_folder(DIR)
 	for file in DirAccess.get_files_at(TrackLibrary.user_dir):
 		DirAccess.remove_absolute(TrackLibrary.user_dir.path_join(file)) # an earlier run's
+	# And its autosaves: a run that was interrupted between autosave() and delete_autosave()
+	# leaves one behind, and then this suite counts it along with its own for ever after.
+	for left: Dictionary in TrackDraft.autosaves():
+		TrackDraft.remove_autosave(String(left.dir))
 
 
 func after() -> void:

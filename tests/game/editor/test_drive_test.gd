@@ -70,14 +70,15 @@ func test_presets_have_a_key_back_to_the_editor() -> void:
 		var b: Dictionary = preset.bindings
 		assert_bool(b.has("editor_back")).override_failure_message(id).is_true()
 		# Nothing else while driving uses the same input (kart actions share only what karts
-		# ignore, D135; sumo's likewise, D164).
+		# ignore, D135; sumo's and drag's likewise, D164, D173).
 		var seen := {}
 		for action: String in Bindings.DRIVING:
 			for input: Dictionary in b.get(action, []):
 				var name := str(input)
 				var other: String = seen.get(name, "")
 				var shared: bool = (action in Bindings.KART and other in Bindings.KART_SHARES[action]) \
-					or (action in Bindings.SUMO and other in Bindings.SUMO_SHARES[action])
+					or (action in Bindings.SUMO and other in Bindings.SUMO_SHARES[action]) \
+					or (action in Bindings.DRAG and other in Bindings.DRAG_SHARES[action])
 				assert_bool(other.is_empty() or shared).override_failure_message("%s: %s and %s share %s" % [id, other, action, name]).is_true()
 				if other.is_empty():
 					seen[name] = action
