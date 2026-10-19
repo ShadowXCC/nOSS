@@ -98,8 +98,12 @@ func _physics_process(delta: float) -> void:
 	vehicle.head_flash = input.held("lights")
 	if kart:
 		# Kart controls share inputs with the handbrake and the shifts, which karts don't use (D135).
-		vehicle.drift = input.held("drift")
-		vehicle.handbrake = 0.0
+		# With the drift off (sumo, D181) the handbrake works again rather than being suppressed for
+		# a drift that never comes: on a keyboard that is the very same key (both Space), on a pad
+		# the handbrake's own button, while the drift button goes quiet.
+		vehicle.drift = input.held("drift") and vehicle.drift_allowed
+		if vehicle.drift_allowed:
+			vehicle.handbrake = 0.0
 		if racer and racer.session.sumo:
 			# A sumo match has no items; Ram may share that input (D164).
 			if input.just_pressed("ram"):

@@ -12,6 +12,7 @@ const TIERS := [[1, "1"], [2, "2"], [3, "3"]]
 const HAZARDS := [["lava", "Lava"], ["acid", "Acid"]]
 const SHRINKS := [["smooth", "Smooth"], ["crumble", "Crumbling"], ["stepped", "Stepped"]]
 const LENGTHS := [[60, "Short"], [90, "Normal"], [150, "Long"]]
+const DRIFTS := [["off", "Off"], ["drift", "Drift"], ["boost", "Drift + boost"]]
 
 var event := RaceEvent.sumo()
 var _rows: Array = []
@@ -44,6 +45,8 @@ func _build(focus := "") -> void:
 		event.sumo_secs = v, "How long one platform takes to shrink away"))
 	_add(UiKit.spinner("Sudden death", [[false, "Off"], [true, "On"]], event.sumo_pillar, func(v: bool) -> void:
 		event.sumo_pillar = v, "The last platform stops at a pillar instead of going altogether"))
+	_add(UiKit.spinner("Drift", DRIFTS, event.sumo_drift, func(v: String) -> void:
+		event.sumo_drift = v, "Hop and slide like a kart; boost rewards a long drift"))
 	_add(UiKit.spinner("AI cars", _range(0, 11), clampi(event.ai_count, 0, 11), func(v: int) -> void: event.ai_count = v))
 	var skills := []
 	for n in range(0, 101, 5):
@@ -87,6 +90,7 @@ func _next() -> void:
 	e.sumo_shrink = event.sumo_shrink
 	e.sumo_secs = event.sumo_secs
 	e.sumo_pillar = event.sumo_pillar
+	e.sumo_drift = event.sumo_drift
 	e.ai_count = event.ai_count
 	e.ai_skill = event.ai_skill
 	e.ai_cars = event.ai_cars

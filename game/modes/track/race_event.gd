@@ -40,14 +40,17 @@ var items := true
 var battle_rule := "standing"
 var battle_min := 5
 var battle_hits := 10
-## Sumo (docs/GAMEMODES.md §5): how many platforms are stacked (1-3), what's underneath
+## Sumo (docs/GAMEMODES.md §5): how many platforms are stacked (1-5), what's underneath
 ## ("lava" or "acid"), how a platform shrinks ("smooth", "crumble" or "stepped"), how long one
-## takes to shrink away, and whether the bottom one stops at a pillar instead of vanishing.
+## takes to shrink away, whether the bottom one stops at a pillar instead of vanishing, and how
+## much of the kart drift the cars get ("drift": the hop and the slide, "boost": with the boost a
+## long drift charges, "off": neither, and the handbrake works again instead).
 var sumo_tiers := 2
 var sumo_hazard := "lava"
 var sumo_shrink := "smooth"
 var sumo_secs := 90
 var sumo_pillar := false
+var sumo_drift := "drift"
 ## Drag (docs/GAMEMODES.md §6, D168-D173): the strip's length in metres (1/8, 1/4 or 1/2 mile),
 ## how many boost charges each driver gets (0-3), whether shifts are timed against the tach and
 ## whether the QTEs fire at all, then each gimmick on its own: the Christmas tree (with reaction
@@ -87,6 +90,7 @@ const CHOICES := {
 	"track_limits": ["lenient", "off", "strict"], "ai_cars": ["garage", "builtin"], "sub": ["cruise", "score", "run", "loop"],
 	"battle_rule": ["standing", "hits"],
 	"sumo_hazard": ["lava", "acid"], "sumo_shrink": ["smooth", "crumble", "stepped"],
+	"sumo_drift": ["drift", "off", "boost"],
 	"time": ["track", "dawn", "morning", "noon", "afternoon", "dusk", "night"],
 	"weather": ["track", "clear", "cloudy", "rain", "storm", "fog", "snow", "changing"],
 	"endless_traffic": ["light", "normal", "off"], "spread": ["bring", "hold"],
@@ -96,7 +100,7 @@ const TIME_RATES := [0, 1, 10, 30, 60, 120]
 const KEYS := ["kind", "practice_min", "qualifying_min", "race_laps", "race_min", "ai_count", "ai_skill",
 	"start", "grid", "collisions", "track_limits", "ai_cars", "sub", "police", "traffic", "run", "direction",
 	"items", "battle_rule", "battle_min", "battle_hits",
-	"sumo_tiers", "sumo_hazard", "sumo_shrink", "sumo_secs", "sumo_pillar",
+	"sumo_tiers", "sumo_hazard", "sumo_shrink", "sumo_secs", "sumo_pillar", "sumo_drift",
 	"drag_length_m", "drag_boost", "drag_timing", "drag_qtes", "drag_tree", "drag_two_step",
 	"drag_burnout", "drag_shake", "drag_chain", "drag_money_shift", "drag_centreline",
 	"time", "time_rate", "weather", "env_seed",
@@ -106,7 +110,7 @@ const HIGHWAY_KEYS := ["sub", "police", "traffic", "run", "direction"]
 ## Written only for battles, or with items off.
 const KART_KEYS := ["items", "battle_rule", "battle_min", "battle_hits"]
 ## Written only for sumo matches.
-const SUMO_KEYS := ["sumo_tiers", "sumo_hazard", "sumo_shrink", "sumo_secs", "sumo_pillar"]
+const SUMO_KEYS := ["sumo_tiers", "sumo_hazard", "sumo_shrink", "sumo_secs", "sumo_pillar", "sumo_drift"]
 ## Written only for drag matches.
 const DRAG_KEYS := ["drag_length_m", "drag_boost", "drag_timing", "drag_qtes", "drag_tree",
 	"drag_two_step", "drag_burnout", "drag_shake", "drag_chain", "drag_money_shift", "drag_centreline"]

@@ -209,7 +209,7 @@ func _spawn(pkg: VehiclePackage) -> void:
 	vehicle = Vehicle.create(platform, pkg, session.fitting_mode)
 	vehicle.name = "Vehicle%d" % number
 	if not session.arcade.is_empty():
-		vehicle.set_arcade(session.arcade) # kart (D130)
+		vehicle.set_arcade(session.arcade, session.drift_allowed) # kart (D130), sumo's drift (D181)
 	session.add_child(vehicle)
 	vehicle.reset_to(spawn_at)
 	last_valid_xform = spawn_at

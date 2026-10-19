@@ -24,13 +24,14 @@ func after() -> void:
 	Settings.use_folder("user://")
 
 
-func _start(tiers := 2, hazard := "lava", pillar := false) -> void:
+func _start(tiers := 2, hazard := "lava", pillar := false, drift := "drift") -> void:
 	Players.clear()
 	ended = []
 	s = TrackSession.new()
 	s.platform_id = "official.sumo.standard"
 	s.event = RaceEvent.sumo(tiers, hazard)
 	s.event.sumo_pillar = pillar
+	s.event.sumo_drift = drift
 	s.event.ai_count = 3
 	s.event.ai_cars = "builtin"
 	add_child(s)
@@ -252,3 +253,27 @@ func test_a_sumo_match_hides_the_race_hud_and_flies_no_flags() -> void:
 	for r in s.racers:
 		assert_str(r.flag).is_equal("")
 		assert_bool(r.laps).is_false()
+## The drift setting (D181). The Sumo class's own numbers are already the middle mode -- the kart
+## layer with the drift boost zeroed -- so this is what the other two do to them.
+func test_the_drift_setting_leaves_the_slide_and_takes_the_boost() -> void:
+	await _start(1, "lava", false, "drift")
+	assert_bool(s.drift_allowed).is_true()
+	assert_bool(a.vehicle.drift_allowed).is_true()
+	for seconds: float in (s.arcade.drift.boost_s as Array):
+		assert_float(seconds).override_failure_message("plain Drift should give no boost").is_equal(0.0)
+
+
+func test_the_drift_setting_can_give_the_boost_back() -> void:
+	await _start(1, "lava", false, "boost")
+	assert_bool(s.drift_allowed).is_true()
+	assert_array(s.arcade.drift.boost_s).is_equal(GameModes.ARCADE_DEFAULTS.drift.boost_s)
+
+
+func test_the_drift_setting_can_take_the_button_away() -> void:
+	await _start(1, "lava", false, "off")
+	# The layer stays on -- the shove, the bounce and the righting are the class's -- but no car
+	# gets the drift button, and the handbrake is left alone (VehicleController).
+	assert_bool(s.arcade.is_empty()).is_false()
+	assert_bool(s.drift_allowed).is_false()
+	for r in s.racers:
+		assert_bool(r.vehicle.drift_allowed).override_failure_message("%s still had the drift" % r.display_name).is_false()

@@ -118,6 +118,7 @@
         "sumo_shrink": { "description": "Sumo: how a platform shrinks away.", "enum": ["smooth", "crumble", "stepped"] },
         "sumo_secs": { "description": "Sumo: how long one platform takes to shrink away.", "type": "integer", "minimum": 30, "maximum": 300 },
         "sumo_pillar": { "description": "Sumo: sudden death, the bottom platform holds at a pillar.", "type": "boolean" },
+        "sumo_drift": { "description": "Sumo: how much of the kart drift the cars get.", "enum": ["drift", "off", "boost"] },
         "drag_length_m": { "description": "Drag: the start line to the lights (1/8, 1/4 or 1/2 mile).", "type": "integer", "minimum": 201, "maximum": 805 },
         "drag_boost": { "description": "Drag: bottles each driver gets.", "type": "integer", "minimum": 0, "maximum": 3 },
         "drag_timing": { "description": "Drag: shifts are timed against the tach.", "type": "boolean" },

@@ -94,3 +94,25 @@ func test_kart_controls() -> void:
 	c._physics_process(1.0 / 120.0)
 	assert_float(v.handbrake).is_equal(1.0)
 	assert_array(asked).is_equal([false, true])
+## Sumo's drift setting off (D181): the drift button does nothing and the handbrake is left alone,
+## so the car brakes as any other does. On a keyboard both are the same key (Space).
+func test_kart_controls_with_the_drift_turned_off() -> void:
+	var v: Vehicle = auto_free(Vehicle.new())
+	v.arcade = GameModes.arcade(GameModes.mode_for("official.sumo.standard"))
+	v.drift_allowed = false
+	var input := FakeInput.new()
+	input.profile = PlayerProfile.create("sumo_drift_test")
+	var c: VehicleController = auto_free(VehicleController.new())
+	c.vehicle = v
+	c.input = input
+	input.pressed = { "drift": true, "handbrake": true, "throttle": true }
+	input.poll()
+	c._physics_process(1.0 / 120.0)
+	assert_bool(v.drift).override_failure_message("the drift button still drifted").is_false()
+	assert_float(v.handbrake).override_failure_message("the handbrake was suppressed").is_equal(1.0)
+	assert_float(v.throttle).is_equal(1.0)
+	# With it allowed, the kart rule stands: the drift button drifts and the handbrake is ignored.
+	v.drift_allowed = true
+	c._physics_process(1.0 / 120.0)
+	assert_bool(v.drift).is_true()
+	assert_float(v.handbrake).is_equal(0.0)

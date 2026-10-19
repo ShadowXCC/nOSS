@@ -31,6 +31,9 @@ var visual: CarVisual
 var arcade := {}
 ## Kart: the drift button, held (its press also hops, or does a trick in the air).
 var drift := false
+## Whether the drift button does anything at all (sumo turns it off on a setting, D181): with it
+## false the handbrake is left alone instead of suppressed, so the car brakes as any other does.
+var drift_allowed := true
 ## Kart flags the game keeps (shield, magnet, towed, out); the sim adds its own (kart_flags()).
 var kart_bits := 0
 
@@ -99,8 +102,10 @@ static var _puff: GradientTexture2D
 
 
 ## Drives with the kart_arcade layer (`numbers` from GameModes.arcade), or without it ({}).
-func set_arcade(numbers: Dictionary) -> void:
+## `allow_drift` false leaves the layer on but takes the drift button away (D181).
+func set_arcade(numbers: Dictionary, allow_drift := true) -> void:
 	arcade = numbers
+	drift_allowed = allow_drift
 	sim.set_layer(numbers)
 	if fitted:
 		_collision.shape = _hull(fitted, _clearance())
