@@ -148,3 +148,45 @@ func test_keys_reach_the_actions_and_paint_fits() -> void:
 	g.queue_free()
 	await get_tree().process_frame
 	root.size = old_size
+
+
+## The car grid scrolls to follow the focus (Changes.md): on a pad or the keyboard the focus is
+## the only thing that moves, so without this a car below the fold gets focused off screen and
+## the list never comes with it.
+func test_the_car_grid_scrolls_to_follow_the_focus() -> void:
+	var root := get_tree().root
+	var old_size := root.size
+	root.size = Vector2i(1280, 520) # short enough that two rows of cars cannot all be shown
+	for i in Garage.COLUMNS: # the built-in cars plus these make more than one row
+		_made.append(String(GarageFiles.copy_car("res://content/cars/noss_box").path))
+	var g := Garage.new()
+	add_child(g)
+	for i in 4:
+		await get_tree().process_frame
+	var scroll := g._grid.get_parent() as ScrollContainer
+	# The fix: Godot only brings the focused control into view when this is on.
+	assert_bool(scroll.follow_focus).is_true()
+	assert_int(scroll.horizontal_scroll_mode).is_equal(ScrollContainer.SCROLL_MODE_DISABLED)
+	assert_int(g._cards.size()).override_failure_message("one row of cars would never scroll").is_greater(Garage.COLUMNS)
+
+	g._cards[0].grab_focus()
+	for i in 3:
+		await get_tree().process_frame
+	assert_int(scroll.scroll_vertical).is_equal(0)
+	# The last card is on a later row: the grid has to scroll down to it.
+	g._cards[-1].grab_focus()
+	for i in 3:
+		await get_tree().process_frame
+	assert_int(scroll.scroll_vertical).override_failure_message("the grid did not follow the focus").is_greater(0)
+	assert_bool(scroll.get_global_rect().encloses(g._cards[-1].get_global_rect())) \
+		.override_failure_message("the focused card is not in view").is_true()
+	# And back up again, so the first row is still reachable.
+	g._cards[0].grab_focus()
+	for i in 3:
+		await get_tree().process_frame
+	assert_int(scroll.scroll_vertical).is_equal(0)
+
+	g._preview.clear()
+	g.queue_free()
+	await get_tree().process_frame
+	root.size = old_size

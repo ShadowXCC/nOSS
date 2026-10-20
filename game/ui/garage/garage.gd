@@ -47,6 +47,7 @@ func _ready() -> void:
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true # a pad or the keyboard scrolls the grid by moving the focus
 	list.add_child(scroll)
 	_grid = GridContainer.new()
 	_grid.columns = COLUMNS
