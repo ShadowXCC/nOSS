@@ -186,7 +186,11 @@ func test_the_car_grid_scrolls_to_follow_the_focus() -> void:
 		await get_tree().process_frame
 	assert_int(scroll.scroll_vertical).is_equal(0)
 
+	# Let the turntable's package loads land while the garage is still here: freeing it with one
+	# in flight leaves PackageLoader calling back into a node that is going away.
 	g._preview.clear()
+	for i in 8:
+		await get_tree().process_frame
 	g.queue_free()
 	await get_tree().process_frame
 	root.size = old_size
