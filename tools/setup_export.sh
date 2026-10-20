@@ -4,6 +4,7 @@
 #   .tools/llvm-mingw/                                        Windows cross compiler (LLVM MinGW)
 #   .tools/godot/editor_data/export_templates/<version>/      Godot export templates (Linux, Windows)
 #   native/bin/SDL3.dll                                       SDL3 for Windows builds (wheels, FFB)
+#   native/bin/*discord_partner_sdk*                          Discord Social SDK (Rich Presence), if you have it
 set -euo pipefail
 
 GODOT_VERSION="4.7.2-stable"
@@ -57,6 +58,35 @@ if [[ ! -f "$ROOT/native/bin/SDL3.dll" ]]; then
 	mkdir -p "$ROOT/native/bin"
 	unzip -q -o -j "$DL/$ZIP" "SDL3.dll" -d "$ROOT/native/bin"
 	rm "$DL/$ZIP"
+fi
+
+# Discord Social SDK for Rich Presence (docs/DECISIONS.md D186). Copied, not downloaded: it only
+# comes from the authenticated Developer Portal, so there is no URL to pin a checksum against.
+# Optional on purpose -- without it the game builds and runs with presence off.
+DISCORD_SDK_DIR="${DISCORD_SDK_DIR:-$TOOLS/discord_social_sdk}"
+if [[ -d "$DISCORD_SDK_DIR" ]]; then
+	mkdir -p "$ROOT/native/bin"
+	copied=()
+	for pair in "lib/release/libdiscord_partner_sdk.so" "bin/release/discord_partner_sdk.dll" \
+			"lib/release/libdiscord_partner_sdk.dylib"; do
+		if [[ -f "$DISCORD_SDK_DIR/$pair" ]]; then
+			cp -f "$DISCORD_SDK_DIR/$pair" "$ROOT/native/bin/"
+			copied+=("$(basename "$pair")")
+		fi
+	done
+	if [[ ${#copied[@]} -gt 0 ]]; then
+		echo "Discord SDK: ${copied[*]}"
+	else
+		echo "Discord SDK: nothing to copy from $DISCORD_SDK_DIR (wrong layout?)" >&2
+	fi
+else
+	cat >&2 <<-MSG
+		Discord SDK not found, skipping (Rich Presence will be off).
+		  To enable it: download the C++ Social SDK from your app's Downloads page at
+		  https://discord.com/developers/applications -> Discord Social SDK -> Downloads,
+		  unzip it so that $TOOLS/discord_social_sdk/{include,lib,bin} exists
+		  (or point DISCORD_SDK_DIR at it), then run this script again.
+	MSG
 fi
 
 rmdir "$DL" 2>/dev/null || true

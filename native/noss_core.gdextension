@@ -15,5 +15,11 @@ macos.release = "res://native/bin/libnoss_core.macos.template_release.framework"
 
 [dependencies]
 
-windows.debug.x86_64 = { "res://native/bin/SDL3.dll": "" }
-windows.release.x86_64 = { "res://native/bin/SDL3.dll": "" }
+; Shipped next to the game. Both are loaded at runtime and both are optional: without SDL3
+; wheels are off (D35), without the Discord library Rich Presence is off (D186).
+linux.debug.x86_64 = { "res://native/bin/libdiscord_partner_sdk.so": "" }
+linux.release.x86_64 = { "res://native/bin/libdiscord_partner_sdk.so": "" }
+windows.debug.x86_64 = { "res://native/bin/SDL3.dll": "", "res://native/bin/discord_partner_sdk.dll": "" }
+windows.release.x86_64 = { "res://native/bin/SDL3.dll": "", "res://native/bin/discord_partner_sdk.dll": "" }
+macos.debug = { "res://native/bin/libdiscord_partner_sdk.dylib": "" }
+macos.release = { "res://native/bin/libdiscord_partner_sdk.dylib": "" }

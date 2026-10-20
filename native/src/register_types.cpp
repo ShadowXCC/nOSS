@@ -6,6 +6,7 @@
 
 #include "audio/gd_audio.h"
 #include "core/noss_core.h"
+#include "discord/gd_discord.h"
 #include "endless/gd_road_gen.h"
 #include "input/gd_input.h"
 #include "mesh/gd_mesh.h"
@@ -28,6 +29,7 @@ static void initialize_noss_core(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(noss::NossConformance);
 	GDREGISTER_ABSTRACT_CLASS(noss::NossMesh);
 	GDREGISTER_ABSTRACT_CLASS(noss::NossAudio);
+	GDREGISTER_ABSTRACT_CLASS(noss::NossDiscord);
 	GDREGISTER_CLASS(noss::NossSurfaceMap);
 	GDREGISTER_CLASS(noss::NossTerrain);
 	GDREGISTER_CLASS(noss::NossTraffic);
@@ -37,6 +39,7 @@ static void initialize_noss_core(ModuleInitializationLevel p_level) {
 static void uninitialize_noss_core(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
 		noss::NossInput::stop(); // joins the FFB thread before the library unloads
+		noss::NossDiscord::stop(); // clears the presence and unloads before the library goes
 	}
 }
 

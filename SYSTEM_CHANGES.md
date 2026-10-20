@@ -6,6 +6,8 @@ Changes made outside this project directory, to be reversed later if wanted.
 |---|---|---|
 | `~/.local/share/nOSS/` (logs, shader and Vulkan caches, ObjectDB snapshots, `settings.cfg`, `profiles/`) | Running the game or its tests. This is the game's normal `user://` folder (NFR-09). | `rm -rf ~/.local/share/nOSS` |
 | `~/.local/share/nOSS/garage/*.noss`: the 8 converted FM4 cars (~125 MB, personal-use-only) | `tools/fm4_to_noss.py` (its default output) | `rm -rf ~/.local/share/nOSS/garage` |
+| `~/Downloads/DiscordSocialSdk-1.10.19337/` moved into the project as `.tools/discord_social_sdk/` (the `.zip` beside it was left alone) | Setting up Discord Rich Presence (D186); the SDK needed a path that also exists on the Windows and Mac machines | `mv .tools/discord_social_sdk ~/Downloads/DiscordSocialSdk-1.10.19337/discord_social_sdk`, or just re-unzip the kept zip |
+| While **Discord status** is on (Game settings, on by default), the game tells the Discord app running on this machine the mode, track, player count and session time. Nothing leaves the machine except through Discord itself, and no car or server name is sent. | Running the game with Discord open (D186) | Turn **Discord status** off in Game settings, or close Discord |
 
 | `~/.local/share/nOSS/fitting/` (Fitting Bay drafts), `cache/` (garage index, rendered thumbnails), `import/` (folder the bay lists) | Running the game (M2). Part of the game's `user://` folder. | Covered by `rm -rf ~/.local/share/nOSS`; or delete each folder |
 | `~/.local/share/nOSS/garage/race.noss`, `sedan_sports.noss`, `toy_car.noss` | Fitting Bay tests during M2 (CC0 Kenney and Khronos models) | `rm ~/.local/share/nOSS/garage/{race,sedan_sports,toy_car}.noss` |

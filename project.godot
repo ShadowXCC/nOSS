@@ -24,6 +24,7 @@ run/flush_stdout_on_print=true
 Settings="*res://game/app/settings.gd"
 Net="*res://game/net/net.gd"
 Game="*res://game/app/game.gd"
+Discord="*res://game/app/discord.gd"
 Devices="*res://game/players/devices.gd"
 Players="*res://game/players/players.gd"
 Narrator="*res://game/app/narrator.gd"

@@ -33,6 +33,8 @@ func _ready() -> void:
 	_add(rows, UiKit.option("Units", [["metric", "km/h"], ["imperial", "mph"]], Settings.units,
 		func(v: String) -> void: Settings.set_value("units", v)))
 	_add(rows, UiKit.check("Fullscreen", Settings.fullscreen, func(on: bool) -> void: Settings.set_value("fullscreen", on)))
+	_add(rows, UiKit.check("Discord status", Settings.discord_presence,
+		func(on: bool) -> void: Settings.set_value("discord_presence", on), "Show what you're playing on Discord"))
 
 	_section(rows, "Sound")
 	_add(rows, UiKit.slider("Volume", Settings.master_volume, func(v: float) -> void: Settings.set_value("master_volume", v)))

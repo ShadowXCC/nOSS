@@ -12,6 +12,7 @@ const MACHINE := {
 	"graphics": ["graphics", "preset"],
 	"units": ["game", "units"],
 	"fullscreen": ["display", "fullscreen"],
+	"discord_presence": ["game", "discord_presence"],
 	"master_volume": ["audio", "master"],
 	"split_two": ["splitscreen", "two"],
 	"split_three": ["splitscreen", "three"],
@@ -37,6 +38,8 @@ const MACHINE := {
 var graphics := "medium"
 var units := "metric"
 var fullscreen := false
+## Tell Discord what this machine is playing (game/app/discord.gd).
+var discord_presence := true
 var master_volume := 0.8
 ## Two players: "stacked" (one above the other) or "side" (side by side).
 var split_two := "stacked"
