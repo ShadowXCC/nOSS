@@ -79,40 +79,37 @@ func _describe() -> Dictionary:
 		_in_session = true
 		_session_start = int(Time.get_unix_time_from_system())
 	activity["start_unix"] = _session_start
-	activity["details"] = _session_name(session)
-	var party := _party(session)
+	# All the session poking lives here, so the two helpers below stay pure and testable.
+	var mode_name := String(session.mode.get("name", "")) if session.mode else ""
+	var track_name := String(session.track.display_name) if session.track else ""
+	activity["details"] = _session_name(mode_name, track_name)
+	var online := session.is_online()
+	# Online that is everyone on the server; offline, the players sharing this screen.
+	var humans := Net.roster.size() if online else session.players.filter(
+		func(p: SessionPlayer) -> bool: return not p.slot.ai).size()
+	var most := int(Net.lobby.get("max", 16)) if online else Players.MAX
+	var party := _party(online, humans, most)
 	if not party.is_empty():
 		activity.merge(party)
-		activity["state"] = "Online" if session.is_online() else "Splitscreen"
+		activity["state"] = "Online" if online else "Splitscreen"
 	return activity
 
 
 ## "Highway · Pacific Coast". Endless, sumo and drag build their own world, so there is no track
-## to name and the mode stands alone.
-func _session_name(session: TrackSession) -> String:
-	var mode_name := String(session.mode.get("name", "")) if session.mode else ""
-	var track_name := String(session.track.display_name) if session.track else ""
+## to name and the mode stands alone rather than trailing a separator.
+static func _session_name(mode_name: String, track_name: String) -> String:
 	if mode_name and track_name:
 		return "%s · %s" % [mode_name, track_name]
 	return mode_name if mode_name else track_name if track_name else "Driving"
 
 
-## Party size, or {} for one player alone (Discord would show a pointless "1 of 1"). Online it is
-## everyone on the server; offline the players sharing this screen.
-func _party(session: TrackSession) -> Dictionary:
-	var size := 0
-	var most := 0
-	if session.is_online():
-		size = Net.roster.size()
-		most = int(Net.lobby.get("max", 16))
-	else:
-		size = session.players.filter(func(p: SessionPlayer) -> bool: return not p.slot.ai).size()
-		most = Players.MAX
-	if size < 2 or most < 2:
+## Party size, or {} for one player alone (Discord would show a pointless "1 of 1").
+static func _party(online: bool, humans: int, most: int) -> Dictionary:
+	if humans < 2 or most < 2:
 		return {}
-	# The id groups the party on Discord's side; it only has to be the same for everyone in it.
-	var id := "noss-online" if session.is_online() else "noss-local"
-	return { "party_id": id, "party_size": size, "party_max": maxi(most, size) }
+	# The id groups the party on Discord's side; it only has to match for everyone in it.
+	return { "party_id": "noss-online" if online else "noss-local",
+		"party_size": humans, "party_max": maxi(most, humans) }
 
 
 func _screen_name(scene: Node) -> String:
