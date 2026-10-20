@@ -101,11 +101,19 @@ static func panel(parent: Control, title: String, width := 760.0) -> VBoxContain
 		if parent.size.x <= 0.0:
 			return
 		box.custom_minimum_size.x = minf(width, parent.size.x - 40.0)
+		var flexible: Array[Control] = []
 		for sc: ScrollContainer in list.find_children("*", "ScrollContainer", true, false):
-			if not sc.has_meta(&"max_height"):
-				sc.set_meta(&"max_height", sc.custom_minimum_size.y)
-			var others := box.get_combined_minimum_size().y - sc.custom_minimum_size.y
-			sc.custom_minimum_size.y = clampf(parent.size.y - 40.0 - others, 160.0, sc.get_meta(&"max_height"))
+			flexible.append(sc)
+		# A row that scrolls on its own (the chat log) is tagged instead, so it gives up height
+		# here rather than nesting a second scrollbar.
+		for child in list.get_children():
+			if child is Control and child.has_meta(&"fit_height"):
+				flexible.append(child)
+		for c: Control in flexible:
+			if not c.has_meta(&"max_height"):
+				c.set_meta(&"max_height", c.custom_minimum_size.y)
+			var others := box.get_combined_minimum_size().y - c.custom_minimum_size.y
+			c.custom_minimum_size.y = clampf(parent.size.y - 40.0 - others, 160.0, c.get_meta(&"max_height"))
 	parent.resized.connect(fit)
 	fit.call_deferred()
 	return list

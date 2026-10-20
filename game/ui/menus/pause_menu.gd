@@ -60,6 +60,16 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	var list := UiKit.panel(self, "Paused" if slot == null else "Paused  ·  %s" % slot.tag(), 560)
+	# The list runs long (ghosts, leaderboard, restart, chat) and a splitscreen view is short, so
+	# it scrolls. UiKit.panel() fits the scroll area to the view, taking this height as its most.
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 680)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	list.add_child(scroll)
+	var rows := VBoxContainer.new()
+	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(rows)
 	_buttons = [
 		UiKit.button("Resume", func() -> void: resumed.emit()),
 		UiKit.button("Reset car", func() -> void: reset_car.emit()),
@@ -83,7 +93,7 @@ func _ready() -> void:
 	if is_host:
 		_buttons.append(UiKit.button("Lobby", func() -> void: to_lobby.emit(), "Everyone back to the lobby"))
 	_buttons.append_array([
-		UiKit.button("Settings", _open_settings, "Your controls, assists and HUD"),
+		UiKit.button("Driving Settings", _open_settings, "Your controls, assists and HUD"),
 		UiKit.button("Game settings", _open_game_settings, "Graphics, sound, splitscreen"),
 		UiKit.button("Leave game" if online else "Quit to title", func() -> void: quit_to_title.emit(),
 			("Close the server" if is_host else "Leave the server") if online else ""),
@@ -95,7 +105,7 @@ func _ready() -> void:
 	if can_leave:
 		_buttons.insert(_buttons.size() - 1, UiKit.button("Leave", func() -> void: leave.emit(), "Drop out; the others keep driving"))
 	for b: Button in _buttons:
-		list.add_child(b)
+		rows.add_child(b)
 	UiKit.chain_focus(_buttons)
 
 
@@ -176,6 +186,9 @@ class ChatMenu:
 		var chat := ChatPanel.new()
 		chat.local_index = local_index
 		chat.custom_minimum_size = Vector2(0, 420)
+		# Its log scrolls itself, so it gives up height in a small view instead of nesting a
+		# second scrollbar (UiKit.panel() does the fitting).
+		chat.set_meta(&"fit_height", true)
 		list.add_child(chat)
 		var back := UiKit.button("Back", func() -> void: closed.emit())
 		list.add_child(back)
