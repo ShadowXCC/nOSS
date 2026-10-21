@@ -61,6 +61,7 @@ func reset(r: Racer) -> void:
 		return
 	var at := lane_transform(r.last_valid)
 	r.vehicle.reset_to(at)
+	r.vehicle.repair()
 	r.distance = r.last_valid
 	r.track_index = -1
 	r.ghost_for(GHOST_S)

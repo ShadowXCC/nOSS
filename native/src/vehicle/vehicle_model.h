@@ -7,6 +7,7 @@
 // Body frame (the fitted model frame): +X left, +Y up, +Z forward, metres.
 
 #include <climits>
+#include <cstdint>
 #include <optional>
 #include <vector>
 
@@ -78,6 +79,12 @@ struct SurfaceInfo {
 };
 
 const SurfaceInfo &surface_info(int p_surface);
+
+// A flat tyre (a spike strip, D192): it grips this share of what it would, rolls with this much
+// more resistance and sits on this share of its radius.
+constexpr double FLAT_GRIP = 0.55;
+constexpr double FLAT_DRAG = 0.05;
+constexpr double FLAT_RADIUS = 0.92;
 
 // What the weather has left on the road (docs/PHYSICS.md §4, ENV-02), each 0..1.
 struct Conditions {
@@ -272,6 +279,9 @@ public:
 	V3 gravity{ 0.0, -GRAVITY, 0.0 };
 	// Water and snow on the road under this car (none: the dry sim, exactly).
 	Conditions conditions;
+	// Flat tyres: bit i for wheel i (none: the sim exactly as it was).
+	uint32_t flats = 0;
+	bool flat(size_t p_wheel) const { return p_wheel < 32 && (flats >> p_wheel) & 1u; }
 
 	// Ray each wheel casts this tick; the caller fills a Contact per wheel.
 	Ray wheel_ray(int p_index, const Chassis &p_chassis) const;

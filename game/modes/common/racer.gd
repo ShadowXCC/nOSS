@@ -423,6 +423,7 @@ func _check_track_limits() -> void:
 func reset_car() -> void:
 	if vehicle == null or waiting:
 		return
+	vehicle.repair()
 	if session.sumo:
 		session.sumo.recover(self)
 		return

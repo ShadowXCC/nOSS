@@ -35,6 +35,16 @@ double metric(const Config &p_config, const std::string &p_name, const std::stri
 	return std::nan("");
 }
 
+double metric_of(const ManeuverResult &p_result, const std::string &p_metric) {
+	REQUIRE_MESSAGE(p_result.ok(), p_result.error);
+	for (const Metric &m : p_result.metrics) {
+		if (m.name == p_metric) {
+			return m.value;
+		}
+	}
+	return std::nan("");
+}
+
 } // namespace
 
 TEST_CASE("weather: grip per surface, wet and under snow") {
@@ -97,4 +107,49 @@ TEST_CASE("weather: hotswap keeps the conditions") {
 	other.take_state(h.model);
 	CHECK(other.conditions.wetness == 0.7);
 	CHECK(other.conditions.snow == 0.2);
+}
+
+// D192: flat tyres off a spike strip: the car sits lower on them, corners and stops worse, and
+// they come through a hotswap. With none, nothing changes.
+TEST_CASE("flats: a flat tyre grips less, drags more and sits lower") {
+	Config config = make_config(gt_spec(), nsx_geometry(2.60, 1.60, 0.33));
+	ManeuverSpec skid;
+	skid.name = "skidpad";
+	ManeuverSpec skid_flat = skid;
+	skid_flat.flats = 0b1111;
+	double g = metric_of(run_maneuver(config, skid), "lat_g");
+	double g_flat = metric_of(run_maneuver(config, skid_flat), "lat_g");
+	MESSAGE("skidpad " << g << " g, on four flats " << g_flat << " g (" << g_flat / g << "x)");
+	CHECK(g_flat / g == doctest::Approx(FLAT_GRIP).epsilon(0.12));
+	// Sitting: the flat corner lower.
+	Harness a(config), b(config);
+	b.model.flats = 0b0001;
+	a.place_at(0.0, 0.0, 0.0);
+	b.place_at(0.0, 0.0, 0.0);
+	a.run(2.0);
+	b.run(2.0);
+	V3 hub = config.wheels[0].geo.hub;
+	double drop = (a.chassis.origin + a.chassis.basis * hub).y - (b.chassis.origin + b.chassis.basis * hub).y;
+	MESSAGE("a flat corner sits " << drop * 1000.0 << " mm lower");
+	CHECK(drop > 0.5 * (1.0 - FLAT_RADIUS) * config.wheels[0].geo.radius);
+	// Rolling on: slower on flats at the same throttle.
+	Harness c(config), d(config);
+	d.model.flats = 0b1111;
+	for (Harness *h : { &c, &d }) {
+		h->place_at(0.0, 0.0, 0.0);
+		h->model.controls.throttle = 0.3;
+		h->run(8.0);
+	}
+	CHECK(d.forward_speed() < c.forward_speed());
+	// None: the sim exactly as it was; and a hotswap keeps them.
+	Harness e(config), f(config);
+	f.model.flats = 0;
+	gt_run(e);
+	gt_run(f);
+	CHECK(e.chassis.com.x == f.chassis.com.x);
+	CHECK(e.forward_speed() == f.forward_speed());
+	VehicleModel other(make_config(gt_spec(), nsx_geometry()));
+	b.model.flats = 0b0110;
+	other.take_state(b.model);
+	CHECK(other.flats == 0b0110u);
 }

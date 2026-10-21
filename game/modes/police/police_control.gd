@@ -29,6 +29,10 @@ const ROADBLOCK_LENGTH_M := 60.0
 const ROADBLOCK_PAST_M := 150.0
 ## Sight (line of sight is a ray) and near misses are looked at every this many ticks per player.
 const LOOK_EVERY := 2
+## Spike strips: this far ahead of the player (the first straight in it), on a straight this long.
+const SPIKES_FROM_M := 300.0
+const SPIKES_TO_M := 450.0
+const SPIKES_STRAIGHT_M := 90.0
 
 var session: TrackSession
 var road: PoliceRoad
@@ -42,6 +46,9 @@ var pursuits := 0
 var busts := 0
 var evades := 0
 var roadblocks := 0
+var spikes_laid := 0
+## The spike strips down now.
+var strips: Array[SpikeStrip] = []
 
 var _trap_units := {} # PoliceRacer -> trap index
 var _miss := {} # Racer -> NearMiss
@@ -52,6 +59,7 @@ var _placed := false
 var _told := {} # NetRacer -> [level, evading] last sent to its game
 var _seen := {} # Racer -> seen by a unit when last looked
 var _ticks := 0
+var _next_spikes := {} # Racer -> when the next strip may go down (the police's clock)
 
 
 func _ready() -> void:
@@ -103,6 +111,7 @@ func _physics_process(delta: float) -> void:
 		_watch(p, delta, (i + _ticks) % LOOK_EVERY == 0)
 	_dispatch()
 	_roadblocks()
+	_spikes()
 
 
 ## Every unit loaded: the trap ones parked at their traps, the rest in the pool. False until then.
@@ -205,6 +214,7 @@ func _busted(p: Racer) -> void:
 
 
 func _end_chase(p: Racer) -> void:
+	_next_spikes.erase(p)
 	for u in units:
 		if u.ai and u.ai.target == p:
 			u.ai.target = null
@@ -300,6 +310,55 @@ func _roadblocks() -> void:
 		_blocks[p] = { "closures": closures, "at_m": at_m, "units": parked }
 		roadblocks += 1
 		p.notify("Roadblock ahead", 3.0)
+
+
+## From the level that calls for them, now and then a spike strip on a straight ahead of each
+## player chased, half a lane left open; each comes up once they're well past it.
+func _spikes() -> void:
+	for strip in strips.duplicate():
+		if strip.done():
+			strips.erase(strip)
+			strip.queue_free()
+	if not road.spikes_allowed():
+		return
+	for key: Variant in heat.keys():
+		if not is_instance_valid(key):
+			continue
+		var p := key as Racer
+		var every := float(PoliceTuning.at((heat[p] as Heat).level()).spikes_s)
+		if p.vehicle == null or (heat[p] as Heat).level() == 0 or every <= 0.0:
+			_next_spikes.erase(p)
+			continue
+		if not _next_spikes.has(p):
+			_next_spikes[p] = _clock + every * 0.5
+		if _clock < float(_next_spikes[p]):
+			continue
+		_next_spikes[p] = _clock + every
+		var way := road.way(p)
+		var m := SPIKES_FROM_M
+		while m <= SPIKES_TO_M:
+			var d := road.along(p, m)
+			if road.straight_clear(road.along(p, m - SPIKES_STRAIGHT_M / 2.0), way, SPIKES_STRAIGHT_M):
+				lay_spikes(p, d)
+				break
+			m += 25.0
+
+
+## A strip for `p` at distance `d` across their way.
+func lay_spikes(p: Racer, d: float) -> SpikeStrip:
+	var strip := SpikeStrip.new()
+	strip.road = road
+	strip.at_m = d
+	var span := road.strip_span(road.way(p), d)
+	strip.lat_from = span.x
+	strip.lat_to = span.y
+	strip.for_racer = p
+	strip.watch = players()
+	session.add_child(strip)
+	strips.append(strip)
+	spikes_laid += 1
+	p.notify("Spikes ahead", 2.5)
+	return strip
 
 
 func _pool_unit() -> PoliceRacer:

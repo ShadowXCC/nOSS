@@ -55,6 +55,9 @@ var wall_impulse := 0.0
 var last_hit: Vehicle
 ## Each reset_to() counts up (network states flag the car as placed, not moved).
 var reset_count := 0
+## Flat tyres (a spike strip, D192): bit i for physics wheel i, for this much longer.
+var flats := 0
+var _flat_left := 0.0
 ## Contacts with remote cars this tick: [other Vehicle, impulse on this car, world point] (D86).
 var remote_contacts: Array = []
 ## A package without a model shows as a box in this colour (an online car still arriving).
@@ -356,6 +359,20 @@ func reset_to(xform: Transform3D, velocity := Vector3.ZERO) -> void:
 
 
 ## Makes this a remote car (D84): kinematic, moved by move_remote().
+## Wheels `mask` go flat for `seconds` (with any already flat), or until the car's reset.
+func flatten(mask: int, seconds := 30.0) -> void:
+	flats |= mask
+	_flat_left = maxf(_flat_left, seconds)
+	sim.set_flats(flats)
+
+
+## Every tyre back up.
+func repair() -> void:
+	flats = 0
+	_flat_left = 0.0
+	sim.set_flats(0)
+
+
 func set_remote(on: bool) -> void:
 	remote = on
 	freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
@@ -383,6 +400,10 @@ func move_remote(ground: Transform3D, velocity: Vector3, angular: Vector3, snap 
 func _physics_process(delta: float) -> void:
 	if remote:
 		return # its wheels and lights once a frame (_process)
+	if flats:
+		_flat_left -= delta
+		if _flat_left <= 0.0:
+			repair()
 	sim.set_controls(steer, throttle, brake, handbrake, clutch)
 	if not arcade.is_empty():
 		sim.set_kart_input(drift)

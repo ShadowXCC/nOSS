@@ -38,6 +38,8 @@ void VehicleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_assists", "assists"), &VehicleSim::set_assists);
 	ClassDB::bind_method(D_METHOD("set_conditions", "wetness", "snow"), &VehicleSim::set_conditions);
 	ClassDB::bind_method(D_METHOD("get_conditions"), &VehicleSim::get_conditions);
+	ClassDB::bind_method(D_METHOD("set_flats", "mask"), &VehicleSim::set_flats);
+	ClassDB::bind_method(D_METHOD("get_flats"), &VehicleSim::get_flats);
 	ClassDB::bind_static_method("VehicleSim", D_METHOD("surface_grip", "surface", "wetness", "snow"), &VehicleSim::grip_of);
 	ClassDB::bind_method(D_METHOD("reset"), &VehicleSim::reset);
 	ClassDB::bind_method(D_METHOD("roll_at", "speed"), &VehicleSim::roll_at);
@@ -229,6 +231,16 @@ void VehicleSim::set_conditions(double p_wetness, double p_snow) {
 	}
 }
 
+void VehicleSim::set_flats(int64_t p_mask) {
+	if (_model) {
+		_model->flats = uint32_t(p_mask & 0xffffffff);
+	}
+}
+
+int64_t VehicleSim::get_flats() const {
+	return _model ? int64_t(_model->flats) : 0;
+}
+
 Vector2 VehicleSim::get_conditions() const {
 	return _model ? Vector2(real_t(_model->conditions.wetness), real_t(_model->conditions.snow)) : Vector2();
 }
@@ -328,6 +340,7 @@ Dictionary VehicleSim::get_telemetry() const {
 		wd["slip_angle"] = std::atan(w.tan_alpha);
 		wd["slip_speed"] = w.slip_speed;
 		wd["travel"] = w.disp;
+		wd["flat"] = m.flat(size_t(wheels.size()));
 		wd["contact"] = w.contact;
 		wd["surface"] = w.surface;
 		wheels.push_back(wd);

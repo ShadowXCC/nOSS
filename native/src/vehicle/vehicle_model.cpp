@@ -266,6 +266,7 @@ void VehicleModel::take_state(const VehicleModel &p_other) {
 	controls = p_other.controls;
 	assists = p_other.assists;
 	conditions = p_other.conditions;
+	flats = p_other.flats;
 	engine_omega = p_other.engine_omega;
 	gearbox.gear = p_other.gearbox.gear;
 	gearbox.target = p_other.gearbox.target;
@@ -535,7 +536,8 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 		w.contact = c.hit;
 		w.surface = c.surface;
 		if (c.hit) {
-			w.disp = wc.travel + 2.0 * wc.geo.radius - c.distance;
+			// The ray starts a radius above the top of travel; a flat tyre sits lower on its rim.
+			w.disp = wc.travel + wc.geo.radius * (1.0 + (flat(i) ? FLAT_RADIUS : 1.0)) - c.distance;
 		} else {
 			w.disp = -wc.travel;
 		}
@@ -638,7 +640,7 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 			w.deflection = clampd(w.deflection, -sigma * max_tan_alpha, sigma * max_tan_alpha);
 			w.tan_alpha = w.deflection / sigma;
 			v_den[i] = std::max(std::abs(vl), SLIP_SPEED_FLOOR);
-			mu[i] = tire_mu(spec.tire, w.fz) * surface_grip(w.surface, conditions) * mods.grip;
+			mu[i] = tire_mu(spec.tire, w.fz) * surface_grip(w.surface, conditions) * mods.grip * (flat(i) ? FLAT_GRIP : 1.0);
 			double kappa = (w.omega * r - vl) / v_den[i];
 			double dk = 0.01 * spec.tire.peak_slip_ratio;
 			double tan_alpha = w.tan_alpha * mods.slip_seen;
@@ -804,7 +806,7 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 			w.slip_speed = 0.0;
 			continue;
 		}
-		double roll_coef = spec.rolling_resistance + surface_info(w.surface).drag;
+		double roll_coef = spec.rolling_resistance + surface_info(w.surface).drag + (flat(i) ? FLAT_DRAG : 0.0);
 		double rolling = -roll_coef * w.fz * std::tanh(v_long[i] / 0.5);
 		// Load at the fitted contact point; grip forces where the reference tire would be.
 		V3 load = up * w.fz;

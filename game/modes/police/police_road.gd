@@ -34,6 +34,11 @@ func past(p: Racer, at_m: float) -> float:
 	return way(p) * (p.distance - at_m)
 
 
+## Distance `a` less distance `b` along the road (the short way round, on a loop).
+func delta_m(a: float, b: float) -> float:
+	return a - b
+
+
 ## Lanes each way.
 func lanes() -> int:
 	return 1
@@ -65,6 +70,17 @@ func across_xform(way_dir: int, lane: int, d: float, i: int) -> Transform3D:
 	var at := lane_xform(way_dir, lane, d)
 	at.basis = Basis(Vector3.UP, PI / 2.0 * (1 if i == 0 else -1)) * at.basis
 	return at
+
+
+## Whether the police lay spike strips here (they must be able to catch the cars they're for).
+func spikes_allowed() -> bool:
+	return true
+
+
+## Across the road the way `way` drives at `d`, where a spike strip lies: Vector2(from, to)
+## laterals, every lane of that way but half a lane left open.
+func strip_span(_way: int, _d: float) -> Vector2:
+	return Vector2.ZERO
 
 
 ## Traffic round `v` for near misses (TrafficManager.near_rows' rows).

@@ -177,6 +177,7 @@ func _place(r: Racer, dir: int) -> void:
 	r.direction = dir
 	var at := shoulder_spot(dir, r.distance)
 	r.vehicle.reset_to(at)
+	r.vehicle.repair()
 	var proj := layout.main.project(at.origin)
 	r.distance = proj.distance
 	r.lateral = proj.lateral

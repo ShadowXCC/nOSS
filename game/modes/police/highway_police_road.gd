@@ -48,6 +48,11 @@ func past(p: Racer, at_m: float) -> float:
 	return ahead if ahead < length / 2.0 else ahead - length
 
 
+func delta_m(a: float, b: float) -> float:
+	var length := layout.main.length
+	return fposmod(a - b + length / 2.0, length) - length / 2.0
+
+
 func lanes() -> int:
 	return layout.lanes
 
@@ -76,6 +81,29 @@ func across_xform(way_dir: int, lane: int, d: float, i: int) -> Transform3D:
 	var spot := layout.main.transform_at(d, layout.lane_lateral(way_dir, lane))
 	spot.basis = Basis(Vector3.UP, PI / 2.0 * (1 if i == 0 else -1)) * spot.basis
 	return spot
+
+
+## Nearly straight (no bend tighter than 600 m) for `length` m on.
+func straight_clear(d: float, way_dir: int, length: float) -> bool:
+	var main := layout.main
+	var s := 0.0
+	while s <= length:
+		if absf(main.curvature[main.index_at(fposmod(d + way_dir * s, main.length))]) > 1.0 / 600.0:
+			return false
+		s += 10.0
+	return true
+
+
+## Not online: the server can't flatten a tyre on a car another game drives.
+func spikes_allowed() -> bool:
+	return not session.is_online()
+
+
+## The carriageway from the median's edge out, half its outer lane left open.
+func strip_span(way_dir: int, _d: float) -> Vector2:
+	var a := -way_dir * layout.inner
+	var b := -way_dir * (layout.inner + (layout.lanes - 0.5) * layout.lane_m)
+	return Vector2(minf(a, b), maxf(a, b))
 
 
 func near_rows(v: Vehicle, radius: float) -> Array:

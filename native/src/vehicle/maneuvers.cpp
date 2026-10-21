@@ -53,6 +53,7 @@ ManeuverResult fail(const std::string &p_error) {
 ManeuverResult launch(const Config &p_config, const ManeuverSpec &p_spec, bool p_top_speed) {
 	FlatHarness h(p_config);
 	h.model.conditions = p_spec.conditions;
+	h.model.flats = p_spec.flats;
 	Path path = straight_path(8000.0);
 	PathDriver driver(path, p_config.spec);
 	settle(h);
@@ -128,6 +129,7 @@ bool hold_speed(FlatHarness &p_h, PathDriver &p_driver, double p_target, double 
 ManeuverResult braking(const Config &p_config, const ManeuverSpec &p_spec) {
 	FlatHarness h(p_config);
 	h.model.conditions = p_spec.conditions;
+	h.model.flats = p_spec.flats;
 	Path path = straight_path(8000.0);
 	PathDriver driver(path, p_config.spec);
 	settle(h);
@@ -182,6 +184,7 @@ ManeuverResult skidpad(const Config &p_config, const ManeuverSpec &p_spec) {
 	Path path(points, true);
 	FlatHarness h(p_config);
 	h.model.conditions = p_spec.conditions;
+	h.model.flats = p_spec.flats;
 	DriverParams params;
 	params.lateral_time = 4.0;
 	PathDriver driver(path, p_config.spec, params);
@@ -235,6 +238,7 @@ ManeuverResult skidpad(const Config &p_config, const ManeuverSpec &p_spec) {
 ManeuverResult step_steer(const Config &p_config, const ManeuverSpec &p_spec) {
 	FlatHarness h(p_config);
 	h.model.conditions = p_spec.conditions;
+	h.model.flats = p_spec.flats;
 	Path path = straight_path(8000.0);
 	PathDriver driver(path, p_config.spec);
 	settle(h);
@@ -305,6 +309,7 @@ ManeuverResult slalom(const Config &p_config, const ManeuverSpec &p_spec) {
 	auto error_at = [&](double p_kmh) -> double {
 		FlatHarness h(p_config);
 	h.model.conditions = p_spec.conditions;
+	h.model.flats = p_spec.flats;
 		h.place_at(0.0, -runup, 0.0);
 		PathDriver driver(path, p_config.spec);
 		settle(h);
@@ -369,6 +374,7 @@ ManeuverResult lap(const Config &p_config, const ManeuverSpec &p_spec) {
 	path.point_at(p_spec.track_start_s - p_spec.lap_runup, x, z, heading);
 	FlatHarness h(p_config);
 	h.model.conditions = p_spec.conditions;
+	h.model.flats = p_spec.flats;
 	h.place_at(x, z, heading);
 	PathDriver driver(path, p_config.spec);
 	settle(h);
