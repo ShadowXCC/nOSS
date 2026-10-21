@@ -9,7 +9,7 @@ extends Control
 signal picked(event: RaceEvent)
 signal closed
 
-const TRAFFIC := [["light", "Light"], ["normal", "Normal"], ["off", "Off"]]
+const TRAFFIC := [["light", "Light"], ["normal", "Normal"], ["heavy", "Heavy"], ["off", "Off"]]
 const SPREAD := [["bring", "Bring up the one behind"], ["hold", "Hold the leader back"]]
 
 var event: RaceEvent

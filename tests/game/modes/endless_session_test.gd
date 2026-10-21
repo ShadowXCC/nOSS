@@ -1,6 +1,6 @@
 extends GdUnitTestSuite
 ## Endless sessions (docs/GAMEMODES.md §4, D157): players start in single file in the right-hand
-## lane; the HUD hides until shown (no laps ever); a reset puts the car back in its lane; the
+## lane; the HUD shows speed until hidden (no laps ever); a reset puts the car back in its lane; the
 ## autodrive keeps its lane and gets going; road codes round-trip; and players on one PC drifting
 ## too far apart are brought together by the event's rule.
 
@@ -61,20 +61,21 @@ func test_players_start_in_the_right_hand_lane() -> void:
 	await get_tree().process_frame
 
 
-func test_the_hud_hides_until_shown() -> void:
+func test_the_hud_shows_speed_until_hidden() -> void:
 	var s := _session()
 	await _wait_for_cars(s)
 	var p := s.players[0]
-	assert_bool(p.hud.shows("speed")).is_false()
-	assert_bool(p.hud.shows("timing")).is_false()
-	s.endless.hud_shown[p.slot.index] = true
-	s.endless.apply_hud(p)
 	assert_bool(p.hud.shows("speed")).is_true()
 	assert_bool(p.hud.shows("timing")).is_false() # no laps here
 	var items: Array = s.endless.pause_items(p)
 	var texts := items.map(func(i: Array) -> String: return String(i[0]))
 	assert_bool(texts.any(func(t: String) -> bool: return t.begins_with("Road code: FOREST-"))).is_true()
 	assert_bool(texts.has("Hide HUD")).is_true()
+	(items[texts.find("Hide HUD")][1] as Callable).call()
+	assert_bool(p.hud.shows("speed")).is_false()
+	assert_bool(p.hud.shows("timing")).is_false()
+	texts = s.endless.pause_items(p).map(func(i: Array) -> String: return String(i[0]))
+	assert_bool(texts.has("Show HUD")).is_true()
 	s.queue_free()
 	await get_tree().process_frame
 

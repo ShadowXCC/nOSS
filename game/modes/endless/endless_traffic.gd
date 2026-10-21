@@ -1,7 +1,7 @@
 class_name EndlessTraffic
 extends Node
-## Traffic on the endless road (docs/GAMEMODES.md §4, AI-03, D158): light, both ways (oncoming can
-## be off). Nothing is simulated far away: each lane has a speed along the road (bends, braking
+## Traffic on the endless road (docs/GAMEMODES.md §4, AI-03, D158): light to heavy, both ways
+## (oncoming can be off). Nothing is simulated far away: each lane has a speed along the road (bends, braking
 ## before them, pulling away after, from the generator) and the time a car takes to get anywhere
 ## at it; car j of a lane left the start at time tau_j (a steady spacing with some spread from the
 ## seed), so where every car is at any time is worked out, the same on every game, and no two in a
@@ -14,16 +14,18 @@ extends Node
 const UP := 0 # toward higher distances (the players' way)
 const DOWN := 1 # oncoming
 ## Mean seconds between cars in a lane, by setting; a share of slots left empty for uneven gaps.
-const HEADWAY_S := { "light": 48.0, "normal": 20.0 }
+const HEADWAY_S := { "light": 48.0, "normal": 20.0, "heavy": 8.0 }
 const SPREAD := 0.8
 const EMPTY_SHARE := 0.15
-## Drawn within this of a camera; physics cars within PROMOTE_M of a player, back into the schedule
-## past DEMOTE_M once on their slot; a car that left its slot goes past GONE_M.
+## Drawn within this of a camera (at most DRAWN of a type); physics cars within PROMOTE_M of a player,
+## the nearest first, back into the schedule past DEMOTE_M once on their slot; a car that left its
+## slot goes past GONE_M.
 const VIEW_M := 1500.0
 const PROMOTE_M := 140.0
 const DEMOTE_M := 220.0
 const GONE_M := 260.0
 const MAX_PHYSICS := 12
+const DRAWN := 64
 
 var session: TrackSession
 var world: EndlessWorld
@@ -69,7 +71,7 @@ func _ready() -> void:
 			mm.use_colors = true
 			mm.use_custom_data = true
 			mm.mesh = TrafficModels.far_mesh(TrafficTypes.index_of(String(_types[i].id)))
-			mm.instance_count = 48
+			mm.instance_count = DRAWN
 			mm.visible_instance_count = 0
 			var view := MultiMeshInstance3D.new()
 			view.name = "Traffic_" + String(_types[i].id)
@@ -282,15 +284,10 @@ func _promote_near() -> void:
 	var players := _players()
 	if players.is_empty():
 		return
-	for c: Dictionary in scheduled():
+	for n: Array in near_scheduled(players):
 		if cars.size() >= MAX_PHYSICS:
 			break
-		var xf := pose(c.lane, c.s)
-		var near := INF
-		for p in players:
-			near = minf(near, p.distance_to(xf.origin))
-		if near < PROMOTE_M:
-			_promote(c, xf)
+		_promote(n[1], n[2])
 	for key: Vector2i in cars.keys():
 		var car: EndlessTrafficCar = cars[key]
 		if car.vehicle == null or not is_instance_valid(car.vehicle):
@@ -308,6 +305,20 @@ func _promote_near() -> void:
 			_remove(key)
 			if net:
 				net.drop(slot_of(key))
+
+
+## Scheduled cars within PROMOTE_M of any of `players`, the nearest first: [[distance, car, pose]].
+func near_scheduled(players: PackedVector3Array) -> Array:
+	var out: Array = []
+	for c: Dictionary in scheduled():
+		var xf := pose(c.lane, c.s)
+		var near := INF
+		for p in players:
+			near = minf(near, p.distance_to(xf.origin))
+		if near < PROMOTE_M:
+			out.append([near, c, xf])
+	out.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	return out
 
 
 func _remove(key: Vector2i) -> void:

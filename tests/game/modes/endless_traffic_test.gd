@@ -121,3 +121,43 @@ func test_cars_near_a_player_turn_physical_and_a_knocked_one_leaves_its_slot() -
 		assert_bool(c.key == key).is_false()
 	s.queue_free()
 	await get_tree().process_frame
+
+
+## A schedule on its own (no session): the slots and their draws.
+func _bare(density: String) -> EndlessTraffic:
+	var t: EndlessTraffic = auto_free(EndlessTraffic.new())
+	t.seed = 4242
+	t.density = density
+	for type: Dictionary in TrafficTypes.list():
+		if int(type.weight) > 0:
+			t._types.append(type)
+			t._weights += int(type.weight)
+	return t
+
+
+func test_heavy_traffic_is_a_car_every_8_seconds_a_lane() -> void:
+	for pair: Array in [["light", 48.0], ["normal", 20.0], ["heavy", 8.0]]:
+		var t := _bare(pair[0])
+		var n := 2000
+		var span := float(t.slot(EndlessTraffic.UP, n).tau) - float(t.slot(EndlessTraffic.UP, 0).tau)
+		assert_float(span / n).is_equal_approx(pair[1], pair[1] * 0.05)
+	assert_bool("heavy" in RaceEvent.CHOICES.endless_traffic).is_true()
+	assert_bool(EndlessMenu.TRAFFIC.any(func(c: Array) -> bool: return c[0] == "heavy")).is_true()
+
+
+func test_the_nearest_cars_turn_physical_first() -> void:
+	var s := _session("heavy")
+	await _wait_for_car(s)
+	var t: EndlessTraffic = s.endless_traffic
+	var p := s.players[0]
+	var near: Array = t.near_scheduled(PackedVector3Array([p.vehicle.global_position]))
+	# From far along the road: everything within reach, in order.
+	var far: Array = t.near_scheduled(PackedVector3Array([s.endless.lane_transform(p.distance + 200.0).origin, p.vehicle.global_position]))
+	for list: Array in [near, far]:
+		for i in range(1, list.size()):
+			assert_float(float(list[i][0])).is_greater_equal(float(list[i - 1][0]))
+		for n: Array in list:
+			assert_float(float(n[0])).is_less(EndlessTraffic.PROMOTE_M)
+	assert_int(far.size()).is_greater_equal(near.size())
+	s.queue_free()
+	await get_tree().process_frame

@@ -45,7 +45,7 @@ extends Node
 ##                        --drag-no-centreline, --race-ai)
 ##   --drag-debug         online: print what the pass is doing on this game, twice a second
 ##   --endless[=<code>]   an endless drive right away (a road code like FOREST-0000001, or a new road;
-##                        --traffic=off|light|normal, --platform)
+##                        --traffic=off|light|normal|heavy, --platform)
 ##   --kart-debug         online kart items: log every item more than 1 m off the server's
 ##   --time=<t>           any session's time of day (dawn, morning, noon, afternoon, dusk, night),
 ##                        --time-rate=<x> game minutes a minute, --weather=<w> (clear, cloudy, rain, storm,

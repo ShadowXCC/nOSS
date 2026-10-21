@@ -136,7 +136,7 @@
         "env_seed": { "description": "Seed of the weather's fronts (0: picked when the session starts).", "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "road_seed": { "description": "Endless events: the road's seed.", "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "biome": { "description": "Endless events: the biome the road starts in (NossRoadGen.biome_ids order).", "type": "integer", "minimum": 0, "maximum": 31 },
-        "endless_traffic": { "description": "Endless events: traffic.", "enum": ["light", "normal", "off"] },
+        "endless_traffic": { "description": "Endless events: traffic.", "enum": ["light", "normal", "heavy", "off"] },
         "oncoming": { "description": "Endless events: oncoming traffic.", "type": "boolean" },
         "spread": { "description": "Endless events: local players far apart on one game: bring the one behind up, or hold the leader back.", "enum": ["bring", "hold"] }
       }

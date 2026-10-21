@@ -3,7 +3,7 @@ extends Node
 ## An endless drive's rules (docs/GAMEMODES.md §4, MODE-06, D157), beside an ordinary free session:
 ## where players start (one behind another in the right-hand lane), resets (back in the lane where
 ## they were, ghosted for a moment), keeping local players on one stretch of road (the session's
-## rule: bring the one behind up, or hold the leader back), the minimal HUD (hidden until shown),
+## rule: bring the one behind up, or hold the leader back), the minimal HUD (speed and gear until hidden),
 ## each biome's weather and sounds, its name as you enter it, and the pause menu's items. Online
 ## (D159) players spread out freely: Join takes this game's players to just behind someone.
 
@@ -27,8 +27,8 @@ const NEVER := ["timing", "delta", "position", "standings", "flags"]
 var session: TrackSession
 var world: EndlessWorld
 var event: RaceEvent
-## Players who chose to show the HUD (by slot index).
-var hud_shown := {}
+## Players who chose to hide the HUD (by slot index).
+var hud_hidden := {}
 ## Where players start (m along the road).
 var start_m := START_M
 var _check := 0.0
@@ -174,10 +174,11 @@ func _biome_here() -> void:
 		}
 
 
-## The minimal HUD (D157): hidden until the player shows it; laps and places never.
+## The minimal HUD (D157, D189): speed, gear and revs until the player hides them; laps and places
+## never.
 func apply_hud(p: SessionPlayer) -> void:
 	var hidden := PackedStringArray(NEVER)
-	if not hud_shown.get(p.slot.index, false):
+	if hud_hidden.get(p.slot.index, false):
 		hidden.append_array(["speed", "assists", "car"])
 	p.hud.session_hidden = hidden
 	p.hud.apply_profile(p.slot.profile)
@@ -188,9 +189,9 @@ func pause_items(p: SessionPlayer) -> Array:
 	var items: Array = []
 	var auto := bool(p.slot.profile.data.get("assists", {}).get("autodrive", false))
 	items.append(["Autodrive: " + ("On" if auto else "Off"), p.toggle_autodrive, "The car drives itself (O)"])
-	var shown := bool(hud_shown.get(p.slot.index, false))
-	items.append(["Hide HUD" if shown else "Show HUD", func() -> void:
-		hud_shown[p.slot.index] = not shown
+	var hidden := bool(hud_hidden.get(p.slot.index, false))
+	items.append(["Show HUD" if hidden else "Hide HUD", func() -> void:
+		hud_hidden[p.slot.index] = not hidden
 		apply_hud(p), "Speed and gear on screen"])
 	var code := EndlessCode.encode(event.road_seed, event.biome)
 	items.append(["Road code: " + code, func() -> void:

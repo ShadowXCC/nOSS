@@ -76,7 +76,7 @@ var time_rate := 0
 var weather := "track"
 var env_seed := 0
 ## Endless (docs/GAMEMODES.md §4, D157): the road's seed and the biome it starts in (NossRoadGen
-## order), traffic ("light", "normal" or "off"), oncoming traffic on, and what happens when local
+## order), traffic ("light", "normal", "heavy" or "off"), oncoming traffic on, and what happens when local
 ## players drift far apart ("bring": the one behind is brought up; "hold": the leader is held).
 var road_seed := 1
 var biome := 1
@@ -93,7 +93,7 @@ const CHOICES := {
 	"sumo_drift": ["drift", "off", "boost"],
 	"time": ["track", "dawn", "morning", "noon", "afternoon", "dusk", "night"],
 	"weather": ["track", "clear", "cloudy", "rain", "storm", "fog", "snow", "changing"],
-	"endless_traffic": ["light", "normal", "off"], "spread": ["bring", "hold"],
+	"endless_traffic": ["light", "normal", "heavy", "off"], "spread": ["bring", "hold"],
 }
 ## Time rates offered in menus (game minutes per real minute).
 const TIME_RATES := [0, 1, 10, 30, 60, 120]
