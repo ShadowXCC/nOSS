@@ -88,8 +88,8 @@ static func chunk_track(chunk: Dictionary, ox: float, oz: float, index: int) -> 
 		t.half_l[i] = half
 		t.half_r[i] = half
 		t.surface[i] = VehicleSim.SURFACE_ASPHALT
-		t.runoff_l[i] = VehicleSim.SURFACE_GRASS
-		t.runoff_r[i] = VehicleSim.SURFACE_GRASS
+		t.runoff_l[i] = VehicleSim.SURFACE_DIRT
+		t.runoff_r[i] = VehicleSim.SURFACE_DIRT
 		t.barrier_l[i] = armco if bl[i] else TrackFormat.BARRIER_NONE
 		t.barrier_r[i] = armco if br[i] else TrackFormat.BARRIER_NONE
 		t.lanes[i] = 2

@@ -34,6 +34,12 @@ const SCAN_S := 0.4
 const CHEVRON_CURVE := 1.0 / 110.0
 const CHEVRON_EVERY_M := 24.0
 const SEA_SIZE := 12000.0
+## Off the road drives like a dirt road (TerrainData.LAYERS order): soft ground of every kind is
+## dirt, bare rock is hard. Track grass keeps its penalty; falling snow still slips (VehicleSim).
+const GROUND_SURFACES := [
+	VehicleSim.SURFACE_DIRT, VehicleSim.SURFACE_DIRT, VehicleSim.SURFACE_DIRT, VehicleSim.SURFACE_DIRT,
+	VehicleSim.SURFACE_CONCRETE, VehicleSim.SURFACE_DIRT, VehicleSim.SURFACE_CONCRETE, VehicleSim.SURFACE_ASPHALT,
+]
 
 var gen: NossRoadGen
 var road := RoadWindow.new()
@@ -332,7 +338,7 @@ func _build_tile(job: Job) -> void:
 	var result := { "terrain": t }
 	if job.input.collide:
 		result.collision = final
-		result.map = t.surface_map()
+		result.map = t.field.surface_map(PackedByteArray(GROUND_SURFACES))
 	if visual:
 		result.scatter = _scatter_points(job, final)
 		var blocks := PackedFloat32Array()
@@ -636,7 +642,7 @@ func _apply(job: Job) -> void:
 				map.set_origin(corner)
 				var body := StaticBody3D.new()
 				body.name = "Ground"
-				body.set_meta(&"noss_surface", VehicleSim.SURFACE_GRASS)
+				body.set_meta(&"noss_surface", VehicleSim.SURFACE_DIRT)
 				body.set_meta(&"noss_surface_map", map)
 				var shape := HeightMapShape3D.new()
 				shape.map_width = TILE + 1
