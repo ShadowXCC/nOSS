@@ -133,6 +133,11 @@ func trap_spot(trap: Dictionary) -> Transform3D:
 	return shoulder_xform(int(trap.get("dir", 1)), float(trap.at_m))
 
 
+## A spike strip went down (online, other games are told).
+func strip_laid(_strip: SpikeStrip) -> void:
+	pass
+
+
 ## Unit `i`'s network id (0: offline), and the unit made known to the network.
 func unit_id(_i: int) -> int:
 	return 0

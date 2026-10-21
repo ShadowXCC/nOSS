@@ -16,6 +16,10 @@ var traffic: EndlessTraffic
 var road_lanes: EndlessLanes
 ## Busts per racer this drive.
 var busts := {}
+## Online (D195): the player whose car id names this game's units, and each closure's id as the
+## other games know it.
+var _base := -1
+var _base_check := 0.0
 
 
 static func make(s: TrackSession) -> EndlessPoliceRoad:
@@ -23,6 +27,8 @@ static func make(s: TrackSession) -> EndlessPoliceRoad:
 	r.session = s
 	r.traffic = s.endless_traffic
 	r.road_lanes = s.endless_lanes
+	if s.is_online() and not Net.my_ids.is_empty():
+		r._base = Net.my_ids[0]
 	return r
 
 
@@ -136,22 +142,73 @@ func close_lanes(p: Racer, way_dir: int, d: float, length: float) -> Array:
 		return []
 	var dir := EndlessLanes.UP if way_dir > 0 else EndlessLanes.DOWN
 	var ids := [EndlessLanes.id(0, dir)] if road_lanes.per_dir == 1 else [EndlessLanes.id(0, dir), EndlessLanes.id(1, dir)]
-	return [traffic.close(ids, d, d + way_dir * length)]
+	var id := traffic.close(ids, d, d + way_dir * length)
+	if session.endless_net:
+		var c: Dictionary = traffic.closures[id]
+		session.endless_net.police_event("closures", [id, c.from, c.to, ids[0], ids[1] if ids.size() > 1 else -1])
+	return [id]
 
 
 func open_lanes(closures: Array) -> void:
 	if traffic:
 		for id: int in closures:
 			traffic.open(id)
+			if session.endless_net:
+				session.endless_net.police_event("opened", id)
+
+
+func strip_laid(strip: SpikeStrip) -> void:
+	if session.endless_net:
+		session.endless_net.police_event("strips", [strip.at_m, strip.lat_from, strip.lat_to])
 
 
 func block_lanes(_way: int) -> Array:
 	return [0] if road_lanes.per_dir == 1 else [0, 1]
 
 
+## Traffic moves over for this game's units, and (online) the other games' with their sirens on.
 func move_over(units: Array) -> void:
-	if traffic:
-		traffic.sirens = units.map(func(u: PoliceRacer) -> Vehicle: return u.vehicle)
+	_check_base()
+	if traffic == null:
+		return
+	var sirens := units.map(func(u: PoliceRacer) -> Vehicle: return u.vehicle)
+	if session.is_online():
+		for r in session.racers:
+			if r is NetRacer and NetProtocol.is_endless_police(r.net_id) and r.vehicle and is_instance_valid(r.vehicle) and r.vehicle.siren:
+				sirens.append(r.vehicle)
+	traffic.sirens = sirens
+
+
+## Online: unit `i` is named by this game's first player (D195).
+func unit_id(i: int) -> int:
+	return NetProtocol.endless_police_id(_base, i) if _base >= 0 else 0
+
+
+func register_unit(u: PoliceRacer) -> void:
+	if session.net and _base >= 0:
+		session.net.add(u, true)
+
+
+## Online, once a second: if the player who named the units has gone (left this game's seats), the
+## units stand down and take ids from the next one.
+func _check_base() -> void:
+	if _base < 0 or session.police == null:
+		return
+	_base_check -= 1.0 / Engine.physics_ticks_per_second
+	if _base_check > 0.0:
+		return
+	_base_check = 1.0
+	if _base in Net.my_ids or Net.my_ids.is_empty():
+		return
+	_base = Net.my_ids[0]
+	var units := session.police.units
+	for i in units.size():
+		var u := units[i]
+		u.stand_down()
+		session.net.remove(u.net_id)
+		u.net_id = unit_id(i)
+		session.net.add(u, true)
+	session.police.heat.clear()
 
 
 func patrols(pos: Vector3, radius: float) -> Array:

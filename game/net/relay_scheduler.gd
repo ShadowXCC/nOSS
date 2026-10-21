@@ -42,7 +42,7 @@ func pick(peer: int, latest: Dictionary, near: PackedVector3Array, own: Dictiona
 			if d < band[0]:
 				rate = band[1]
 				break
-		if id >= NetProtocol.FIRST_TRAFFIC_ID and d > TRAFFIC_FAR_M:
+		if id >= NetProtocol.FIRST_TRAFFIC_ID and d > TRAFFIC_FAR_M and not NetProtocol.is_endless_police(id):
 			continue
 		var due := (now - float(at.get(id, -INF))) * rate
 		if s.flags & CarState.FLAG_TELEPORT:

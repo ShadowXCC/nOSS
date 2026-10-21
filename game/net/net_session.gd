@@ -328,7 +328,11 @@ func _client_tick(delta: float) -> void:
 		return
 	_send_time = 0.0
 	var states: Array[CarState] = []
+	var slow := Engine.get_physics_frames() % 60 != 0
 	for id: int in owned:
+		# A police unit out of play (D195) says so once a second.
+		if slow and owned[id] is PoliceRacer and (owned[id] as Racer).waiting:
+			continue
 		var s := _own_state(id)
 		if s:
 			_dev_cheat(s)
@@ -407,6 +411,13 @@ func _server_tick(delta: float) -> void:
 			var peer := _peer_of(id)
 			if own.has(peer):
 				own[peer][id] = true
+		# Each game's own police (D195) never go back to it.
+		for id: int in _latest:
+			if NetProtocol.is_endless_police(id):
+				var peer := _peer_of(id)
+				if not own.has(peer):
+					own[peer] = {}
+				own[peer][id] = true
 	var o := origin_mm()
 	for peer: int in Net.server.peers:
 		if peer == 1 or not Net.server.peers[peer].connected:
@@ -424,6 +435,8 @@ func _owned_by(id: int, peer: int) -> bool:
 func _peer_of(id: int) -> int:
 	if owned.has(id) or traffic_owned.has(id):
 		return 1
+	if NetProtocol.is_endless_police(id):
+		return _peer_of(NetProtocol.police_base(id)) # its game's (D195)
 	if id >= NetProtocol.FIRST_TRAFFIC_ID:
 		var owner: int = session.traffic.owners.get(id - NetProtocol.FIRST_TRAFFIC_ID, -1) if session.traffic \
 			else session.endless_net.owner_of_car(id) if session.endless_net else -1
@@ -436,7 +449,7 @@ func _peer_of(id: int) -> int:
 
 ## Car `id`'s body here (a racer's, or a traffic car's physics car or proxy), or null.
 func _vehicle_of(id: int) -> Vehicle:
-	if id >= NetProtocol.FIRST_TRAFFIC_ID:
+	if id >= NetProtocol.FIRST_TRAFFIC_ID and not NetProtocol.is_endless_police(id):
 		if session.endless_traffic:
 			var c: EndlessTrafficCar = session.endless_traffic.car_by_id(id)
 			return c.vehicle if c and c.vehicle and is_instance_valid(c.vehicle) else null
@@ -510,12 +523,14 @@ func _on_client_raw(bytes: PackedByteArray) -> void:
 			var t := now()
 			var o := origin_mm()
 			for s in unpack(bytes, t, o[0], o[1]):
-				if s.id >= NetProtocol.FIRST_TRAFFIC_ID:
+				if owned.has(s.id):
+					continue # this game's own car (its police, D195)
+				if s.id >= NetProtocol.FIRST_TRAFFIC_ID and not NetProtocol.is_endless_police(s.id):
 					_traffic_state(s, t)
 					continue
 				var r: NetRacer = racers.get(s.id) as NetRacer
-				if r == null and s.id >= NetProtocol.FIRST_POLICE_ID and session.highway:
-					r = session.add_police_proxy(s.id) # the server's police: known by their first state
+				if r == null and s.id >= NetProtocol.FIRST_POLICE_ID and (session.highway or (session.endless and NetProtocol.is_endless_police(s.id))):
+					r = session.add_police_proxy(s.id) # police: known by their first state
 				if r:
 					r.push_state(s, t)
 
@@ -554,6 +569,15 @@ func _on_server_raw(peer: int, bytes: PackedByteArray) -> void:
 			for s in unpack(bytes, t, o[0], o[1]):
 				if not _owned_by(s.id, peer):
 					continue # a client only speaks for its own cars
+				if NetProtocol.is_endless_police(s.id):
+					# A game's own police (D195): relayed, not checked like a player's car.
+					_latest[s.id] = s
+					var unit: NetRacer = racers.get(s.id) as NetRacer
+					if unit == null and session.endless and not session.dedicated:
+						unit = session.add_police_proxy(s.id)
+					if unit:
+						unit.push_state(s, t)
+					continue
 				if s.id >= NetProtocol.FIRST_TRAFFIC_ID:
 					_latest[s.id] = s
 					_traffic_state(s, t)

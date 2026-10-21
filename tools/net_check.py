@@ -152,7 +152,7 @@ def main(argv=None):
     p.add_argument("--traffic", type=int, default=150, help="highway: traffic cars")
     p.add_argument("--dirs", choices=["same", "opposite"], default="same", help="highway: players start one way, or turn about")
     p.add_argument("--sub", choices=["cruise", "score", "loop"], default="cruise", help="highway: the sub-mode")
-    p.add_argument("--police", action="store_true", help="highway: police on (the bots speed, so they get chased)")
+    p.add_argument("--police", action="store_true", help="highway, endless: police on (the bots speed, so they get chased; endless: the first bot only, past speed traps)")
     p.add_argument("--speed-factor", type=float, default=0.0, help="highway: the bots drive at this times the limit (default 1.4 with --police, else 1)")
     p.add_argument("--open", action="store_true",
                    help="a place kept for a player from outside (another PC joining with --perf-log); the server goes on the "
@@ -209,7 +209,8 @@ def main(argv=None):
     if highway:
         event.update({"sub": args.sub, "traffic": args.traffic, "direction": 0 if args.dirs == "opposite" else 1, "police": args.police})
     if endless:
-        event.update({"road_seed": args.seed, "biome": 1, "endless_traffic": "normal", "oncoming": True})
+        event.update({"road_seed": args.seed, "biome": 1, "endless_traffic": "normal", "oncoming": True,
+                      "police": args.police, "speed_traps": args.police})
     if sumo:
         # The arena is generated from these, so there is no track to agree on (D162).
         event.update({"sumo_tiers": args.tiers, "sumo_hazard": args.hazard, "sumo_shrink": args.shrink,
@@ -306,6 +307,8 @@ def main(argv=None):
         cheat = [f"--cheat={args.cheat}"] if args.cheat and i == 0 else []
         cheat += ["--traffic-desync"] if args.desync and i == 0 else []
         factor = args.speed_factor or (1.4 if args.police else 0.0)
+        if endless and args.police and i > 0 and not args.speed_factor:
+            factor = 0.0  # endless: one bot speeds, the others watch its police go by (D195)
         cheat += [f"--speed-factor={factor:g}"] if factor else []
         cheat += ["--kart-debug"] if os.environ.get("KART_DEBUG") else []
         if karts and args.classes == "mixed":
@@ -471,6 +474,16 @@ def main(argv=None):
                 fails.append(f"{na} and {nb} started {b - a:.1f} m apart")
         if not any(reports[n].get("endless", {}).get("proxies_max", 0) > 0 for n in reports if n.startswith("bot")) and len(bots) > 1:
             fails.append("no traffic car was shown from another game")
+        if args.police:
+            # Each game runs its own police (D195): the speeding bot is chased, and another game
+            # shows its units, sirens on.
+            chased = {n: reports[n].get("endless", {}).get("pursuits", 0) for n in reports if n.startswith("bot")}
+            sirens = {n: reports[n].get("endless", {}).get("siren_proxies", 0) for n in reports if n.startswith("bot")}
+            print("police: chases by bot %s; other games' units seen with sirens on %s" % (chased, sirens))
+            if chased.get("bot00", 0) < 1:
+                fails.append("police on, but bot00 was never chased")
+            if len(bots) > 1 and not any(v > 0 for n, v in sirens.items() if n != "bot00"):
+                fails.append("no other game showed bot00's police with their sirens on")
         if endless_server is None:
             fails.append("the server reported nothing on the road")
         else:

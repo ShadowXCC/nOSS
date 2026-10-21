@@ -30,6 +30,10 @@ const MAX_NAME := 24
 const FIRST_AI_ID := 200
 const FIRST_POLICE_ID := 300
 const FIRST_TRAFFIC_ID := 1000
+## An endless road's police (D195): each game runs its own, POLICE_PER_GAME ids from here for each
+## of its players' first car id, so the id names the game that drives it. Above every traffic id.
+const FIRST_ENDLESS_POLICE_ID := 61000
+const POLICE_PER_GAME := 16
 ## ENet's packet throttle drops unreliable packets (car states, content) after the round trip
 ## grows, and comes back only when it shrinks below the lowest of the last interval (5 s by
 ## default). Every peer gets throttle_configure(THROTTLE_INTERVAL_MS, 32, 0): never slow down,
@@ -158,3 +162,17 @@ static func parse_address(text: String) -> Dictionary:
 	if s.is_empty() or port <= 0 or port > 65535:
 		return {}
 	return { "host": s, "port": port }
+
+
+## Endless police unit `k` of the game whose first player is car `base` (D195).
+static func endless_police_id(base: int, k: int) -> int:
+	return FIRST_ENDLESS_POLICE_ID + base * POLICE_PER_GAME + k
+
+
+static func is_endless_police(id: int) -> bool:
+	return id >= FIRST_ENDLESS_POLICE_ID and id < FIRST_ENDLESS_POLICE_ID + FIRST_AI_ID * POLICE_PER_GAME
+
+
+## The player whose game drives endless police car `id`.
+static func police_base(id: int) -> int:
+	return (id - FIRST_ENDLESS_POLICE_ID) / POLICE_PER_GAME

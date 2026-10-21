@@ -386,6 +386,20 @@ func lay_spikes(p: Racer, d: float) -> SpikeStrip:
 	strips.append(strip)
 	spikes_laid += 1
 	p.notify("Spikes ahead", 2.5)
+	road.strip_laid(strip)
+	return strip
+
+
+## Online (D195): a strip another game's police laid; it catches this game's players too.
+func add_remote_strip(at_m: float, lat_from: float, lat_to: float) -> SpikeStrip:
+	var strip := SpikeStrip.new()
+	strip.road = road
+	strip.at_m = at_m
+	strip.lat_from = lat_from
+	strip.lat_to = lat_to
+	strip.watch = players()
+	session.add_child(strip)
+	strips.append(strip)
 	return strip
 
 

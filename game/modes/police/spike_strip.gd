@@ -17,7 +17,7 @@ var road: PoliceRoad
 var at_m := 0.0
 var lat_from := 0.0
 var lat_to := 0.0
-## Whom it was laid for, and whose cars it catches.
+## Whom it was laid for (none: another game's, D195), and whose cars it catches.
 var for_racer: Racer
 var watch: Array = []
 var age := 0.0
@@ -55,7 +55,9 @@ func _physics_process(delta: float) -> void:
 
 ## Done with: long enough down, its player well past it (or gone).
 func done() -> bool:
-	return age > LIFE_S or for_racer == null or not is_instance_valid(for_racer) or road.past(for_racer, at_m) > PAST_M
+	if for_racer == null:
+		return age > LIFE_S
+	return age > LIFE_S or not is_instance_valid(for_racer) or road.past(for_racer, at_m) > PAST_M
 
 
 ## Which of `v`'s wheels are on it now (bit i for physics wheel i).

@@ -1399,7 +1399,7 @@ func add_police_proxy(id: int) -> NetRacer:
 	r.color = PoliceRacer.COLOR
 	r.is_human = false
 	r.name = "Net%d" % id
-	r.number = 50 + id - NetProtocol.FIRST_POLICE_ID
+	r.number = 50 + (id % NetProtocol.POLICE_PER_GAME if NetProtocol.is_endless_police(id) else id - NetProtocol.FIRST_POLICE_ID)
 	r.spawn_at = Transform3D(Basis(), Vector3(0, -500.0, 0))
 	_add_racer(r)
 	r.default_car = PoliceRacer.CAR

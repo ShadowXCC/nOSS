@@ -31,6 +31,9 @@ var mismatches := 0
 ## Owners that changed hands (a game let a car go, another took it on).
 var handovers := 0
 
+## Online police (D195): this game's strips, closures and openings for the others: {kind: [...]}.
+var _police := {}
+var _remote_closures := {} # "player:closure" -> this game's closure id
 var _want := {} # this game: slots to ask for, drop and mark used up
 var _drop := {}
 var _gone := {}
@@ -100,6 +103,15 @@ func gone(slot: int) -> void:
 	_gone[slot] = true
 
 
+## This game's police did something the other games' players meet too (D195): "strips" [at_m,
+## lat_from, lat_to], "closures" [id, from, to, lane, lane or -1], "opened" id.
+func police_event(kind: String, what: Variant) -> void:
+	if not _police.has(kind):
+		_police[kind] = []
+	if (_police[kind] as Array).size() < MOST:
+		(_police[kind] as Array).append(what)
+
+
 func _physics_process(delta: float) -> void:
 	_report -= delta
 	var report := _report <= 0.0
@@ -107,6 +119,9 @@ func _physics_process(delta: float) -> void:
 		_report = REPORT_S
 	if not (_want.is_empty() and _drop.is_empty() and _gone.is_empty()) or report:
 		var d := { "want": _take(_want), "drop": _take(_drop), "gone": _take(_gone), "at": {}, "sums": {} }
+		if not _police.is_empty():
+			d.police = _police
+			_police = {}
 		if report:
 			for r: Racer in session.players:
 				if r.vehicle and r.net_id > 0:
@@ -147,6 +162,9 @@ func _on_state(d: Dictionary) -> void:
 	if g is PackedInt64Array and g.size() <= GONE_KEEP and traffic:
 		for slot in g:
 			traffic.mark_gone(slot)
+	var pol: Variant = d.get("police")
+	if pol is Dictionary:
+		_apply_police(int(d.get("from", -1)), pol)
 	var a: Variant = d.get("at")
 	if a is Dictionary and (a as Dictionary).size() <= NetProtocol.MAX_PLAYERS:
 		at.clear()
@@ -220,6 +238,15 @@ func _on_report(peer: int, d: Dictionary) -> void:
 		for slot in _gone_order.slice(0, _gone_order.size() - GONE_KEEP):
 			_gone_set.erase(slot)
 		_gone_order = _gone_order.slice(_gone_order.size() - GONE_KEEP)
+	# Another game's police: checked, then to every other game (and this one's, a listen host's).
+	var pol := _checked_police(d.get("police"))
+	if not pol.is_empty():
+		var out := { "police": pol, "from": rep }
+		for other: int in Net.server.peers:
+			if other != peer and other != 1 and Net.server.peers[other].connected:
+				Net.server.send(other, NetProtocol.Msg.ENDLESS_STATE, out)
+		if peer != 1:
+			_apply_police(rep, pol)
 	var a: Variant = d.get("at")
 	if a is Dictionary and (a as Dictionary).size() <= NetProtocol.MAX_LOCAL:
 		for id: Variant in a:
@@ -278,3 +305,55 @@ func _server_tick(report: bool) -> void:
 func _peer_of(id: int) -> int:
 	var p: NetPlayer = Net.server.players.get(id)
 	return p.peer if p else -1
+
+
+## A game's police events, as they may come in: well formed and finite, or {}.
+static func _checked_police(v: Variant) -> Dictionary:
+	var out := {}
+	if not v is Dictionary:
+		return out
+	var strips: Variant = v.get("strips", [])
+	if strips is Array and (strips as Array).size() <= MOST:
+		out.strips = (strips as Array).filter(_good_strip)
+	var closures: Variant = v.get("closures", [])
+	if closures is Array and (closures as Array).size() <= MOST:
+		out.closures = (closures as Array).filter(_good_closure)
+	var opened: Variant = v.get("opened", [])
+	if opened is Array and (opened as Array).size() <= MOST:
+		out.opened = (opened as Array).filter(func(id: Variant) -> bool: return id is int)
+	return out
+
+
+static func _finite(x: Variant) -> bool:
+	return (x is float or x is int) and is_finite(float(x))
+
+
+## [at_m, lat_from, lat_to], across the road.
+static func _good_strip(s: Variant) -> bool:
+	return s is Array and (s as Array).size() == 3 and (s as Array).all(_finite) and absf(float(s[1])) < 30.0 and absf(float(s[2])) < 30.0
+
+
+## [id, from, to, lane, lane or -1], a few hundred metres at most.
+static func _good_closure(c: Variant) -> bool:
+	if not (c is Array and (c as Array).size() == 5 and (c as Array).all(_finite)):
+		return false
+	return int(c[3]) >= 0 and int(c[3]) < 4 and int(c[4]) >= -1 and int(c[4]) < 4 and absf(float(c[2]) - float(c[1])) < 500.0
+
+
+## Another game's police events here: its strips catch this game's players too, its roadblocks
+## close this game's traffic too.
+func _apply_police(from: int, v: Dictionary) -> void:
+	var pol := _checked_police(v)
+	if session.police:
+		for s: Array in pol.get("strips", []):
+			session.police.add_remote_strip(float(s[0]), float(s[1]), float(s[2]))
+	if traffic == null:
+		return
+	for c: Array in pol.get("closures", []):
+		var lanes := [int(c[3])] if int(c[4]) < 0 else [int(c[3]), int(c[4])]
+		_remote_closures["%d:%d" % [from, int(c[0])]] = traffic.close(lanes, float(c[1]), float(c[2]))
+	for id: int in pol.get("opened", []):
+		var key := "%d:%d" % [from, id]
+		if _remote_closures.has(key):
+			traffic.open(int(_remote_closures[key]))
+			_remote_closures.erase(key)
