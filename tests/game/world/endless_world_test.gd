@@ -94,3 +94,54 @@ func test_the_road_is_solid_where_the_window_says() -> void:
 func _down(space: PhysicsDirectSpaceState3D, at: Vector3) -> Dictionary:
 	var q := PhysicsRayQueryParameters3D.create(at + Vector3.UP * 5.0, at + Vector3.DOWN * 5.0)
 	return space.intersect_ray(q)
+
+
+## Where the road goes onto a bridge or comes off one, the ground stays under the deck: no ramp
+## to be launched off (D187).
+func test_no_ground_above_a_bridge_deck() -> void:
+	var gen := EndlessGen.make(2024, 1)
+	var ends: Array[float] = [] # absolute distances where the road is lifted and its neighbour isn't
+	var k := 0
+	while ends.size() < 6 and k < 400:
+		var c := gen.chunk(k)
+		var lifted: PackedByteArray = c.lifted
+		for i in range(1, lifted.size()):
+			if lifted[i] != lifted[i - 1]:
+				ends.append(TrackData.SAMPLE_M * (int(c.first) + (i if lifted[i] else i - 1)))
+		k += 1
+	assert_int(ends.size()).is_greater(1)
+	var parts := _world(false)
+	var w: EndlessWorld = parts[0]
+	var checked := 0
+	for at in ends:
+		_d = at
+		w.prime(at)
+		_settle(w)
+		await get_tree().physics_frame
+		var space := w.get_world_3d().direct_space_state
+		for step in range(-30, 31, 2):
+			var i := w.road.index_of(at + step)
+			if i < 0 or not w.road.lifted[i]:
+				continue
+			for lat: float in [-1.75, 0.0, 1.75]:
+				var p := w.road.samples[i] + w.road.lefts[i] * lat
+				var ground := _ground_at(w, p)
+				if is_nan(ground):
+					continue
+				checked += 1
+				# Under the deck, clear of it; where it meets the ground, under the road.
+				var inside := w.road.lifted[maxi(i - 1, 0)] and w.road.lifted[mini(i + 1, w.road.samples.size() - 1)]
+				assert_float(ground).override_failure_message("ground %.2f m over the deck at %.0f m" % [ground - p.y, at + step]).is_less(p.y - (0.6 if inside else 0.0))
+				var hit := _down(space, p + Vector3.UP * 0.5)
+				if not hit.is_empty():
+					assert_float(hit.position.y).is_less(p.y + 0.1)
+	assert_int(checked).is_greater(50)
+
+
+## The ground's own height under a scene point (NAN off the tiles).
+func _ground_at(w: EndlessWorld, p: Vector3) -> float:
+	for key: Vector2i in w._tiles:
+		var t: TerrainData = w._tiles[key].terrain
+		if t.area().has_point(Vector2(p.x, p.z)):
+			return t.height_at(p.x, p.z)
+	return NAN

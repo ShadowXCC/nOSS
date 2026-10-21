@@ -7,6 +7,8 @@ namespace noss::world {
 
 namespace {
 
+constexpr double CEILING_OVER_M = 0.5;
+
 double smoothstep01(double p_t) {
 	double t = std::clamp(p_t, 0.0, 1.0);
 	return t * t * (3.0 - 2.0 * t);
@@ -214,13 +216,19 @@ Rect Heightfield::conform(const Rect &p_rect, const std::vector<RoadSample> &p_r
 	std::vector<float> best_w(size_t(r.width()) * size_t(r.depth()), 0.0f);
 	std::vector<float> best_h(best_w.size(), 0.0f);
 	std::vector<float> best_d(best_w.size(), 1e30f);
+	std::vector<float> ceiling(best_w.size(), 1e30f);
 	for (size_t k = 0; k < n; k++) {
 		const RoadSample &a = p_road[k];
 		const RoadSample &b = p_road[(k + 1) % n];
-		if ((a.lifted && b.lifted) || a.end) {
+		if (a.end) {
 			continue;
 		}
-		double reach = std::max({ a.flat_l, a.flat_r, b.flat_l, b.flat_r }) + falloff;
+		// A deck (both ends lifted) only keeps the ground below it; where the road leaves the
+		// ground, the bed eases off toward the lifted end and the ground stays under the road.
+		bool deck = a.lifted && b.lifted;
+		bool to_lifted = a.lifted || b.lifted;
+		double flat_max = std::max({ a.flat_l, a.flat_r, b.flat_l, b.flat_r });
+		double reach = deck ? flat_max : flat_max + falloff;
 		Rect box{ int(std::floor((std::min(a.x, b.x) - reach - ox) / cell)), int(std::floor((std::min(a.z, b.z) - reach - oz) / cell)),
 			int(std::ceil((std::max(a.x, b.x) + reach - ox) / cell)) + 1, int(std::ceil((std::max(a.z, b.z) + reach - oz) / cell)) + 1 };
 		box = Rect{ std::max(box.x0, r.x0), std::max(box.z0, r.z0), std::min(box.x1, r.x1), std::min(box.z1, r.z1) };
@@ -229,10 +237,13 @@ Rect Heightfield::conform(const Rect &p_rect, const std::vector<RoadSample> &p_r
 		}
 		double sx = b.x - a.x, sz = b.z - a.z;
 		double len2 = std::max(sx * sx + sz * sz, 1e-9);
+		// The ceiling reaches a little past each end, so the wedges outside a bend are covered too.
+		double over = CEILING_OVER_M / std::sqrt(len2);
 		for (int z = box.z0; z < box.z1; z++) {
 			for (int x = box.x0; x < box.x1; x++) {
 				double px = ox + x * cell, pz = oz + z * cell;
-				double t = std::clamp(((px - a.x) * sx + (pz - a.z) * sz) / len2, 0.0, 1.0);
+				double t_raw = ((px - a.x) * sx + (pz - a.z) * sz) / len2;
+				double t = std::clamp(t_raw, 0.0, 1.0);
 				double qx = a.x + sx * t, qz = a.z + sz * t;
 				double lx = a.lx + (b.lx - a.lx) * t, lz = a.lz + (b.lz - a.lz) * t, ly = a.ly + (b.ly - a.ly) * t;
 				double lxz = std::max(std::hypot(lx, lz), 1e-6);
@@ -242,29 +253,35 @@ Rect Heightfield::conform(const Rect &p_rect, const std::vector<RoadSample> &p_r
 				if (dist >= flat + falloff) {
 					continue;
 				}
-				double weight = dist <= flat ? 1.0 : 1.0 - smoothstep01((dist - flat) / falloff);
-				if ((a.lifted || b.lifted) && t > 0.0 && t < 1.0) {
-					weight *= a.lifted ? t : (1.0 - t); // easing off toward a lifted end
-				}
+				double bed = a.y + (b.y - a.y) * t + lateral * ly / lxz - p_depth_m;
 				size_t i = size_t(z - r.z0) * size_t(r.width()) + size_t(x - r.x0);
+				if (to_lifted && t_raw >= -over && t_raw <= 1.0 + over && dist <= flat) {
+					ceiling[i] = std::min(ceiling[i], float(bed - (deck ? LIFTED_CLEAR_M : 0.0)));
+				}
+				if (deck) {
+					continue;
+				}
+				double weight = dist <= flat ? 1.0 : 1.0 - smoothstep01((dist - flat) / falloff);
+				if (to_lifted) {
+					weight *= a.lifted ? t : (1.0 - t); // easing off toward the lifted end, none past it
+				}
 				// The part of the road that holds the cell most wins; among equals, the nearest
 				// (across the flat zone many 2 m segments reach a cell, at their own heights).
-				if (weight < best_w[i] || (weight == best_w[i] && dist >= best_d[i])) {
+				if (weight <= 0.0 || weight < best_w[i] || (weight == best_w[i] && dist >= best_d[i])) {
 					continue;
 				}
 				best_w[i] = float(weight);
 				best_d[i] = float(dist);
-				best_h[i] = float(a.y + (b.y - a.y) * t + lateral * ly / lxz - p_depth_m);
+				best_h[i] = float(bed);
 			}
 		}
 	}
 	for (int z = r.z0; z < r.z1; z++) {
 		for (int x = r.x0; x < r.x1; x++) {
 			size_t i = size_t(z - r.z0) * size_t(r.width()) + size_t(x - r.x0);
-			if (best_w[i] > 0.0f) {
-				size_t at = size_t(z) * size_t(w) + size_t(x);
-				final_h[at] = base[at] + (best_h[i] - base[at]) * best_w[i];
-			}
+			size_t at = size_t(z) * size_t(w) + size_t(x);
+			float h = best_w[i] > 0.0f ? base[at] + (best_h[i] - base[at]) * best_w[i] : base[at];
+			final_h[at] = std::min(h, ceiling[i]);
 		}
 	}
 	return r;

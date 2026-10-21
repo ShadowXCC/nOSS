@@ -11,6 +11,9 @@
 namespace noss::world {
 
 constexpr int LAYERS = 8;
+// Under a deck (both ends of a stretch lifted) the ground stays at least this far below the road's
+// bed: clear of the deck's underside (RoadBuilder.DECK).
+constexpr double LIFTED_CLEAR_M = 0.7;
 
 // Samples [x0, x1) x [z0, z1).
 struct Rect {
@@ -77,7 +80,9 @@ public:
 	Rect paint(int p_layer, double p_x, double p_z, double p_radius, double p_strength, double p_falloff);
 	// final = base inside p_rect, then the road's bed: level with the road (p_depth below it) out
 	// to each side's flat width, blending back to base over p_falloff_m. Where two parts of the
-	// road reach a sample, the one that holds it most wins, then the nearest.
+	// road reach a sample, the one that holds it most wins, then the nearest. Where the road is
+	// lifted the bed eases off toward it, and inside the flat width the ground never comes above
+	// the bed (or a deck, less LIFTED_CLEAR_M).
 	Rect conform(const Rect &p_rect, const std::vector<RoadSample> &p_road, double p_falloff_m, double p_depth_m);
 	// First hit of a ray with the final ground, inside the field.
 	bool raycast(const double p_origin[3], const double p_dir[3], double p_max_dist, double r_hit[3]) const;

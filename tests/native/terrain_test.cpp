@@ -149,6 +149,89 @@ TEST_CASE("terrain: a banked road tilts its bed; a lifted one leaves the ground 
 	CHECK(g.height_at(0.0, 0.0) == doctest::Approx(0.0));
 }
 
+// A straight along +x from x = -60 to 60, every 2 m: lifted where `p_lifted` says, at `p_y(x)`.
+template <typename Lifted, typename Height>
+std::vector<RoadSample> bridge(Lifted p_lifted, Height p_y) {
+	std::vector<RoadSample> road = straight(0.0);
+	for (RoadSample &s : road) {
+		s.y = p_y(s.x);
+		s.flat_l = 4.0;
+		s.flat_r = 4.0;
+		s.lifted = p_lifted(s.x);
+	}
+	road.back().end = true;
+	return road;
+}
+
+// The highest ground across the deck (inside its width) at x, less the deck there.
+double over_deck(const Heightfield &p_f, double p_x, double p_deck) {
+	double worst = -1e9;
+	for (double z = -1.75; z <= 1.75; z += 1.75) {
+		worst = std::max(worst, p_f.height_at(p_x, z) - p_deck);
+	}
+	return worst;
+}
+
+TEST_CASE("terrain: no ramp where a falling deck starts") {
+	// On the ground at 10 m to x = 0, then a bridge sinking 0.1 m a metre over a valley at 0.
+	Heightfield f = flat();
+	auto deck = [](double x) { return x <= 0.0 ? 10.0 : 10.0 - 0.1 * x; };
+	f.conform(Rect{ 0, 0, f.w, f.d }, bridge([](double x) { return x > 0.0; }, deck), 20.0, 0.05);
+	CHECK(f.height_at(-10.0, 0.0) == doctest::Approx(9.95).epsilon(0.001)); // the fill up to it
+	for (double x = 2.0; x <= 40.0; x += 1.0) {
+		CAPTURE(x);
+		CHECK(over_deck(f, x, deck(x)) <= -LIFTED_CLEAR_M + 1e-3);
+	}
+}
+
+TEST_CASE("terrain: no ramp where a climbing deck ends") {
+	// A bridge rising 0.1 m a metre to x = 0, then on the ground at 10 m.
+	Heightfield f = flat();
+	auto deck = [](double x) { return x >= 0.0 ? 10.0 : 10.0 + 0.1 * x; };
+	f.conform(Rect{ 0, 0, f.w, f.d }, bridge([](double x) { return x < 0.0; }, deck), 20.0, 0.05);
+	CHECK(f.height_at(10.0, 0.0) == doctest::Approx(9.95).epsilon(0.001));
+	for (double x = -40.0; x <= -2.0; x += 1.0) {
+		CAPTURE(x);
+		CHECK(over_deck(f, x, deck(x)) <= -LIFTED_CLEAR_M + 1e-3);
+	}
+}
+
+TEST_CASE("terrain: the bed eases toward a lifted end and stops there") {
+	// One 10 m step from the ground (x = 0) onto a level deck (x = 10 on), nothing before it: past
+	// the deck's first sample nothing fills the valley at 0 m.
+	Heightfield f = flat();
+	std::vector<RoadSample> road;
+	for (double x : { 0.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0 }) {
+		RoadSample s;
+		s.x = x;
+		s.y = 6.0;
+		s.lx = 0.0;
+		s.lz = -1.0;
+		s.flat_l = 4.0;
+		s.flat_r = 4.0;
+		s.lifted = x > 0.0;
+		road.push_back(s);
+	}
+	road.back().end = true;
+	f.conform(Rect{ 0, 0, f.w, f.d }, road, 6.0, 0.05);
+	CHECK(f.height_at(2.0, 0.0) > f.height_at(5.0, 0.0));
+	CHECK(f.height_at(5.0, 0.0) > f.height_at(8.0, 0.0));
+	CHECK(f.height_at(8.0, 0.0) < 5.95);
+	CHECK(f.height_at(14.0, 0.0) == doctest::Approx(0.0));
+	CHECK(f.height_at(14.0, 1.75) == doctest::Approx(0.0));
+}
+
+TEST_CASE("terrain: ground above a deck is cut below it; beside it is left alone") {
+	Heightfield f = flat();
+	for (float &h : f.base) {
+		h = 8.0f; // a hill the bridge runs into
+	}
+	f.final_h = f.base;
+	f.conform(Rect{ 0, 0, f.w, f.d }, straight(6.0, 0.0, true), 12.0, 0.05);
+	CHECK(f.height_at(0.0, 0.0) <= 6.0 - 0.05 - LIFTED_CLEAR_M + 1e-3);
+	CHECK(f.height_at(0.0, 20.0) == doctest::Approx(8.0));
+}
+
 TEST_CASE("terrain: roads in one list break where one ends") {
 	Heightfield f = flat();
 	for (float &h : f.base) {
