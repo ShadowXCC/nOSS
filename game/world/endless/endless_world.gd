@@ -43,6 +43,8 @@ const GROUND_SURFACES := [
 
 var gen: NossRoadGen
 var road := RoadWindow.new()
+## How many lanes, and which side they're driven on (D190).
+var lanes := EndlessLanes.new()
 var origin: FloatingOrigin
 ## Off on a server (no meshes), and collision off where nothing drives (a server).
 var visual := true
@@ -169,7 +171,7 @@ func _update_road(distances: PackedFloat64Array) -> void:
 	while road.is_empty() or road.chunks[-1] < k_hi:
 		var k := k_lo if road.is_empty() else road.chunks[-1] + 1
 		var data := gen.chunk(k)
-		var c := RoadWindow.chunk_track(data, origin.x, origin.z, k)
+		var c := RoadWindow.chunk_track(data, origin.x, origin.z, k, lanes.per_dir)
 		if record_sums and sums.size() < 256:
 			sums[k] = int(data.checksum)
 		c.set_meta(&"ox", origin.x)
@@ -206,6 +208,7 @@ func _build_road(job: Job) -> void:
 	var track: RoadWindow = job.input.track
 	var rb := RoadBuilder.new(track, job.input.ground)
 	rb.visual = visual
+	rb.markings = EndlessMarkings.new(track, lanes)
 	var batches := rb._batches(0, track.samples.size() - 1)
 	if visual:
 		batches["chevrons"] = _chevrons(track)

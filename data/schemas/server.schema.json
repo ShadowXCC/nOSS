@@ -138,7 +138,9 @@
         "biome": { "description": "Endless events: the biome the road starts in (NossRoadGen.biome_ids order).", "type": "integer", "minimum": 0, "maximum": 31 },
         "endless_traffic": { "description": "Endless events: traffic.", "enum": ["light", "normal", "heavy", "off"] },
         "oncoming": { "description": "Endless events: oncoming traffic.", "type": "boolean" },
-        "spread": { "description": "Endless events: local players far apart on one game: bring the one behind up, or hold the leader back.", "enum": ["bring", "hold"] }
+        "spread": { "description": "Endless events: local players far apart on one game: bring the one behind up, or hold the leader back.", "enum": ["bring", "hold"] },
+        "lanes": { "description": "Endless events: the road's lanes, one or two each way.", "enum": [2, 4] },
+        "drive_side": { "description": "Endless events: the side traffic keeps to.", "enum": ["right", "left"] }
       }
     }
   }

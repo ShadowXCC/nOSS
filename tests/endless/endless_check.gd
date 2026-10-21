@@ -1,6 +1,6 @@
 extends Node
 ## Endless check (M9 acceptance 1): an autodriven endless drive, headless at a fixed 120 Hz.
-##   tools/endless_check.sh [--minutes=10] [--code=FOREST-0000007 | --seed=n --biome=1] [--traffic=light]
+##   tools/endless_check.sh [--minutes=10] [--code=FOREST-0000007 | --seed=n --biome=1] [--traffic=light] [--lanes=2|4] [--side=right|left]
 ##                          [--players=1] [--no-rebase] [--weather=..] [--time=..] [--verbose] [--windowed]
 ## Fails on:
 ## - precision: each tick the car's centre of mass must move by its velocity × dt, give or take the
@@ -62,13 +62,15 @@ func _start() -> void:
 		if not d.is_empty():
 			e = RaceEvent.endless(int(d.seed), int(d.biome))
 	e.endless_traffic = String(opts.traffic) if String(opts.traffic) in RaceEvent.CHOICES.endless_traffic else "light"
+	e.lanes = 4 if int(opts.get("lanes", "2")) >= 4 else 2
+	e.drive_side = "left" if opts.get("side") == "left" else "right"
 	session = TrackSession.new()
 	session.platform_id = String(opts.get("platform", "official.endless.cruiser"))
 	session.event = e
 	session.autodrive = true
 	session.ai_players = int(opts.players) - 1
 	add_child(session)
-	print("Endless: %s, %s traffic, %s players, %s min%s" % [EndlessCode.encode(e.road_seed, e.biome), e.endless_traffic, opts.players, opts.minutes,
+	print("Endless: %s, %s traffic, %d lanes on the %s, %s players, %s min%s" % [EndlessCode.encode(e.road_seed, e.biome), e.endless_traffic, e.lanes, e.drive_side, opts.players, opts.minutes,
 		", no floating origin (the negative control)" if opts.has("no-rebase") else ""])
 
 

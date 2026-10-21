@@ -61,7 +61,7 @@ func _physics_process(delta: float) -> void:
 	if remote:
 		_follow(delta)
 		return
-	var dir := 1.0 if key.x == EndlessTraffic.UP else -1.0
+	var dir := 1.0 if EndlessLanes.dir_of(key.x) == EndlessTraffic.UP else -1.0
 	_upset = _upset + delta if vehicle.global_basis.y.y < 0.4 else 0.0
 	if vehicle.car_impulse > KNOCK_NS or vehicle.wall_impulse > KNOCK_NS or _upset > UPSET_S:
 		wrecked = true
@@ -98,8 +98,8 @@ func _physics_process(delta: float) -> void:
 			var lead := maxf((other.remote_velocity if other.remote else other.linear_velocity).dot(fwd), 0.0)
 			want = minf(want, lead * maxf(gap, 0.0) / safe)
 	# Steering: pure pursuit on its lane, its own way.
-	var lane_w := road.half_width(s, 1.0) - RoadWindow.SHOULDER_M
-	var aim := road.transform_at(clampf(s + dir * LOOK_M, road.offset_m, road.end_m()), -dir * lane_w / 2.0).origin
+	var at := clampf(s + dir * LOOK_M, road.offset_m, road.end_m())
+	var aim := road.transform_at(at, traffic.lanes.lateral(road, key.x, at)).origin
 	var local := vehicle.global_basis.inverse() * (aim - vehicle.global_position)
 	var alpha := atan2(local.x, maxf(local.z, 0.5))
 	vehicle.steer = clampf(-atan(2.0 * _wheelbase * sin(alpha) / LOOK_M) / _max_steer, -1.0, 1.0)

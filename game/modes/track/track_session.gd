@@ -146,6 +146,8 @@ var directions: Array = []
 ## track), the floating origin under it, and its traffic. Null otherwise.
 var endless: EndlessControl
 var endless_world: EndlessWorld
+## Its lanes: how many, and the side they're driven on (D190).
+var endless_lanes: EndlessLanes
 var origin: FloatingOrigin
 var endless_traffic: Node
 ## Online: the traffic's owners, slots used up and where everyone is (D159).
@@ -190,7 +192,9 @@ func _env_state(style: StyleProfile) -> EnvState:
 func _load_endless() -> void:
 	origin = FloatingOrigin.new()
 	add_child(origin)
+	endless_lanes = EndlessLanes.make(event.lanes, event.drive_side)
 	endless_world = EndlessWorld.new()
+	endless_world.lanes = endless_lanes
 	endless_world.gen = EndlessGen.make(event.road_seed, event.biome)
 	endless_world.origin = origin
 	endless_world.visual = not (dedicated or Game.dev.has("bot")) # bots draw nothing
@@ -296,12 +300,14 @@ func _ready_endless() -> void:
 	endless.session = self
 	endless.world = endless_world
 	endless.event = event
+	endless.lanes = endless_lanes
 	endless.start_m = endless_start_m
 	add_child(endless)
 	if event.endless_traffic != "off" and not dedicated:
 		var traffic := EndlessTraffic.new()
 		traffic.session = self
 		traffic.world = endless_world
+		traffic.lanes = endless_lanes
 		traffic.seed = event.road_seed
 		traffic.density = event.endless_traffic
 		traffic.oncoming = event.oncoming
@@ -783,6 +789,7 @@ func make_driver(r: Racer) -> Node:
 	if endless:
 		var e := EndlessDriver.new()
 		e.racer = r
+		e.lanes = endless_lanes
 		return e
 	if highway:
 		var d := HighwayDriver.new()
@@ -814,6 +821,7 @@ func make_guide(r: Racer) -> Node:
 	if endless:
 		var e := EndlessDriver.new()
 		e.racer = r
+		e.lanes = endless_lanes
 		e.as_guide = true
 		return e
 	if highway:

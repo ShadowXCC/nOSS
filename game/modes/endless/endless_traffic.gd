@@ -1,11 +1,13 @@
 class_name EndlessTraffic
 extends Node
 ## Traffic on the endless road (docs/GAMEMODES.md §4, AI-03, D158): light to heavy, both ways
-## (oncoming can be off). Nothing is simulated far away: each lane has a speed along the road (bends, braking
-## before them, pulling away after, from the generator) and the time a car takes to get anywhere
-## at it; car j of a lane left the start at time tau_j (a steady spacing with some spread from the
-## seed), so where every car is at any time is worked out, the same on every game, and no two in a
-## lane ever meet. Cars near a player become physics cars (EndlessTrafficCar) that keep to their
+## (oncoming can be off), in one or two lanes each way (EndlessLanes, D190). Nothing is simulated
+## far away: each way has a speed along the road (bends, braking before them, pulling away after,
+## from the generator) and the time a car takes to get anywhere at it, and each lane runs at its
+## own share of that; car j of a lane left the start at time tau_j (a steady spacing with some
+## spread from the seed), so where every car is at any time is worked out, the same on every game,
+## and no two in a lane ever meet. Two lanes each way, the passing lane's cars overtake the other's,
+## and trucks and buses keep out of it. Cars near a player become physics cars (EndlessTrafficCar) that keep to their
 ## slot unless something's in the way; knocked or left far behind, a car leaves its slot (the slot
 ## stays empty) and goes once nobody's near. Cars further off are drawn, one MultiMesh per type.
 ## Online (D159) one game drives each physics car (EndlessNet's owners) and the others show it from
@@ -26,9 +28,12 @@ const DEMOTE_M := 220.0
 const GONE_M := 260.0
 const MAX_PHYSICS := 12
 const DRAWN := 64
+## Traffic cars' network ids run from FIRST_TRAFFIC_ID through this many.
+const TRAFFIC_IDS := 59000
 
 var session: TrackSession
 var world: EndlessWorld
+var lanes := EndlessLanes.new()
 var seed := 1
 var density := "light"
 var oncoming := true
@@ -112,18 +117,20 @@ func _process(_delta: float) -> void:
 # --- the schedule --------------------------------------------------------------------------------
 
 
-## A slot as one number (lane, j) -> 2j + lane, for the network.
+## A slot as one number (lane, j) -> 8j + lane, for the network: lanes 0-3 are driven, 4 is a speed
+## trap's parked patrol (D190, D193).
 static func slot_of(key: Vector2i) -> int:
-	return key.y * 2 + key.x
+	return key.y * 8 + key.x
 
 
 static func key_of(slot: int) -> Vector2i:
-	return Vector2i(slot & 1, slot >> 1)
+	return Vector2i(slot & 7, slot >> 3)
 
 
-## Slot `slot`'s car's network id (CarState ids are 16 bits: slots this far apart never meet).
+## Slot `slot`'s car's network id (CarState ids are 16 bits: slots this far apart never meet, and
+## the police's ids start above them).
 static func car_id_of(slot: int) -> int:
-	return NetProtocol.FIRST_TRAFFIC_ID + posmod(slot, 64000)
+	return NetProtocol.FIRST_TRAFFIC_ID + posmod(slot, TRAFFIC_IDS)
 
 
 ## Slot (lane, j): whether a car's in it, when it left (s, on the lane's clock), its type and colour.
@@ -134,16 +141,31 @@ func slot(lane: int, j: int) -> Dictionary:
 		rng.seed = (seed * 1000003 + lane * 7919 + j) & 0x7FFFFFFFFFFFFFFF
 		var tau := headway() * (float(j) + SPREAD * rng.randf())
 		var present := rng.randf() >= EMPTY_SHARE
-		var pick := rng.randi_range(0, _weights - 1)
+		var weights := _weights_of(lane)
+		var pick := rng.randi_range(0, int(weights[-1]) - 1)
 		var type := 0
 		for i in _types.size():
-			pick -= int(_types[i].weight)
+			pick -= int(weights[i])
 			if pick < 0:
 				type = i
 				break
 		var colors := TrafficTypes.colors(TrafficTypes.index_of(String(_types[type].id)))
 		_slots[key] = { "present": present, "tau": tau, "type": type, "color": colors[rng.randi_range(0, colors.size() - 1)] }
 	return _slots[key]
+
+
+## Each type's weight in lane `lane`, then their sum: four lanes, trucks and buses (types with a
+## lanes_max) keep out of the passing lanes.
+func _weights_of(lane: int) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	var sum := 0
+	var passing := lanes.per_dir == 2 and EndlessLanes.pos_of(lane) == 0
+	for t in _types:
+		var w := 0 if passing and t.has("lanes_max") else int(t.weight)
+		out.append(w)
+		sum += w
+	out.append(sum)
+	return out
 
 
 ## Every scheduled car in the road window now: [{key, lane, s (absolute m), speed, type, color}].
@@ -154,13 +176,17 @@ func scheduled() -> Array[Dictionary]:
 		return out
 	var t := now()
 	var h := headway()
-	for lane in [UP, DOWN] if oncoming else [UP]:
-		var times := road.time_up if lane == UP else road.time_down
+	for lane in lanes.ids():
+		var up := EndlessLanes.dir_of(lane) == UP
+		if not up and not oncoming:
+			continue
+		var f := lanes.speed_factor(lane)
+		var times := road.time_up if up else road.time_down
 		var t_a := times[0]
 		var t_b := times[-1]
-		# Up: tau = t - T(s); down: tau = t + T(s).
-		var lo := (t - t_b) if lane == UP else (t + t_a)
-		var hi := (t - t_a) if lane == UP else (t + t_b)
+		# The lane's clock runs f times the road's: up, tau = t - T(s) / f; down, tau = t + T(s) / f.
+		var lo := (t - t_b / f) if up else (t + t_a / f)
+		var hi := (t - t_a / f) if up else (t + t_b / f)
 		for j in range(floori(lo / h) - 1, ceili(hi / h) + 1):
 			var key := Vector2i(lane, j)
 			if gone.has(key) or cars.has(key):
@@ -168,13 +194,13 @@ func scheduled() -> Array[Dictionary]:
 			var sl := slot(lane, j)
 			if not sl.present:
 				continue
-			var tq: float = (t - float(sl.tau)) if lane == UP else (float(sl.tau) - t)
+			var tq: float = ((t - float(sl.tau)) if up else (float(sl.tau) - t)) * f
 			if tq < t_a or tq > t_b:
 				continue
 			var i := _index_at_time(times, tq)
 			var u := (tq - times[i]) / maxf(times[i + 1] - times[i], 1e-6)
 			var s := road.offset_m + (i + u) * TrackData.SAMPLE_M
-			var speed := lerpf((road.speed_up if lane == UP else road.speed_down)[i], (road.speed_up if lane == UP else road.speed_down)[i + 1], u)
+			var speed := lerpf((road.speed_up if up else road.speed_down)[i], (road.speed_up if up else road.speed_down)[i + 1], u) * f
 			out.append({ "key": key, "lane": lane, "s": s, "speed": speed, "type": sl.type, "color": sl.color })
 	return out
 
@@ -183,8 +209,9 @@ func scheduled() -> Array[Dictionary]:
 func slot_s(key: Vector2i) -> float:
 	var road := world.road
 	var sl := slot(key.x, key.y)
-	var times := road.time_up if key.x == UP else road.time_down
-	var tq: float = (now() - float(sl.tau)) if key.x == UP else (float(sl.tau) - now())
+	var up := EndlessLanes.dir_of(key.x) == UP
+	var times := road.time_up if up else road.time_down
+	var tq: float = ((now() - float(sl.tau)) if up else (float(sl.tau) - now())) * lanes.speed_factor(key.x)
 	if road.samples.size() < 2 or tq < times[0] or tq > times[-1]:
 		return NAN
 	var i := _index_at_time(times, tq)
@@ -196,7 +223,7 @@ func slot_s(key: Vector2i) -> float:
 func lane_speed(lane: int, s: float) -> float:
 	var road := world.road
 	var i := road.index_at(s)
-	return (road.speed_up if lane == UP else road.speed_down)[i]
+	return (road.speed_up if EndlessLanes.dir_of(lane) == UP else road.speed_down)[i] * lanes.speed_factor(lane)
 
 
 static func _index_at_time(times: PackedFloat64Array, t: float) -> int:
@@ -214,9 +241,8 @@ static func _index_at_time(times: PackedFloat64Array, t: float) -> int:
 ## A car in `lane` at distance `s`, facing its way, on its lane's centre.
 func pose(lane: int, s: float) -> Transform3D:
 	var road := world.road
-	var lane_w := road.half_width(s, 1.0) - RoadWindow.SHOULDER_M
-	var xf := road.transform_at(s, (-0.5 if lane == UP else 0.5) * lane_w)
-	if lane == DOWN:
+	var xf := road.transform_at(s, lanes.lateral(road, lane, s))
+	if EndlessLanes.dir_of(lane) == DOWN:
 		xf.basis = xf.basis.rotated(xf.basis.y, PI)
 	return xf
 
@@ -224,20 +250,27 @@ func pose(lane: int, s: float) -> Transform3D:
 # --- for drivers ---------------------------------------------------------------------------------
 
 
-## The nearest car ahead of distance `d` in the lane going the players' way (`up_lane`) or the
-## other (`up_lane` false: the oncoming lane, which a passing car is in): {gap (m), speed (m/s, its
-## speed along the road the player's way)}, or {}.
-func ahead(d: float, up_lane: bool, max_gap: float) -> Dictionary:
+## The nearest car ahead of distance `d` in lane `lane` (an oncoming one, when a car passes in it):
+## {gap (m), speed (m/s, its speed along the road the player's way), what}, or {}.
+func ahead(d: float, lane: int, max_gap: float) -> Dictionary:
 	var best := {}
 	var best_gap := max_gap
 	for c in scheduled() + _physics_list():
-		if (c.lane == UP) != up_lane:
+		if c.lane != lane:
 			continue
 		var gap := float(c.s) - d - 4.5
 		if gap > -2.0 and gap < best_gap:
 			best_gap = gap
-			best = { "gap": maxf(gap, 0.0), "speed": float(c.speed) * (1.0 if c.lane == UP else -1.0), "what": c.key }
+			best = { "gap": maxf(gap, 0.0), "speed": float(c.speed) * (1.0 if EndlessLanes.dir_of(c.lane) == UP else -1.0), "what": c.key }
 	return best
+
+
+## Whether no car is in lane `lane` between d0 and d1 (a car may move over into it).
+func lane_clear(lane: int, d0: float, d1: float) -> bool:
+	for c in scheduled() + _physics_list():
+		if c.lane == lane and float(c.s) >= d0 and float(c.s) <= d1:
+			return false
+	return true
 
 
 ## Where slot `key`'s car is now: its physics car's spot, or its slot's; NAN if gone.
@@ -255,7 +288,7 @@ func oncoming_within(d0: float, d1: float) -> bool:
 	if not oncoming:
 		return false
 	for c in scheduled() + _physics_list():
-		if c.lane == DOWN and float(c.s) >= d0 and float(c.s) <= d1:
+		if EndlessLanes.dir_of(c.lane) == DOWN and float(c.s) >= d0 and float(c.s) <= d1:
 			return true
 	return false
 

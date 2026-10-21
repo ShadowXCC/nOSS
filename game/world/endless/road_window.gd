@@ -47,8 +47,9 @@ func _init() -> void:
 
 
 ## A chunk from NossRoadGen.chunk() as an open strip of its own (CHUNK + 1 samples), in the scene
-## of an origin at world (ox, oz). Its distances run from 0; `index` is its chunk number.
-static func chunk_track(chunk: Dictionary, ox: float, oz: float, index: int) -> RoadWindow:
+## of an origin at world (ox, oz), `per_dir` lanes each way (D190). Its distances run from 0;
+## `index` is its chunk number.
+static func chunk_track(chunk: Dictionary, ox: float, oz: float, index: int, per_dir := 1) -> RoadWindow:
 	var t := RoadWindow.new()
 	var x: PackedFloat64Array = chunk.x
 	var y: PackedFloat64Array = chunk.y
@@ -84,7 +85,7 @@ static func chunk_track(chunk: Dictionary, ox: float, oz: float, index: int) -> 
 			left = banked
 		t.lefts[i] = left
 		t.ups[i] = up.normalized()
-		var half := lane[i] + SHOULDER_M
+		var half := lane[i] * per_dir + SHOULDER_M
 		t.half_l[i] = half
 		t.half_r[i] = half
 		t.surface[i] = VehicleSim.SURFACE_ASPHALT
@@ -92,7 +93,7 @@ static func chunk_track(chunk: Dictionary, ox: float, oz: float, index: int) -> 
 		t.runoff_r[i] = VehicleSim.SURFACE_DIRT
 		t.barrier_l[i] = armco if bl[i] else TrackFormat.BARRIER_NONE
 		t.barrier_r[i] = armco if br[i] else TrackFormat.BARRIER_NONE
-		t.lanes[i] = 2
+		t.lanes[i] = 2 * per_dir
 		t.lines[i] = all_lines
 		t.lifted[i] = lifted_b[i]
 		t.sample_seg[i] = index
@@ -110,7 +111,7 @@ static func chunk_track(chunk: Dictionary, ox: float, oz: float, index: int) -> 
 	t.first_index = int(chunk.first)
 	t.offset_m = SAMPLE_M * t.first_index
 	t.chunks = PackedInt32Array([index])
-	t.width = 2.0 * (lane[0] + SHOULDER_M)
+	t.width = 2.0 * (lane[0] * per_dir + SHOULDER_M)
 	return t
 
 

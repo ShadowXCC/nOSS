@@ -1,8 +1,9 @@
 class_name EndlessMenu
 extends Control
 ## Sets up an endless drive (docs/GAMEMODES.md §4, MODE-06, D157): the road (a code to share, or a
-## new one), the biome it starts in, traffic and oncoming traffic, what happens when local players
-## drift far apart, and the sky (it runs on its own by default). Then the class and the players.
+## new one), the biome it starts in, its lanes and the side they're driven on, traffic and oncoming
+## traffic, what happens when local players drift far apart, and the sky (it runs on its own by
+## default). Then the class and the players.
 ## Every choice is a spinner or a button, named and in the focus order; the last setup is
 ## remembered.
 
@@ -11,6 +12,8 @@ signal closed
 
 const TRAFFIC := [["light", "Light"], ["normal", "Normal"], ["heavy", "Heavy"], ["off", "Off"]]
 const SPREAD := [["bring", "Bring up the one behind"], ["hold", "Hold the leader back"]]
+const LANES := [[2, "2"], [4, "4"]]
+const SIDES := [["right", "Right"], ["left", "Left"]]
 
 var event: RaceEvent
 var _rows: Array = []
@@ -65,6 +68,8 @@ func _build(focus := "") -> void:
 	_add(rows, UiKit.spinner("Start in", EndlessBiomes.choices(), event.biome, func(v: int) -> void:
 		event.biome = v
 		_code.text = EndlessCode.encode(event.road_seed, event.biome), "The biome the road starts in"))
+	_add(rows, UiKit.spinner("Lanes", LANES, event.lanes, func(v: int) -> void: event.lanes = v, "One or two each way"))
+	_add(rows, UiKit.spinner("Drive on", SIDES, event.drive_side, func(v: String) -> void: event.drive_side = v, "The side traffic keeps to"))
 	_add(rows, UiKit.spinner("Traffic", TRAFFIC, event.endless_traffic, func(v: String) -> void: event.endless_traffic = v, "Other cars on the road"))
 	_add(rows, UiKit.spinner("Oncoming", [[true, "On"], [false, "Off"]], event.oncoming, func(v: bool) -> void: event.oncoming = v,
 		"Cars coming the other way"))

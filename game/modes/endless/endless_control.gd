@@ -1,7 +1,7 @@
 class_name EndlessControl
 extends Node
 ## An endless drive's rules (docs/GAMEMODES.md §4, MODE-06, D157), beside an ordinary free session:
-## where players start (one behind another in the right-hand lane), resets (back in the lane where
+## where players start (one behind another in the lane traffic keeps to), resets (back in the lane where
 ## they were, ghosted for a moment), keeping local players on one stretch of road (the session's
 ## rule: bring the one behind up, or hold the leader back), the minimal HUD (speed and gear until hidden),
 ## each biome's weather and sounds, its name as you enter it, and the pause menu's items. Online
@@ -27,6 +27,7 @@ const NEVER := ["timing", "delta", "position", "standings", "flags"]
 var session: TrackSession
 var world: EndlessWorld
 var event: RaceEvent
+var lanes := EndlessLanes.new()
 ## Players who chose to hide the HUD (by slot index).
 var hud_hidden := {}
 ## Where players start (m along the road).
@@ -41,17 +42,17 @@ func _ready() -> void:
 	process_physics_priority = -56
 
 
-## Player `i`'s start: in single file, in the right-hand lane.
+## Player `i`'s start: in single file, in the lane traffic keeps to.
 func spawn_for(i: int) -> Transform3D:
 	return lane_transform(start_m - SPACING_M * i)
 
 
-## A car's spot in the right-hand lane at `distance`, facing along the road.
+## A car's spot in the lane traffic keeps to at `distance` (the right-hand one, driving on the
+## right), facing along the road.
 func lane_transform(distance: float) -> Transform3D:
 	var road := world.road
 	var d := clampf(distance, road.offset_m + 10.0, road.end_m() - 10.0)
-	var lane := road.half_width(d, 1.0) - RoadWindow.SHOULDER_M
-	return road.transform_at(d, -lane / 2.0)
+	return road.transform_at(d, lanes.lateral(road, lanes.keep_lane(EndlessLanes.UP), d))
 
 
 ## Back in the lane where it was (its last good spot), at rest, ghosted for a moment.

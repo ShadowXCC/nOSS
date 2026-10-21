@@ -34,6 +34,8 @@ var terrain: TerrainData
 ## Without visuals (the dedicated server): collision only.
 var visual := true
 var _ground_y := -0.03
+## The endless road's markings (null elsewhere).
+var markings: EndlessMarkings
 ## A highway's markings, median, mouths and extras (null on circuits).
 var _hw: HighwayBuilder
 
@@ -145,6 +147,8 @@ func _batches(first: int, end: int) -> Dictionary:
 		if visual:
 			if _hw:
 				_hw.lines(_batch(out, "lines"), k, j)
+			elif markings:
+				markings.lines(_batch(out, "lines"), _batch(out, "lines_yellow"), k, j)
 			else:
 				_lines(_batch(out, "lines"), k, j)
 		for side: float in [1.0, -1.0]:
@@ -393,7 +397,7 @@ func _perimeter() -> MeshBatch:
 # --- nodes ----------------------------------------------------------------------------------
 
 
-const NAMES := { "lines": "Lines", "curbs": "Curbs", "bridge": "Bridge", "lamps": "Lamps", "lamp_heads": "LampHeads",
+const NAMES := { "lines": "Lines", "lines_yellow": "LinesYellow", "curbs": "Curbs", "bridge": "Bridge", "lamps": "Lamps", "lamp_heads": "LampHeads",
 	"tunnel": "Tunnel", "tunnel_lights": "TunnelLights", "gantry": "Gantries", "sign_board": "SignBoards", "cushion": "Cushions",
 	"portal": "Portals", "portal_dark": "PortalShells", "portal_floor": "PortalFloors" }
 
@@ -430,6 +434,8 @@ func _add_batches(parent: Node3D, batches: Dictionary, built := {}) -> void:
 				material = WorldMaterials.surface(surface)
 			"lines":
 				material = WorldMaterials.get_material("paint_white", null, 0.6, 0.2, false, Vector2.ONE, Color(0.9, 0.9, 0.88))
+			"lines_yellow":
+				material = WorldMaterials.get_material("paint_yellow", null, 0.6, 0.2, false, Vector2.ONE, Color(0.93, 0.72, 0.12))
 			"curbs":
 				surface = VehicleSim.SURFACE_CURB
 				material = WorldMaterials.surface(surface)

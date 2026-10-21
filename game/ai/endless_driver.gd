@@ -1,11 +1,11 @@
 class_name EndlessDriver
 extends Node
 ## Drives a car down the endless road (D157): players' autodrive and lane assists, bots, the long
-## drive check. It keeps to the right-hand lane by pure pursuit, at a cruising speed that slows
-## for bends and crests ahead (braking in time, less on a wet or snowy road), behind anything
-## slower in its lane. With a clear straight and nothing coming the other way it passes slower
-## cars (traffic) in the other lane, and comes back once by. Stuck or on its side or roof for a
-## while, it resets.
+## drive check. It keeps to the lane traffic keeps to (EndlessLanes, D190) by pure pursuit, at a
+## cruising speed that slows for bends and crests ahead (braking in time, less on a wet or snowy
+## road), behind anything slower in its lane. It passes slower cars (traffic) and comes back once
+## by: one lane each way, in the oncoming lane, with a clear straight and nothing coming; two each
+## way, in the passing lane once that's clear. Stuck or on its side or roof for a while, it resets.
 
 ## Sideways and braking acceleration it plans with, on a dry road (m/s^2).
 const LATERAL := 2.8
@@ -34,8 +34,9 @@ var as_guide := false
 var overtakes := true
 ## Of its usual cruising speed (dev: --speed-factor).
 var speed_factor := 1.0
-## -1: the right-hand lane (driving on), 1: the other one (passing).
-var lane_side := -1.0
+## The road's lanes, and the one it's in (EndlessLanes ids: the keep lane, or the passing one).
+var lanes: EndlessLanes
+var lane := 0
 var _held := 0.0
 var _passing := false
 var _passing_what: Variant # the Racer or the traffic slot being passed
@@ -45,6 +46,10 @@ var _upset := 0.0
 
 func _ready() -> void:
 	process_physics_priority = -50
+	if lanes == null:
+		var l: Variant = racer.session.get(&"endless_lanes") if racer.session else null
+		lanes = l if l is EndlessLanes else EndlessLanes.new()
+	lane = lanes.keep_lane(EndlessLanes.UP)
 	if racer is SessionPlayer and Game.dev.has("speed-factor"):
 		speed_factor = clampf(float(Game.dev["speed-factor"]), 0.5, 2.0)
 	if as_guide or racer.vehicle == null:
@@ -83,11 +88,10 @@ func controls(delta: float) -> Dictionary:
 		return { "steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": 1.0 }
 	var speed := maxf(v.speed(), 0.0)
 	var d := racer.distance
-	var half := road.half_width(d, 1.0)
-	var lane_w := half - RoadWindow.SHOULDER_M
 	# Steering: pure pursuit on the lane's centre.
 	var look := clampf(LOOK_BASE_M + LOOK_TIME_S * speed, LOOK_MIN_M, LOOK_MAX_M)
-	var target := road.transform_at(minf(d + look, road.end_m()), lane_side * lane_w / 2.0).origin
+	var aim := minf(d + look, road.end_m())
+	var target := road.transform_at(aim, lanes.lateral(road, lane, aim)).origin
 	var local := v.global_transform.basis.inverse() * (target - v.global_position)
 	var alpha := atan2(local.x, maxf(local.z, 0.5))
 	var p := v.platform
@@ -110,17 +114,18 @@ func controls(delta: float) -> Dictionary:
 		want = minf(want, sqrt(LATERAL * grip / here))
 	if racer.pace_limit > 0.0:
 		want = minf(want, racer.pace_limit)
-	# Passing: back once well past what it passed; back at once if anything comes the other way.
+	# Passing: back once well past what it passed; in the oncoming lane, back at once if anything
+	# comes the other way.
 	if _passing:
-		var oncoming := _ahead(road, d, lane_w / 2.0, lane_w)
+		var oncoming := _ahead(road, d, lane) if lanes.passes_oncoming() else {}
 		var passed_s := _where(_passing_what)
 		if (not oncoming.is_empty() and float(oncoming.speed) < 0.0 and float(oncoming.gap) < 250.0) \
 				or is_nan(passed_s) or d > passed_s + 15.0:
 			_passing = false
 			_held = 0.0
-			lane_side = -1.0
+			lane = lanes.keep_lane(EndlessLanes.UP)
 	# Anything ahead in its lane.
-	var ahead := _ahead(road, d, lane_side * lane_w / 2.0, lane_w)
+	var ahead := _ahead(road, d, lane)
 	if not ahead.is_empty():
 		var gap: float = ahead.gap
 		var lead_v: float = ahead.speed
@@ -151,10 +156,12 @@ func _grip(v: Vehicle) -> float:
 	return VehicleSim.surface_grip(VehicleSim.SURFACE_ASPHALT, c.x, c.y)
 
 
-## The nearest thing ahead in its lane within 160 m: {gap (m, nose to tail), speed}, or {}.
-func _ahead(road: RoadWindow, d: float, lane_lat: float, lane_w: float) -> Dictionary:
+## The nearest thing ahead in lane `in_lane` within 160 m: {gap (m, nose to tail), speed}, or {}.
+func _ahead(road: RoadWindow, d: float, in_lane: int) -> Dictionary:
 	var best := {}
 	var best_gap := 160.0
+	var lane_lat := lanes.lateral(road, in_lane, d)
+	var lane_w := lanes.lane_w(road, d)
 	for r: Racer in racer.session.racers:
 		if r == racer or r.vehicle == null or r.waiting:
 			continue
@@ -164,7 +171,7 @@ func _ahead(road: RoadWindow, d: float, lane_lat: float, lane_w: float) -> Dicti
 			best = { "gap": maxf(gap, 0.0), "speed": maxf(r.speed, 0.0), "what": r }
 	var traffic: Variant = racer.session.get(&"endless_traffic")
 	if traffic != null and traffic.has_method(&"ahead"):
-		var t: Dictionary = traffic.ahead(d, lane_lat < 0.0, best_gap)
+		var t: Dictionary = traffic.ahead(d, in_lane, best_gap)
 		if not t.is_empty() and float(t.gap) < best_gap:
 			best = t
 	return best
@@ -180,23 +187,31 @@ func _where(what: Variant) -> float:
 	return NAN
 
 
-## Held up behind something slower: over into the other lane when the road's clear far enough,
-## back once by.
+## Held up behind something slower: over into the passing lane when it's clear, back once by.
 func _passing_rules(delta: float, road: RoadWindow, d: float, speed: float, want: float, ahead: Dictionary) -> void:
 	if not overtakes or as_guide:
 		return
-	if lane_side < 0.0:
+	if lane == lanes.keep_lane(EndlessLanes.UP):
 		var slower := float(ahead.speed) < _cruise(road, d) - PASS_SLOWER
 		_held = _held + delta if slower and float(ahead.gap) < 60.0 else 0.0
 		if _held > PASS_AFTER_S and _clear_to_pass(road, d, speed):
-			lane_side = 1.0
+			lane = lanes.pass_lane(EndlessLanes.UP)
 			_passing = true
 			_passing_what = ahead.get("what")
 			_held = 0.0
 
 
-## A straight stretch long enough, and nothing coming the other way through it.
+## In the oncoming lane: a straight stretch long enough, and nothing coming the other way through
+## it. In a passing lane of its own: nothing in it alongside or just ahead.
 func _clear_to_pass(road: RoadWindow, d: float, speed: float) -> bool:
+	if not lanes.passes_oncoming():
+		var into := lanes.pass_lane(EndlessLanes.UP)
+		var lat := lanes.lateral(road, into, d)
+		for r: Racer in racer.session.racers:
+			if r != racer and r.vehicle and not r.waiting and absf(r.distance - d) < 30.0 and absf(r.lateral - lat) < lanes.lane_w(road, d) * 0.7:
+				return false
+		var traffic: Variant = racer.session.get(&"endless_traffic")
+		return traffic == null or not traffic.has_method(&"lane_clear") or traffic.lane_clear(into, d - 25.0, d + 60.0)
 	if d + PASS_CLEAR_M > road.end_m():
 		return false
 	var s := 0.0

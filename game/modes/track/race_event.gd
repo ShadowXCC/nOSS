@@ -77,12 +77,16 @@ var weather := "track"
 var env_seed := 0
 ## Endless (docs/GAMEMODES.md §4, D157): the road's seed and the biome it starts in (NossRoadGen
 ## order), traffic ("light", "normal", "heavy" or "off"), oncoming traffic on, and what happens when local
-## players drift far apart ("bring": the one behind is brought up; "hold": the leader is held).
+## players drift far apart ("bring": the one behind is brought up; "hold": the leader is held); the
+## road's lanes (2 or 4: one or two each way) and the side they're driven on ("right" or "left",
+## D190).
 var road_seed := 1
 var biome := 1
 var endless_traffic := "light"
 var oncoming := true
 var spread := "bring"
+var lanes := 2
+var drive_side := "right"
 
 ## The values each text field may take; the first is the default.
 const CHOICES := {
@@ -94,6 +98,7 @@ const CHOICES := {
 	"time": ["track", "dawn", "morning", "noon", "afternoon", "dusk", "night"],
 	"weather": ["track", "clear", "cloudy", "rain", "storm", "fog", "snow", "changing"],
 	"endless_traffic": ["light", "normal", "heavy", "off"], "spread": ["bring", "hold"],
+	"drive_side": ["right", "left"],
 }
 ## Time rates offered in menus (game minutes per real minute).
 const TIME_RATES := [0, 1, 10, 30, 60, 120]
@@ -104,7 +109,7 @@ const KEYS := ["kind", "practice_min", "qualifying_min", "race_laps", "race_min"
 	"drag_length_m", "drag_boost", "drag_timing", "drag_qtes", "drag_tree", "drag_two_step",
 	"drag_burnout", "drag_shake", "drag_chain", "drag_money_shift", "drag_centreline",
 	"time", "time_rate", "weather", "env_seed",
-	"road_seed", "biome", "endless_traffic", "oncoming", "spread"]
+	"road_seed", "biome", "endless_traffic", "oncoming", "spread", "lanes", "drive_side"]
 ## Written only for highway events (circuit events stay as older games and servers know them).
 const HIGHWAY_KEYS := ["sub", "police", "traffic", "run", "direction"]
 ## Written only for battles, or with items off.
@@ -115,7 +120,7 @@ const SUMO_KEYS := ["sumo_tiers", "sumo_hazard", "sumo_shrink", "sumo_secs", "su
 const DRAG_KEYS := ["drag_length_m", "drag_boost", "drag_timing", "drag_qtes", "drag_tree",
 	"drag_two_step", "drag_burnout", "drag_shake", "drag_chain", "drag_money_shift", "drag_centreline"]
 ## Written only for endless events.
-const ENDLESS_KEYS := ["road_seed", "biome", "endless_traffic", "oncoming", "spread"]
+const ENDLESS_KEYS := ["road_seed", "biome", "endless_traffic", "oncoming", "spread", "lanes", "drive_side"]
 ## Traffic cars at most.
 const TRAFFIC_MAX := 400
 
@@ -255,6 +260,7 @@ static func from_dict(d: Dictionary) -> RaceEvent:
 	e.env_seed = clampi(e.env_seed, 0, 0x7FFFFFFF)
 	e.road_seed = clampi(e.road_seed, 0, 0x7FFFFFFF)
 	e.biome = clampi(e.biome, 0, 6)
+	e.lanes = 4 if e.lanes >= 4 else 2
 	# Text fields only take their known values (events also come from servers).
 	for key: String in CHOICES:
 		if e.get(key) not in CHOICES[key]:

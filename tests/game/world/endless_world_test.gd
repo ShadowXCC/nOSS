@@ -234,3 +234,30 @@ func test_rails_stand_on_the_fill() -> void:
 				assert_float(p.y).is_equal_approx(edge.y - TerrainData.BED_DEPTH_M, 0.01)
 				checked += 1
 	assert_int(checked).is_greater(10)
+
+
+## The markings follow the lanes and the side (D190): yellow centre lines only driving on the right;
+## four lanes have a double centre line and lines between each way's lanes.
+func test_markings_follow_the_lanes_and_the_side() -> void:
+	var gen := EndlessGen.make(2024, 1)
+	var counts := {}
+	for layout: Array in [[2, "right"], [2, "left"], [4, "right"], [4, "left"]]:
+		var lanes := EndlessLanes.make(layout[0], layout[1])
+		var c := RoadWindow.chunk_track(gen.chunk(3), 0.0, 0.0, 3, lanes.per_dir)
+		var rb := RoadBuilder.new(c, EndlessGround.of(gen, 0.0, 0.0))
+		rb.markings = EndlessMarkings.new(c, lanes)
+		var batches := rb._batches(0, c.samples.size() - 1)
+		var yellow: MeshBatch = batches.get("lines_yellow", MeshBatch.new())
+		var white: MeshBatch = batches.get("lines", MeshBatch.new())
+		counts[layout] = [white.verts.size(), yellow.verts.size()]
+		if layout[1] == "right":
+			assert_int(yellow.verts.size()).is_greater(0)
+		else:
+			assert_int(yellow.verts.size()).is_equal(0)
+		assert_float(c.half_width(c.offset_m + 10.0, 1.0)).is_equal_approx(gen.chunk(3).lane[0] * lanes.per_dir + RoadWindow.SHOULDER_M, 0.001)
+	# The same lines either way, only their colour changes.
+	assert_int(counts[[2, "left"]][0]).is_equal(counts[[2, "right"]][0] + counts[[2, "right"]][1])
+	assert_int(counts[[4, "left"]][0]).is_equal(counts[[4, "right"]][0] + counts[[4, "right"]][1])
+	# A solid double centre line: more than a dashed single one.
+	assert_int(counts[[4, "right"]][1]).is_greater(counts[[2, "right"]][1] * 2)
+	assert_int(counts[[4, "right"]][0]).is_greater(counts[[2, "right"]][0])

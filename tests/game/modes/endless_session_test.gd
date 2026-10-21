@@ -14,12 +14,14 @@ func after() -> void:
 	Settings.use_folder("user://")
 
 
-func _session(players := 1, spread := "bring") -> TrackSession:
+func _session(players := 1, spread := "bring", lanes := 2, side := "right") -> TrackSession:
 	Players.clear()
 	var s := TrackSession.new()
 	s.platform_id = "official.endless.cruiser"
 	s.event = RaceEvent.endless(4242, 1)
 	s.event.spread = spread
+	s.event.lanes = lanes
+	s.event.drive_side = side
 	s.event.endless_traffic = "off"
 	s.autodrive = true
 	s.ai_players = players - 1
@@ -59,6 +61,22 @@ func test_players_start_in_the_right_hand_lane() -> void:
 		assert_float(p.vehicle.global_basis.z.dot(s.track.tangents[int(proj.index)])).is_greater(0.98)
 	s.queue_free()
 	await get_tree().process_frame
+
+
+## Two lanes or four, on the right or the left: players start in the lane traffic keeps to (the
+## edge one), and the autodrive keeps to it (D190).
+func test_players_start_and_drive_in_the_keep_lane_of_each_layout() -> void:
+	for layout: Array in [[2, "right", -0.5], [2, "left", 0.5], [4, "right", -1.5], [4, "left", 1.5]]:
+		var s := _session(1, "bring", layout[0], layout[1])
+		await _wait_for_cars(s)
+		var p := s.players[0]
+		var proj := s.track.project(p.vehicle.global_position)
+		var lane_w: float = (s.track.half_width(float(proj.distance), 1.0) - RoadWindow.SHOULDER_M) / (int(layout[0]) / 2)
+		assert_float(float(proj.lateral)).override_failure_message("%s: starts at %.2f" % [layout, float(proj.lateral)]).is_equal_approx(float(layout[2]) * lane_w, 0.5)
+		await _ticks(720) # 6 s
+		assert_float(p.lateral).override_failure_message("%s: drives at %.2f" % [layout, p.lateral]).is_equal_approx(float(layout[2]) * lane_w, 1.2)
+		s.queue_free()
+		await get_tree().process_frame
 
 
 func test_the_hud_shows_speed_until_hidden() -> void:

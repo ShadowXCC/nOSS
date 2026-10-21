@@ -123,6 +123,9 @@ func _build(focus := "") -> void:
 		_add(rows, UiKit.spinner("Start in", EndlessBiomes.choices(), _endless.biome, func(v: int) -> void:
 			_endless.biome = v
 			_code.text = EndlessCode.encode(_endless.road_seed, _endless.biome), "The biome the road starts in"))
+		_add(rows, UiKit.spinner("Lanes", EndlessMenu.LANES, _endless.lanes, func(v: int) -> void: _endless.lanes = v, "One or two each way"))
+		_add(rows, UiKit.spinner("Drive on", EndlessMenu.SIDES, _endless.drive_side, func(v: String) -> void: _endless.drive_side = v,
+			"The side traffic keeps to"))
 		_add(rows, UiKit.spinner("Traffic", EndlessMenu.TRAFFIC, _endless.endless_traffic, func(v: String) -> void: _endless.endless_traffic = v,
 			"Other cars on the road"))
 		_add(rows, UiKit.spinner("Oncoming", [[true, "On"], [false, "Off"]], _endless.oncoming, func(v: bool) -> void: _endless.oncoming = v,
