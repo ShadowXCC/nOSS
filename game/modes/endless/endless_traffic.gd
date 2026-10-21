@@ -7,7 +7,8 @@ extends Node
 ## own share of that; car j of a lane left the start at time tau_j (a steady spacing with some
 ## spread from the seed), so where every car is at any time is worked out, the same on every game,
 ## and no two in a lane ever meet. Two lanes each way, the passing lane's cars overtake the other's,
-## and trucks and buses keep out of it. Cars near a player become physics cars (EndlessTrafficCar) that keep to their
+## and trucks and buses keep out of it. Garage cars (D191) drive in place of most of the stock cars
+## of a type they fit, picked after a slot's own draws so the stock schedule stays as it was. Cars near a player become physics cars (EndlessTrafficCar) that keep to their
 ## slot unless something's in the way; knocked or left far behind, a car leaves its slot (the slot
 ## stays empty) and goes once nobody's near. Cars further off are drawn, one MultiMesh per type.
 ## Online (D159) one game drives each physics car (EndlessNet's owners) and the others show it from
@@ -30,6 +31,11 @@ const MAX_PHYSICS := 12
 const DRAWN := 64
 ## Traffic cars' network ids run from FIRST_TRAFFIC_ID through this many.
 const TRAFFIC_IDS := 59000
+## Garage traffic (D191): of the slots of a type some garage car fits, this share are garage cars;
+## at most this many garage cars (online, the host shares fewer).
+const GARAGE_SHARE := 0.8
+const GARAGE_MOST := 12
+const GARAGE_SHARED := 6
 
 var session: TrackSession
 var world: EndlessWorld
@@ -45,6 +51,9 @@ var net: EndlessNet
 var cars := {}
 ## Slots left behind by cars knocked out of them (never drawn again).
 var gone := {}
+## The garage cars in the traffic (D191), the same on every game online: [{car (a path offline, a
+## hash online), path (where it is here; "" until its files are), fits: [type index], paint}].
+var garage: Array[Dictionary] = []
 
 var _types: Array[Dictionary] = []
 var _weights := 0
@@ -52,8 +61,11 @@ var _platforms := {}
 var _packages := {}
 var _views: Array[MultiMeshInstance3D] = []
 var _time := 0.0
-var _slots := {} # slot key -> {present, tau, type, color} (made from the seed, kept a while)
+var _slots := {} # slot key -> {present, tau, type, color, garage, paint_roll} (made from the seed, kept a while)
 var _draws := true
+var _garage_fits := {} # type index -> [garage index]
+var _garage_pkgs := {} # garage index -> VehiclePackage, once loaded
+var _garage_views := {} # garage index -> MultiMeshInstance3D (its own far mesh)
 
 
 func _ready() -> void:
@@ -92,6 +104,9 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	for t: int in _packages:
 		(_packages[t] as VehiclePackage).free_scenes()
+	for g: int in _garage_pkgs:
+		(_garage_pkgs[g] as VehiclePackage).free_scenes()
+	_garage_pkgs.clear()
 
 
 func now() -> float:
@@ -150,8 +165,147 @@ func slot(lane: int, j: int) -> Dictionary:
 				type = i
 				break
 		var colors := TrafficTypes.colors(TrafficTypes.index_of(String(_types[type].id)))
-		_slots[key] = { "present": present, "tau": tau, "type": type, "color": colors[rng.randi_range(0, colors.size() - 1)] }
+		var sl := { "present": present, "tau": tau, "type": type, "color": colors[rng.randi_range(0, colors.size() - 1)], "garage": -1 }
+		# Garage traffic: draws of its own after the stock ones, and only where a garage car fits.
+		var fits: Array = _garage_fits.get(type, [])
+		if not fits.is_empty() and rng.randf() < GARAGE_SHARE:
+			sl.garage = fits[rng.randi_range(0, fits.size() - 1)]
+			sl.paint_roll = rng.randi()
+		_slots[key] = sl
 	return _slots[key]
+
+
+# --- garage traffic ------------------------------------------------------------------------------
+
+
+## The cars of `paths` that can drive in the traffic (D191): each with the traffic types whose
+## platform takes it as it is (its family, and its wheelbase without scaling it), shuffled by
+## `seed`, at most `most`: [{car, path, fits: [type index]}] (type indexes: the weighted types, in
+## TrafficTypes order).
+static func garage_pool(paths: PackedStringArray, seed_value: int, most := GARAGE_MOST) -> Array[Dictionary]:
+	var types: Array[Dictionary] = []
+	for t: Dictionary in TrafficTypes.list():
+		if int(t.weight) > 0:
+			types.append(t)
+	var order := Array(paths)
+	order.sort()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	for i in range(order.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var swap: Variant = order[i]
+		order[i] = order[j]
+		order[j] = swap
+	var platforms := {} # platform id -> PlatformLoader.Result
+	var out: Array[Dictionary] = []
+	for path: String in order:
+		if out.size() >= most:
+			break
+		if path.begins_with("res://content/traffic/"):
+			continue
+		var family := String(PackageLoader.read_manifest(path).get("family", ""))
+		var fit := PackageLoader.read_json(path, "fit.json")
+		if not (fit.get("wheels") is Array and fit.get("model_transform") is Dictionary and fit.get("envelope") is Dictionary):
+			continue
+		var fits: Array[int] = []
+		var takes := {} # platform id -> bool
+		for i in types.size():
+			var pid := String(types[i].platform)
+			if not takes.has(pid):
+				if not platforms.has(pid):
+					platforms[pid] = PlatformLoader.load_official(pid)
+				var p: PlatformLoader.Result = platforms[pid]
+				takes[pid] = p.ok() and Fitting.compatible(p.platform, family) and is_equal_approx(Fitting.fit(p.platform, fit).scale, 1.0)
+			if takes[pid]:
+				fits.append(i)
+		if not fits.is_empty():
+			out.append({ "car": path, "path": path, "fits": fits })
+	return out
+
+
+## The garage cars that drive in the traffic (garage_pool offline, the host's list online). Each
+## loads once its files are here (have_car).
+func set_garage(pool: Array[Dictionary]) -> void:
+	garage = pool
+	_garage_fits.clear()
+	_slots.clear()
+	for g in garage.size():
+		for t: int in garage[g].fits:
+			if not _garage_fits.has(t):
+				_garage_fits[t] = []
+			(_garage_fits[t] as Array).append(g)
+		if String(garage[g].get("path", "")):
+			_load_garage(g)
+
+
+## Online: garage car `car` (a hash) is all here now, at `path`.
+func have_car(car: String, path: String) -> void:
+	for g in garage.size():
+		if garage[g].car == car and String(garage[g].get("path", "")).is_empty():
+			garage[g].path = path
+			_load_garage(g)
+
+
+func _load_garage(g: int) -> void:
+	var path := String(garage[g].path)
+	garage[g].paint = PackageLoader.read_json(path, "paint.json")
+	# Its model only where it's drawn (and not headless, where models can't load on a worker).
+	var whole := _draws and MeshBatch.threaded()
+	PackageLoader.load_shared(path, func(pkg: VehiclePackage) -> void:
+		if not pkg.ok():
+			return
+		_garage_pkgs[g] = pkg
+		if whole:
+			_garage_view(g, pkg), {} if whole else { "models": "none", "audio": false })
+
+
+## A garage car's own far view, if its model is light enough (else it's drawn as a stock car of its
+## type, in its paint).
+func _garage_view(g: int, pkg: VehiclePackage) -> void:
+	var mesh := TrafficModels.far_mesh_of(pkg, (_platforms[int(garage[g].fits[0])] as PlatformLoader.Result).platform)
+	if mesh == null:
+		return
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.use_custom_data = true
+	mm.mesh = mesh
+	mm.instance_count = DRAWN
+	mm.visible_instance_count = 0
+	var view := MultiMeshInstance3D.new()
+	view.name = "Traffic_garage_%d" % g
+	view.multimesh = mm
+	view.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	view.custom_aabb = AABB(Vector3(-1e5, -1e4, -1e5), Vector3(2e5, 2e4, 2e5))
+	view.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	add_child(view)
+	_garage_views[g] = view
+
+
+## A garage slot's paint, as CarVisual.random_paint picks from the car's presets ({}: its own).
+func garage_paint(sl: Dictionary) -> Dictionary:
+	var paint: Dictionary = garage[int(sl.garage)].get("paint", {})
+	var presets: Array = (paint.get("presets", []) as Array).filter(func(p: Variant) -> bool: return p is Dictionary)
+	var roll := int(sl.paint_roll)
+	if presets.is_empty():
+		var c: Array = CarVisual.STOCK_COLORS[roll % CarVisual.STOCK_COLORS.size()]
+		return { "primary": c[0], "finish": c[1] }
+	var i := roll % (presets.size() + 1)
+	return CarVisual.clean_paint(presets[i]) if i < presets.size() else {}
+
+
+## A slot's colour: its stock one, or a garage car's main paint once its paint is known.
+func _color_of(sl: Dictionary) -> Color:
+	if int(sl.garage) < 0:
+		return sl.color
+	if sl.has("tint"):
+		return sl.tint
+	var paint: Dictionary = garage[int(sl.garage)].get("paint", {})
+	if paint.is_empty():
+		return sl.color
+	var primary: Variant = garage_paint(sl).get("primary", paint.get("slots", {}).get("primary", {}).get("color", ""))
+	sl.tint = Color.html(primary) if primary is String and Color.html_is_valid(primary) else sl.color
+	return sl.tint
 
 
 ## Each type's weight in lane `lane`, then their sum: four lanes, trucks and buses (types with a
@@ -201,7 +355,7 @@ func scheduled() -> Array[Dictionary]:
 			var u := (tq - times[i]) / maxf(times[i + 1] - times[i], 1e-6)
 			var s := road.offset_m + (i + u) * TrackData.SAMPLE_M
 			var speed := lerpf((road.speed_up if up else road.speed_down)[i], (road.speed_up if up else road.speed_down)[i + 1], u) * f
-			out.append({ "key": key, "lane": lane, "s": s, "speed": speed, "type": sl.type, "color": sl.color })
+			out.append({ "key": key, "lane": lane, "s": s, "speed": speed, "type": sl.type, "color": _color_of(sl), "garage": sl.garage })
 	return out
 
 
@@ -368,14 +522,20 @@ func _promote(c: Dictionary, xf: Transform3D) -> void:
 	var type: int = c.type
 	if not _packages.has(type) or not (_platforms[type] as PlatformLoader.Result).ok():
 		return
-	var v := Vehicle.create(_platforms[type], PackageLoader.copy(_packages[type]))
+	# A garage car once it's loaded; till then the stock car, in its paint.
+	var g := int(c.get("garage", -1))
+	var own: VehiclePackage = _garage_pkgs.get(g)
+	var v := Vehicle.create(_platforms[type], PackageLoader.copy(own if own else _packages[type]))
 	v.name = "EndlessTraffic%d_%d" % [c.key.x, c.key.y]
 	var slot := slot_of(c.key)
 	v.traffic_id = car_id_of(slot) - NetProtocol.FIRST_TRAFFIC_ID
 	v.visual_every_frame = true
 	session.add_child(v)
 	if v.visual:
-		v.visual.set_paint("primary", c.color, "metallic")
+		if own:
+			v.visual.apply_choice(garage_paint(slot(c.key.x, c.key.y)))
+		else:
+			v.visual.set_paint("primary", c.color, "metallic")
 	var car := EndlessTrafficCar.new()
 	car.traffic = self
 	car.key = c.key
@@ -465,8 +625,7 @@ func _draw() -> void:
 		if p.cameras and p.cameras.camera:
 			cams.append(p.cameras.camera.global_position)
 	var lights := session.env != null and session.env.lights_on
-	var counts := PackedInt32Array()
-	counts.resize(_views.size())
+	var counts := {} # view -> instances drawn
 	for c: Dictionary in scheduled():
 		var t: int = c.type
 		if t >= _views.size():
@@ -477,13 +636,16 @@ func _draw() -> void:
 			seen = seen or cam.distance_to(xf.origin) < VIEW_M
 		if not seen:
 			continue
-		var mm := _views[t].multimesh
-		var n := counts[t]
+		var view: MultiMeshInstance3D = _garage_views.get(int(c.garage), _views[t])
+		var mm := view.multimesh
+		var n: int = counts.get(view, 0)
 		if n >= mm.instance_count:
 			continue
 		mm.set_instance_transform(n, xf)
 		mm.set_instance_color(n, c.color)
 		mm.set_instance_custom_data(n, Color(float(TrafficModels.HEAD if lights else 0), 0, 0, 0))
-		counts[t] = n + 1
-	for t in _views.size():
-		_views[t].multimesh.visible_instance_count = counts[t]
+		counts[view] = n + 1
+	for view: MultiMeshInstance3D in _views:
+		view.multimesh.visible_instance_count = counts.get(view, 0)
+	for view: MultiMeshInstance3D in _garage_views.values():
+		view.multimesh.visible_instance_count = counts.get(view, 0)

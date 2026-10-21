@@ -164,6 +164,12 @@ func test_one_sky_and_one_road_for_everyone() -> void:
 	assert_str(String(d.environment.weather)).is_equal("changing")
 	assert_int(int(d.environment.seed)).is_greater(0)
 	assert_bool(d.endless.has("t0")).is_true()
+	# Garage traffic (D191): the host's cars that may be shared, with the types they drive as.
+	var cars: Array = d.endless.traffic_cars
+	assert_int(cars.size()).is_between(1, EndlessTraffic.GARAGE_SHARED)
+	for c: Dictionary in cars:
+		assert_bool(ContentStore.valid_hash(String(c.car))).is_true()
+		assert_bool("saloon" in c.fits).is_true()
 	# This game's own copy of the session has them too.
 	assert_str(String(Net.session.environment.weather)).is_equal("changing")
 	assert_float(float(Net.session.endless.t0)).is_equal(float(d.endless.t0))
@@ -176,6 +182,13 @@ func test_one_sky_and_one_road_for_everyone() -> void:
 	assert_str(String(heard[0].weather)).is_equal("rain")
 	assert_int(int(heard[0].seed)).is_equal(int(d.environment.seed))
 	assert_str(String(Net.host_logic.session_dict().environment.weather)).is_equal("rain")
+	Net.leave()
+	# With the setting off, none.
+	e.garage_traffic = false
+	cfg.rotation = [{ "track": "anything", "class": "official.endless.cruiser", "event": e.to_dict() }]
+	assert_int(Net.host(cfg, [{ "name": "Host", "color": "00ff00" }])).is_equal(OK)
+	Net.host_logic.start_session()
+	assert_bool((Net.host_logic.session_dict().endless.traffic_cars as Array).is_empty()).is_true()
 	Net.leave()
 	Game.hold_events = false
 

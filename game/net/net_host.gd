@@ -331,7 +331,7 @@ func start_session() -> void:
 	var e := event()
 	_env = { "time": e.time, "time_rate": e.time_rate, "weather": e.weather, "seed": e.env_seed if e.env_seed > 0 else randi_range(1, 0x7FFFFFFF),
 		"t0": ClockSync.local_now() }
-	_endless = { "t0": ClockSync.local_now() } if e.kind == "endless" else {}
+	_endless = { "t0": ClockSync.local_now(), "traffic_cars": _endless_cars() } if e.kind == "endless" else {}
 	endless_at = {}
 	_to_all(NetProtocol.Msg.SESSION, session_dict())
 	log_line.emit("Session: %s, %s, %s" % [track_info().name, _class_name(platform_id()), event().kind])
@@ -362,7 +362,7 @@ func session_dict() -> Dictionary:
 	if not _env.is_empty():
 		out.environment = _env
 	if not _endless.is_empty():
-		out.endless = { "t0": _endless.t0, "at": endless_at }
+		out.endless = { "t0": _endless.t0, "at": endless_at, "traffic_cars": _endless.traffic_cars }
 	return out
 
 
@@ -433,6 +433,31 @@ func _ai_entries() -> Array:
 			"paint": CarVisual.random_paint(PackageLoader.read_json(pick[0], "paint.json"), rng),
 		})
 		_ai_paths[NetProtocol.FIRST_AI_ID + i] = pick[0]
+	return out
+
+
+## An endless road's garage traffic (D191): up to EndlessTraffic.GARAGE_SHARED of this game's cars
+## that may be shared, each with the traffic types it drives as: [{car: hash, fits: [type id]}].
+func _endless_cars() -> Array:
+	var out := []
+	var e := event()
+	if not e.garage_traffic:
+		return out
+	var paths := PackedStringArray()
+	for path in PackageLoader.list_available():
+		if ContentIndex.shareable(PackageLoader.read_manifest(path)):
+			paths.append(path)
+	var types: Array[Dictionary] = []
+	for t: Dictionary in TrafficTypes.list():
+		if int(t.weight) > 0:
+			types.append(t)
+	for g: Dictionary in EndlessTraffic.garage_pool(paths, e.road_seed, EndlessTraffic.GARAGE_SHARED):
+		var h := ContentIndex.package_hash(g.path)
+		if h.is_empty():
+			continue
+		if content:
+			content.share_car(h)
+		out.append({ "car": h, "fits": (g.fits as Array).map(func(i: int) -> String: return String(types[i].id)) })
 	return out
 
 

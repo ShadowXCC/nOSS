@@ -78,7 +78,9 @@ func _physics_process(delta: float) -> void:
 		print("endless: d %.1f lat %.2f idx %d car %s road %s speed %.1f window %.0f..%.0f %s origin %.0f,%.0f" % [p.distance, p.lateral, p.track_index,
 			p.vehicle.global_position, world.road.point_at(p.distance), p.speed, world.road.offset_m, world.road.end_m(), world.counts(), session.origin.x, session.origin.z])
 		if session.endless_traffic:
-			print("traffic: %d scheduled, %d physics, %d gone" % [session.endless_traffic.scheduled().size(), session.endless_traffic.cars.size(), session.endless_traffic.gone.size()])
+			var t: EndlessTraffic = session.endless_traffic
+			print("traffic: %d scheduled, %d physics, %d gone; garage %d cars, %d loaded, %d drawn as themselves" % [t.scheduled().size(), t.cars.size(), t.gone.size(),
+				t.garage.size(), t._garage_pkgs.size(), t._garage_views.size()])
 
 
 ## Online: this game's players to just behind car `id` (where its game last said it was), in single

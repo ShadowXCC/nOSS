@@ -313,6 +313,9 @@ func _ready_endless() -> void:
 		traffic.oncoming = event.oncoming
 		endless_traffic = traffic
 		add_child(traffic)
+		# Garage cars in the traffic (D191): this game's own; online, the host's (_online_garage).
+		if event.garage_traffic and not is_online():
+			traffic.set_garage(EndlessTraffic.garage_pool(PackageLoader.list_available(), event.road_seed))
 	if not dedicated and not Game.dev.has("bot"):
 		var music := EndlessMusic.new()
 		music.seed_base = event.road_seed
@@ -899,6 +902,8 @@ func _ready_online() -> void:
 		if endless_traffic:
 			endless_traffic.net = endless_net
 			endless_traffic.clock = func() -> float: return net.now() - t0
+			if event.garage_traffic:
+				endless_traffic.set_garage(_online_garage())
 		add_child(endless_net)
 	if traffic:
 		var hn := HighwayNet.new()
@@ -1040,6 +1045,36 @@ func _on_net_car(car_hash: String) -> void:
 	for r: Racer in racers:
 		if r is NetRacer and (r as NetRacer).car_hash == car_hash:
 			(r as NetRacer).load_net_car()
+	if endless_traffic and Net.content:
+		var c := Net.content.car(car_hash)
+		if not c.is_empty() and not c.get("partial", true):
+			endless_traffic.have_car(car_hash, String(c.path))
+
+
+## Online garage traffic (D191): the host's cars, by hash, each with the traffic types it drives
+## as; fetched from the host if they aren't here.
+func _online_garage() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var list: Variant = online.get("endless", {}).get("traffic_cars", [])
+	if not list is Array:
+		return out
+	var t: EndlessTraffic = endless_traffic
+	for d: Variant in (list as Array).slice(0, EndlessTraffic.GARAGE_SHARED):
+		if not (d is Dictionary and d.get("car") is String and ContentStore.valid_hash(d.car) and d.get("fits") is Array):
+			continue
+		var fits: Array[int] = []
+		for id: Variant in (d.fits as Array).slice(0, 8):
+			var i := t._types.find_custom(func(type: Dictionary) -> bool: return id is String and type.id == id)
+			if i >= 0 and not i in fits:
+				fits.append(i)
+		if fits.is_empty():
+			continue
+		var here := Net.content.car(String(d.car)) if Net.content else {}
+		var whole: bool = not here.is_empty() and not here.get("partial", true)
+		out.append({ "car": String(d.car), "path": String(here.path) if whole else "", "fits": fits })
+		if not whole and Net.content:
+			Net.content.fetch_car(String(d.car), 1, Net.content.max_tier)
+	return out
 
 
 ## Racer `r`'s class: in a kart session a player's own pick (their profile's `kart_class`) or an AI

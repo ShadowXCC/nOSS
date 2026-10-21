@@ -140,7 +140,8 @@
         "oncoming": { "description": "Endless events: oncoming traffic.", "type": "boolean" },
         "spread": { "description": "Endless events: local players far apart on one game: bring the one behind up, or hold the leader back.", "enum": ["bring", "hold"] },
         "lanes": { "description": "Endless events: the road's lanes, one or two each way.", "enum": [2, 4] },
-        "drive_side": { "description": "Endless events: the side traffic keeps to.", "enum": ["right", "left"] }
+        "drive_side": { "description": "Endless events: the side traffic keeps to.", "enum": ["right", "left"] },
+        "garage_traffic": { "description": "Endless events: the server's garage cars drive in the traffic, shared with everyone.", "type": "boolean" }
       }
     }
   }

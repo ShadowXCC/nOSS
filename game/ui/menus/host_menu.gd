@@ -128,6 +128,8 @@ func _build(focus := "") -> void:
 			"The side traffic keeps to"))
 		_add(rows, UiKit.spinner("Traffic", EndlessMenu.TRAFFIC, _endless.endless_traffic, func(v: String) -> void: _endless.endless_traffic = v,
 			"Other cars on the road"))
+		_add(rows, UiKit.spinner("Garage cars", [[true, "On"], [false, "Off"]], _endless.garage_traffic, func(v: bool) -> void: _endless.garage_traffic = v,
+			"Your cars in the traffic, shared with everyone"))
 		_add(rows, UiKit.spinner("Oncoming", [[true, "On"], [false, "Off"]], _endless.oncoming, func(v: bool) -> void: _endless.oncoming = v,
 			"Cars coming the other way"))
 	elif _kind == "battle":
