@@ -1,12 +1,14 @@
 class_name PoliceControl
 extends Node
-## The police in a highway session (docs/GAMEMODES.md §3, D115, MODE-04), run where the session
-## is decided (offline this game, online the server). A unit waits at each speed trap, parked on
-## the shoulder, watching. Each player has heat (Heat) from what any unit sees; a level brings
-## that many units after them, sent in from behind out of their sight; from ROADBLOCK_LEVEL the
-## lanes ahead close bar one, with two units parked across them. Busted: the unbanked score goes,
-## the car goes back to the shoulder. Evaded: the units head off and go back to the pool. Every
-## change reaches its player as a caption (and narration) and on their HUD's heat meter.
+## The police (docs/GAMEMODES.md §3, §4, D115, D192, MODE-04) on the road they work (PoliceRoad: a
+## highway, run where the session is decided; the endless road, run by each game for its own
+## players). A unit waits at each speed trap, parked on the shoulder, watching. Each player has
+## heat (Heat) from what any unit sees; the level (PoliceTuning) says how many units come after
+## them, sent in from behind out of their sight, how hard they drive, and when the lanes ahead
+## close bar one, with two units parked across them. Busted: what the road says (a highway takes
+## the unbanked score and puts the car on the shoulder). Evaded: the units head off and go back to
+## the pool. Every change reaches its player as a caption (and narration) and on their HUD's heat
+## meter.
 
 ## Units a game may have out at once (the trap units come on top).
 const CHASE_UNITS := 5
@@ -29,7 +31,7 @@ const ROADBLOCK_PAST_M := 150.0
 const LOOK_EVERY := 2
 
 var session: TrackSession
-var layout: HighwayLayout
+var road: PoliceRoad
 var police_class := "official.highway.interceptor"
 ## The pool: every unit (trap ones first).
 var units: Array[PoliceRacer] = []
@@ -58,31 +60,25 @@ func _ready() -> void:
 
 
 func _make_units() -> void:
-	var traps: Array = layout.traps
+	var traps: Array = road.traps()
 	for i in traps.size() + CHASE_UNITS:
 		var u := PoliceRacer.new()
 		u.configure(i)
 		u.police_class = police_class
-		u.net_id = NetProtocol.FIRST_POLICE_ID + i if session.is_online() else 0
+		u.road = road
+		u.net_id = road.unit_id(i)
 		u.spawn_at = Transform3D(Basis(), Vector3(0, -500.0 - i * 10.0, 0))
 		session._add_racer(u)
 		u.load_car(PoliceRacer.CAR)
-		if session.net and session.is_online():
-			session.net.add(u, true)
+		road.register_unit(u)
 		units.append(u)
 		if i < traps.size():
 			_trap_units[u] = i
 
 
-## Who has heat: this game's players offline; on a server, every player's car.
+## Who has heat (the road says).
 func players() -> Array:
-	var out: Array = []
-	out.append_array(session.players) # a plain array: other games' cars go in too
-	if Net.is_server():
-		for r in session.racers:
-			if r is NetRacer and r.is_human:
-				out.append(r)
-	return out
+	return road.watched_players()
 
 
 ## Racer `r`'s heat (made the first time).
@@ -115,7 +111,7 @@ func _place_units() -> bool:
 		return false
 	for u in units:
 		if _trap_units.has(u):
-			var trap: Dictionary = layout.traps[_trap_units[u]]
+			var trap: Dictionary = road.traps()[_trap_units[u]]
 			u.deploy(_trap_spot(trap), Vector3.ZERO)
 			u.ai.mode = PoliceAI.Mode.PARKED
 		else:
@@ -123,14 +119,9 @@ func _place_units() -> bool:
 	return true
 
 
-## A trap's unit: on the outer shoulder at the trap, facing the way its carriageway drives.
+## A trap's unit: on the shoulder at the trap, facing the way it watches.
 func _trap_spot(trap: Dictionary) -> Transform3D:
-	var dir := int(trap.dir)
-	var lat := -dir * (layout.half - 1.6)
-	var at := layout.main.transform_at(float(trap.at_m), lat)
-	if dir < 0:
-		at.basis = Basis(-at.basis.x, at.basis.y, -at.basis.z)
-	return at
+	return road.trap_spot(trap)
 
 
 ## What the units see of player `p` this tick, and where the chase stands. Sight and near misses
@@ -138,6 +129,7 @@ func _trap_spot(trap: Dictionary) -> Transform3D:
 func _watch(p: Racer, delta: float, look: bool) -> void:
 	var h := heat_of(p)
 	var was := h.level()
+	var sight := float(PoliceTuning.at(was).sight_m)
 	var v := p.vehicle
 	var nearest := INF
 	var seen := false
@@ -147,7 +139,7 @@ func _watch(p: Racer, delta: float, look: bool) -> void:
 			continue
 		var d := u.vehicle.global_position.distance_to(v.global_position)
 		nearest = minf(nearest, d)
-		if look and not seen and d < Heat.SEEN_M and _sees(u, p):
+		if look and not seen and d < sight and _sees(u, p):
 			seen = true
 		if d < 8.0:
 			var gap := NossTraffic.box_gap(u.vehicle.global_position, u.vehicle.global_basis.z, _half(u.vehicle), v.global_position, v.global_basis.z, _half(v))
@@ -157,13 +149,9 @@ func _watch(p: Racer, delta: float, look: bool) -> void:
 	else:
 		seen = bool(_seen.get(p, false))
 	if seen:
-		var at: Dictionary = session.highway_field.at(p) if session.highway_field else {}
-		var limit := layout.speed_at(p.direction, p.distance) * 3.6
-		if not at.is_empty() and int(at.get("road", -1)) >= 0:
-			limit = float(layout.ramps[int(at.road)].speed) * 3.6
-		h.seen_speeding(absf(v.speed()) * 3.6 - limit, delta)
+		h.seen_speeding(absf(v.speed()) * 3.6 - road.limit_mps(p) * 3.6, delta)
 		if look:
-			var rows: Array = session.traffic.near_rows(v, 30.0) if session.traffic else []
+			var rows := road.near_rows(v, 30.0)
 			for d: Dictionary in (_miss[p] as NearMiss).step(rows, _clock):
 				if not d.has("split") and float(d.gap) < ScoreAttack.NEAR_M and absf(float(d.relative_kmh)) >= ScoreAttack.MIN_RELATIVE_KMH:
 					h.seen("close" if float(d.gap) < ScoreAttack.CLOSE_M else "near")
@@ -210,13 +198,9 @@ func _sees(u: PoliceRacer, p: Racer) -> bool:
 	return space.intersect_ray(q).is_empty()
 
 
-## Busted: the unbanked score goes, the car goes back to the shoulder, the units head off.
+## Busted: what the road does about it, and the units head off.
 func _busted(p: Racer) -> void:
-	var score := session.get_node_or_null(^"HighwayScore") as HighwayScore
-	if score:
-		score.rules_for(p).contact(INF, _clock)
-	if p is SessionPlayer or not session.is_online():
-		session.highway.reset(p)
+	road.after_bust(p, _clock)
 	_end_chase(p)
 
 
@@ -228,8 +212,9 @@ func _end_chase(p: Racer) -> void:
 	_open_roadblock(p)
 
 
-## Each player with heat has as many units after them as their level (the trap units that saw
-## them join first); units nobody's after go back once everyone's far.
+## Each player with heat has as many units after them as their level calls for (the trap units
+## that saw them join first), driving to that level; units nobody's after go back once everyone's
+## far.
 func _dispatch() -> void:
 	for key: Variant in heat.keys():
 		if not is_instance_valid(key):
@@ -239,8 +224,12 @@ func _dispatch() -> void:
 		var h: Heat = heat[p]
 		if h.level() == 0 or p.vehicle == null:
 			continue
-		var after := units.filter(func(u: PoliceRacer) -> bool: return u.ai and u.ai.target == p).size()
-		while after < h.level():
+		var level := h.level()
+		var chasing := units.filter(func(u: PoliceRacer) -> bool: return u.ai and u.ai.target == p)
+		for u: PoliceRacer in chasing:
+			u.ai.level = level
+		var after := chasing.size()
+		while after < int(PoliceTuning.at(level).units):
 			var u := _free_unit(p)
 			if u == null:
 				break
@@ -257,7 +246,7 @@ func _dispatch() -> void:
 ## A unit to send after `p`: a trap unit near them first, else one from the pool.
 func _free_unit(p: Racer) -> PoliceRacer:
 	for u in units:
-		if _trap_units.has(u) and u.ai and u.ai.target == null and u.vehicle and u.vehicle.global_position.distance_to(p.vehicle.global_position) < Heat.SEEN_M:
+		if _trap_units.has(u) and u.ai and u.ai.target == null and u.vehicle and u.vehicle.global_position.distance_to(p.vehicle.global_position) < float(PoliceTuning.at(heat_of(p).level()).sight_m):
 			return u
 	for u in units:
 		if not _trap_units.has(u) and u.waiting and u.vehicle:
@@ -267,20 +256,17 @@ func _free_unit(p: Racer) -> PoliceRacer:
 
 func _chase(u: PoliceRacer, p: Racer) -> void:
 	if u.waiting:
-		# In from behind, out of sight, at the player's speed, in a lane of their carriageway.
-		var dir := p.direction
-		var lane := randi() % layout.lanes
-		var at := layout.main.transform_at(p.distance - dir * SEND_BEHIND_M, layout.lane_lateral(dir, lane))
-		if dir < 0:
-			at.basis = Basis(-at.basis.x, at.basis.y, -at.basis.z)
+		# In from behind, out of sight, at the player's speed, in a lane of their way.
+		var at := road.lane_xform(road.way(p), randi() % road.lanes(), road.along(p, -SEND_BEHIND_M))
 		u.deploy(at, at.basis.z * (maxf(absf(p.vehicle.speed()), 25.0) + SEND_FASTER_MPS))
+	u.ai.level = heat_of(p).level()
 	u.ai.target = p
 	u.ai.side = 1.0 if units.find(u) % 2 == 0 else -1.0
 	u.ai.mode = PoliceAI.Mode.PURSUE
 
 
-## From ROADBLOCK_LEVEL a roadblock ahead of each player chased: their carriageway's lanes closed
-## bar the outer one, two units parked across; it opens once they're past (or the chase ends).
+## From the level that calls for it, a roadblock ahead of each player chased: their way's lanes
+## closed bar one, two units parked across; it opens once they're past (or the chase ends).
 func _roadblocks() -> void:
 	for key: Variant in heat.keys():
 		if not is_instance_valid(key):
@@ -291,29 +277,21 @@ func _roadblocks() -> void:
 		var h: Heat = heat[p]
 		if _blocks.has(p):
 			var b: Dictionary = _blocks[p]
-			if fposmod(p.direction * (p.distance - float(b.at_m)), layout.main.length) < layout.main.length / 2.0 \
-					and fposmod(p.direction * (p.distance - float(b.at_m)), layout.main.length) > ROADBLOCK_PAST_M:
+			if road.past(p, float(b.at_m)) > ROADBLOCK_PAST_M:
 				_open_roadblock(p)
 			continue
-		if h.level() < Heat.ROADBLOCK_LEVEL:
+		if not PoliceTuning.at(h.level()).roadblock or h.level() == 0:
 			continue
-		var dir := p.direction
-		var at_m := fposmod(p.distance + dir * ROADBLOCK_AHEAD_M, layout.main.length)
-		var closures := []
-		if session.traffic:
-			for lane in range(1, layout.lanes):
-				var id := session.traffic.close_lane(dir, lane, at_m - dir * ROADBLOCK_LENGTH_M, ROADBLOCK_LENGTH_M * 2.0)
-				if id >= 0:
-					closures.append(id)
+		var dir := road.way(p)
+		var at_m := road.along(p, ROADBLOCK_AHEAD_M)
+		var closures := road.close_lanes(p, dir, at_m - dir * ROADBLOCK_LENGTH_M, ROADBLOCK_LENGTH_M * 2.0)
 		var parked := []
-		for i in 2:
+		var across := road.block_lanes(dir)
+		for i in mini(across.size(), 2):
 			var u := _pool_unit()
 			if u == null:
 				break
-			var lat := layout.lane_lateral(dir, 1 + i)
-			var spot := layout.main.transform_at(at_m, lat)
-			spot.basis = Basis(Vector3.UP, PI / 2.0 * (1 if i == 0 else -1)) * spot.basis # across the lanes
-			u.deploy(spot, Vector3.ZERO)
+			u.deploy(road.across_xform(dir, int(across[i]), at_m, i), Vector3.ZERO)
 			u.ai.mode = PoliceAI.Mode.PARKED
 			u.vehicle.light_bar = true
 			parked.append(u)
@@ -333,9 +311,7 @@ func _open_roadblock(p: Racer) -> void:
 	if not _blocks.has(p):
 		return
 	var b: Dictionary = _blocks[p]
-	for id: int in b.closures:
-		if session.traffic:
-			session.traffic.open_lanes(id)
+	road.open_lanes(b.closures)
 	for u: PoliceRacer in b.units:
 		u.stand_down()
 	_blocks.erase(p)

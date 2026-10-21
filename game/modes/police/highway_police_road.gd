@@ -1,0 +1,136 @@
+class_name HighwayPoliceRoad
+extends PoliceRoad
+## The police's road on a highway (D115, D192): its layout's lanes, limits and traps, its traffic
+## (the lane sim and the physics cars), the field for who's on a ramp, and the score a bust costs.
+## The police run where the session is decided: offline this game, online the server, which
+## watches every player's car. The road is a loop: distances wrap.
+
+var layout: HighwayLayout
+
+
+static func make(s: TrackSession) -> HighwayPoliceRoad:
+	var r := HighwayPoliceRoad.new()
+	r.session = s
+	r.layout = s.track.highway
+	return r
+
+
+## This game's players offline; on a server, every player's car.
+func watched_players() -> Array:
+	var out: Array = []
+	out.append_array(session.players) # a plain array: other games' cars go in too
+	if Net.is_server():
+		for r in session.racers:
+			if r is NetRacer and r.is_human:
+				out.append(r)
+	return out
+
+
+## The carriageway's limit, or the ramp's on a ramp.
+func limit_mps(p: Racer) -> float:
+	var at: Dictionary = session.highway_field.at(p) if session.highway_field else {}
+	if not at.is_empty() and int(at.get("road", -1)) >= 0:
+		return float(layout.ramps[int(at.road)].speed)
+	return layout.speed_at(p.direction, p.distance)
+
+
+func way(p: Racer) -> int:
+	return p.direction
+
+
+func along(p: Racer, m: float) -> float:
+	return fposmod(p.distance + p.direction * m, layout.main.length)
+
+
+func past(p: Racer, at_m: float) -> float:
+	var length := layout.main.length
+	var ahead := fposmod(p.direction * (p.distance - at_m), length)
+	return ahead if ahead < length / 2.0 else ahead - length
+
+
+func lanes() -> int:
+	return layout.lanes
+
+
+func project(pos: Vector3) -> Dictionary:
+	return layout.main.project(pos)
+
+
+## Lane 0 is the outer one.
+func lane_xform(way_dir: int, lane: int, d: float) -> Transform3D:
+	var at := layout.main.transform_at(d, layout.lane_lateral(way_dir, lane))
+	if way_dir < 0:
+		at.basis = Basis(-at.basis.x, at.basis.y, -at.basis.z)
+	return at
+
+
+func shoulder_xform(way_dir: int, d: float) -> Transform3D:
+	var at := layout.main.transform_at(d, -way_dir * (layout.half - 1.6))
+	if way_dir < 0:
+		at.basis = Basis(-at.basis.x, at.basis.y, -at.basis.z)
+	return at
+
+
+## Across the carriageway as it lies (the units don't turn round for the way they face).
+func across_xform(way_dir: int, lane: int, d: float, i: int) -> Transform3D:
+	var spot := layout.main.transform_at(d, layout.lane_lateral(way_dir, lane))
+	spot.basis = Basis(Vector3.UP, PI / 2.0 * (1 if i == 0 else -1)) * spot.basis
+	return spot
+
+
+func near_rows(v: Vehicle, radius: float) -> Array:
+	return session.traffic.near_rows(v, radius) if session.traffic else []
+
+
+## Every lane but the outer one.
+func close_lanes(_p: Racer, way_dir: int, d: float, length: float) -> Array:
+	var out := []
+	if session.traffic:
+		for lane in range(1, layout.lanes):
+			var id := session.traffic.close_lane(way_dir, lane, d, length)
+			if id >= 0:
+				out.append(id)
+	return out
+
+
+func open_lanes(closures: Array) -> void:
+	for id: int in closures:
+		if session.traffic:
+			session.traffic.open_lanes(id)
+
+
+func block_lanes(_way: int) -> Array:
+	return [1, 2]
+
+
+func traps() -> Array:
+	return layout.traps
+
+
+## On the outer shoulder at the trap, facing the way its carriageway drives.
+func trap_spot(trap: Dictionary) -> Transform3D:
+	return shoulder_xform(int(trap.dir), float(trap.at_m))
+
+
+## Online the units are the server's cars.
+func unit_id(i: int) -> int:
+	return NetProtocol.FIRST_POLICE_ID + i if session.is_online() else 0
+
+
+func register_unit(u: PoliceRacer) -> void:
+	if session.net and session.is_online():
+		session.net.add(u, true)
+
+
+func make_driver(_u: PoliceRacer) -> Node:
+	return PoliceAI.new()
+
+
+## The unbanked score goes, the car goes back to the shoulder (a server leaves another game's car
+## to that game).
+func after_bust(p: Racer, clock: float) -> void:
+	var score := session.get_node_or_null(^"HighwayScore") as HighwayScore
+	if score:
+		score.rules_for(p).contact(INF, clock)
+	if p is SessionPlayer or not session.is_online():
+		session.highway.reset(p)

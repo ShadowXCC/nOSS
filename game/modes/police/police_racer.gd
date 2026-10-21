@@ -1,16 +1,20 @@
 class_name PoliceRacer
 extends Racer
-## A police unit (D115): an Interceptor driven by PoliceAI. PoliceControl keeps a pool of them,
-## parks some at the speed traps, sends others after players with heat (out of their sight) and
-## puts them back in the pool (waiting: hidden, off the road) when they're done. Online they're
-## the server's cars (ids from NetProtocol.FIRST_POLICE_ID), shown as remote cars elsewhere.
+## A police unit (D115, D192): an Interceptor driven by its road's police driver (PoliceRoad:
+## PoliceAI on a highway, EndlessPoliceAI on the endless road). PoliceControl keeps a pool of
+## them, parks some at the speed traps, sends others after players with heat (out of their sight)
+## and puts them back in the pool (waiting: hidden, off the road) when they're done. Online they're
+## the cars of whoever runs the police (PoliceRoad.unit_id), shown as remote cars elsewhere.
 
 const CAR := "res://content/traffic/police"
 const COLOR := Color(0.08, 0.1, 0.16)
 
-var ai: PoliceAI
+## Its driver: mode (PoliceAI.Mode), target, side, level, deployed().
+var ai: Variant
 ## The highway mode's police class (data/modes/highway.mode.json "police_class").
 var police_class := "official.highway.interceptor"
+## The road it works (set before it joins the session).
+var road: PoliceRoad
 
 
 func _init() -> void:
@@ -43,9 +47,9 @@ func _physics_process(delta: float) -> void:
 
 
 func _make_driver() -> Node:
-	ai = PoliceAI.new()
+	ai = road.make_driver(self) if road else PoliceAI.new()
 	ai.name = "PoliceAI"
-	ai.racer = self
+	ai.set(&"racer", self)
 	return ai
 
 
@@ -73,4 +77,4 @@ func deploy(xform: Transform3D, velocity: Vector3) -> void:
 		vehicle.set_ghost(false)
 		vehicle.reset_to(xform, velocity)
 	if ai:
-		ai.lane = -1
+		ai.deployed()

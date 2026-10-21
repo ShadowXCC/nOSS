@@ -673,7 +673,7 @@ func _ready_highway() -> void:
 		police = PoliceControl.new()
 		police.name = "PoliceControl"
 		police.session = self
-		police.layout = track.highway
+		police.road = HighwayPoliceRoad.make(self)
 		police.police_class = String(GameModes.list().filter(func(m: Dictionary) -> bool: return m.id == "highway").map(
 			func(m: Dictionary) -> String: return String(m.get("police_class", "official.highway.interceptor"))).front())
 		add_child(police)
