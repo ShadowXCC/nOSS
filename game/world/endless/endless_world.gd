@@ -286,6 +286,7 @@ func _tile_job(key: Vector2i) -> Job:
 	var samples := PackedFloat32Array()
 	var near := false
 	var hits := PackedVector3Array()
+	var half := 0.0
 	var run := false
 	for i in road.samples.size():
 		var p := road.samples[i]
@@ -293,6 +294,7 @@ func _tile_job(key: Vector2i) -> Job:
 		if inside:
 			TerrainData._append_samples(samples, road, [i])
 			hits.append(p)
+			half = maxf(half, maxf(road.half_l[i], road.half_r[i]))
 			run = true
 			if not near and area.grow(COLLIDE_M).has_point(Vector2(p.x, p.z)):
 				near = true
@@ -301,7 +303,6 @@ func _tile_job(key: Vector2i) -> Job:
 			run = false
 	if run:
 		samples[samples.size() - 1] += 2.0
-	var half := RoadWindow.SHOULDER_M + 3.6
 	job.input = { "corner": corner, "world": Vector2(key.x * TILE, key.y * TILE), "road": samples, "road_points": hits,
 		"collide": near and collision, "half": half }
 	return job
@@ -318,11 +319,12 @@ func _build_tile(job: Job) -> void:
 	var road_samples: PackedFloat32Array = job.input.road
 	if not road_samples.is_empty():
 		t.field.conform(rect, road_samples, FALLOFF_M, TerrainData.BED_DEPTH_M)
-	var final := t.field.region_get(rect)
+	# The ground with the road's cuttings and fills in (region_get would give it without them).
+	var final := t.field.chunk_collision(0, 0, TILE)
 	t.field.splat_region_set(rect, gen.tile_paint(world.x, world.y, n, n, 1.0, final))
 	var result := { "terrain": t }
 	if job.input.collide:
-		result.collision = t.field.chunk_collision(0, 0, TILE)
+		result.collision = final
 		result.map = t.surface_map()
 	if visual:
 		result.scatter = _scatter_points(job, final)

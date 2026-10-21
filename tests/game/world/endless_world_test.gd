@@ -145,3 +145,34 @@ func _ground_at(w: EndlessWorld, p: Vector3) -> float:
 		if t.area().has_point(Vector2(p.x, p.z)):
 			return t.height_at(p.x, p.z)
 	return NAN
+
+
+## Props stand on the ground as the road left it: in a cutting, not up where the hill was (D187).
+func test_props_stand_on_the_carved_ground() -> void:
+	var origin: FloatingOrigin = auto_free(FloatingOrigin.new())
+	add_child(origin)
+	var w: EndlessWorld = auto_free(EndlessWorld.new())
+	w.gen = EndlessGen.make(77, EndlessGen.biome_ids().find("alpine"))
+	w.origin = origin
+	w.focus = func() -> PackedFloat64Array: return PackedFloat64Array([_d])
+	add_child(w)
+	w._update_road(PackedFloat64Array([_d]))
+	var points := 0
+	var moved := 0
+	for key: Vector2i in w._wanted_tiles(PackedVector3Array([w.road.point_at(_d)]), 300.0):
+		var job := w._tile_job(key)
+		if (job.input.road as PackedFloat32Array).is_empty():
+			continue
+		w._run(job)
+		var t: TerrainData = job.result.terrain
+		var corner: Vector2 = job.input.corner
+		for id: String in job.result.scatter:
+			for xf: Transform3D in job.result.scatter[id].all:
+				var cell := Vector2(roundf(xf.origin.x - corner.x), roundf(xf.origin.z - corner.y)).clamp(Vector2.ONE, Vector2.ONE * (EndlessWorld.TILE - 1))
+				var at := corner + cell
+				assert_float(xf.origin.y).is_equal_approx(t.height_at(at.x, at.y), 0.1) # a cell either way at x.5
+				points += 1
+				if absf(t.height_at(at.x, at.y) - t.base_at(at.x, at.y)) > 0.5:
+					moved += 1
+	assert_int(points).is_greater(100)
+	assert_int(moved).is_greater(0) # some stand where the road cut or filled the ground
