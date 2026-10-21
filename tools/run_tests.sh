@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Runs every test suite: native (doctest), JSON schemas, tools (unittest), GDScript (gdUnit4, headless),
 # platform conformance, a short AI race check (and one in the rain), a short kart check, two short
-# sumo checks, two short drag checks, a 10-minute endless drive, a short highway check, short online
-# checks (a race, a highway with traffic, karts, an endless convoy, a sumo match, a drag ladder),
+# sumo checks, two short drag checks, a 10-minute endless drive and a 5-minute one with traps and
+# police, a short highway check, short online checks (a race, a highway with traffic, karts, an
+# endless convoy, endless police, a sumo match, a drag ladder),
 # the track editor's 3 km acceptance
 # build (raced and sent online), boot smoke test.
 # Exits non-zero if any fails. Run tools/setup_dev.sh once first.
@@ -67,6 +68,9 @@ tools/drag_check.sh --cars=4 --class=top_fuel --length=805 --skill=88-95 --seed=
 step "Endless check (10 minutes of driving, normal traffic)"
 tools/endless_check.sh --minutes=10 --traffic=normal | grep -E "^(Endless|  |Time|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("endless check")
 
+step "Endless check (5 minutes, four lanes on the left, heavy traffic, traps and police)"
+tools/endless_check.sh --minutes=5 --traffic=heavy --lanes=4 --side=left --traps --police --speed-factor=1.4 | grep -E "^(Endless|  |Time|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("endless police check")
+
 step "Highway check (2 players, 400 traffic, 60 s)"
 tools/highway_check.sh --players=2 --traffic=400 --seconds=60 | grep -E "^(Highway|Time|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("highway check")
 
@@ -78,6 +82,9 @@ step "Online highway check (3 bots, 60 traffic cars, 150 ms, one put out of step
 
 step "Endless net check (3 bots, one joining late, 150 ms RTT)"
 .venv/bin/python tools/net_check.py --event endless --clients 3 --late 40 --duration 150 --rtt 150 --jitter 10 --loss 1 | grep -E "^(net_check|server road|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("endless net check")
+
+step "Endless police net check (2 bots, one speeding past the traps, 150 ms)"
+.venv/bin/python tools/net_check.py --event endless --clients 2 --police --duration 150 --rtt 150 --jitter 10 --loss 1 | grep -E "^(net_check|police|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("endless police net check")
 
 step "Kart net check (3 bots, 1 AI, 1 lap of Gearworks, 150 ms, 1% loss)"
 .venv/bin/python tools/net_check.py --event kart --clients 3 --ai 1 --laps 1 --rtt 150 --jitter 10 --loss 1 | grep -E "^(net_check|server items|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("kart net check")
