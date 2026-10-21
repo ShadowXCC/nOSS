@@ -231,6 +231,30 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
 - [x] A restart runs the same ladder again. *`drag_control_test`: the seed the field was drawn with survives `race.restart_session()` and the pairs come out in the same order; every car that was parked before the restart is parked and hidden again after it, which it was not before — `_place_arena` never cleared the flag, so `_park` took those cars for already put away and left them standing on the strip through the next pass.*
 - [x] The mode still holds up with the longer burnout and the new protocol. *`tools/drag_check.sh --cars=6 --length=201 --skill=60-90 --seed=1`: 5 passes, one winner, 18 perfect to 22 good shifts, no fouls, 0.010 ms a tick. `--cars=4 --class=top_fuel --length=805 --skill=88-95 --seed=2`: 3 passes in 85 s, 18 perfect shifts, none blown. `net_check.py --event drag --clients 2 --ai 3 --length 201 --duration 200 --rtt 150 --jitter 10 --loss 1` on protocol 9: 4 passes, 31 events, 8 grades taken from clients, remote cars within 0.00 m (median) and 0.33 m (95%), 7.1 KB/s down per bot, 0 contacts. `tools/a11y_check.py --drag-only` walks the menus as before.*
 
+## Endless after driving it
+
+*The Endless road after playing it (D187-D195, v0.12.0).*
+
+- **The ground** (D187): no ground standing above a bridge's deck where the road meets it (the ramp that launched cars), cuttings painted and planted as cut, the far ground facing up and kept under the near ground, rails on fills standing on the fill.
+- **Off the road** drives like a dirt road (D188).
+- **Heavy traffic**, physics cars nearest first, and the speed, gear and RPM bar shown by default (D189).
+- **Lanes and side** (D190): 2 or 4 lanes, driven on the right or the left, with markings to match.
+- **Garage cars in the traffic** (D191), shared by the host online.
+- **Police on one core** (D192): heat-scaled numbers, speed and roles (tail, ram, PIT, block), spike strips, patrols in traffic and traffic moving over for sirens -- on highways too.
+- **Limits, signs and speed traps** (D193), and **police on the endless road** (D194), offline and online (D195, protocol 11).
+
+**Acceptance:**
+- [x] No ground above a bridge's deck. *`terrain_test.cpp`: a falling deck at a bridge's start and a climbing one at its end keep the ground 0.7 m under them, and the bed eases off toward the lifted end and stops there; `endless_world_test`: across the first six bridge ends of seed 2024 every point of the deck is clear, where the old `conform` left up to 0.31 m of ground over it.*
+- [x] Props on the carved ground, the far ground under the near, rails on fills. *`endless_world_test`: every scattered prop stands on the carved height (some where the road cut or filled over 0.5 m); every far triangle faces up and every far vertex is under the near ground round it (68 far tiles lowered in 26 ms); rails on fills stand on the road's bed.*
+- [x] A car can climb back up off the road. *`offroad_climb_test`: the Cruiser still climbing a 16 degree dirt bank after 12 s (it holds 18 and stops at 20), the Sport 20 (holds 21); the Cruiser held back by the same bank of track grass.*
+- [x] Heavy traffic, four lanes on the left, garage cars, police and traps hold up. *`tools/endless_check.sh --minutes=5 --traffic=heavy --lanes=4 --police --traps --speed-factor=1.5`: 7.6 km, 2 chases, 2 patrols joining, 1.73 ms a frame; four lanes on the left in heavy traffic, 1.35 ms. A windowed drive loaded and drew all 12 garage cars with their own far meshes.*
+- [x] Two-lane schedules are as they were. *`endless_traffic_test` re-draws every slot the old way and compares tau, presence, type and colour; garage cars and patrols change nothing else.*
+- [x] Police up close. *`police_brain_test`: a PIT lines up on the rear wheels then turns in and backs off, from either side; a blocker never under 40% of the target's speed; no contact at heat 1; a ram steers at the target (it used to steer away). `police_test`, `spike_strip_test` and `endless_police_test` cover roles by heat, patrols joining, traffic moving over, roadblocks on 2 and 4 lanes, spikes from heat 3, pulled over and on your way, and split-screen heat kept apart.*
+- [x] Endless police online. *`tools/net_check.py --event endless --clients 2 --police`: the speeding bot was chased by its own game's police and the other bot showed those units with their sirens on; `endless_police_net_test` covers the id ranges, states only from a unit's own game, and strips and roadblocks reaching the other games.*
+- [x] The new settings are named and in the focus order. *`python3 tools/a11y_check.py --endless-only`: the Endless menu's 26 controls, Lanes, Drive on, Garage cars, Speed traps and Police among them.*
+
+**Notes:** spike strips are offline only on highways, where the server runs the police and can't flatten a tyre on a car another game drives. Traps come about every 5 km on average; the cliffs and bends of some biomes make them rarer there.
+
 ## M10+: Backlog (order to be decided)
 
 | Item | IDs |

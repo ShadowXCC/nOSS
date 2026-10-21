@@ -68,7 +68,7 @@ Everyone should be able to drive. This doc covers options for vision, hearing, m
 | Horizon lock | Chase and cockpit cameras keep the horizon level (no roll) |
 | Speed FOV | Speed-based FOV change can be turned off. FOV is fixed per camera. |
 | Motion blur | None in `retro_ps2`. Every future style profile must have an off switch. |
-| Reduce flashing | Caps flashes at 3 per second and lowers their contrast (WCAG 2.3.1). Covers police lights, lightning, boost and item effects (EMP, Shield), countdown lights and the sumo warning band (D182: it pulses twice a second, and holds steady and dimmer with this on). Lightning (M9, D153) becomes one soft pulse at most a third as bright (at most one a second) and its bolt isn't drawn; it's per view, so a splitscreen player without the option still sees the full flicker. |
+| Reduce flashing | Caps flashes at 3 per second and lowers their contrast (WCAG 2.3.1). Covers police lights, lightning, boost and item effects (EMP, Shield), countdown lights and the sumo warning band (D182: it pulses twice a second, and holds steady and dimmer with this on). An endless road's speed cameras (D193) don't flash at all while any player on the PC has it on. Lightning (M9, D153) becomes one soft pulse at most a third as bright (at most one a second) and its bolt isn't drawn; it's per view, so a splitscreen player without the option still sees the full flicker. |
 
 The first-boot screen includes a short photosensitivity notice.
 
@@ -120,7 +120,7 @@ These build on the standard assists (steer aid, ABS, TCS, stability, auto-gearbo
 |---|---|
 | Pause | Pause at any time in single player and local play. Online sessions can't pause. |
 | Game speed | 50–100% sim speed in offline single player. Those results don't count toward leaderboards. |
-| HUD presets | Full, Minimal, Off. Any HUD element can be hidden on its own. Endless hides the HUD until you show it; captions and messages always show (M9). |
+| HUD presets | Full, Minimal, Off. Any HUD element can be hidden on its own. Endless shows the speed, gear and RPM bar until you hide them from the pause menu (D189); captions and messages always show (M9). With speed traps or police on, the limit shows by the speedometer as a road sign with its number in your units, which a screen reader reads as "Limit 50 mph" (D193). |
 | Navigation | Checkpoint arrows on highway runs. "Wrong way" warnings in every mode. |
 | Difficulty | AI skill 0–100, traffic density, police on/off ([GAMEMODES.md §0](GAMEMODES.md#0-common-to-all-modes)) |
 
