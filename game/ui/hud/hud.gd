@@ -50,6 +50,7 @@ var _lights := Lights.new()
 var _delta_bar := DeltaBar.new()
 var _slip := SlipIcons.new()
 var _arrows := Arrows.new()
+var _limit := LimitSign.new()
 var _captions := _label(32)
 var _caption_lines: Array = [] # [text, seconds left]
 var _hidden := {}
@@ -102,9 +103,17 @@ func _init() -> void:
 	_standings.offset_bottom = _standings.offset_top + 34.0 * 6
 	_fps.offset_top = 280
 	_fps.offset_bottom = 310
-	for c: Control in [_flag, _lights, _delta_bar, _slip, _arrows]:
+	for c: Control in [_flag, _lights, _delta_bar, _slip, _arrows, _limit]:
 		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(c)
+	_limit.anchor_left = 1.0
+	_limit.anchor_right = 1.0
+	_limit.anchor_top = 1.0
+	_limit.anchor_bottom = 1.0
+	_limit.offset_left = -530
+	_limit.offset_right = -430
+	_limit.offset_top = -230
+	_limit.offset_bottom = -130
 	_slip.anchor_left = 1.0
 	_slip.anchor_right = 1.0
 	_slip.anchor_top = 1.0
@@ -196,6 +205,7 @@ func apply_profile(profile: PlayerProfile) -> void:
 	if extra is Array:
 		for id: Variant in extra:
 			_hidden[String(id)] = true
+	_limit.high_contrast = high_contrast
 	for item: Array in [["speed", [_speed, _unit, _gear, _rpm]], ["timing", [_time, _last, _best]], ["car", [_car]]]:
 		for c: CanvasItem in item[1]:
 			c.visible = not _hidden.has(item[0])
@@ -211,6 +221,18 @@ var session_hidden := PackedStringArray()
 ## The RPM bar, which a mode with its own tachometer turns off (a drag pass, D169). The speed and
 ## the gear stay. Set it, then apply_profile().
 var session_rpm := true
+
+
+## The speed limit by the speedometer (an endless road with speed traps or police, D193), m/s;
+## 0 hides it. It shows `shown` (the sign's own number), or the limit in the player's units.
+func set_limit(mps: float, shown := "") -> void:
+	_limit.shown = shown
+	_limit.mps = mps
+
+
+## The limit shown now (m/s; 0: none).
+func limit() -> float:
+	return _limit.mps if _limit.visible else 0.0
 
 
 ## Whether a HUD element is shown (not hidden by the player's preset or choice).
@@ -277,6 +299,7 @@ func _process(delta: float) -> void:
 		_slip.visible = _show_slip and shows("speed")
 		if _slip.visible:
 			_slip.wheels = t.wheels
+	_limit.visible = _limit.mps > 0.0 and shows("speed")
 	_update_race(delta)
 	if timer:
 		var session := race.session_text(racer) if race and racer else ""
@@ -435,6 +458,40 @@ func _place(l: Label, anchor: Vector2, offset: Vector2, align: HorizontalAlignme
 
 ## The flag shown to this player: an icon and its word, never colour alone
 ## (docs/ACCESSIBILITY.md §2). Checkered and blue get patterns too.
+## A round limit sign: a red ring, the number in the player's units.
+class LimitSign:
+	extends Control
+	var shown := ""
+	var mps := 0.0:
+		set(value):
+			if value != mps:
+				mps = value
+				accessibility_name = "Limit %s %s" % [_text(), Settings.speed_unit()] if mps > 0.0 else ""
+				queue_redraw()
+	var high_contrast := false
+
+	func _text() -> String:
+		return shown if shown else Settings.speed_text(mps)
+
+	func _init() -> void:
+		visible = false
+
+	func _draw() -> void:
+		if mps <= 0.0:
+			return
+		var c := size / 2.0
+		var r := minf(size.x, size.y) / 2.0
+		if high_contrast:
+			draw_circle(c, r + 4.0, Color.BLACK)
+		draw_circle(c, r, Color(0.8, 0.08, 0.06))
+		draw_circle(c, r * 0.76, Color(0.97, 0.97, 0.95))
+		var font := get_theme_default_font()
+		var text := _text()
+		var fs := int(r * (0.95 if text.length() < 3 else 0.75))
+		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, fs).x
+		draw_string(font, c + Vector2(-w / 2.0, fs * 0.35), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.05, 0.05, 0.05))
+
+
 class FlagPanel:
 	extends Control
 	const WORDS := { "green": "Green", "yellow": "Yellow", "blue": "Blue", "checkered": "Finish" }

@@ -34,6 +34,8 @@ const SCAN_S := 0.4
 const CHEVRON_CURVE := 1.0 / 110.0
 const CHEVRON_EVERY_M := 24.0
 const SEA_SIZE := 12000.0
+## Limit signs stand this far out from the road's edge.
+const SIGN_OUT_M := 1.8
 ## Off the road drives like a dirt road (TerrainData.LAYERS order): soft ground of every kind is
 ## dirt, bare rock is hard. Track grass keeps its penalty; falling snow still slips (VehicleSim).
 const GROUND_SURFACES := [
@@ -45,6 +47,10 @@ var gen: NossRoadGen
 var road := RoadWindow.new()
 ## How many lanes, and which side they're driven on (D190).
 var lanes := EndlessLanes.new()
+## Speed traps (D193): planned for each chunk as it's made (EndlessTraps.plan), with plan_traps;
+## the road window's, by chunk: {id, at_m, kind}.
+var plan_traps := false
+var traps := {}
 var origin: FloatingOrigin
 ## Off on a server (no meshes), and collision off where nothing drives (a server).
 var visual := true
@@ -172,6 +178,13 @@ func _update_road(distances: PackedFloat64Array) -> void:
 		var k := k_lo if road.is_empty() else road.chunks[-1] + 1
 		var data := gen.chunk(k)
 		var c := RoadWindow.chunk_track(data, origin.x, origin.z, k, lanes.per_dir)
+		# The limit before it, for the signs where it changes (D193).
+		var before: RoadWindow = _chunk_tracks.get(k - 1)
+		c.set_meta(&"tier_before", int(before.limit_tier[0]) if before else (EndlessLimits.tier_of(gen.chunk(k - 1)) if k > 0 else int(c.limit_tier[0])))
+		if plan_traps:
+			var trap := EndlessTraps.plan(gen.get_seed(), k, data, lanes)
+			if not trap.is_empty():
+				traps[k] = trap
 		if record_sums and sums.size() < 256:
 			sums[k] = int(data.checksum)
 		c.set_meta(&"ox", origin.x)
@@ -186,6 +199,7 @@ func _update_road(distances: PackedFloat64Array) -> void:
 		for k: int in _chunk_tracks.keys():
 			if k < road.chunks[0]:
 				_chunk_tracks.erase(k)
+				traps.erase(k)
 				_queued.erase("road:%d" % k)
 				if _chunk_nodes.has(k):
 					(_chunk_nodes[k] as Node).queue_free()
@@ -200,8 +214,28 @@ func _road_job(k: int) -> Job:
 	var c: RoadWindow = _chunk_tracks[k]
 	job.ox = float(c.get_meta(&"ox"))
 	job.oz = float(c.get_meta(&"oz"))
-	job.input = { "track": c, "ground": EndlessGround.of(gen, job.ox, job.oz) }
+	job.input = { "track": c, "ground": EndlessGround.of(gen, job.ox, job.oz), "signs": _limit_signs(c) }
 	return job
+
+
+## Where the limit changes at chunk `c`'s start (D193): a sign each way on its driving side, facing
+## the cars coming to it, with the limit they're driving into: [{xform, tier}].
+func _limit_signs(c: RoadWindow) -> Array:
+	var tier := int(c.limit_tier[0])
+	var before := int(c.get_meta(&"tier_before", tier))
+	if tier == before:
+		return []
+	var t := c.tangents[0]
+	var heading := atan2(t.x, t.z)
+	var out := []
+	for dir in [EndlessLanes.UP, EndlessLanes.DOWN]:
+		var side := lanes.side_sign(dir)
+		var half := c.half_l[0] if side > 0.0 else c.half_r[0]
+		var at := c.samples[0] + c.lefts[0] * side * (half + SIGN_OUT_M)
+		at.y = c.samples[0].y
+		var faces := heading + PI if dir == EndlessLanes.UP else heading # toward the cars coming
+		out.append({ "xform": Transform3D(Basis(Vector3.UP, faces), at), "tier": tier if dir == EndlessLanes.UP else before })
+	return out
 
 
 func _build_road(job: Job) -> void:
@@ -212,7 +246,29 @@ func _build_road(job: Job) -> void:
 	var batches := rb._batches(0, track.samples.size() - 1)
 	if visual:
 		batches["chevrons"] = _chevrons(track)
+	var parts := PropLibrary.parts("speed_sign")
+	for sign: Dictionary in job.input.signs:
+		for part: Dictionary in parts:
+			var key := "prop:%s:%d" % [part.material, part.surface]
+			if not batches.has(key):
+				batches[key] = MeshBatch.new()
+			PropBuilder._append(batches[key], part.batch, sign.xform)
 	job.result = { "builder": rb, "batches": batches, "built": rb.prebuild(batches) }
+
+
+## A limit sign's number, in the player's units (D193).
+func _sign_label(sign: Dictionary) -> Label3D:
+	var l := Label3D.new()
+	l.name = "Limit"
+	l.text = EndlessLimits.text(int(sign.tier))
+	l.font_size = 96
+	l.pixel_size = 0.0034
+	l.modulate = Color(0.05, 0.05, 0.05)
+	l.outline_size = 0
+	l.double_sided = false
+	var xf: Transform3D = sign.xform
+	l.transform = Transform3D(xf.basis, xf * Vector3(0.0, 2.25, 0.075))
+	return l
 
 
 ## Bend signs along the outside of tight bends.
@@ -621,6 +677,9 @@ func _apply(job: Job) -> void:
 			node.position = offset
 			var rb: RoadBuilder = job.result.builder
 			rb.add_built(node, job.result.batches, job.result.built)
+			if visual:
+				for sign: Dictionary in job.input.signs:
+					node.add_child(_sign_label(sign))
 			_chunk_nodes[k] = node
 			stats.road += 1
 			built_near.emit((k + 0.5) * _chunk_m())
@@ -740,6 +799,7 @@ func _clear() -> void:
 		(_tiles[key].node as Node).queue_free()
 	_chunk_nodes.clear()
 	_chunk_tracks.clear()
+	traps.clear()
 	_tiles.clear()
 	_block_low.clear()
 	for key: Vector2i in _far:

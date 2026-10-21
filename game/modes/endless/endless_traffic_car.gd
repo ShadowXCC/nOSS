@@ -66,6 +66,13 @@ func _physics_process(delta: float) -> void:
 	if vehicle.car_impulse > KNOCK_NS or vehicle.wall_impulse > KNOCK_NS or _upset > UPSET_S:
 		wrecked = true
 		left_slot = true
+	if key.x == EndlessTraffic.PARKED and not wrecked:
+		# A speed trap's patrol: parked, watching.
+		vehicle.steer = 0.0
+		vehicle.throttle = 0.0
+		vehicle.brake = 0.0
+		vehicle.handbrake = 1.0
+		return
 	if wrecked:
 		vehicle.indicators = 3
 		vehicle.steer = 0.0

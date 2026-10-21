@@ -1,5 +1,5 @@
 {
-  "schema": "noss.endless_biome/1", "id": "forest", "name": "Forest", "far_color": "#476f3a",
+  "schema": "noss.endless_biome/1", "id": "forest", "name": "Forest", "far_color": "#476f3a", "limit_kmh": 80,
   "scatter": [ { "prop": "tree_pine", "per_ha": 55 }, { "prop": "tree_round", "per_ha": 22 }, { "prop": "bush", "per_ha": 30 }, { "prop": "rock", "per_ha": 4 } ],
   "ambience": { "birds": 0.8, "crickets": 0.5 },
   "weather": { "snowy": false, "rain": 1.0, "fog": 1.2 }

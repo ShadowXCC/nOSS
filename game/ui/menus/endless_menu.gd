@@ -75,6 +75,10 @@ func _build(focus := "") -> void:
 		"Your cars in the traffic"))
 	_add(rows, UiKit.spinner("Oncoming", [[true, "On"], [false, "Off"]], event.oncoming, func(v: bool) -> void: event.oncoming = v,
 		"Cars coming the other way"))
+	_add(rows, UiKit.spinner("Speed traps", [[false, "Off"], [true, "On"]], event.speed_traps, func(v: bool) -> void: event.speed_traps = v,
+		"Cameras and parked patrols"))
+	_add(rows, UiKit.spinner("Police", [[false, "Off"], [true, "On"]], event.police, func(v: bool) -> void: event.police = v,
+		"Speeding draws a chase"))
 	_add(rows, UiKit.spinner("Far apart", SPREAD, event.spread, func(v: String) -> void: event.spread = v,
 		"Players on this PC stay within 3 km: who moves when they don't"))
 	for row in SkyRows.rows(event):

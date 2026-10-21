@@ -1,6 +1,6 @@
 extends Node
 ## Endless check (M9 acceptance 1): an autodriven endless drive, headless at a fixed 120 Hz.
-##   tools/endless_check.sh [--minutes=10] [--code=FOREST-0000007 | --seed=n --biome=1] [--traffic=light] [--lanes=2|4] [--side=right|left] [--garage-traffic=off]
+##   tools/endless_check.sh [--minutes=10] [--code=FOREST-0000007 | --seed=n --biome=1] [--traffic=light] [--lanes=2|4] [--side=right|left] [--garage-traffic=off] [--traps] [--police]
 ##                          [--players=1] [--no-rebase] [--weather=..] [--time=..] [--verbose] [--windowed]
 ## Fails on:
 ## - precision: each tick the car's centre of mass must move by its velocity × dt, give or take the
@@ -65,6 +65,8 @@ func _start() -> void:
 	e.lanes = 4 if int(opts.get("lanes", "2")) >= 4 else 2
 	e.drive_side = "left" if opts.get("side") == "left" else "right"
 	e.garage_traffic = opts.get("garage-traffic", "on") != "off"
+	e.speed_traps = opts.has("traps")
+	e.police = opts.has("police")
 	session = TrackSession.new()
 	session.platform_id = String(opts.get("platform", "official.endless.cruiser"))
 	session.event = e

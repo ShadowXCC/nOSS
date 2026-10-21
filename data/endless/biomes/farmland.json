@@ -1,5 +1,5 @@
 {
-  "schema": "noss.endless_biome/1", "id": "farmland", "name": "Farmland", "far_color": "#7f9c4c",
+  "schema": "noss.endless_biome/1", "id": "farmland", "name": "Farmland", "far_color": "#7f9c4c", "limit_kmh": 100,
   "scatter": [ { "prop": "tree_round", "per_ha": 3 }, { "prop": "hay_bale", "per_ha": 6, "near_road": 250 }, { "prop": "barn", "per_ha": 0.25, "near_road": 300 }, { "prop": "bush", "per_ha": 6 } ],
   "ambience": { "birds": 0.6, "crickets": 0.7 },
   "weather": { "snowy": false, "rain": 0.9, "fog": 1.0 }

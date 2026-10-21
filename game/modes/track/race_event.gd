@@ -79,7 +79,8 @@ var env_seed := 0
 ## order), traffic ("light", "normal", "heavy" or "off"), oncoming traffic on, and what happens when local
 ## players drift far apart ("bring": the one behind is brought up; "hold": the leader is held); the
 ## road's lanes (2 or 4: one or two each way) and the side they're driven on ("right" or "left",
-## D190); and garage cars in the traffic (D191).
+## D190); garage cars in the traffic (D191); speed traps (D193) and, with `police`, the police
+## (D194).
 var road_seed := 1
 var biome := 1
 var endless_traffic := "light"
@@ -88,6 +89,7 @@ var spread := "bring"
 var lanes := 2
 var drive_side := "right"
 var garage_traffic := true
+var speed_traps := false
 
 ## The values each text field may take; the first is the default.
 const CHOICES := {
@@ -110,7 +112,7 @@ const KEYS := ["kind", "practice_min", "qualifying_min", "race_laps", "race_min"
 	"drag_length_m", "drag_boost", "drag_timing", "drag_qtes", "drag_tree", "drag_two_step",
 	"drag_burnout", "drag_shake", "drag_chain", "drag_money_shift", "drag_centreline",
 	"time", "time_rate", "weather", "env_seed",
-	"road_seed", "biome", "endless_traffic", "oncoming", "spread", "lanes", "drive_side", "garage_traffic"]
+	"road_seed", "biome", "endless_traffic", "oncoming", "spread", "lanes", "drive_side", "garage_traffic", "speed_traps"]
 ## Written only for highway events (circuit events stay as older games and servers know them).
 const HIGHWAY_KEYS := ["sub", "police", "traffic", "run", "direction"]
 ## Written only for battles, or with items off.
@@ -121,7 +123,7 @@ const SUMO_KEYS := ["sumo_tiers", "sumo_hazard", "sumo_shrink", "sumo_secs", "su
 const DRAG_KEYS := ["drag_length_m", "drag_boost", "drag_timing", "drag_qtes", "drag_tree",
 	"drag_two_step", "drag_burnout", "drag_shake", "drag_chain", "drag_money_shift", "drag_centreline"]
 ## Written only for endless events.
-const ENDLESS_KEYS := ["road_seed", "biome", "endless_traffic", "oncoming", "spread", "lanes", "drive_side", "garage_traffic"]
+const ENDLESS_KEYS := ["road_seed", "biome", "endless_traffic", "oncoming", "spread", "lanes", "drive_side", "garage_traffic", "speed_traps"]
 ## Traffic cars at most.
 const TRAFFIC_MAX := 400
 
@@ -222,7 +224,7 @@ func sessions() -> PackedStringArray:
 func to_dict() -> Dictionary:
 	var d := {}
 	for key: String in KEYS:
-		if key in HIGHWAY_KEYS and kind != "highway":
+		if key in HIGHWAY_KEYS and kind != "highway" and not (key == "police" and kind == "endless"):
 			continue
 		if key in KART_KEYS and kind != "battle" and items:
 			continue

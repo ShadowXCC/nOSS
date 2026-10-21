@@ -105,7 +105,7 @@
         "track_limits": { "enum": ["off", "lenient", "strict"] },
         "ai_cars": { "enum": ["garage", "builtin"] },
         "sub": { "description": "Highway events: the sub-mode.", "enum": ["cruise", "score", "run", "loop"] },
-        "police": { "type": "boolean" },
+        "police": { "description": "Highway and endless events: the police.", "type": "boolean" },
         "traffic": { "description": "Highway events: traffic cars (-1: the track's own count).", "type": "integer", "minimum": -1, "maximum": 400 },
         "run": { "description": "Highway events: the run's id (\"\": the first).", "type": "string", "maxLength": 32 },
         "direction": { "description": "Highway events: the way players start (0: both ways, turn about).", "enum": [-1, 0, 1] },
@@ -141,7 +141,8 @@
         "spread": { "description": "Endless events: local players far apart on one game: bring the one behind up, or hold the leader back.", "enum": ["bring", "hold"] },
         "lanes": { "description": "Endless events: the road's lanes, one or two each way.", "enum": [2, 4] },
         "drive_side": { "description": "Endless events: the side traffic keeps to.", "enum": ["right", "left"] },
-        "garage_traffic": { "description": "Endless events: the server's garage cars drive in the traffic, shared with everyone.", "type": "boolean" }
+        "garage_traffic": { "description": "Endless events: the server's garage cars drive in the traffic, shared with everyone.", "type": "boolean" },
+        "speed_traps": { "description": "Endless events: speed cameras and parked patrols.", "type": "boolean" }
       }
     }
   }

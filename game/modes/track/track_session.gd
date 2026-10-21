@@ -150,6 +150,8 @@ var endless_world: EndlessWorld
 var endless_lanes: EndlessLanes
 var origin: FloatingOrigin
 var endless_traffic: Node
+## Its speed traps (event.speed_traps, D193), or null.
+var endless_traps: EndlessTraps
 ## Online: the traffic's owners, slots used up and where everyone is (D159).
 var endless_net: EndlessNet
 ## Where this game's players start on the road (m).
@@ -195,6 +197,7 @@ func _load_endless() -> void:
 	endless_lanes = EndlessLanes.make(event.lanes, event.drive_side)
 	endless_world = EndlessWorld.new()
 	endless_world.lanes = endless_lanes
+	endless_world.plan_traps = event.speed_traps
 	endless_world.gen = EndlessGen.make(event.road_seed, event.biome)
 	endless_world.origin = origin
 	endless_world.visual = not (dedicated or Game.dev.has("bot")) # bots draw nothing
@@ -303,7 +306,8 @@ func _ready_endless() -> void:
 	endless.lanes = endless_lanes
 	endless.start_m = endless_start_m
 	add_child(endless)
-	if event.endless_traffic != "off" and not dedicated:
+	# Traffic (and the traps' parked patrols, and the police's patrols, even with traffic off).
+	if (event.endless_traffic != "off" or event.speed_traps or event.police) and not dedicated:
 		var traffic := EndlessTraffic.new()
 		traffic.session = self
 		traffic.world = endless_world
@@ -316,6 +320,13 @@ func _ready_endless() -> void:
 		# Garage cars in the traffic (D191): this game's own; online, the host's (_online_garage).
 		if event.garage_traffic and not is_online():
 			traffic.set_garage(EndlessTraffic.garage_pool(PackageLoader.list_available(), event.road_seed))
+	if event.speed_traps and not dedicated:
+		endless_traps = EndlessTraps.new()
+		endless_traps.session = self
+		endless_traps.world = endless_world
+		endless_traps.lanes = endless_lanes
+		endless_traps.code = EndlessCode.encode(event.road_seed, event.biome)
+		add_child(endless_traps)
 	if not dedicated and not Game.dev.has("bot"):
 		var music := EndlessMusic.new()
 		music.seed_base = event.road_seed

@@ -1,5 +1,5 @@
 {
-  "schema": "noss.endless_biome/1", "id": "snow", "name": "Snowfields", "far_color": "#e6ebf0",
+  "schema": "noss.endless_biome/1", "id": "snow", "name": "Snowfields", "far_color": "#e6ebf0", "limit_kmh": 60,
   "scatter": [ { "prop": "tree_pine_snow", "per_ha": 28 }, { "prop": "rock", "per_ha": 6 }, { "prop": "chalet", "per_ha": 0.08, "near_road": 300 } ],
   "ambience": { "birds": 0.1 },
   "weather": { "snowy": true, "rain": 1.0, "fog": 1.4 }

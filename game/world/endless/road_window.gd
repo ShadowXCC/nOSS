@@ -32,7 +32,9 @@ var time_up := PackedFloat64Array()
 var time_down := PackedFloat64Array()
 ## Natural ground at the centre (m, world height).
 var ground := PackedFloat32Array()
-const EXTRA := ["biome", "biome2", "blend", "speed_up", "speed_down", "time_up", "time_down", "ground"]
+## The speed limit's tier (EndlessLimits), the same along a chunk.
+var limit_tier := PackedByteArray()
+const EXTRA := ["biome", "biome2", "blend", "speed_up", "speed_down", "time_up", "time_down", "ground", "limit_tier"]
 
 
 func _init() -> void:
@@ -106,6 +108,8 @@ static func chunk_track(chunk: Dictionary, ox: float, oz: float, index: int, per
 	t.time_up = chunk.time_up
 	t.time_down = chunk.time_down
 	t.ground = chunk.ground
+	t.limit_tier.resize(n)
+	t.limit_tier.fill(EndlessLimits.tier_of(chunk))
 	t.seg_first = PackedInt32Array([0])
 	t.length = SAMPLE_M * (n - 1)
 	t.first_index = int(chunk.first)
@@ -214,6 +218,15 @@ func project(pos: Vector3, hint := -1) -> Dictionary:
 	var r := _project_open(pos, hint)
 	r.distance = float(r.distance) + offset_m
 	return r
+
+
+## The speed limit's tier at absolute distance `d` (EndlessLimits), and the limit there (m/s).
+func tier_at(d: float) -> int:
+	return int(limit_tier[index_at(d)]) if not limit_tier.is_empty() else EndlessLimits.tier_for_kmh(EndlessLimits.DEFAULT_KMH)
+
+
+func limit_at(d: float) -> float:
+	return EndlessLimits.mps(tier_at(d))
 
 
 ## The sample index of an absolute distance, or -1 outside the window.

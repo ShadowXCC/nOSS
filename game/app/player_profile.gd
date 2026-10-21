@@ -66,6 +66,9 @@ const DEFAULTS := {
 	## The last highway event set up (RaceEvent.to_dict; HighwayMenu).
 	"last_highway": {},
 	"last_endless": {},
+	## The endless road's speed traps (D193): this player's best through each, by road code then
+	## trap: {code: {trap id: m/s}}.
+	"trap_bests": {},
 }
 ## Dicts whose known keys are merged one by one; other dicts are taken whole.
 const NESTED := ["input", "assists", "presets"]

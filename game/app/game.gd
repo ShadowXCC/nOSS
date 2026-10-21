@@ -46,7 +46,7 @@ extends Node
 ##   --drag-debug         online: print what the pass is doing on this game, twice a second
 ##   --endless[=<code>]   an endless drive right away (a road code like FOREST-0000001, or a new road;
 ##                        --traffic=off|light|normal|heavy, --lanes=2|4, --side=right|left,
-##                        --garage-traffic=on|off, --platform)
+##                        --garage-traffic=on|off, --traps, --police, --platform)
 ##   --kart-debug         online kart items: log every item more than 1 m off the server's
 ##   --time=<t>           any session's time of day (dawn, morning, noon, afternoon, dusk, night),
 ##                        --time-rate=<x> game minutes a minute, --weather=<w> (clear, cloudy, rain, storm,
@@ -232,6 +232,8 @@ func start_dev_event() -> void:
 		e.lanes = 4 if int(dev.get("lanes", "2")) >= 4 else 2
 		e.drive_side = "left" if dev.get("side") == "left" else "right"
 		e.garage_traffic = dev.get("garage-traffic", "on") != "off"
+		e.speed_traps = dev.has("traps")
+		e.police = dev.has("police")
 		start_event(e, String(dev.get("platform", "official.endless.cruiser")))
 		return
 	if dev.has("highway"):

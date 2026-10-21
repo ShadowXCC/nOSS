@@ -132,6 +132,10 @@ func _build(focus := "") -> void:
 			"Your cars in the traffic, shared with everyone"))
 		_add(rows, UiKit.spinner("Oncoming", [[true, "On"], [false, "Off"]], _endless.oncoming, func(v: bool) -> void: _endless.oncoming = v,
 			"Cars coming the other way"))
+		_add(rows, UiKit.spinner("Speed traps", [[false, "Off"], [true, "On"]], _endless.speed_traps, func(v: bool) -> void: _endless.speed_traps = v,
+			"Cameras and parked patrols"))
+		_add(rows, UiKit.spinner("Police", [[false, "Off"], [true, "On"]], _endless.police, func(v: bool) -> void: _endless.police = v,
+			"Speeding draws a chase"))
 	elif _kind == "battle":
 		_add(rows, UiKit.spinner("Rule", [["standing", "Last one standing"], ["hits", "Most hits"]], _battle_rule,
 			func(v: String) -> void:

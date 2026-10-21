@@ -74,6 +74,7 @@ func _physics_process(delta: float) -> void:
 	_check = CHECK_S
 	_keep_together()
 	_biome_here()
+	_show_limits()
 	if Game.dev.has("endless-debug") and not session.players.is_empty() and session.players[0].vehicle:
 		var p: SessionPlayer = session.players[0]
 		print("endless: d %.1f lat %.2f idx %d car %s road %s speed %.1f window %.0f..%.0f %s origin %.0f,%.0f" % [p.distance, p.lateral, p.track_index,
@@ -178,6 +179,15 @@ func _biome_here() -> void:
 		}
 
 
+## With speed traps or police about (D193), each player's HUD shows the limit where they are.
+func _show_limits() -> void:
+	var on := event.speed_traps or event.police
+	for p in session.players:
+		if p.hud and p.vehicle:
+			var tier := world.road.tier_at(p.distance)
+			p.hud.set_limit(EndlessLimits.mps(tier) if on else 0.0, EndlessLimits.text(tier))
+
+
 ## The minimal HUD (D157, D189): speed, gear and revs until the player hides them; laps and places
 ## never.
 func apply_hud(p: SessionPlayer) -> void:
@@ -197,6 +207,8 @@ func pause_items(p: SessionPlayer) -> Array:
 	items.append(["Show HUD" if hidden else "Hide HUD", func() -> void:
 		hud_hidden[p.slot.index] = not hidden
 		apply_hud(p), "Speed and gear on screen"])
+	if session.endless_traps:
+		items.append([session.endless_traps.tally_text(p), func() -> void: pass, "Speed traps passed this drive, and your top speed through one"])
 	var code := EndlessCode.encode(event.road_seed, event.biome)
 	items.append(["Road code: " + code, func() -> void:
 		DisplayServer.clipboard_set(code)

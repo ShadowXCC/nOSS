@@ -321,3 +321,47 @@ func test_a_garage_car_drives_as_itself() -> void:
 	assert_bool(seen).is_true()
 	s.queue_free()
 	await get_tree().process_frame
+
+
+## A speed trap's patrol (D193): parked on the verge on the players' way's side, in its own slot,
+## even with traffic off; near a player it's a physics car that stays put.
+func test_a_trap_patrol_parks_on_the_verge() -> void:
+	Players.clear()
+	var s := TrackSession.new()
+	s.platform_id = "official.endless.cruiser"
+	s.event = RaceEvent.endless(31337, 2)
+	s.event.endless_traffic = "off"
+	s.event.speed_traps = true
+	s.event.drive_side = "left"
+	add_child(s)
+	await _wait_for_car(s)
+	var t: EndlessTraffic = s.endless_traffic
+	assert_object(t).is_not_null()
+	var w := s.endless_world
+	# The first patrol trap on this road, and the player brought to just short of it.
+	var trap := {}
+	for k in range(EndlessTraps.FIRST_CHUNK, 2000):
+		trap = EndlessTraps.plan(31337, k, w.gen.chunk(k), s.endless_lanes)
+		if not trap.is_empty() and trap.kind == "patrol":
+			break
+	assert_bool(trap.is_empty()).is_false()
+	var p := s.players[0]
+	p.driver.set_physics_process(false)
+	s.endless.move_to(float(trap.at_m) - 60.0)
+	await _ticks(2)
+	assert_bool(w.traps.has(int(trap.id))).is_true()
+	var mine: Array = t.scheduled().filter(func(c: Dictionary) -> bool: return c.lane == EndlessTraffic.PARKED)
+	assert_bool(t.cars.has(Vector2i(EndlessTraffic.PARKED, int(trap.id))) or mine.any(func(c: Dictionary) -> bool: return c.key == Vector2i(EndlessTraffic.PARKED, int(trap.id)))).is_true()
+	assert_bool(t.scheduled().all(func(c: Dictionary) -> bool: return c.lane == EndlessTraffic.PARKED)).is_true() # no traffic
+	var at := t.pose(EndlessTraffic.PARKED, float(trap.at_m))
+	var lat := float(w.road.project(at.origin).lateral)
+	assert_float(lat).is_greater(w.road.half_width(float(trap.at_m), 1.0)) # driving on the left: the left verge
+	# Near the player it turns physical and stays parked.
+	await _ticks(240)
+	var key := Vector2i(EndlessTraffic.PARKED, int(trap.id))
+	assert_bool(t.cars.has(key)).is_true()
+	var car: EndlessTrafficCar = t.cars[key]
+	assert_float(car.vehicle.global_position.distance_to(at.origin)).is_less(2.0)
+	assert_float(absf(car.vehicle.speed())).is_less(0.5)
+	s.queue_free()
+	await get_tree().process_frame

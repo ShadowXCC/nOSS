@@ -50,6 +50,9 @@ const TYPES := {
 	"barn": { "name": "Barn", "category": "buildings", "collide": true, "scatter": true, "slope": 0.12, "spacing": 60.0, "clear_m": 10.0 },
 	"chalet": { "name": "Chalet", "category": "buildings", "collide": true, "scatter": true, "slope": 0.2, "spacing": 50.0, "clear_m": 8.0 },
 	"chevron": { "name": "Bend sign", "category": "trackside", "collide": true },
+	# The endless road's limit signs (D193): its number is a Label3D the road puts on (not placeable).
+	"speed_sign": { "name": "Speed limit sign", "category": "trackside", "collide": true, "hidden": true },
+	"speed_camera": { "name": "Speed camera", "category": "trackside", "collide": true, "hidden": true },
 }
 const CATEGORIES := ["nature", "buildings", "city", "trackside", "ground"]
 
@@ -61,7 +64,7 @@ static func list(category := "", scatter_only := false) -> Array:
 	var out := []
 	for id: String in TYPES:
 		var t: Dictionary = TYPES[id]
-		if (category == "" or t.category == category) and (not scatter_only or t.get("scatter", false)):
+		if (category == "" or t.category == category) and (not scatter_only or t.get("scatter", false)) and not t.get("hidden", false):
 			out.append([id, t.name])
 	return out
 
@@ -234,6 +237,20 @@ static func parts(id: String, size := Vector3.ZERO) -> Array:
 			var sign := MeshBatch.new()
 			sign.box(Vector3(0, 1.35, 0), Basis(), Vector3(0.05, 0.6, 0.8), Vector2(1, 1))
 			return [_part("", "metal", post, VehicleSim.SURFACE_CONCRETE), _part("Sign", "chevron", sign, -1)]
+		"speed_sign":
+			var post := MeshBatch.new()
+			post.box(Vector3(0, 1.05, 0), Basis(), Vector3(0.08, 2.1, 0.08))
+			return [_part("", "metal", post, VehicleSim.SURFACE_CONCRETE), _part("Ring", "sign_red", _disc(Vector3(0, 2.25, 0.05), 0.42), -1),
+				_part("Face", "sign_white", _disc(Vector3(0, 2.25, 0.06), 0.33), -1)]
+		"speed_camera":
+			var pole := MeshBatch.new()
+			pole.box(Vector3(0, 1.6, 0), Basis(), Vector3(0.14, 3.2, 0.14))
+			var head := MeshBatch.new()
+			head.box(Vector3(0, 3.35, 0.05), Basis(), Vector3(0.45, 0.55, 0.6))
+			var lens := MeshBatch.new()
+			lens.box(Vector3(0, 3.35, 0.36), Basis(), Vector3(0.2, 0.2, 0.04))
+			return [_part("", "metal", pole, VehicleSim.SURFACE_CONCRETE), _part("Head", "camera_yellow", head, VehicleSim.SURFACE_CONCRETE),
+				_part("Lens", "camera_lens", lens, -1)]
 		"layby":
 			var pad := MeshBatch.new()
 			pad.quad([Vector3(-s.x / 2, 0.02, -s.z / 2), Vector3(-s.x / 2, 0.02, s.z / 2), Vector3(s.x / 2, 0.02, s.z / 2), Vector3(s.x / 2, 0.02, -s.z / 2)],
@@ -375,10 +392,31 @@ static func material(key: String) -> Material:
 			return WorldMaterials.get_material("roof_dark", null, 0.7, 0.2, false, Vector2.ONE, Color(0.25, 0.22, 0.22))
 		"chevron":
 			return WorldMaterials.get_material("chevron", RetroTextures.checker(), 0.5, 0.3, false, Vector2(1, 2), Color(1.0, 0.82, 0.1))
+		"sign_red":
+			return WorldMaterials.get_material("sign_red", null, 0.5, 0.3, false, Vector2.ONE, Color(0.78, 0.08, 0.06))
+		"sign_white":
+			return WorldMaterials.get_material("sign_white", null, 0.5, 0.3, false, Vector2.ONE, Color(0.95, 0.95, 0.93))
+		"camera_yellow":
+			return WorldMaterials.get_material("camera_yellow", null, 0.5, 0.3, false, Vector2.ONE, Color(0.95, 0.75, 0.1))
+		"camera_lens":
+			return WorldMaterials.get_material("camera_lens", null, 0.1, 0.8, false, Vector2.ONE, Color(0.05, 0.05, 0.07))
 	return WorldMaterials.get_material("concrete_world", RetroTextures.concrete(), 0.8, 0.25, true, Vector2.ONE / 6.0)
 
 
 # --- shapes ---------------------------------------------------------------------------------
+
+
+## A flat disc facing +z at `at`, seen from both sides.
+static func _disc(at: Vector3, radius: float, sides := 20) -> MeshBatch:
+	var b := MeshBatch.new()
+	for i in sides:
+		var a0 := TAU * i / sides
+		var a1 := TAU * (i + 1) / sides
+		var p0 := at + Vector3(cos(a0), sin(a0), 0.0) * radius
+		var p1 := at + Vector3(cos(a1), sin(a1), 0.0) * radius
+		b.quad([at, p1, p0, at], [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
+		b.quad([at, p0, p1, at], [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
+	return b
 
 
 static func _part(suffix: String, material_key: String, batch: MeshBatch, surface: int) -> Dictionary:

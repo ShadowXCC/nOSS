@@ -11,6 +11,7 @@
     "id": { "enum": ["coast", "forest", "farmland", "canyon", "alpine", "snow", "autumn"] },
     "name": { "type": "string", "maxLength": 32 },
     "far_color": { "description": "The ground's colour far off.", "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "limit_kmh": { "description": "The speed limit on its road, km/h (EndlessLimits.TIERS; tight bends two tiers lower, D193).", "enum": [30, 40, 50, 60, 70, 80, 90, 100, 110, 120] },
     "scatter": {
       "description": "Props scattered over the ground: how many a hectare.",
       "type": "array",

@@ -489,6 +489,11 @@ func _add_batches(parent: Node3D, batches: Dictionary, built := {}) -> void:
 			"portal_floor":
 				surface = VehicleSim.SURFACE_ASPHALT
 				material = WorldMaterials.surface(VehicleSim.SURFACE_ASPHALT)
+			"prop":
+				# Prop parts by material ("prop:<material>:<surface>"): the endless road's signs.
+				node_name = "Props_" + parts[1].capitalize()
+				material = PropLibrary.material(parts[1])
+				surface = int(parts[2]) if parts.size() > 2 else -1
 		_add_piece(parent, node_name, b, material, surface, built.get(key, {}))
 
 

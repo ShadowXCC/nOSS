@@ -16,6 +16,8 @@ extends Node
 
 const UP := 0 # toward higher distances (the players' way)
 const DOWN := 1 # oncoming
+## A speed trap's patrol car, parked on the verge (D193): slot (PARKED, the trap's chunk).
+const PARKED := 4
 ## Mean seconds between cars in a lane, by setting; a share of slots left empty for uneven gaps.
 const HEADWAY_S := { "light": 48.0, "normal": 20.0, "heavy": 8.0 }
 const SPREAD := 0.8
@@ -57,6 +59,8 @@ var garage: Array[Dictionary] = []
 
 var _types: Array[Dictionary] = []
 var _weights := 0
+## The patrol type's index in _types (after the weighted ones: it never comes up in a draw).
+var _patrol_type := -1
 var _platforms := {}
 var _packages := {}
 var _views: Array[MultiMeshInstance3D] = []
@@ -76,6 +80,10 @@ func _ready() -> void:
 		if int(t.weight) > 0:
 			_types.append(t)
 			_weights += int(t.weight)
+	for t: Dictionary in TrafficTypes.list():
+		if t.get("patrol", false):
+			_patrol_type = _types.size()
+			_types.append(t)
 	for i in _types.size():
 		_platforms[i] = PlatformLoader.load_official(String(_types[i].platform))
 		var pkg := PackageLoader.load_package("res://content/traffic/" + String(_types[i].model), {}, {} if _draws else { "models": "none", "audio": false })
@@ -330,9 +338,16 @@ func scheduled() -> Array[Dictionary]:
 		return out
 	var t := now()
 	var h := headway()
+	# Speed traps' patrol cars, parked.
+	for k: int in world.traps:
+		var trap: Dictionary = world.traps[k]
+		var key := Vector2i(PARKED, k)
+		if trap.kind == "patrol" and _patrol_type >= 0 and not gone.has(key) and not cars.has(key) and road.index_of(float(trap.at_m)) >= 0:
+			out.append({ "key": key, "lane": PARKED, "s": float(trap.at_m), "speed": 0.0, "type": _patrol_type,
+				"color": TrafficTypes.colors(TrafficTypes.index_of(String(_types[_patrol_type].id)))[0], "garage": -1 })
 	for lane in lanes.ids():
 		var up := EndlessLanes.dir_of(lane) == UP
-		if not up and not oncoming:
+		if (not up and not oncoming) or density == "off":
 			continue
 		var f := lanes.speed_factor(lane)
 		var times := road.time_up if up else road.time_down
@@ -362,6 +377,8 @@ func scheduled() -> Array[Dictionary]:
 ## Where slot `key`'s car should be now (absolute m), or NAN outside the window.
 func slot_s(key: Vector2i) -> float:
 	var road := world.road
+	if key.x == PARKED:
+		return float(world.traps[key.y].at_m) if world.traps.has(key.y) else NAN
 	var sl := slot(key.x, key.y)
 	var up := EndlessLanes.dir_of(key.x) == UP
 	var times := road.time_up if up else road.time_down
@@ -375,6 +392,8 @@ func slot_s(key: Vector2i) -> float:
 
 ## The traffic speed of a lane at distance `s`.
 func lane_speed(lane: int, s: float) -> float:
+	if lane == PARKED:
+		return 0.0
 	var road := world.road
 	var i := road.index_at(s)
 	return (road.speed_up if EndlessLanes.dir_of(lane) == UP else road.speed_down)[i] * lanes.speed_factor(lane)
@@ -392,9 +411,13 @@ static func _index_at_time(times: PackedFloat64Array, t: float) -> int:
 	return lo
 
 
-## A car in `lane` at distance `s`, facing its way, on its lane's centre.
+## A car in `lane` at distance `s`, facing its way, on its lane's centre (a trap's patrol: on the
+## verge, facing the players' way).
 func pose(lane: int, s: float) -> Transform3D:
 	var road := world.road
+	if lane == PARKED:
+		var side := lanes.side_sign(UP)
+		return road.transform_at(s, side * (road.half_width(s, side) + EndlessTraps.PATROL_OUT_M))
 	var xf := road.transform_at(s, lanes.lateral(road, lane, s))
 	if EndlessLanes.dir_of(lane) == DOWN:
 		xf.basis = xf.basis.rotated(xf.basis.y, PI)

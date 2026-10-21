@@ -1,5 +1,5 @@
 {
-  "schema": "noss.endless_biome/1", "id": "autumn", "name": "Autumn", "far_color": "#9a7a3c",
+  "schema": "noss.endless_biome/1", "id": "autumn", "name": "Autumn", "far_color": "#9a7a3c", "limit_kmh": 80,
   "scatter": [ { "prop": "tree_autumn", "per_ha": 40 }, { "prop": "tree_round", "per_ha": 10 }, { "prop": "tree_pine", "per_ha": 8 }, { "prop": "bush", "per_ha": 20 } ],
   "ambience": { "birds": 0.6, "crickets": 0.4 },
   "weather": { "snowy": false, "rain": 1.0, "fog": 1.1 }
