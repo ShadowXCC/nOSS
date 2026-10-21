@@ -108,6 +108,16 @@ func move_over(_units: Array) -> void:
 	pass
 
 
+## Patrol cars in the traffic within `radius` of `pos`: [{xform, velocity, ...}]; one becomes a
+## chasing unit where it is (convert_patrol takes it out of the traffic).
+func patrols(_pos: Vector3, _radius: float) -> Array:
+	return []
+
+
+func convert_patrol(_patrol: Dictionary) -> void:
+	pass
+
+
 ## The speed traps: [{at_m, dir, ...}].
 func traps() -> Array:
 	return []

@@ -180,3 +180,80 @@ func test_units_and_their_roles_scale_with_heat() -> void:
 			assert_float(chasing[0].ai.side).is_equal(-chasing[1].ai.side)
 	s.queue_free()
 	await get_tree().process_frame
+
+
+## Patrol cars in the traffic (D192): about PATROL_SHARE of it; one near a player with heat becomes
+## a chasing unit where it was, and leaves the traffic.
+func test_a_patrol_in_the_traffic_turns_into_a_unit_where_it_is() -> void:
+	Players.clear()
+	var s := TrackSession.new()
+	s.track_path = FIXTURE
+	s.platform_id = "official.highway.super"
+	s.event = RaceEvent.highway("cruise", true, 200)
+	add_child(s)
+	for i in 900:
+		if not s.players.is_empty() and s.players[0].vehicle and s.police and s.police._placed:
+			break
+		await get_tree().physics_frame
+	var tm := s.traffic
+	var patrol_type := TrafficTypes.index_of("police")
+	var count := 0
+	for car in tm.sim.get_count():
+		count += 1 if tm._car_type[car] == patrol_type else 0
+	assert_int(count).is_between(1, 12)
+	var pc := s.police
+	var p := s.players[0]
+	p.driver.set_physics_process(false)
+	# Right behind a patrol.
+	var all: Array = pc.road.patrols(Vector3.ZERO, 1e6)
+	assert_int(all.size()).is_greater(0)
+	var patrol: Dictionary = all[0]
+	var xf: Transform3D = patrol.xform
+	p.vehicle.reset_to(Transform3D(xf.basis, xf.origin - xf.basis.z * 40.0), xf.basis.z * 20.0)
+	await _ticks(2)
+	pc.heat_of(p).points = 1
+	await _ticks(4)
+	var chasing := pc.units.filter(func(u: PoliceRacer) -> bool: return u.ai.target == p)
+	assert_int(chasing.size()).is_equal(1)
+	assert_int(pc.patrols_converted).is_equal(1)
+	assert_float(chasing[0].vehicle.global_position.distance_to(xf.origin)).is_less(25.0)
+	await _ticks(30)
+	assert_int(int(tm.sim.car(int(patrol.car)).flags) & TrafficManager.AWAY).is_not_equal(0)
+	s.queue_free()
+	await get_tree().process_frame
+
+
+## Traffic gets out of a siren's way (D192): its lane closes from it to some way ahead, moving with
+## it, and opens behind it; the closures go when the chase does.
+func test_traffic_moves_over_for_a_siren() -> void:
+	Players.clear()
+	var s := TrackSession.new()
+	s.track_path = FIXTURE
+	s.platform_id = "official.highway.super"
+	s.event = RaceEvent.highway("cruise", true, 150)
+	add_child(s)
+	for i in 900:
+		if not s.players.is_empty() and s.players[0].vehicle and s.police and s.police._placed:
+			break
+		await get_tree().physics_frame
+	var pc := s.police
+	var p := s.players[0]
+	pc.heat_of(p).points = 1
+	await _ticks(240)
+	var chasing := pc.units.filter(func(u: PoliceRacer) -> bool: return u.ai.target == p)
+	assert_int(chasing.size()).is_equal(1)
+	var u: PoliceRacer = chasing[0]
+	assert_bool(u.vehicle.siren).is_true()
+	var road := pc.road as HighwayPoliceRoad
+	assert_bool(road._moving.has(u)).is_true()
+	assert_int(int(road._moving[u])).is_greater(0)
+	# A soft closure: the unit itself (and players) drive on through it.
+	var at: Dictionary = s.traffic.sim.locate(u.vehicle.global_position + Vector3.UP * 0.5)
+	assert_bool(s.traffic.sim.closed_ahead(int(at.lane), float(at.s), 60.0)).is_false()
+	# The chase over: open again.
+	pc._end_chase(p)
+	pc.heat.erase(p)
+	await _ticks(4)
+	assert_bool(road._moving.is_empty()).is_true()
+	s.queue_free()
+	await get_tree().process_frame

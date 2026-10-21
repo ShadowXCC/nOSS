@@ -665,7 +665,7 @@ func _ready_highway() -> void:
 		traffic.name = "Traffic"
 		traffic.session = self
 		traffic.authority = not is_online() or Net.is_server()
-		if traffic.setup(track, seed, count):
+		if traffic.setup(track, seed, count, event.police):
 			add_child(traffic)
 		else:
 			traffic = null

@@ -110,6 +110,9 @@ struct Closure {
 	int16_t lane = -1;
 	int32_t from = 0;
 	int32_t to = 0;
+	// Soft (a siren coming through, D192): lane-sim cars move out of it, but the cars driven by
+	// the lane driver (players, police) don't stop for it.
+	bool soft = false;
 };
 
 struct State {

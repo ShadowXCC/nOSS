@@ -47,6 +47,7 @@ var busts := 0
 var evades := 0
 var roadblocks := 0
 var spikes_laid := 0
+var patrols_converted := 0
 ## The spike strips down now.
 var strips: Array[SpikeStrip] = []
 
@@ -112,6 +113,7 @@ func _physics_process(delta: float) -> void:
 	_dispatch()
 	_roadblocks()
 	_spikes()
+	road.move_over(units.filter(func(u: PoliceRacer) -> bool: return not u.waiting and u.vehicle and u.vehicle.siren))
 
 
 ## Every unit loaded: the trap ones parked at their traps, the rest in the pool. False until then.
@@ -143,6 +145,10 @@ func _watch(p: Racer, delta: float, look: bool) -> void:
 	var nearest := INF
 	var seen := false
 	var close := false
+	# Patrol cars in the traffic watch too (D192).
+	for pt: Dictionary in road.patrols(v.global_position, sight) if look else []:
+		if not seen and _sees_from((pt.xform as Transform3D).origin, p):
+			seen = true
 	for u in units:
 		if u.waiting or u.vehicle == null:
 			continue
@@ -201,9 +207,12 @@ func _watch(p: Racer, delta: float, look: bool) -> void:
 
 ## Line of sight from unit `u` to `p`'s car over everything solid but cars.
 func _sees(u: PoliceRacer, p: Racer) -> bool:
-	var space := u.vehicle.get_world_3d().direct_space_state
-	var q := PhysicsRayQueryParameters3D.create(u.vehicle.global_position + Vector3.UP * EYE_M, p.vehicle.global_position + Vector3.UP * EYE_M,
-		Vehicle.LAYER_WORLD)
+	return _sees_from(u.vehicle.global_position, p)
+
+
+func _sees_from(at: Vector3, p: Racer) -> bool:
+	var space := p.vehicle.get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(at + Vector3.UP * EYE_M, p.vehicle.global_position + Vector3.UP * EYE_M, Vehicle.LAYER_WORLD)
 	return space.intersect_ray(q).is_empty()
 
 
@@ -256,15 +265,25 @@ func _dispatch() -> void:
 			u.stand_down()
 
 
-## A unit to send after `p`: a trap unit near them first, else one from the pool.
+## A unit to send after `p`: a trap unit near them first, then a patrol car near them (a pool unit
+## takes its place in the traffic, as it was going), else one from the pool.
 func _free_unit(p: Racer) -> PoliceRacer:
+	var sight := float(PoliceTuning.at(heat_of(p).level()).sight_m)
 	for u in units:
-		if _trap_units.has(u) and u.ai and u.ai.target == null and u.vehicle and u.vehicle.global_position.distance_to(p.vehicle.global_position) < float(PoliceTuning.at(heat_of(p).level()).sight_m):
+		if _trap_units.has(u) and u.ai and u.ai.target == null and u.vehicle and u.vehicle.global_position.distance_to(p.vehicle.global_position) < sight:
 			return u
-	for u in units:
-		if not _trap_units.has(u) and u.waiting and u.vehicle:
-			return u
-	return null
+	var pool := _pool_unit()
+	if pool == null:
+		return null
+	var best: Dictionary = {}
+	for pt: Dictionary in road.patrols(p.vehicle.global_position, sight):
+		if best.is_empty() or (pt.xform as Transform3D).origin.distance_to(p.vehicle.global_position) < (best.xform as Transform3D).origin.distance_to(p.vehicle.global_position):
+			best = pt
+	if not best.is_empty():
+		road.convert_patrol(best)
+		pool.deploy(best.xform, best.velocity)
+		patrols_converted += 1
+	return pool
 
 
 func _chase(u: PoliceRacer, p: Racer) -> void:

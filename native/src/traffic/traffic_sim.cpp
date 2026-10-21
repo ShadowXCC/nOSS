@@ -426,7 +426,7 @@ bool TrafficSim::closed_ahead(int p_lane, int64_t p_s, int64_t p_ahead) const {
 	}
 	const Lane &l = graph.lanes[size_t(p_lane)];
 	for (const Closure &cl : st.closures) {
-		if (cl.lane != p_lane) {
+		if (cl.lane != p_lane || cl.soft) {
 			continue;
 		}
 		int64_t from = cl.from - p_s;
@@ -864,7 +864,7 @@ void TrafficSim::_apply_events(uint32_t p_tick) {
 
 void TrafficSim::_apply(const Event &p_e) {
 	if (p_e.kind == EV_CLOSE) {
-		st.closures.push_back({ p_e.car, p_e.lane, p_e.s, p_e.s + p_e.v });
+		st.closures.push_back({ p_e.car, p_e.lane, p_e.s, p_e.s + p_e.v, (p_e.bits & 1) != 0 });
 		return;
 	}
 	if (p_e.kind == EV_OPEN) {
@@ -935,6 +935,9 @@ uint64_t TrafficSim::checksum() const {
 		f.i64(cl.lane);
 		f.i64(cl.from);
 		f.i64(cl.to);
+		if (cl.soft) {
+			f.i64(1);
+		}
 	}
 	return f.h;
 }
@@ -1011,6 +1014,7 @@ std::vector<uint8_t> TrafficSim::full_state() const {
 		put(out, cl.lane);
 		put(out, cl.from);
 		put(out, cl.to);
+		put(out, uint8_t(cl.soft ? 1 : 0));
 	}
 	return out;
 }
@@ -1039,9 +1043,11 @@ bool TrafficSim::load_full_state(const std::vector<uint8_t> &p_bytes) {
 	}
 	s.closures.resize(closures);
 	for (Closure &cl : s.closures) {
-		if (!get(p_bytes, at, cl.id) || !get(p_bytes, at, cl.lane) || !get(p_bytes, at, cl.from) || !get(p_bytes, at, cl.to)) {
+		uint8_t soft = 0;
+		if (!get(p_bytes, at, cl.id) || !get(p_bytes, at, cl.lane) || !get(p_bytes, at, cl.from) || !get(p_bytes, at, cl.to) || !get(p_bytes, at, soft)) {
 			return false;
 		}
+		cl.soft = soft != 0;
 	}
 	if (at != p_bytes.size()) {
 		return false;

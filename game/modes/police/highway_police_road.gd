@@ -6,6 +6,13 @@ extends PoliceRoad
 ## watches every player's car. The road is a loop: distances wrap.
 
 var layout: HighwayLayout
+## Each siren's lane closed ahead of it (D192): PoliceRacer -> closure id; renewed every MOVE_S.
+var _moving := {}
+var _move_left := 0.0
+
+## Traffic moves over out of a siren's lane this far ahead of it, renewed this often.
+const MOVE_AHEAD_M := 150.0
+const MOVE_S := 1.0
 
 
 static func make(s: TrackSession) -> HighwayPoliceRoad:
@@ -129,6 +136,41 @@ func open_lanes(closures: Array) -> void:
 
 func block_lanes(_way: int) -> Array:
 	return [1, 2]
+
+
+func patrols(pos: Vector3, radius: float) -> Array:
+	return session.traffic.patrols_near(pos, radius) if session.traffic else []
+
+
+func convert_patrol(patrol: Dictionary) -> void:
+	session.traffic.retire(int(patrol.car))
+
+
+## The lane sim moves its cars out of each siren's lane, from the unit to MOVE_AHEAD_M ahead (a
+## closure that goes along with it); physics cars slow as one comes up (TrafficCar).
+func move_over(units: Array) -> void:
+	var tm := session.traffic
+	if tm == null or not tm.authority:
+		return
+	_move_left -= 1.0 / Engine.physics_ticks_per_second
+	for u: PoliceRacer in _moving.keys():
+		if not u in units:
+			tm.open_lanes(int(_moving[u]))
+			_moving.erase(u)
+	if _move_left > 0.0:
+		return
+	_move_left = MOVE_S
+	for u: PoliceRacer in units:
+		if _moving.has(u):
+			tm.open_lanes(int(_moving[u]))
+			_moving.erase(u)
+		var proj := layout.main.project(u.vehicle.global_position)
+		var dir := HighwayLayout.carriageway_at(float(proj.lateral))
+		if u.vehicle.global_basis.z.dot(layout.main.transform_at(float(proj.distance)).basis.z) * dir < 0.0:
+			continue # against its carriageway: nothing to clear
+		var id := tm.close_lane(dir, layout.lane_at(float(proj.lateral)), float(proj.distance), MOVE_AHEAD_M, true)
+		if id >= 0:
+			_moving[u] = id
 
 
 func traps() -> Array:

@@ -108,13 +108,15 @@ var _hand := {} # car -> seconds another player has been clearly nearer
 var _hand_at := {} # car -> session time of its last handover
 var _clock := 0.0
 var _closure_id := 0
+var _sirens: Array = []
+var _sirens_frame := -1
 
 
-## The lane sim for `track`'s highway: `count` cars from `seed`. False (and why, pushed) if it
-## can't be set up.
-func setup(track: TrackData, seed: int, count: int) -> bool:
+## The lane sim for `track`'s highway: `count` cars from `seed`, patrol cars among them with
+## `patrols` (D192). False (and why, pushed) if it can't be set up.
+func setup(track: TrackData, seed: int, count: int, patrols := false) -> bool:
 	_types = TrafficTypes.list()
-	sim = TrafficTypes.sim(track, seed, count)
+	sim = TrafficTypes.sim(track, seed, count, patrols)
 	if sim == null:
 		return false
 	var palettes := []
@@ -202,9 +204,11 @@ func now() -> float:
 	return session.net.now() if session.net else _clock
 
 
-## Lane-sim car `car` drawn now: {xform (its ground reference, centred), velocity}, or {}.
-func shadow_pose(car: int) -> Dictionary:
-	var pose := sim.poses(alpha())
+## Lane-sim car `car` drawn now (or in `pose`, the lane sim's poses): {xform (its ground
+## reference, centred), velocity}, or {}.
+func shadow_pose(car: int, pose := PackedFloat32Array()) -> Dictionary:
+	if pose.is_empty():
+		pose = sim.poses(alpha())
 	if car * 8 + 7 >= pose.size():
 		return {}
 	var t: Dictionary = _types[_car_type[car]]
@@ -321,20 +325,73 @@ func near_rows(v: Vehicle, radius: float) -> Array:
 
 ## Closes direction `dir`'s lane `lane` for `length` m from main-road distance `from_d` on, the
 ## way it drives (a run's traffic break, a roadblock): traffic stops before it or moves over.
+## `soft` (a siren coming through, D192): traffic moves over, but players and police drive on.
 ## Returns the closure's id (for open_lanes), or -1.
-func close_lane(dir: int, lane: int, from_d: float, length: float) -> int:
+func close_lane(dir: int, lane: int, from_d: float, length: float, soft := false) -> int:
 	var h := session.track.highway
 	var at := sim.locate(session.track.transform_at(from_d, h.lane_lateral(dir, lane)).origin + Vector3.UP * 0.5)
 	if int(at.get("lane", -1)) < 0:
 		return -1
 	_closure_id += 1
-	_event(CLOSE, _closure_id, int(at.lane), float(at.s), length)
+	_event(CLOSE, _closure_id, int(at.lane), float(at.s), length, 0, 1 if soft else 0)
 	return _closure_id
 
 
 ## Opens closure `id` again.
 func open_lanes(id: int) -> void:
 	_event(OPEN, id)
+
+
+## Units with their sirens on (D192): [Vehicle], once a physics tick.
+func sirens() -> Array:
+	var frame := Engine.get_physics_frames()
+	if frame != _sirens_frame:
+		_sirens_frame = frame
+		_sirens = []
+		for r in session.racers:
+			if r is PoliceRacer and not r.waiting and r.vehicle and is_instance_valid(r.vehicle) and r.vehicle.siren:
+				_sirens.append(r.vehicle)
+	return _sirens
+
+
+## Whether a unit with its siren on is coming up behind `v`, its way, within `reach` m.
+func siren_behind(v: Vehicle, reach: float) -> bool:
+	var fwd := v.global_basis.z
+	for s: Vehicle in sirens():
+		var rel := v.global_position - s.global_position
+		if rel.dot(fwd) > 0.0 and rel.length() < reach and s.global_basis.z.dot(fwd) > 0.5:
+			return true
+	return false
+
+
+## Patrol cars within `radius` of `pos` (D192): [{car, xform, velocity}], physics cars where they
+## are, lane cars where the lane sim has them.
+func patrols_near(pos: Vector3, radius: float) -> Array:
+	var out := []
+	var poses := sim.poses(0.0)
+	for car in sim.get_count():
+		if not _types[_car_type[car]].get("patrol", false) or int(poses[car * 8 + 5]) & ACTIVE == 0:
+			continue
+		var at: Dictionary
+		if cars.has(car):
+			var v := (cars[car] as TrafficCar).vehicle
+			at = { "xform": v.ground_reference(), "velocity": v.remote_velocity if v.remote else v.linear_velocity }
+		else:
+			at = shadow_pose(car, poses)
+		if not at.is_empty() and (at.xform as Transform3D).origin.distance_to(pos) < radius:
+			at.car = car
+			out.append(at)
+	return out
+
+
+## Takes car `car` off the road (a patrol that becomes a chasing unit where it was): towed away,
+## back in a while as any car is.
+func retire(car: int) -> void:
+	if owners.has(car):
+		if not _asked.has(car):
+			_ask(car, TOW)
+	else:
+		_event(TOW, car, -1, 0.0, 0.0)
 
 
 ## Where physics cars matter: every player's car (police come in M7's police step). Their car
@@ -587,9 +644,9 @@ func _set_owner(car: int, owner: int) -> void:
 
 
 ## Schedules an event (offline now; online `lead` ticks on, and sent to every game).
-func _event(kind: int, car: int, lane := -1, s := 0.0, v := 0.0, owner := 0) -> void:
+func _event(kind: int, car: int, lane := -1, s := 0.0, v := 0.0, owner := 0, bits := 0) -> void:
 	_seq = (_seq + 1) % 65536
-	var record := NossTraffic.pack_event(kind, _seq, sim.get_tick() + lead, car, owner, lane, s, v, -1, 0, 0, 0)
+	var record := NossTraffic.pack_event(kind, _seq, sim.get_tick() + lead, car, owner, lane, s, v, -1, 0, bits, 0)
 	receive(record)
 	if net:
 		net.send_events(record)

@@ -6,6 +6,10 @@ extends Node
 ## Online, the game that owns it drives it and sends its states; everywhere else it's a `remote`
 ## proxy (kinematic) shown where those states put it, or where its shadow is until they come.
 
+## A unit with its siren on this close behind: it slows to this share of its lane's pace (the lane
+## sim moves it over, D192).
+const SIREN_M := 120.0
+const SIREN_PACE := 0.45
 ## Stopped this long while its shadow drives on, or on its side: a wreck.
 const STUCK_S := 4.0
 const STUCK_EVERY := 8
@@ -103,6 +107,9 @@ func _physics_process(delta: float) -> void:
 	blocked = out[8] > 0.5
 	vehicle.indicators = 1 if out[9] > 0.5 else (2 if out[9] < -0.5 else 0)
 	gap = out[10]
+	if manager.siren_behind(vehicle, SIREN_M) and vehicle.speed() > float(manager.sim.car(car).get("v", 0.0)) * SIREN_PACE:
+		vehicle.throttle = 0.0
+		vehicle.brake = maxf(vehicle.brake, 0.25)
 	# Stuck: not moving while the lane sim's version of it is (a queue or a merge isn't stuck).
 	# Looked at every STUCK_EVERY ticks.
 	if (Engine.get_physics_frames() + car) % STUCK_EVERY == 0:

@@ -4,6 +4,8 @@ extends RefCounted
 ## common it is, its size and how it drives in the lane sim. Read once.
 
 const PATH := "res://data/traffic/types.json"
+## With police about, this share of the traffic is patrol cars (D192).
+const PATROL_SHARE := 0.02
 
 static var _types: Array[Dictionary] = []
 
@@ -18,6 +20,21 @@ static func list() -> Array[Dictionary]:
 		else:
 			push_error("Invalid traffic types: " + PATH)
 	return _types
+
+
+## The types with the patrol type weighted to about PATROL_SHARE of the cars.
+static func with_patrols() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var others := 0
+	for t in list():
+		if not t.get("patrol", false):
+			others += int(t.weight)
+	for t in list():
+		var c := t.duplicate()
+		if t.get("patrol", false):
+			c.weight = maxi(roundi(others * PATROL_SHARE / (1.0 - PATROL_SHARE)), 1)
+		out.append(c)
+	return out
 
 
 static func index_of(id: String) -> int:
@@ -36,13 +53,13 @@ static func colors(type: int) -> Array[Color]:
 	return out
 
 
-## A lane sim for `track`'s highway: its lanes, these types, `count` cars from `seed`.
-## Null (with the reason pushed) if it can't be set up.
-static func sim(track: TrackData, seed: int, count: int) -> NossTraffic:
+## A lane sim for `track`'s highway: its lanes, these types, `count` cars from `seed`; with
+## `patrols`, police cars among them (D192). Null (with the reason pushed) if it can't be set up.
+static func sim(track: TrackData, seed: int, count: int, patrols := false) -> NossTraffic:
 	if track == null or track.highway == null:
 		return null
 	var traffic := NossTraffic.new()
-	var err := traffic.setup(track.highway.lane_graph(), list(), seed, count, float(track.highway.settings.traffic.exit_share))
+	var err := traffic.setup(track.highway.lane_graph(), with_patrols() if patrols else list(), seed, count, float(track.highway.settings.traffic.exit_share))
 	if err:
 		push_error("Traffic: " + err)
 		return null

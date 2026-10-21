@@ -201,7 +201,7 @@ DriveOut drive_on(const TrafficSim &p_sim, int p_lane, int p_from, double p_u, L
 		}
 	}
 	for (const Closure &cl : p_sim.st.closures) {
-		if (cl.lane != lane) {
+		if (cl.lane != lane || cl.soft) {
 			continue;
 		}
 		double d = double(cl.from) / 1000.0 - s - p_in.half_len;
