@@ -66,7 +66,8 @@ func show_rules(rules: ScoreAttack, speed_kmh: float, now: float) -> void:
 	if rules.paused:
 		_speed.text = "Wrong way: no score"
 	elif step <= 0.0:
-		_speed.text = "Under 120 km/h: no score"
+		var least: float = ScoreAttack.SPEED_STEPS.back()[0]
+		_speed.text = "Under %s %s: no score" % [Settings.speed_text(least / 3.6), Settings.speed_unit()]
 	else:
 		_speed.text = "Speed ×%s" % _num(step)
 

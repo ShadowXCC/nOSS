@@ -67,6 +67,18 @@ func test_the_wrong_way_scores_nothing() -> void:
 	assert_int(r.near_miss(0.3, 80.0, 200.0, 1.0)).is_equal(400)
 
 
+func test_the_slow_line_is_in_the_players_units() -> void:
+	var units := Settings.units
+	var panel: ScorePanel = auto_free(ScorePanel.new())
+	Settings.units = "metric"
+	panel.show_rules(ScoreAttack.new(), 100.0, 0.0)
+	assert_str(panel._speed.text).is_equal("Under 120 km/h: no score")
+	Settings.units = "imperial"
+	panel.show_rules(ScoreAttack.new(), 100.0, 0.0)
+	assert_str(panel._speed.text).is_equal("Under 75 mph: no score")
+	Settings.units = units
+
+
 func test_passes_are_found_when_the_car_is_behind() -> void:
 	var m := NearMiss.new()
 	# A car 0.6 m to the right, passed at 10 m/s: alongside from 6 m ahead to 6 m behind.
