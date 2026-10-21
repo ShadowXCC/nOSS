@@ -158,3 +158,25 @@ func test_units_close_in_and_heat_four_brings_a_roadblock() -> void:
 	assert_float(u.vehicle.global_position.distance_to(p.vehicle.global_position)).is_less(gap - 100.0)
 	s.queue_free()
 	await get_tree().process_frame
+
+
+## More heat, more units, and each with its part to play (D192): rams and PITs from either side,
+## a blocker, the rest tailing.
+func test_units_and_their_roles_scale_with_heat() -> void:
+	var s := await _session()
+	var pc := s.police
+	var p := s.players[0]
+	var h := pc.heat_of(p)
+	for level in [1, 3, 5]:
+		h.points = Heat.LEVELS[level - 1]
+		await _ticks(4)
+		var chasing := pc.units.filter(func(u: PoliceRacer) -> bool: return u.ai.target == p)
+		assert_int(chasing.size()).is_equal(PoliceTuning.at(level).units)
+		var roles := chasing.map(func(u: PoliceRacer) -> String: return u.ai.role)
+		assert_array(roles).is_equal(PoliceTuning.at(level).roles)
+		for u: PoliceRacer in chasing:
+			assert_int(u.ai.level).is_equal(level)
+		if chasing.size() > 1:
+			assert_float(chasing[0].ai.side).is_equal(-chasing[1].ai.side)
+	s.queue_free()
+	await get_tree().process_frame

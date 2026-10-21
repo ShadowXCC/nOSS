@@ -226,15 +226,18 @@ func _dispatch() -> void:
 			continue
 		var level := h.level()
 		var chasing := units.filter(func(u: PoliceRacer) -> bool: return u.ai and u.ai.target == p)
-		for u: PoliceRacer in chasing:
-			u.ai.level = level
-		var after := chasing.size()
-		while after < int(PoliceTuning.at(level).units):
+		while chasing.size() < int(PoliceTuning.at(level).units):
 			var u := _free_unit(p)
 			if u == null:
 				break
 			_chase(u, p)
-			after += 1
+			chasing.append(u)
+		# Roles in the pool's order, sides alternating: the first two come at it from either side.
+		for i in chasing.size():
+			var u: PoliceRacer = chasing[i]
+			u.ai.level = level
+			u.ai.role = PoliceTuning.role(level, i)
+			u.ai.side = 1.0 if i % 2 == 0 else -1.0
 	for u in units:
 		if u.waiting or u.vehicle == null or _trap_units.has(u) or (u.ai and u.ai.target):
 			continue
@@ -261,7 +264,6 @@ func _chase(u: PoliceRacer, p: Racer) -> void:
 		u.deploy(at, at.basis.z * (maxf(absf(p.vehicle.speed()), 25.0) + SEND_FASTER_MPS))
 	u.ai.level = heat_of(p).level()
 	u.ai.target = p
-	u.ai.side = 1.0 if units.find(u) % 2 == 0 else -1.0
 	u.ai.mode = PoliceAI.Mode.PURSUE
 
 

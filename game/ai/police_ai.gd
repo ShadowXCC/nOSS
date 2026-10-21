@@ -10,7 +10,8 @@ enum Mode { PARKED, PURSUE, RETURN }
 
 var mode := Mode.PARKED
 var target: Racer
-## Which side it comes at the target from (+1 left, -1 right), and the heat level it drives to.
+## Which side it comes at the target from (+1 left, -1 right), the heat level it drives to and its
+## role up close (PoliceTuning).
 var side := 1.0:
 	set(v):
 		side = v
@@ -19,6 +20,10 @@ var level := 1:
 	set(v):
 		level = v
 		brain.level = v
+var role := "ram":
+	set(v):
+		role = v
+		brain.role = v
 var brain := PoliceBrain.new()
 
 
@@ -66,7 +71,7 @@ func _pursue(delta: float) -> void:
 		speed_factor = clampf((absf(tv.speed()) + float(t.closing_mps)) / maxf(limit, 1.0), 1.0, float(t.max_factor))
 		super._physics_process(delta)
 		return
-	var c := brain.controls(v, tv)
+	var c := brain.controls(v, tv, delta)
 	v.steer = c.steer
 	v.throttle = c.throttle
 	v.brake = c.brake
