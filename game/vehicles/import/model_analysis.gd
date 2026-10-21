@@ -90,6 +90,16 @@ static func analyze(scene: Node3D) -> Result:
 			if not hidden.has(m.node):
 				shown.append_array(m.points)
 		var axes := _axes(wheels, shown)
+		if not axes.is_empty() and r.wheel_source == "parts":
+			var off := _off_ground(wheels, axes.up)
+			if not off.is_empty():
+				r.notes.append("Ignored %d wheel%s off the ground" % [off.size(), "s" if off.size() > 1 else ""])
+				var kept := []
+				for i in wheels.size():
+					if i not in off:
+						kept.append(wheels[i])
+				wheels = kept
+				axes = _axes(wheels, shown)
 		if axes.is_empty():
 			wheels = []
 			r.wheel_source = ""
@@ -378,6 +388,37 @@ static func _pick_wheels(parts: Array[Part]) -> Array:
 		var top: float = best[0].radius
 		best = best.filter(func(o: Dictionary) -> bool: return o.radius > 0.75 * top).slice(0, 6)
 	return best
+
+
+## Indices of the wheels ({center, radius}) that don't stand on the ground: a bottom more than
+## the wheel's radius above the lowest wheel's, along `up` (a turret ring, a roof light). None
+## if fewer than three would be left.
+static func _off_ground(wheels: Array, up: Vector3) -> Array[int]:
+	var bottoms := PackedFloat64Array()
+	for w: Dictionary in wheels:
+		bottoms.append((w.center as Vector3).dot(up) - float(w.radius))
+	var low := INF
+	for b in bottoms:
+		low = minf(low, b)
+	var off: Array[int] = []
+	for i in wheels.size():
+		if bottoms[i] - low > float(wheels[i].radius):
+			off.append(i)
+	if wheels.size() - off.size() < 3:
+		off.clear()
+	return off
+
+
+## Ids of a fit's wheels that don't stand on the ground (older imports could take a round part on
+## the roof for a wheel).
+static func floating_wheels(fit: Dictionary) -> PackedStringArray:
+	var r: Array = fit.model_transform.rotation_deg
+	var up := Basis.from_euler(Vector3(deg_to_rad(r[0]), deg_to_rad(r[1]), deg_to_rad(r[2]))).transposed() * Vector3.UP
+	var wheels := (fit.wheels as Array).map(func(w: Dictionary) -> Dictionary: return { "center": _vec(w.center), "radius": float(w.radius) })
+	var out := PackedStringArray()
+	for i in _off_ground(wheels, up):
+		out.append(String(fit.wheels[i].id))
+	return out
 
 
 ## left / up / forward from the wheels: the axle direction, the wheelbase direction, and up

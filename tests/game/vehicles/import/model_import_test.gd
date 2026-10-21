@@ -89,6 +89,27 @@ func test_sideways_z_up_model_is_turned() -> void:
 	scene.free()
 
 
+## A round part up on the roof (a turret ring) has the wheels' axle direction and size, but it
+## isn't a wheel: the four on the ground are kept.
+func test_a_round_part_on_the_roof_is_not_a_wheel() -> void:
+	var scene := _merged_car(Basis.IDENTITY, true)
+	var a := ModelAnalysis.analyze(scene)
+	assert_array(a.fit.wheels.map(func(w: Dictionary) -> String: return w.id)).contains_exactly_in_any_order(["LF", "RF", "LR", "RR"])
+	assert_array(a.notes).contains(["Ignored 1 wheel off the ground"])
+	assert_float(a.fit.ground_y).is_equal_approx(0.0, 0.01)
+	scene.free()
+
+
+## An older import's fit with a wheel on the roof: found in the model's own frame (here +Z up).
+func test_floating_wheels_are_found_in_a_fit() -> void:
+	var scene := _merged_car(Basis(Vector3(0, 1, 0), Vector3(0, 0, 1), Vector3(1, 0, 0)))
+	var fit := ModelAnalysis.analyze(scene).fit
+	scene.free()
+	assert_array(ModelAnalysis.floating_wheels(fit)).is_empty()
+	fit.wheels.append({ "id": "C2", "axle": 2, "side": "C", "center": [0.0, 0.0, 2.0], "radius": 0.32, "width": 0.2 })
+	assert_array(ModelAnalysis.floating_wheels(fit)).contains_exactly(["C2"])
+
+
 func test_no_wheels_gives_stock_anchors() -> void:
 	var scene := Node3D.new()
 	var blob := MeshInstance3D.new()
@@ -136,8 +157,9 @@ static func _analyze(path: String) -> ModelAnalysis.Result:
 	return a
 
 
-## A car body box with four cylinder wheels, all in one mesh, turned by `basis`.
-static func _merged_car(basis: Basis) -> Node3D:
+## A car body box with four cylinder wheels, all in one mesh, turned by `basis`; with
+## `roof_disc`, a wheel-sized disc stands on the roof too.
+static func _merged_car(basis: Basis, roof_disc := false) -> Node3D:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var body := BoxMesh.new()
@@ -153,6 +175,8 @@ static func _merged_car(basis: Basis) -> Node3D:
 		for z in [1.3, -1.3]:
 			var xf := Transform3D(basis * Basis(Vector3.BACK, PI / 2.0), basis * Vector3(x, 0.32, z))
 			st.append_from(wheel, 0, xf)
+	if roof_disc:
+		st.append_from(wheel, 0, Transform3D(basis * Basis(Vector3.BACK, PI / 2.0), basis * Vector3(0.2, 1.9, 0.0)))
 	var mi := MeshInstance3D.new()
 	mi.name = "car"
 	mi.mesh = st.commit()
