@@ -147,6 +147,57 @@ func test_ground_comes_from_the_wheels() -> void:
 	assert_array(r.notes).contains(["Ground moved 5 cm"])
 
 
+## The ground is where the driven wheels touch down, as the sim works it out: a wheel up on
+## the roof (an import took a turret ring for one) doesn't lift it.
+func test_ground_is_where_the_driven_wheels_touch() -> void:
+	var r := Fitting.fit(_platform, _with_roof_wheel(_fit(2.6, 1.6)))
+	assert_float(r.ground_y).is_equal_approx(0.0, 0.0001)
+	var contact := 0.0
+	for pw: Dictionary in r.physics_wheels:
+		contact += pw.center.y - pw.radius
+	assert_float(r.ground_y).is_equal_approx(contact / r.physics_wheels.size(), 0.0001)
+
+
+## A car with a wheel on its roof stays on the ground when it's placed (it used to be thrown up:
+## its real wheels started under the road).
+func test_a_car_with_a_roof_wheel_stays_down() -> void:
+	var world := Node3D.new()
+	add_child(world)
+	var floor := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(40.0, 1.0, 40.0)
+	shape.shape = box
+	shape.position = Vector3(0.0, -0.5, 0.0)
+	floor.add_child(shape)
+	world.add_child(floor)
+	var pkg := PackageLoader.load_package("res://content/cars/noss_box")
+	pkg.fit = _with_roof_wheel(pkg.fit.duplicate(true))
+	var v := Vehicle.create(PlatformLoader.load_official("official.track.gt"), pkg)
+	world.add_child(v)
+	v.reset_to(Transform3D.IDENTITY)
+	var start := v.global_position.y
+	var highest := start
+	var rising := 0.0
+	for i in 60:
+		await get_tree().physics_frame
+		highest = maxf(highest, v.global_position.y)
+		rising = maxf(rising, v.linear_velocity.y)
+	world.queue_free()
+	pkg.free_scenes()
+	assert_float(highest - start).override_failure_message("rose %.2f m" % (highest - start)).is_less(0.1)
+	assert_float(rising).is_less(0.5)
+
+
+## `data` with its rear wheels on axle 3 and a wheel on the roof on axle 2.
+static func _with_roof_wheel(data: Dictionary) -> Dictionary:
+	for w: Dictionary in data.wheels:
+		if int(w.axle) == 2:
+			w.axle = 3
+	data.wheels.append({ "id": "C2", "axle": 2, "side": "C", "center": [0.0, 2.0, 0.0], "radius": 0.3, "width": 0.2 })
+	return data
+
+
 func _fit(wheelbase: float, track: float) -> Dictionary:
 	var wheels := []
 	for id in ["LF", "RF", "LR", "RR"]:

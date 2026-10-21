@@ -134,10 +134,7 @@ static func analyze(scene: Node3D) -> Result:
 	# Scale from the wheelbase; snap to a common unit if one fits.
 	var wheelbase := _wheelbase(fit_wheels, to_vehicle)
 	var scale := _scale(wheelbase)
-	var ground := 0.0
-	for w: Dictionary in fit_wheels:
-		ground += (to_vehicle * _vec(w.center)).y - float(w.radius)
-	ground /= maxf(fit_wheels.size(), 1)
+	var ground := ground_of(fit_wheels, to_vehicle)
 
 	var euler := to_vehicle.get_euler()
 	r.fit = {
@@ -601,6 +598,21 @@ static func _wheelbase(fit_wheels: Array, to_vehicle: Basis) -> float:
 			rear += z
 			nr += 1
 	return front / maxi(nf, 1) - rear / maxi(nr, 1) if nf and nr else 0.0
+
+
+## Where the wheels touch down, in the vehicle frame (model units): their mean bottom on the
+## first and last axles, the ones a platform drives (Fitting).
+static func ground_of(fit_wheels: Array, to_vehicle: Basis) -> float:
+	var last := 1
+	for w: Dictionary in fit_wheels:
+		last = maxi(last, int(w.axle))
+	var ground := 0.0
+	var n := 0
+	for w: Dictionary in fit_wheels:
+		if int(w.axle) == 1 or int(w.axle) == last:
+			ground += (to_vehicle * _vec(w.center)).y - float(w.radius)
+			n += 1
+	return ground / maxi(n, 1)
 
 
 ## Model units to metres: a common unit if the wheelbase then looks like a car's, otherwise

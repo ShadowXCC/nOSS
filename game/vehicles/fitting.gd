@@ -88,17 +88,13 @@ static func fit(platform: Dictionary, fit_data: Dictionary, mode := "normal") ->
 			"radius": float(w.radius) * r.scale * float(mt.scale), "width": float(w.width) * r.scale * float(mt.scale),
 			"shift": side_shift,
 		})
-	# The ground is where the wheels touch down (the sim uses the same plane). A fit.json
-	# ground line that disagrees is overruled.
+	# The ground is where the driven wheels touch down (_physics_wheels; the sim uses the same
+	# plane). A fit.json ground line that disagrees is overruled.
 	var declared := r.scale * (base * Vector3(0, float(fit_data.ground_y), 0)).y
 	r.ground_y = declared
-	if not r.wheels.is_empty():
-		var contact := 0.0
-		for w in r.wheels:
-			contact += w.center.y - w.radius
-		r.ground_y = contact / r.wheels.size()
-		if absf(r.ground_y - declared) > 0.01:
-			r.notes.append("Ground moved %d cm" % roundi(absf(r.ground_y - declared) * 100.0))
+	_physics_wheels(r, platform)
+	if absf(r.ground_y - declared) > 0.01:
+		r.notes.append("Ground moved %d cm" % roundi(absf(r.ground_y - declared) * 100.0))
 
 	# 4. Envelope: model bounds, clamped to the platform's box (§4.3).
 	var env: Dictionary = fit_data.envelope
@@ -125,7 +121,6 @@ static func fit(platform: Dictionary, fit_data: Dictionary, mode := "normal") ->
 	r.bumper = r.model_xform * _vec(cams.bumper) if cams.get("bumper") is Array \
 			else Vector3(center.x, r.ground_y + 0.42, r.model_bounds.end.z + 0.03)
 
-	_physics_wheels(r, platform)
 	if mode == "strict":
 		# The reference box, where the model is.
 		var ref_size := Vector3(_mid(limits.width), _mid(limits.height), _mid(limits.length))
@@ -134,8 +129,9 @@ static func fit(platform: Dictionary, fit_data: Dictionary, mode := "normal") ->
 
 
 ## One physics wheel per wheel of the platform's layout. Platform axle 1 is the model's first
-## axle and the platform's last its last; model axles in between are visual only. In strict
-## mode the wheels sit at the reference wheelbase, track and radius.
+## axle and the platform's last its last; model axles in between are visual only. The ground
+## is where these wheels touch down, as the sim works it out. In strict mode the wheels sit at
+## the reference wheelbase, track and radius.
 static func _physics_wheels(r: Result, platform: Dictionary) -> void:
 	var layout: Array = platform.layout.axles
 	var geo: Dictionary = platform.geometry
@@ -175,6 +171,16 @@ static func _physics_wheels(r: Result, platform: Dictionary) -> void:
 		if d.half < 0.0:
 			var paired := axle_data.filter(func(o: Dictionary) -> bool: return o.half >= 0.0)
 			d.half = paired[0].half if not paired.is_empty() else float(geo.track_m.ref) / 2.0
+	# The mean of the physics wheels' hub height less radius (a false wheel up on the roof, or a
+	# raised middle axle, can't lift it).
+	var contact := 0.0
+	var count := 0
+	for a in layout.size():
+		var n := int(layout[a].wheels)
+		contact += (axle_data[a].y - axle_data[a].radius) * n
+		count += n
+	if count > 0:
+		r.ground_y = contact / count
 
 	var strict := r.mode == "strict"
 	var z_mid: float = (axle_data[0].z + axle_data[-1].z) / 2.0
