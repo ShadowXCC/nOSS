@@ -3,7 +3,7 @@ extends RefCounted
 ## A player's heat with the police (docs/GAMEMODES.md §3, D115), on its own so it can be tested
 ## exactly. Only what a unit sees counts (within SEEN_M, in line of sight): speeding by
 ## SPEEDING_KMH or more (+1 every SPEEDING_EVERY_S), a near miss (+1), a close miss (+2), a crash
-## (+3), ramming the police (+5). Levels start at LEVELS points (1 to 5); a level brings that many
+## (+3), ramming the police (+5); a speed camera's snap speeding (+2, the endless road, D194). Levels start at LEVELS points (1 to 5); a level brings that many
 ## units, and roadblocks from ROADBLOCK_LEVEL. Unseen, with every unit over EVADE_M away, for
 ## EVADE_S + EVADE_PER_LEVEL_S × level: evaded, and the heat is gone. Slower than BUST_KMH with a
 ## unit touching or within BUST_M for BUST_S: busted (the heat goes too; the session takes the
@@ -12,7 +12,7 @@ extends RefCounted
 const SEEN_M := 250.0
 const SPEEDING_KMH := 20.0
 const SPEEDING_EVERY_S := 2.0
-const POINTS := { "speeding": 1, "near": 1, "close": 2, "crash": 3, "ram": 5 }
+const POINTS := { "speeding": 1, "near": 1, "close": 2, "crash": 3, "ram": 5, "camera": 2 }
 const LEVELS := [1, 6, 15, 30, 50]
 const ROADBLOCK_LEVEL := 4
 const EVADE_M := 300.0

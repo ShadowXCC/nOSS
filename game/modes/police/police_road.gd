@@ -39,6 +39,11 @@ func delta_m(a: float, b: float) -> float:
 	return a - b
 
 
+## The most chasing units out at once (the trap units come on top).
+func chase_units() -> int:
+	return PoliceControl.CHASE_UNITS
+
+
 ## Lanes each way.
 func lanes() -> int:
 	return 1
@@ -145,3 +150,8 @@ func make_driver(_u: PoliceRacer) -> Node:
 ## `p` was busted (at `clock`, the police's seconds): what that means here.
 func after_bust(_p: Racer, _clock: float) -> void:
 	pass
+
+
+## What a bust says to the player (after after_bust).
+func bust_text(_p: Racer) -> String:
+	return "Busted"

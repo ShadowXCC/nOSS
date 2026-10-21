@@ -33,6 +33,16 @@ const MAX_PHYSICS := 12
 const DRAWN := 64
 ## Traffic cars' network ids run from FIRST_TRAFFIC_ID through this many.
 const TRAFFIC_IDS := 59000
+## With police about (D194): this share of the cars of the car types are patrol cars (a last draw
+## of the slot's own, so the rest of the schedule stays as it was).
+const PATROL_SHARE := 0.02
+## A siren (D194): cars this far ahead of it, its way, move over to the shoulder at this share of
+## their pace; drawn ones just move over.
+const SIREN_M := 150.0
+const SIREN_PACE := 0.45
+## A roadblock's closure (D194): scheduled cars in a closed lane this far before it aren't there
+## (they'd drive through it); physics cars stop before it.
+const CLOSED_BEFORE_M := 150.0
 ## Garage traffic (D191): of the slots of a type some garage car fits, this share are garage cars;
 ## at most this many garage cars (online, the host shares fewer).
 const GARAGE_SHARE := 0.8
@@ -53,6 +63,12 @@ var net: EndlessNet
 var cars := {}
 ## Slots left behind by cars knocked out of them (never drawn again).
 var gone := {}
+## Patrol cars among the traffic (event.police, D194).
+var patrols := false
+## Lanes closed by roadblocks (D194): id -> {lanes: [lane ids], from (m), to (m)}.
+var closures := {}
+## Units with their sirens on (Vehicles), set each tick by the police (EndlessPoliceRoad).
+var sirens: Array = []
 ## The garage cars in the traffic (D191), the same on every game online: [{car (a path offline, a
 ## hash online), path (where it is here; "" until its files are), fits: [type index], paint}].
 var garage: Array[Dictionary] = []
@@ -68,6 +84,8 @@ var _time := 0.0
 var _slots := {} # slot key -> {present, tau, type, color, garage, paint_roll} (made from the seed, kept a while)
 var _draws := true
 var _garage_fits := {} # type index -> [garage index]
+var _closure_id := 0
+var _car_types := {} # type index -> true: the ones on the car platform (patrols come among them)
 var _garage_pkgs := {} # garage index -> VehiclePackage, once loaded
 var _garage_views := {} # garage index -> MultiMeshInstance3D (its own far mesh)
 
@@ -84,6 +102,9 @@ func _ready() -> void:
 		if t.get("patrol", false):
 			_patrol_type = _types.size()
 			_types.append(t)
+	for i in _types.size():
+		if String(_types[i].platform) == "official.traffic.car":
+			_car_types[i] = true
 	for i in _types.size():
 		_platforms[i] = PlatformLoader.load_official(String(_types[i].platform))
 		var pkg := PackageLoader.load_package("res://content/traffic/" + String(_types[i].model), {}, {} if _draws else { "models": "none", "audio": false })
@@ -179,6 +200,12 @@ func slot(lane: int, j: int) -> Dictionary:
 		if not fits.is_empty() and rng.randf() < GARAGE_SHARE:
 			sl.garage = fits[rng.randi_range(0, fits.size() - 1)]
 			sl.paint_roll = rng.randi()
+		# Patrols: the last draw.
+		if patrols and _car_types.has(type) and rng.randf() < PATROL_SHARE:
+			sl.type = _patrol_type
+			sl.garage = -1
+			sl.patrol = true
+			sl.color = TrafficTypes.colors(TrafficTypes.index_of(String(_types[_patrol_type].id)))[0]
 		_slots[key] = sl
 	return _slots[key]
 
@@ -369,6 +396,8 @@ func scheduled() -> Array[Dictionary]:
 			var i := _index_at_time(times, tq)
 			var u := (tq - times[i]) / maxf(times[i + 1] - times[i], 1e-6)
 			var s := road.offset_m + (i + u) * TrackData.SAMPLE_M
+			if not closures.is_empty() and is_finite(closed_ahead(lane, s, CLOSED_BEFORE_M)):
+				continue
 			var speed := lerpf((road.speed_up if up else road.speed_down)[i], (road.speed_up if up else road.speed_down)[i + 1], u) * f
 			out.append({ "key": key, "lane": lane, "s": s, "speed": speed, "type": sl.type, "color": _color_of(sl), "garage": sl.garage })
 	return out
@@ -409,6 +438,89 @@ static func _index_at_time(times: PackedFloat64Array, t: float) -> int:
 		else:
 			hi = mid - 1
 	return lo
+
+
+## Closes lanes `lane_ids` from `from_m` to `to_m` (a roadblock, D194): returns its id for open().
+func close(lane_ids: Array, from_m: float, to_m: float) -> int:
+	_closure_id += 1
+	closures[_closure_id] = { "lanes": lane_ids.duplicate(), "from": minf(from_m, to_m), "to": maxf(from_m, to_m) }
+	return _closure_id
+
+
+func open(id: int) -> void:
+	closures.erase(id)
+
+
+## How far a car in `lane` at `s` has to go, its way, to a closure (within `reach`), or INF.
+func closed_ahead(lane: int, s: float, reach: float) -> float:
+	var up := EndlessLanes.dir_of(lane) == UP
+	var best := INF
+	for id: int in closures:
+		var c: Dictionary = closures[id]
+		if not lane in c.lanes:
+			continue
+		var gap: float = (float(c.from) - s) if up else (s - float(c.to))
+		if gap > -(float(c.to) - float(c.from)) and gap < reach:
+			best = minf(best, maxf(gap, 0.0))
+	return best
+
+
+## Whether a unit with its siren on is behind `v`, its way, within SIREN_M.
+func siren_behind(v: Vehicle) -> bool:
+	var fwd := v.global_basis.z
+	for sv: Vehicle in sirens:
+		if not is_instance_valid(sv) or sv == v:
+			continue
+		var rel := v.global_position - sv.global_position
+		if rel.dot(fwd) > 0.0 and rel.length() < SIREN_M and sv.global_basis.z.dot(fwd) > 0.5:
+			return true
+	return false
+
+
+## Patrol cars (the traps' parked ones and those in the traffic) within `radius` of `pos`:
+## [{key, xform, velocity}].
+func patrols_near(pos: Vector3, radius: float) -> Array:
+	var out := []
+	for key: Vector2i in cars:
+		var car: EndlessTrafficCar = cars[key]
+		if int(slot_type(key)) == _patrol_type and car.vehicle and is_instance_valid(car.vehicle) and not car.wrecked \
+				and car.vehicle.global_position.distance_to(pos) < radius:
+			out.append({ "key": key, "xform": car.vehicle.ground_reference(), "velocity": car.vehicle.linear_velocity })
+	for c: Dictionary in scheduled():
+		if int(c.type) != _patrol_type:
+			continue
+		var xf := pose(c.lane, c.s)
+		if xf.origin.distance_to(pos) < radius:
+			out.append({ "key": c.key, "xform": xf, "velocity": xf.basis.z * float(c.speed) })
+	return out
+
+
+## A drawn car with a siren coming up behind it: over on the shoulder.
+func _moved_over(c: Dictionary, xf: Transform3D) -> Transform3D:
+	for sv: Vehicle in sirens:
+		if not is_instance_valid(sv):
+			continue
+		var rel := xf.origin - sv.global_position
+		if rel.dot(xf.basis.z) > 0.0 and rel.length() < SIREN_M and sv.global_basis.z.dot(xf.basis.z) > 0.5:
+			var road := world.road
+			var to := lanes.shoulder(road, EndlessLanes.dir_of(c.lane), c.s) - lanes.lateral(road, c.lane, c.s)
+			return Transform3D(xf.basis, xf.origin + road.lefts[road.index_at(c.s)] * to)
+	return xf
+
+
+## A slot's car's type (a trap's parked patrol is a patrol).
+func slot_type(key: Vector2i) -> int:
+	return _patrol_type if key.x == PARKED else int(slot(key.x, key.y).type)
+
+
+## Takes patrol car `key` out of the traffic (it becomes a chasing unit where it was, D194): its
+## slot is used up.
+func retire(key: Vector2i) -> void:
+	gone[key] = true
+	if cars.has(key):
+		_remove(key)
+	if net:
+		net.gone(slot_of(key))
 
 
 ## A car in `lane` at distance `s`, facing its way, on its lane's centre (a trap's patrol: on the
@@ -659,6 +771,8 @@ func _draw() -> void:
 			seen = seen or cam.distance_to(xf.origin) < VIEW_M
 		if not seen:
 			continue
+		if not sirens.is_empty() and c.lane != PARKED:
+			xf = _moved_over(c, xf)
 		var view: MultiMeshInstance3D = _garage_views.get(int(c.garage), _views[t])
 		var mm := view.multimesh
 		var n: int = counts.get(view, 0)

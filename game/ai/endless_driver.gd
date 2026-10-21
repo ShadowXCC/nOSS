@@ -88,30 +88,7 @@ func controls(delta: float) -> Dictionary:
 		return { "steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": 1.0 }
 	var speed := maxf(v.speed(), 0.0)
 	var d := racer.distance
-	# Steering: pure pursuit on the lane's centre.
-	var look := clampf(LOOK_BASE_M + LOOK_TIME_S * speed, LOOK_MIN_M, LOOK_MAX_M)
-	var aim := minf(d + look, road.end_m())
-	var target := road.transform_at(aim, lanes.lateral(road, lane, aim)).origin
-	var local := v.global_transform.basis.inverse() * (target - v.global_position)
-	var alpha := atan2(local.x, maxf(local.z, 0.5))
-	var p := v.platform
-	var wheelbase := float(p.geometry.wheelbase_m.ref)
-	var max_steer := deg_to_rad(float(p.steering.max_road_angle_deg))
-	var steer := clampf(-atan(2.0 * wheelbase * sin(alpha) / look) / max_steer, -1.0, 1.0) # the input: + = right
-	# Speed: cruising, slowing in time for what's ahead.
-	var grip := _grip(v)
 	var want := _cruise(road, d) * speed_factor
-	var reach := minf(speed * speed / (2.0 * BRAKING * grip) + 40.0, road.end_m() - d)
-	var s := 4.0
-	while s < reach:
-		var k := absf(road.curvature[road.index_at(d + s)])
-		if k > 1e-4:
-			var bend := sqrt(LATERAL * grip / k)
-			want = minf(want, sqrt(bend * bend + 2.0 * BRAKING * grip * s))
-		s += 4.0
-	var here := absf(road.curvature[road.index_at(d)])
-	if here > 1e-4:
-		want = minf(want, sqrt(LATERAL * grip / here))
 	if racer.pace_limit > 0.0:
 		want = minf(want, racer.pace_limit)
 	# Passing: back once well past what it passed; in the oncoming lane, back at once if anything
@@ -133,11 +110,45 @@ func controls(delta: float) -> Dictionary:
 		if gap < safe:
 			want = minf(want, maxf(lead_v * gap / safe, 0.0))
 		_passing_rules(delta, road, d, speed, want, ahead)
+	var c := follow(lane, want)
+	if Game.dev.has("endless-debug") and Engine.get_physics_frames() % 60 == 0:
+		print("driver: want %.1f speed %.1f steer %.2f ahead %s" % [want, speed, c.steer, ahead])
+	return c
+
+
+## Driving lane `in_lane` (`offset` m to its left) at up to `want` m/s, slowing in time for the
+## bends and crests ahead (by the grip there is): {steer, throttle, brake, handbrake}.
+func follow(in_lane: int, want: float, offset := 0.0) -> Dictionary:
+	var v := racer.vehicle
+	var road := racer.track as RoadWindow
+	var speed := maxf(v.speed(), 0.0)
+	var d := racer.distance
+	# Steering: pure pursuit on the lane's centre.
+	var look := clampf(LOOK_BASE_M + LOOK_TIME_S * speed, LOOK_MIN_M, LOOK_MAX_M)
+	var aim := minf(d + look, road.end_m())
+	var target := road.transform_at(aim, lanes.lateral(road, in_lane, aim) + offset).origin
+	var local := v.global_transform.basis.inverse() * (target - v.global_position)
+	var alpha := atan2(local.x, maxf(local.z, 0.5))
+	var p := v.platform
+	var wheelbase := float(p.geometry.wheelbase_m.ref)
+	var max_steer := deg_to_rad(float(p.steering.max_road_angle_deg))
+	var steer := clampf(-atan(2.0 * wheelbase * sin(alpha) / look) / max_steer, -1.0, 1.0) # the input: + = right
+	# Speed: slowing in time for what's ahead.
+	var grip := _grip(v)
+	var reach := minf(speed * speed / (2.0 * BRAKING * grip) + 40.0, road.end_m() - d)
+	var s := 4.0
+	while s < reach:
+		var k := absf(road.curvature[road.index_at(d + s)])
+		if k > 1e-4:
+			var bend := sqrt(LATERAL * grip / k)
+			want = minf(want, sqrt(bend * bend + 2.0 * BRAKING * grip * s))
+		s += 4.0
+	var here := absf(road.curvature[road.index_at(d)])
+	if here > 1e-4:
+		want = minf(want, sqrt(LATERAL * grip / here))
 	var err := want - speed
 	var throttle := clampf(0.2 + err * 0.3, 0.0, 1.0) if err > 0.0 else 0.0
 	var brake := clampf(-err * 0.22, 0.0, 1.0) if err < -0.8 else 0.0
-	if Game.dev.has("endless-debug") and Engine.get_physics_frames() % 60 == 0:
-		print("driver: want %.1f speed %.1f steer %.2f alpha %.2f local %s look %.1f ahead %s" % [want, speed, steer, alpha, local, look, ahead])
 	return { "steer": steer, "throttle": throttle, "brake": brake, "handbrake": 0.0 }
 
 

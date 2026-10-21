@@ -70,7 +70,7 @@ func _ready() -> void:
 
 func _make_units() -> void:
 	var traps: Array = road.traps()
-	for i in traps.size() + CHASE_UNITS:
+	for i in traps.size() + road.chase_units():
 		var u := PoliceRacer.new()
 		u.configure(i)
 		u.police_class = police_class
@@ -219,7 +219,16 @@ func _sees_from(at: Vector3, p: Racer) -> bool:
 ## Busted: what the road does about it, and the units head off.
 func _busted(p: Racer) -> void:
 	road.after_bust(p, _clock)
+	for n: Dictionary in heat_of(p).news:
+		if n.kind == "busted":
+			n.text = road.bust_text(p)
 	_end_chase(p)
+
+
+## A speed camera snapped `r` going `speed` (m/s, EndlessTraps): seen speeding if they were.
+func camera_snap(r: Racer, trap: Dictionary, speed: float) -> void:
+	if trap.kind == "camera" and (speed - road.limit_mps(r)) * 3.6 >= Heat.SPEEDING_KMH:
+		heat_of(r).seen("camera")
 
 
 func _end_chase(p: Racer) -> void:

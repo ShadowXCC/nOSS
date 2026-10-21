@@ -327,6 +327,18 @@ func _ready_endless() -> void:
 		endless_traps.lanes = endless_lanes
 		endless_traps.code = EndlessCode.encode(event.road_seed, event.biome)
 		add_child(endless_traps)
+	# The police (D194): each game runs them for its own players.
+	if event.police and not dedicated:
+		endless_traffic.patrols = true
+		police = PoliceControl.new()
+		police.name = "PoliceControl"
+		police.session = self
+		police.road = EndlessPoliceRoad.make(self)
+		police.police_class = String(GameModes.list().filter(func(m: Dictionary) -> bool: return m.id == "highway").map(
+			func(m: Dictionary) -> String: return String(m.get("police_class", "official.highway.interceptor"))).front())
+		add_child(police)
+		if endless_traps:
+			endless_traps.snapped.connect(police.camera_snap)
 	if not dedicated and not Game.dev.has("bot"):
 		var music := EndlessMusic.new()
 		music.seed_base = event.road_seed

@@ -1,6 +1,6 @@
 extends Node
 ## Endless check (M9 acceptance 1): an autodriven endless drive, headless at a fixed 120 Hz.
-##   tools/endless_check.sh [--minutes=10] [--code=FOREST-0000007 | --seed=n --biome=1] [--traffic=light] [--lanes=2|4] [--side=right|left] [--garage-traffic=off] [--traps] [--police]
+##   tools/endless_check.sh [--minutes=10] [--code=FOREST-0000007 | --seed=n --biome=1] [--traffic=light] [--lanes=2|4] [--side=right|left] [--garage-traffic=off] [--traps] [--police] [--speed-factor=1.4]
 ##                          [--players=1] [--no-rebase] [--weather=..] [--time=..] [--verbose] [--windowed]
 ## Fails on:
 ## - precision: each tick the car's centre of mass must move by its velocity × dt, give or take the
@@ -87,6 +87,11 @@ func _tick() -> void:
 	if not started:
 		if not session.players.is_empty() and session.players.all(func(p: SessionPlayer) -> bool: return p.vehicle != null):
 			started = true
+			# Faster than the traffic's pace (police checks): the autodrive's speed factor.
+			if opts.has("speed-factor"):
+				for sp in session.players:
+					if sp.driver is EndlessDriver:
+						(sp.driver as EndlessDriver).speed_factor = clampf(float(opts["speed-factor"]), 0.5, 2.0)
 			if opts.has("no-rebase"):
 				session.origin.enabled = false
 			_start_d = session.players[0].distance
@@ -204,6 +209,12 @@ func _report() -> void:
 		print("  video memory: %.1f MB at %d min, %.1f MB at the end (%.1f MB/h after %d min); textures %.1f -> %.1f MB" % [mem_first[5], int(WARMUP_MIN),
 			mem_last[5], video_slope, int(WARMUP_MIN), mem_first[6], mem_last[6]])
 	print("  world: %s, built %s; resets %d, stuck %d, not built under the car %d" % [w.counts(), w.stats, _resets, _stuck_events, _not_built])
+	if session.police:
+		var pc := session.police
+		print("  police: %d pursuits, %d busts, %d evaded, %d roadblocks, %d spike strips, %d patrols joined" % [pc.pursuits, pc.busts, pc.evades, pc.roadblocks,
+			pc.spikes_laid, pc.patrols_converted])
+	if session.endless_traps:
+		print("  traps: " + session.endless_traps.tally_text(session.players[0]))
 	print("Time %.0f s of driving: frames %.2f ms on average, p99 %.2f ms" % [time, mean, p99])
 	var fails := PackedStringArray()
 	if last > PRECISION_M:

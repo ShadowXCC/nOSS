@@ -71,6 +71,7 @@ func stand_down() -> void:
 ## Into play at `xform`, going `velocity`.
 func deploy(xform: Transform3D, velocity: Vector3) -> void:
 	waiting = false
+	track_index = -1 # found afresh where it is
 	if vehicle:
 		vehicle.freeze = false
 		vehicle.visible = true

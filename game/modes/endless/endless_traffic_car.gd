@@ -104,9 +104,18 @@ func _physics_process(delta: float) -> void:
 		if gap < safe:
 			var lead := maxf((other.remote_velocity if other.remote else other.linear_velocity).dot(fwd), 0.0)
 			want = minf(want, lead * maxf(gap, 0.0) / safe)
+	# A roadblock ahead in its lane: stop before it.
+	var closed := traffic.closed_ahead(key.x, s, 80.0) if not traffic.closures.is_empty() else INF
+	if is_finite(closed):
+		want = minf(want, sqrt(maxf(closed - 6.0, 0.0) * 2.0 * 2.5))
+	# A siren behind: over to the shoulder, slowly (D194).
+	var yielding := traffic.siren_behind(vehicle)
+	if yielding:
+		want = minf(want, lane_v * EndlessTraffic.SIREN_PACE)
 	# Steering: pure pursuit on its lane, its own way.
 	var at := clampf(s + dir * LOOK_M, road.offset_m, road.end_m())
-	var aim := road.transform_at(at, traffic.lanes.lateral(road, key.x, at)).origin
+	var lat := traffic.lanes.shoulder(road, EndlessLanes.dir_of(key.x), at) if yielding else traffic.lanes.lateral(road, key.x, at)
+	var aim := road.transform_at(at, lat).origin
 	var local := vehicle.global_basis.inverse() * (aim - vehicle.global_position)
 	var alpha := atan2(local.x, maxf(local.z, 0.5))
 	vehicle.steer = clampf(-atan(2.0 * _wheelbase * sin(alpha) / LOOK_M) / _max_steer, -1.0, 1.0)
