@@ -1,6 +1,6 @@
 class_name EndlessGround
 extends TerrainData
-## The endless world's natural ground for the road builder (pillars down to it, rails along it),
+## The endless world's natural ground for the road builder (pillars down to it; rails on the bed),
 ## from the generator, in the scene of an origin at world (ox, oz). Safe on a worker.
 
 var gen: NossRoadGen
@@ -22,3 +22,8 @@ func height_at(x: float, z: float) -> float:
 
 func base_at(x: float, z: float) -> float:
 	return height_at(x, z)
+
+
+## The road's bed: a tile's ground is cut and filled level with the road out past its edge.
+func edge_ground(p: Vector3) -> float:
+	return p.y - TerrainData.BED_DEPTH_M

@@ -140,11 +140,10 @@ func test_no_ground_above_a_bridge_deck() -> void:
 
 ## The ground's own height under a scene point (NAN off the tiles).
 func _ground_at(w: EndlessWorld, p: Vector3) -> float:
-	for key: Vector2i in w._tiles:
-		var t: TerrainData = w._tiles[key].terrain
-		if t.area().has_point(Vector2(p.x, p.z)):
-			return t.height_at(p.x, p.z)
-	return NAN
+	var key := Vector2i(floori((p.x + w.origin.x) / EndlessWorld.TILE), floori((p.z + w.origin.z) / EndlessWorld.TILE))
+	if not w._tiles.has(key):
+		return NAN
+	return (w._tiles[key].terrain as TerrainData).height_at(p.x, p.z)
 
 
 ## Props stand on the ground as the road left it: in a cutting, not up where the hill was (D187).
@@ -176,3 +175,62 @@ func test_props_stand_on_the_carved_ground() -> void:
 					moved += 1
 	assert_int(points).is_greater(100)
 	assert_int(moved).is_greater(0) # some stand where the road cut or filled the ground
+
+
+## The far ground faces up (as the near ground does), and sinks under the near ground wherever
+## that's built, cuttings and all (D187).
+func test_far_ground_faces_up_and_stays_under_the_near_ground() -> void:
+	var parts := _world(true)
+	var w: EndlessWorld = parts[0]
+	w.gen = EndlessGen.make(77, EndlessGen.biome_ids().find("alpine"))
+	w.prime(_d)
+	w._update_ground()
+	_settle(w)
+	var t0 := Time.get_ticks_usec()
+	var lowered := w._far_dirty.size()
+	while not w._far_dirty.is_empty():
+		w._lower_far(Time.get_ticks_usec())
+	print("far ground: %d tiles lowered in %.1f ms" % [lowered, (Time.get_ticks_usec() - t0) / 1000.0])
+	assert_int(w._far.size()).is_greater(0)
+	# Which way round a triangle faces up: the near ground's grid.
+	var grid: PackedInt32Array = TerrainView._grid(1).surface_get_arrays(0)[Mesh.ARRAY_INDEX]
+	var gv: PackedVector3Array = TerrainView._grid(1).surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var up := signf((gv[grid[1]] - gv[grid[0]]).cross(gv[grid[2]] - gv[grid[0]]).y)
+	var under := 0
+	for key: Vector2i in w._far:
+		var mi: MeshInstance3D = w._far[key]
+		var arrays := mi.mesh.surface_get_arrays(0)
+		var v: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var index: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		for t in range(0, index.size(), 3):
+			assert_float(signf((v[index[t + 1]] - v[index[t]]).cross(v[index[t + 2]] - v[index[t]]).y)).is_equal(up)
+		# Every far vertex over built ground is below the lowest of it round about.
+		for p in v:
+			var at := p + mi.position
+			for dx: float in [-8.0, 8.0]:
+				for dz: float in [-8.0, 8.0]:
+					var near := _ground_at(w, at + Vector3(dx, 0.0, dz))
+					if not is_nan(near):
+						assert_float(at.y).is_less_equal(near - EndlessWorld.FAR_DROP_M + 0.01)
+						under += 1
+	assert_int(under).is_greater(100)
+
+
+## Guard rails stand on the road's bed where the ground falls away (a fill), not down on the
+## ground the fill was made over.
+func test_rails_stand_on_the_fill() -> void:
+	var gen := EndlessGen.make(2024, 1)
+	var checked := 0
+	for k in 60:
+		var c := RoadWindow.chunk_track(gen.chunk(k), 0.0, 0.0, k)
+		var ground := EndlessGround.of(gen, 0.0, 0.0)
+		var rb := RoadBuilder.new(c, ground)
+		for i in c.samples.size():
+			if c.lifted[i] or c.barrier_l[i] == TrackFormat.BARRIER_NONE:
+				continue
+			var p := rb._barrier_point(i, 1.0)
+			var edge := c.samples[i] + c.lefts[i] * c.half_l[i]
+			if ground.height_at(edge.x, edge.z) < edge.y - 2.0:
+				assert_float(p.y).is_equal_approx(edge.y - TerrainData.BED_DEPTH_M, 0.01)
+				checked += 1
+	assert_int(checked).is_greater(10)

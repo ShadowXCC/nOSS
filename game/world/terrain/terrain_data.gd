@@ -116,6 +116,11 @@ func base_at(x: float, z: float) -> float:
 	return field.base_at(x, z)
 
 
+## The ground at the road's edge `p` (where a barrier stands).
+func edge_ground(p: Vector3) -> float:
+	return height_at(p.x, p.z)
+
+
 func ground_height() -> Callable:
 	return field.base_at
 

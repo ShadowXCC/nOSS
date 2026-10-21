@@ -20,9 +20,11 @@ const SOLID_PROPS_M := 40.0
 const FAR_TILE := 1024
 const FAR_CELLS := 32
 const FAR_RADIUS_M := 4600.0
-## Far ground shows only beyond this from a camera, a little below the near ground.
+## Far ground shows only beyond this from a camera, a little below the near ground: each of its
+## vertices under the lowest near ground in the BLOCK_M squares round it.
 const FAR_FROM_M := 380.0
 const FAR_DROP_M := 2.5
+const BLOCK_M := FAR_TILE / FAR_CELLS
 ## The road's bed blends back to the ground over this (gentler than a track's: deep cuttings).
 const FALLOFF_M := 20.0
 ## Main-thread time for adding finished pieces each frame (ms).
@@ -59,6 +61,8 @@ var _queued := {} # "road:k" / tile Vector2i / "far:..." -> true
 var _scan := 0.0
 var _sea: MeshInstance3D
 var _far_material: ShaderMaterial
+var _block_low := {} # Vector2i (world block) -> the near ground's lowest there
+var _far_dirty := {} # Vector2i (world far tile) -> true: to be lowered under the near ground
 var _scatter := {} # biome index -> [{prop, per_ha, near_road}]
 
 
@@ -134,7 +138,9 @@ func _process(delta: float) -> void:
 	if _scan <= 0.0:
 		_scan = SCAN_S
 		_update_ground()
+	var t0 := Time.get_ticks_usec()
 	_collect()
+	_lower_far(t0)
 	if _sea:
 		_follow_sea()
 
@@ -248,6 +254,7 @@ func _update_ground() -> void:
 			(_tiles[key].node as Node).queue_free()
 			_tiles.erase(key)
 			_queued.erase(key)
+			_set_blocks(key, PackedFloat32Array())
 			stats.freed_tiles += 1
 	if visual:
 		_update_far()
@@ -328,6 +335,12 @@ func _build_tile(job: Job) -> void:
 		result.map = t.surface_map()
 	if visual:
 		result.scatter = _scatter_points(job, final)
+		var blocks := PackedFloat32Array()
+		var per := TILE / BLOCK_M
+		for bz in per:
+			for bx in per:
+				blocks.append(t.field.chunk_range(bx, bz, BLOCK_M).x)
+		result.blocks = blocks
 	job.result = result
 
 
@@ -452,20 +465,65 @@ func _build_far(job: Job) -> void:
 	for r in n - 1:
 		for c in n - 1:
 			var a := r * n + c
-			index.append_array([a, a + n, a + 1, a + 1, a + n, a + n + 1])
+			index.append_array([a, a + 1, a + n, a + 1, a + n + 1, a + n]) # facing up, as TerrainView's
+
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
 	arrays[Mesh.ARRAY_NORMAL] = normals
 	arrays[Mesh.ARRAY_COLOR] = cols
 	arrays[Mesh.ARRAY_INDEX] = index
-	job.result = { "arrays": arrays, "mesh": _far_mesh(arrays) if MeshBatch.threaded() else null }
+	job.result = { "arrays": arrays, "heights": h, "mesh": _far_mesh(arrays) if MeshBatch.threaded() else null }
 
 
 static func _far_mesh(arrays: Array) -> ArrayMesh:
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
+
+
+## A near tile's lowest ground per block (empty: the tile's gone); the far tiles over it follow.
+func _set_blocks(key: Vector2i, blocks: PackedFloat32Array) -> void:
+	if not visual:
+		return
+	var per := TILE / BLOCK_M
+	for bz in per:
+		for bx in per:
+			var b := Vector2i(key.x * per + bx, key.y * per + bz)
+			if blocks.is_empty():
+				_block_low.erase(b)
+			else:
+				_block_low[b] = blocks[bz * per + bx]
+	# The far vertices on the tile's edges too, which a neighbouring far tile may hold.
+	for fx in range(floori((key.x * per - 1) / float(FAR_CELLS)), floori((key.x * per + per) / float(FAR_CELLS)) + 1):
+		for fz in range(floori((key.y * per - 1) / float(FAR_CELLS)), floori((key.y * per + per) / float(FAR_CELLS)) + 1):
+			_far_dirty[Vector2i(fx, fz)] = true
+
+
+## Far tiles whose near ground changed sink under it, while there's time this frame.
+func _lower_far(t0: int) -> void:
+	for key: Vector2i in _far_dirty.keys():
+		if (Time.get_ticks_usec() - t0) / 1000.0 > BUDGET_MS:
+			return
+		_far_dirty.erase(key)
+		if _far.has(key):
+			_lower(_far[key], key)
+
+
+func _lower(mi: MeshInstance3D, key: Vector2i) -> void:
+	var arrays: Array = mi.get_meta(&"arrays")
+	var h: PackedFloat32Array = mi.get_meta(&"heights")
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var n := FAR_CELLS + 1
+	var bx := key.x * FAR_CELLS
+	var bz := key.y * FAR_CELLS
+	for r in n:
+		for c in n:
+			var low := minf(minf(_block_low.get(Vector2i(bx + c - 1, bz + r - 1), INF), _block_low.get(Vector2i(bx + c, bz + r - 1), INF)),
+				minf(_block_low.get(Vector2i(bx + c - 1, bz + r), INF), _block_low.get(Vector2i(bx + c, bz + r), INF)))
+			verts[r * n + c].y = minf(h[r * n + c], low) - FAR_DROP_M
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	mi.mesh = _far_mesh(arrays)
 
 
 # --- the sea -------------------------------------------------------------------------------------
@@ -593,6 +651,7 @@ func _apply(job: Job) -> void:
 				var lists: Dictionary = job.result.scatter[id]
 				_add_scatter(node, id, lists.all, lists.solid if job.result.has("collision") else [])
 			_tiles[key] = { "node": node, "terrain": t, "map": map }
+			_set_blocks(key, job.result.get("blocks", PackedFloat32Array()))
 			stats.tiles += 1
 		"far":
 			var key: Vector2i = job.key
@@ -601,6 +660,8 @@ func _apply(job: Job) -> void:
 			var mi := MeshInstance3D.new()
 			mi.name = "Far_%d_%d" % [key.x, key.y]
 			mi.mesh = job.result.mesh if job.result.mesh else _far_mesh(job.result.arrays)
+			mi.set_meta(&"arrays", job.result.arrays)
+			mi.set_meta(&"heights", job.result.heights)
 			mi.material_override = _far_material
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			mi.visibility_range_begin = FAR_FROM_M
@@ -608,6 +669,7 @@ func _apply(job: Job) -> void:
 			add_child(mi)
 			mi.position = offset
 			_far[key] = mi
+			_far_dirty[key] = true
 			stats.far += 1
 
 
@@ -670,6 +732,9 @@ func _clear() -> void:
 	_chunk_nodes.clear()
 	_chunk_tracks.clear()
 	_tiles.clear()
+	_block_low.clear()
+	for key: Vector2i in _far:
+		_far_dirty[key] = true
 	road.clear()
 
 

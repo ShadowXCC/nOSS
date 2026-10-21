@@ -336,7 +336,7 @@ func _barrier_point(k: int, side: float) -> Vector3:
 	var runoff: float = track.runoff_l_m[k] if side > 0.0 else track.runoff_r_m[k]
 	var p := track.samples[k] + track.lefts[k] * side * (half + runoff)
 	if terrain:
-		p.y = terrain.height_at(p.x, p.z)
+		p.y = terrain.edge_ground(p)
 	return p
 
 
