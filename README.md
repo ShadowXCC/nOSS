@@ -1,3 +1,5 @@
+![nOSS: Bring your own car.](docs/images/banner.png)
+
 # nOSS
 
 **Bring your own car. The platform decides how it drives.**
