@@ -56,9 +56,13 @@ func _place(r: Racer, at: float, lat: float) -> void:
 	r.vehicle.reset_to(x)
 
 
+## `n` physics ticks, then two frames: a slow frame can run several ticks before the HUD's
+## _process draws what they did.
 func _ticks(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 
 func _captions() -> Array:
