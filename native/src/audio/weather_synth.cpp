@@ -1,9 +1,13 @@
 #include "audio/weather_synth.h"
 
+#include "audio/dsp.h"
+
 #include <algorithm>
 #include <cmath>
 
 namespace noss::audio {
+
+using dsp::Biquad;
 
 namespace {
 
@@ -77,7 +81,7 @@ bool weather_loops(WeatherSound p_kind) {
 std::vector<int16_t> render_weather(WeatherSound p_kind, int p_rate) {
 	double length = 4.0;
 	switch (p_kind) {
-		case WeatherSound::RAIN: length = 3.0; break;
+		case WeatherSound::RAIN: length = 6.0; break;
 		case WeatherSound::WIND: length = 6.0; break;
 		case WeatherSound::THUNDER: length = 5.5; break;
 		case WeatherSound::SURF: length = 9.0; break;
@@ -90,21 +94,52 @@ std::vector<int16_t> render_weather(WeatherSound p_kind, int p_rate) {
 	Noise noise(0x51A7u + uint32_t(p_kind) * 977u);
 	switch (p_kind) {
 		case WeatherSound::RAIN: {
-			BandPass hiss;
-			LowPass body;
-			double drop = 0.0, drop_phase = 0.0, drop_f = 0.0;
+			// All noise, no tones: a sheet of hiss from countless far drops, the fizz of near ones
+			// landing (tiny bursts, mostly faint), a few closer pats and a little body, the sheet
+			// and fizz breathing slowly so it never sits still.
+			dsp::Rng rng{ 0x9A1B5u };
+			std::vector<double> breath = dsp::slow_noise(rng, int(x.size()), 0.3, p_rate);
+			std::vector<double> sheet(x.size()), fizz(x.size()), pats(x.size()), body(x.size());
+			Biquad sheet_hp = Biquad::highpass(700.0, p_rate), sheet_bp = Biquad::bandpass(2600.0, 0.45, p_rate), sheet_lp = Biquad::lowpass(7500.0, p_rate);
+			Biquad fizz_bp = Biquad::bandpass(3600.0, 0.8, p_rate), fizz_lp = Biquad::lowpass(7000.0, p_rate);
+			const double pat_hz[3] = { 1100.0, 1600.0, 2300.0 };
+			Biquad pat_bp[3] = { Biquad::bandpass(pat_hz[0], 1.2, p_rate), Biquad::bandpass(pat_hz[1], 1.2, p_rate), Biquad::bandpass(pat_hz[2], 1.2, p_rate) };
+			Biquad body_lp = Biquad::lowpass(400.0, p_rate), body_lp2 = Biquad::lowpass(400.0, p_rate);
+			const double fizz_fall = std::exp(-1.0 / (0.0015 * p_rate)), pat_fall = std::exp(-1.0 / (0.004 * p_rate));
+			double fizz_env = 0.0, pat_env[3] = { 0.0, 0.0, 0.0 };
 			for (size_t i = 0; i < x.size(); i++) {
-				double w = noise.next();
-				double v = hiss.run(w, 1800.0, 7000.0, p_rate) * 0.6 + body.run(w, 600.0, p_rate) * 0.5;
-				// Close drops: short pings at random pitches.
-				if (noise.unit() < 14.0 / p_rate) {
-					drop = 1.0;
-					drop_f = 1800.0 + 2600.0 * noise.unit();
+				double w = rng.next();
+				sheet[i] = sheet_lp.run(sheet_bp.run(sheet_hp.run(w)));
+				// About a thousand drops a second, most of them faint.
+				if (0.5 * (rng.next() + 1.0) < 1000.0 / p_rate) {
+					double u = 0.5 * (rng.next() + 1.0);
+					fizz_env += u * u * u;
 				}
-				drop_phase += 2.0 * PI * drop_f / p_rate;
-				v += drop * std::sin(drop_phase) * 0.35;
-				drop *= std::exp(-1.0 / (0.012 * p_rate));
-				x[i] = v;
+				fizz[i] = fizz_lp.run(fizz_bp.run(rng.next() * fizz_env));
+				fizz_env *= fizz_fall;
+				// A score of nearer drops a second, each a soft pat in one of three bands.
+				if (0.5 * (rng.next() + 1.0) < 20.0 / p_rate) {
+					int k = std::min(int(1.5 * (rng.next() + 1.0)), 2);
+					pat_env[k] += 0.4 + 0.6 * 0.5 * (rng.next() + 1.0);
+				}
+				double pat = 0.0;
+				for (int k = 0; k < 3; k++) {
+					pat += pat_bp[k].run(rng.next() * pat_env[k]);
+					pat_env[k] *= pat_fall;
+				}
+				pats[i] = pat;
+				body[i] = body_lp2.run(body_lp.run(w));
+			}
+			auto rms = [](const std::vector<double> &p_v) {
+				double e = 1e-12;
+				for (double v : p_v) {
+					e += v * v;
+				}
+				return std::sqrt(e / double(p_v.size()));
+			};
+			double rs = rms(sheet), rf = rms(fizz), rp = rms(pats), rb = rms(body);
+			for (size_t i = 0; i < x.size(); i++) {
+				x[i] = sheet[i] / rs * 1.0 * (1.0 + 0.15 * breath[i]) + fizz[i] / rf * 0.55 * (1.0 + 0.25 * breath[i]) + pats[i] / rp * 0.2 + body[i] / rb * 0.4;
 			}
 			break;
 		}

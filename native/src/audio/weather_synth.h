@@ -11,7 +11,7 @@
 namespace noss::audio {
 
 enum class WeatherSound {
-	RAIN, // steady rain: a hiss of drops, a few close ones (loop)
+	RAIN, // steady rain: noise only, a hiss of far drops, the fizz of near ones, a few pats (loop)
 	WIND, // gusting wind (loop)
 	THUNDER, // a crack and a long rumble (one-shot)
 	SURF, // waves on a shore, a swell every few seconds (loop)

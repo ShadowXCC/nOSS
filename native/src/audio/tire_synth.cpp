@@ -10,41 +10,7 @@ namespace noss::audio {
 using dsp::Biquad;
 using dsp::PI;
 using dsp::Rng;
-
-namespace {
-
-// Slow random signal: noise low-passed twice, run twice around the loop so it wraps without a
-// seam, then scaled to a peak of 1 around zero.
-std::vector<double> slow_noise(Rng &p_rng, int p_n, double p_hz, int p_rate) {
-	std::vector<double> in(static_cast<size_t>(p_n));
-	for (double &x : in) {
-		x = p_rng.next();
-	}
-	Biquad a = Biquad::lowpass(p_hz, p_rate), b = Biquad::lowpass(p_hz, p_rate);
-	std::vector<double> out(static_cast<size_t>(p_n));
-	for (int pass = 0; pass < 2; pass++) {
-		for (int s = 0; s < p_n; s++) {
-			double v = b.run(a.run(in[size_t(s)]));
-			if (pass == 1) {
-				out[size_t(s)] = v;
-			}
-		}
-	}
-	double mean = 0.0, peak = 1e-12;
-	for (double v : out) {
-		mean += v / p_n;
-	}
-	for (double &v : out) {
-		v -= mean;
-		peak = std::max(peak, std::abs(v));
-	}
-	for (double &v : out) {
-		v /= peak;
-	}
-	return out;
-}
-
-} // namespace
+using dsp::slow_noise;
 
 std::vector<int16_t> render_tire_loop(const TireProfile &p, int p_rate, double p_length_s, uint32_t p_seed) {
 	int n = std::max(int(std::lround(p_length_s * p_rate)), 1024);
