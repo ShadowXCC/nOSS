@@ -100,6 +100,31 @@ func test_a_round_part_on_the_roof_is_not_a_wheel() -> void:
 	scene.free()
 
 
+## A wheel arch liner round the right rear wheel only (the Tezeract's): bigger, chunky and a
+## little tilted, it passes for round and lines up with the wheel. The wheel matches its partner
+## on the left, so the liner stays on the body.
+func test_an_arch_around_a_wheel_is_not_part_of_it() -> void:
+	var scene := _merged_car(Basis.IDENTITY)
+	var liner := MeshInstance3D.new()
+	liner.name = "liner"
+	var tube := CylinderMesh.new()
+	tube.top_radius = 0.46
+	tube.bottom_radius = 0.46
+	tube.height = 0.36
+	tube.radial_segments = 24
+	tube.rings = 1
+	liner.mesh = tube
+	liner.transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(16.0)) * Basis(Vector3.BACK, PI / 2.0), Vector3(-0.85, 0.36, -1.32))
+	scene.add_child(liner)
+	liner.owner = scene
+	var a := ModelAnalysis.analyze(scene)
+	assert_array(a.fit.wheels.map(func(w: Dictionary) -> String: return w.id)).contains_exactly_in_any_order(["LF", "RF", "LR", "RR"])
+	for w: Dictionary in a.fit.wheels:
+		assert_float(w.radius).override_failure_message(w.id).is_equal_approx(0.32, 0.01)
+		assert_array(w.spin_nodes).override_failure_message(w.id).not_contains(["liner"])
+	scene.free()
+
+
 ## An older import's fit with a wheel on the roof: found in the model's own frame (here +Z up).
 func test_floating_wheels_are_found_in_a_fit() -> void:
 	var scene := _merged_car(Basis(Vector3(0, 1, 0), Vector3(0, 0, 1), Vector3(1, 0, 0)))

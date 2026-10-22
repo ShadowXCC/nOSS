@@ -100,6 +100,8 @@ static func analyze(scene: Node3D) -> Result:
 						kept.append(wheels[i])
 				wheels = kept
 				axes = _axes(wheels, shown)
+			if not axes.is_empty() and _match_partners(wheels, axes) > 0:
+				axes = _axes(wheels, shown)
 		if axes.is_empty():
 			wheels = []
 			r.wheel_source = ""
@@ -407,6 +409,48 @@ static func _off_ground(wheels: Array, up: Vector3) -> Array[int]:
 	if wheels.size() - off.size() < 3:
 		off.clear()
 	return off
+
+
+## A wheel much bigger than its partner across the car (at the same place along it) has taken
+## in something round around it, such as a wheel arch liner (the Tezeract's right rear did; the
+## left one's is tilted further and stayed out). Its parts bigger than the partner are dropped
+## and it's measured again from what's left. Returns how many wheels changed.
+static func _match_partners(wheels: Array, axes: Dictionary) -> int:
+	var left: Vector3 = axes.left
+	var forward: Vector3 = axes.forward
+	var mid := Vector3.ZERO
+	for w: Dictionary in wheels:
+		mid += w.center / wheels.size()
+	var radii: Array = wheels.map(func(w: Dictionary) -> float: return w.radius) # as found
+	var changed := 0
+	for w: Dictionary in wheels:
+		var side := signf(((w.center as Vector3) - mid).dot(left))
+		for i in wheels.size():
+			var q: Dictionary = wheels[i]
+			var partner: float = radii[i]
+			if is_same(q, w) or absf(((q.center as Vector3) - w.center).dot(forward)) > 0.5 * minf(w.radius, partner) \
+					or signf(((q.center as Vector3) - mid).dot(left)) == side:
+				continue
+			if w.radius <= 1.25 * partner:
+				break
+			var kept: Array = w.parts.filter(func(p: Part) -> bool: return p.radius <= 1.1 * partner)
+			if kept.is_empty():
+				break
+			var biggest: Part = kept[0]
+			var width := 0.0
+			for p: Part in kept:
+				width = maxf(width, p.width)
+				if p.radius > biggest.radius:
+					biggest = p
+			w.parts = kept
+			w.center = biggest.center
+			w.normal = biggest.normal
+			w.radius = biggest.radius
+			w.width = width
+			w.score = kept.reduce(func(s: float, p: Part) -> float: return maxf(s, p.name_score), 0.0)
+			changed += 1
+			break
+	return changed
 
 
 ## Ids of a fit's wheels that don't stand on the ground (older imports could take a round part on
