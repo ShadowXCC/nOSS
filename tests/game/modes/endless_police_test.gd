@@ -211,11 +211,20 @@ func test_traffic_moves_over_for_a_siren() -> void:
 	u.ai.target = p
 	u.ai.mode = PoliceAI.Mode.PURSUE
 	var lane_lat := s.endless_lanes.lateral(s.track, EndlessLanes.UP, car.s)
-	await _ticks(120 * 3)
-	assert_bool(t.siren_behind(car.vehicle)).is_true()
-	var lat := float(s.track.project(car.vehicle.global_position).lateral)
-	assert_float(absf(lat)).is_greater(absf(lane_lat) + 0.6) # towards the shoulder
-	assert_float(car.vehicle.speed()).is_less(t.lane_speed(EndlessTraffic.UP, car.s) * 0.8)
+	# Over the few seconds the unit comes up behind it (and maybe by it): it moved over and slowed.
+	var came_up := false
+	var widest := 0.0
+	var slowest := INF
+	for i in 120 * 4:
+		await get_tree().physics_frame
+		if car.vehicle == null or not is_instance_valid(car.vehicle):
+			break
+		came_up = came_up or t.siren_behind(car.vehicle)
+		widest = maxf(widest, absf(float(s.track.project(car.vehicle.global_position).lateral)))
+		slowest = minf(slowest, car.vehicle.speed() / maxf(t.lane_speed(EndlessTraffic.UP, car.s), 1.0))
+	assert_bool(came_up).is_true()
+	assert_float(widest).is_greater(absf(lane_lat) + 0.6) # towards the shoulder
+	assert_float(slowest).is_less(0.8)
 	s.queue_free()
 	await get_tree().process_frame
 

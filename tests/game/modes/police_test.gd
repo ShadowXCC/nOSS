@@ -93,6 +93,7 @@ func test_busted_when_slow_with_a_unit_alongside() -> void:
 	# The player stopped; a unit stopped right behind, touching.
 	var at := s.track.transform_at(300.0, s.track.highway.lane_lateral(1, 1))
 	p.vehicle.reset_to(at)
+	p.vehicle.throttle = 0.0 # whatever its controller last set (a pad plugged in)
 	var u := pc.units[pc.units.size() - 1]
 	u.deploy(Transform3D(at.basis, at.origin - at.basis.z * 4.6), Vector3.ZERO)
 	u.ai.mode = PoliceAI.Mode.PARKED
@@ -115,6 +116,7 @@ func test_evaded_out_of_sight_and_far() -> void:
 	var far := s.track.transform_at(fposmod(float(s.track.highway.traps[0].at_m) + s.track.length / 2.0, s.track.length) + 300.0,
 		s.track.highway.lane_lateral(1, 1))
 	p.vehicle.reset_to(far)
+	p.vehicle.throttle = 0.0 # whatever its controller last set (a pad plugged in)
 	# Every chase unit parked out of sight beyond EVADE_M (but near enough not to stand down, so
 	# none is free to send in): the police have lost them.
 	var d := float(s.track.project(far.origin).distance)
