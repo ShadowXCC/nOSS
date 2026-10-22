@@ -91,6 +91,37 @@ func test_a_wheel_off_the_ground_can_be_removed() -> void:
 	assert_str(_bay._status.text).not_contains("off the ground")
 
 
+## The Wheels step picks a wheel and lists its parts; the preview rings it and tints them.
+func test_the_wheels_step_edits_one_wheel() -> void:
+	_bay._wheel_id = "LF"
+	_bay._show_step("Wheels")
+	assert_object(_button("Find wheels again")).is_not_null()
+	assert_object(_button("Remove wheel")).is_not_null()
+	var checks: Array = _bay._content.find_children("*", "CheckButton", true, false).filter(func(c: CheckButton) -> bool: return c.text.begins_with("wheel-front-left"))
+	assert_int(checks.size()).is_equal(1)
+	assert_int(_bay._preview.selected).is_equal(_bay._wheels().index_of("LF"))
+	assert_array(Array(_bay._preview.lit)).contains_exactly(["wheel-front-left"])
+	assert_bool(_bay._preview.pick_enabled).is_true()
+	_bay._show_step("Paint")
+	assert_bool(_bay._preview.pick_enabled).is_false()
+
+
+## A click on a wheel of the picked wheel drops it; clicked again, it's back.
+func test_a_click_on_the_model_drops_and_adds_a_part() -> void:
+	_bay._wheel_id = "LF"
+	_bay._show_step("Wheels")
+	var i := _bay._wheels().index_of("LF")
+	var c: Vector3 = _bay._preview.fitted.wheels[i].center + Vector3(0, -_bay._preview.fitted.ground_y, 0)
+	var hit := _bay._preview.pick_ray(c + Vector3(5, 0, 0), Vector3(-1, 0, 0)) # from the left
+	assert_str(String(hit.get("node", ""))).is_equal("wheel-front-left")
+	_bay._on_part_clicked(hit)
+	assert_str(_bay._status.text).is_equal("Dropped from LF")
+	assert_array(_bay.draft.fit.wheels[i].spin_nodes).is_empty()
+	_bay._on_part_clicked(_bay._preview.pick_ray(c + Vector3(5, 0, 0), Vector3(-1, 0, 0)))
+	assert_str(_bay._status.text).is_equal("Added to LF")
+	assert_array(_bay.draft.fit.wheels[_bay._wheels().index_of("LF")].spin_nodes).contains_exactly(["wheel-front-left"])
+
+
 func test_paint_assignment() -> void:
 	_bay._assign_material("primary", "colormap")
 	assert_array(_bay.draft.paint.slots.primary.materials).contains_exactly(["colormap"])

@@ -12,6 +12,8 @@ const IMPORT_DIR := "user://import/"
 const FONT_SIZE := 24
 const FAMILIES := [["car", "Car"], ["open", "Open-wheel"], ["truck", "Truck"]]
 const FINISHES := [["solid", "Solid"], ["metallic", "Metallic"], ["pearl", "Pearl"], ["matte", "Matte"], ["chrome", "Chrome"]]
+## The Wheel choice for making a new wheel.
+const NEW_WHEEL := "new"
 ## Ride height slider range (m, fit.json body_lift_m).
 const LIFT_MIN := -0.3
 const LIFT_MAX := 0.6
@@ -55,6 +57,10 @@ var _audio_dialog: FileDialog
 var _rec_target := "exhaust"
 var _rec_rpm := 3000.0
 var _rec_kind := "on"
+## Wheels step: the wheel being edited (an id, or NEW_WHEEL), whether its partner follows.
+var _wheel_edit: WheelEdit
+var _wheel_id := ""
+var _mirror := true
 
 
 func _ready() -> void:
@@ -112,6 +118,7 @@ func _ready() -> void:
 
 	_preview = BayPreview.new()
 	_preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_preview.part_clicked.connect(_on_part_clicked)
 	split.add_child(_preview)
 
 	if draft == null and Game.bay_draft is FittingDraft:
@@ -129,9 +136,12 @@ func _ready() -> void:
 # --- steps -------------------------------------------------------------------
 
 
-func _show_step(step: String) -> void:
+## Shows `step`. With `keep_focus` the focus stays where it was in the list (the step built
+## again after a change made from it) rather than going to the top.
+func _show_step(step: String, keep_focus := false) -> void:
 	if draft == null and step != "Import":
 		step = "Import"
+	var focus_at := _focus_index() if keep_focus and step == _step else -1
 	_step = step
 	for s: String in _step_buttons:
 		_step_buttons[s].button_pressed = s == step
@@ -151,9 +161,31 @@ func _show_step(step: String) -> void:
 	for c: Control in controls:
 		if c.get_parent() == null:
 			_content.add_child(c)
-	UiKit.chain_focus(_focusable(controls) + [_step_buttons[step], _drive_button, _save_button])
+	var chain := _focusable(controls) + [_step_buttons[step], _drive_button, _save_button]
+	UiKit.chain_focus(chain, focus_at < 0)
+	if focus_at >= 0:
+		var targets := chain.map(func(c: Control) -> Control: return UiKit._focus_target(c)).filter(func(c: Control) -> bool: return c != null)
+		UiKit.focus_later(targets[mini(focus_at, targets.size() - 1)])
+	_sync_wheel_view()
 	_refresh(false)
 	_update_actions()
+
+
+## Where the focus is among the step's controls (as chained), or -1.
+func _focus_index() -> int:
+	var owner := UiKit.focus_owner(self) if is_inside_tree() else null
+	if owner == null:
+		return -1
+	var i := 0
+	for c in _content.get_children():
+		if c is Label or c.is_queued_for_deletion():
+			continue
+		var target := UiKit._focus_target(c)
+		if target == owner:
+			return i
+		if target:
+			i += 1
+	return -1
 
 
 func _step_import() -> Array:
@@ -201,7 +233,8 @@ func _step_wheels() -> Array:
 	var out := []
 	var mode: String = draft.fit.wheel_mode
 	var found: bool = draft.fit.wheels.any(func(w: Dictionary) -> bool: return w.has("node"))
-	out.append(_text("%d wheels found on the model." % draft.fit.wheels.size() if found else "No wheels found. Place them with the sliders."))
+	out.append(_text("%d wheels found on the model." % draft.fit.wheels.size() if found
+		else "No wheels found. Place them with the sliders, or pick a wheel below and click it on the model."))
 	var modes := [["model", "Model's wheels"], ["stock", "Stock wheels"], ["static", "Fixed (no spin)"]]
 	if not found:
 		modes = modes.slice(1)
@@ -209,6 +242,7 @@ func _step_wheels() -> Array:
 		draft.fit.wheel_mode = v
 		_refresh()
 		_show_step("Wheels")))
+	out.append(UiKit.button("Find wheels again", _find_wheels, "Run the wheel finder on the model again"))
 	if mode != "model":
 		var a := _anchors()
 		out.append(UiKit.number("Front axle", a.front, -4.0, 4.0, 0.01, "%.2f m", func(v: float) -> void: _move_anchor("front", v)))
@@ -216,6 +250,7 @@ func _step_wheels() -> Array:
 		out.append(UiKit.number("Track", a.track, 0.5, 2.6, 0.01, "%.2f m", func(v: float) -> void: _move_anchor("track", v)))
 		out.append(UiKit.number("Radius", a.radius, 0.1, 0.8, 0.005, "%.3f m", func(v: float) -> void: _move_anchor("radius", v)))
 		out.append(UiKit.number("Height", a.height, 0.0, 1.0, 0.005, "%.3f m", func(v: float) -> void: _move_anchor("height", v)))
+	out.append_array(_wheel_controls(mode))
 	out.append(UiKit.number("Ride height", float(draft.fit.get("body_lift_m", 0.0)), LIFT_MIN, LIFT_MAX, 0.005, "%+.3f m", _set_lift,
 		"Raise or lower the body on its wheels"))
 	var clip := _clip_depth()
@@ -228,6 +263,134 @@ func _step_wheels() -> Array:
 		out.append(UiKit.button("Remove it" if floating.size() == 1 else "Remove them", _remove_wheels.bind(floating),
 			"Not a wheel: keep it as part of the body"))
 	return out
+
+
+## The picked wheel: where it is and how big, its parts and Remove; or a new wheel from a part.
+func _wheel_controls(mode: String) -> Array:
+	var edit := _wheels()
+	var out := []
+	var ids := edit.ids()
+	if _wheel_id != NEW_WHEEL and _wheel_id not in ids:
+		_wheel_id = ids[0] if not ids.is_empty() else NEW_WHEEL
+	var items: Array = Array(ids).map(func(id: String) -> Array: return [id, id]) + [[NEW_WHEEL, "New wheel"]]
+	out.append(UiKit.spinner("Wheel", items, _wheel_id, func(v: String) -> void:
+		_wheel_id = v
+		_show_step("Wheels", true), "The wheel to edit"))
+	if _wheel_id == NEW_WHEEL:
+		out.append(_text("Click a wheel on the model, or pick a round part:"))
+		var n := 0
+		for part: Dictionary in edit.round_parts():
+			n += 1
+			out.append(_part_control(UiKit.button(WheelEdit.label(part, n), _new_wheel.bind(part), "Make a wheel from this part"), part))
+		return out
+	if edit.is_hub(_wheel_id):
+		out.append(_text("Set by the model's hubs."))
+	else:
+		if edit.partner(_wheel_id):
+			out.append(UiKit.check("Mirror", _mirror, func(on: bool) -> void: _mirror = on, "Move the wheel across the car with it"))
+		var v := edit.values(_wheel_id)
+		for row: Array in [["Across", "across", -2.0, 2.0], ["Height", "height", 0.0, 1.5], ["Along", "along", -4.0, 4.0],
+				["Radius", "radius", 0.05, 1.0], ["Width", "width", 0.02, 1.0]]:
+			out.append(UiKit.number(row[0], v[row[1]], row[2], row[3], 0.005, "%.3f m", func(x: float) -> void:
+				edit.move(_wheel_id, row[1], x, _mirror)
+				_refresh()))
+		var listed := edit.parts(_wheel_id)
+		if mode == "model" or listed.is_empty():
+			out.append(_text("Parts. Click the model to add or drop one."))
+			var n := 0
+			for part: Dictionary in listed + edit.nearby(_wheel_id):
+				n += 1
+				var on := n <= listed.size()
+				out.append(_part_control(UiKit.check(WheelEdit.label(part, n), on, func(_on: bool) -> void: _toggle_part(part),
+					"Part of the wheel" if on else "Not part of the wheel"), part))
+	out.append(UiKit.button("Remove wheel", func() -> void:
+		var said := edit.remove(_wheel_id)
+		_refresh()
+		_show_step("Wheels", true)
+		_set_status(said), "Not a wheel: keep its parts on the body"))
+	var bare := edit.without_parts()
+	if mode == "model" and not bare.is_empty():
+		out.append(_text("No parts yet: " + ", ".join(bare)))
+	return out
+
+
+## Lights `part` up in the preview while `control` has the focus or the mouse.
+func _part_control(control: Control, part: Dictionary) -> Control:
+	for s: Signal in [control.focus_entered, control.mouse_entered]:
+		s.connect(func() -> void: _preview.set_hover(part))
+	for s: Signal in [control.focus_exited, control.mouse_exited]:
+		s.connect(func() -> void:
+			if is_same(_preview.hover, part):
+				_preview.set_hover({}))
+	return control
+
+
+func _toggle_part(part: Dictionary) -> void:
+	var said := _wheels().toggle(_wheel_id, part)
+	_refresh()
+	_show_step("Wheels", true)
+	_set_status(said)
+
+
+func _new_wheel(part: Dictionary) -> void:
+	var id := _wheels().add(part)
+	if id:
+		_wheel_id = id
+	_refresh()
+	_show_step("Wheels", true)
+	_set_status("New wheel " + id if id else "Not a round part")
+
+
+## A click on the model in the Wheels step. A part of the picked wheel is dropped, a part of
+## another wheel picks that wheel, and any other part is added (or becomes a new wheel). With
+## stock or fixed wheels it only picks wheels, unless the picked one has no parts yet.
+func _on_part_clicked(hit: Dictionary) -> void:
+	if draft == null or _step != "Wheels":
+		return
+	var edit := _wheels()
+	var part := edit.pick(hit)
+	if part.is_empty():
+		return
+	var owner := edit.part_of(part.node) if part.surface < 0 else ""
+	var said := ""
+	if owner and owner != _wheel_id:
+		_wheel_id = owner
+		said = "Wheel " + owner
+	elif _wheel_id == NEW_WHEEL:
+		var id := edit.add(part)
+		if id:
+			_wheel_id = id
+		said = "New wheel " + id if id else "Not a round part"
+	elif draft.fit.wheel_mode == "model" or edit.parts(_wheel_id).is_empty():
+		said = edit.toggle(_wheel_id, part)
+	else:
+		said = "Parts need Model's wheels"
+	_refresh()
+	_show_step("Wheels", true)
+	_set_status(said)
+
+
+func _find_wheels() -> void:
+	var n := _wheels().find_again()
+	_refresh()
+	_show_step("Wheels", true)
+	_set_status("%d wheels found" % n if n else "No wheels found")
+
+
+func _wheels() -> WheelEdit:
+	if _wheel_edit == null or _wheel_edit.draft != draft:
+		_wheel_edit = WheelEdit.new(draft)
+	return _wheel_edit
+
+
+## The preview shows the picked wheel and its parts, and takes clicks (Wheels step only).
+func _sync_wheel_view() -> void:
+	var on := _step == "Wheels" and draft != null
+	_preview.pick_enabled = on
+	_preview.selected = _wheels().index_of(_wheel_id) if on else -1
+	var w := _wheels().wheel(_wheel_id) if on else {}
+	_preview.lit = PackedStringArray(w.get("spin_nodes", []) + w.get("fixed_nodes", []))
+	_preview.hover = {}
 
 
 func _step_scale() -> Array:
@@ -475,6 +638,7 @@ func _import(path: String) -> void:
 		_show_progress(false)
 		print("Fitting Bay: imported %s in %d ms (%d tris)" % [path.get_file(), Time.get_ticks_msec() - t0, result.triangles])
 		_refresh()
+		_wheel_id = String(Game.dev.get("bay-wheel", ""))
 		_show_step(String(Game.dev.get("bay-step", "Import")).capitalize())
 		if auto:
 			_save_and_drive(), PackageLoader.DEFAULT_LIMITS, ModelImport.TIMEOUT_S, _progress_src)
@@ -651,6 +815,7 @@ func _discard_draft() -> void:
 		draft.delete_draft()
 		draft.free_scene()
 	draft = null
+	_wheel_edit = null
 
 
 func _rotate(axis: Vector3, degrees: float) -> void:
@@ -707,10 +872,7 @@ func _assign_material(slot: String, material: String) -> void:
 
 ## Model space to the vehicle frame (metres), as Fitting does before any platform scaling.
 func _base() -> Transform3D:
-	var mt: Dictionary = draft.fit.model_transform
-	var r: Array = mt.rotation_deg
-	var o: Array = mt.offset_m
-	return Transform3D(Basis.from_euler(Vector3(deg_to_rad(r[0]), deg_to_rad(r[1]), deg_to_rad(r[2]))).scaled(Vector3.ONE * float(mt.scale)), Vector3(o[0], o[1], o[2]))
+	return WheelEdit.base(draft.fit)
 
 
 ## Anchor values in metres: front and rear axle positions, track, radius, hub height above ground.
@@ -754,9 +916,7 @@ func _move_anchor(key: String, value: float) -> void:
 
 ## The vehicle-frame ground under the model (its lowest point), metres.
 func _ground() -> float:
-	var env: Dictionary = draft.fit.envelope
-	var box := _base() * AABB(Vector3(env.min[0], env.min[1], env.min[2]), Vector3(env.max[0], env.max[1], env.max[2]) - Vector3(env.min[0], env.min[1], env.min[2]))
-	return box.position.y
+	return WheelEdit.floor_y(draft.fit)
 
 
 ## How far the body sits in the ground as fitted, metres (0 or less: clear of it).

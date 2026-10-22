@@ -2,9 +2,15 @@ class_name BayPreview
 extends SubViewportContainer
 ## The Fitting Bay's 3D view: the car as the game will draw it (a CarVisual on a copy of the
 ## draft's model, fitted to the chosen platform) standing on a floor, with overlays for the
-## step being edited. Orbit with the mouse (drag, wheel) or a pad (right stick, shoulders).
+## step being edited. Orbit with the mouse (drag, wheel) or a pad (right stick, shoulders);
+## with picking on, a click on the model picks the part under it.
+
+## A click on the model (not a drag): the part under it, {node, surface, triangle}.
+signal part_clicked(hit: Dictionary)
 
 const OVERLAY_ALPHA := 0.55
+## A press and release this close (px) is a click, not a drag.
+const CLICK_SLOP := 6.0
 
 var viewport := SubViewport.new()
 var camera := Camera3D.new()
@@ -16,6 +22,13 @@ var overlays := {}
 var view := "orbit"
 ## Turn slowly on its own (the garage's turntable).
 var turntable := false
+## The wheel being edited (index into the fit's wheels; -1: none), its parts (node names, tinted)
+## and one part shown brighter, through the body (a WheelEdit part: the list's focus).
+var selected := -1
+var lit := PackedStringArray()
+var hover := {}
+## Clicks on the model pick parts (part_clicked).
+var pick_enabled := false
 
 var _car_root := Node3D.new()
 var _overlay_root := Node3D.new()
@@ -24,6 +37,11 @@ var _pitch := deg_to_rad(-14.0)
 var _distance := 7.0
 var _target := Vector3(0, 0.6, 0)
 var _dragging := false
+var _press := Vector2.INF
+var _triangles := {} # mesh instance id -> TriangleMesh
+var _hover_mesh: MeshInstance3D
+var _lit_tint := _material(Color(0.2, 0.9, 1.0, 0.35), false)
+var _hover_tint := _material(Color(1.0, 0.55, 0.1, 0.6))
 
 
 func _ready() -> void:
@@ -147,12 +165,13 @@ func _build_overlays(draft: FittingDraft) -> void:
 	if overlays.get("envelope", false):
 		_overlay_root.add_child(_box_lines(e, Color(0.3, 0.8, 1.0)))
 	if overlays.get("wheels", false):
-		for w in fitted.wheels:
+		for i in fitted.wheels.size():
+			var w: Dictionary = fitted.wheels[i]
 			var ring := MeshInstance3D.new()
 			var torus := TorusMesh.new()
-			torus.outer_radius = w.radius * 1.05
+			torus.outer_radius = w.radius * (1.1 if i == selected else 1.05)
 			torus.inner_radius = w.radius * 0.88
-			torus.material = _material(Color(0.2, 0.9, 1.0, OVERLAY_ALPHA))
+			torus.material = _material(Color(1.0, 0.85, 0.1, 0.9) if i == selected else Color(0.2, 0.9, 1.0, OVERLAY_ALPHA))
 			ring.mesh = torus
 			ring.rotation.z = PI / 2.0
 			ring.position = w.center
@@ -163,6 +182,99 @@ func _build_overlays(draft: FittingDraft) -> void:
 			var p: Variant = camera_point(draft, item[0])
 			if p != null:
 				_overlay_root.add_child(_dot(p, item[1]))
+	_tint()
+
+
+## Shows `part` brighter, through the body; {} for none.
+func set_hover(part: Dictionary) -> void:
+	hover = part
+	_tint()
+
+
+## Tints the edited wheel's parts, and the hovered part through the body.
+func _tint() -> void:
+	if is_instance_valid(_hover_mesh):
+		_hover_mesh.free()
+	_hover_mesh = null
+	if visual == null:
+		return
+	var hover_node := String(hover.get("node", ""))
+	var whole := int(hover.get("surface", -1)) < 0
+	for mi: MeshInstance3D in visual.model_root.find_children("*", "MeshInstance3D", true, false):
+		var n := String(mi.name)
+		mi.material_overlay = _hover_tint if whole and n == hover_node else _lit_tint if n in lit else null
+		if not whole and n == hover_node and _hover_mesh == null and mi.mesh:
+			# Part of a bigger mesh: its triangles, drawn over it.
+			var mask := PackedByteArray()
+			mask.resize(_triangle_count(mi.mesh, hover.surface))
+			for t: int in hover.triangles:
+				if t < mask.size():
+					mask[t] = 1
+			var part := ArrayMesh.new()
+			part.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, NossMesh.extract_surface(mi.mesh.surface_get_arrays(hover.surface), mask))
+			_hover_mesh = MeshInstance3D.new()
+			_hover_mesh.mesh = part
+			_hover_mesh.material_override = _hover_tint
+			_overlay_root.add_child(_hover_mesh)
+			_hover_mesh.global_transform = mi.global_transform
+
+
+## The model's part under `at` (a point on this control): {node, surface, triangle}, or {}.
+func pick(at: Vector2) -> Dictionary:
+	var p := at * Vector2(viewport.size) / size if size.x > 0.0 and size.y > 0.0 else at
+	return pick_ray(camera.project_ray_origin(p), camera.project_ray_normal(p))
+
+
+## The nearest of the car's shown meshes along a ray (this view's world): {node, surface,
+## triangle}, or {}.
+func pick_ray(from: Vector3, dir: Vector3) -> Dictionary:
+	var best := {}
+	var nearest := INF
+	if visual == null:
+		return best
+	for mi: MeshInstance3D in visual.model_root.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null or not mi.is_visible_in_tree():
+			continue
+		var xf := mi.global_transform
+		var box := mi.mesh.get_aabb()
+		if (xf * box.grow(box.size.length() * 0.01 + 1e-6)).intersects_ray(from, dir) == null:
+			continue
+		var id := mi.mesh.get_instance_id()
+		if not _triangles.has(id):
+			_triangles[id] = mi.mesh.generate_triangle_mesh()
+		if _triangles[id] == null:
+			continue
+		var inv := xf.affine_inverse()
+		var hit: Dictionary = (_triangles[id] as TriangleMesh).intersect_ray(inv * from, inv.basis * dir)
+		if hit.is_empty():
+			continue
+		var d := from.distance_to(xf * (hit.position as Vector3))
+		if d < nearest:
+			nearest = d
+			best = _face(mi, int(hit.face_index))
+	return best
+
+
+## Which surface and triangle face `face` of `mi`'s TriangleMesh is (faces run through the
+## surfaces in order).
+static func _face(mi: MeshInstance3D, face: int) -> Dictionary:
+	for s in mi.mesh.get_surface_count():
+		var count := _triangle_count(mi.mesh, s)
+		if face < count:
+			return { "node": String(mi.name), "surface": s, "triangle": face }
+		face -= count
+	return {}
+
+
+static func _triangle_count(mesh: Mesh, s: int) -> int:
+	var am := mesh as ArrayMesh
+	if am:
+		var indexed := am.surface_get_array_index_len(s)
+		return (indexed if indexed > 0 else am.surface_get_array_len(s)) / 3
+	var arrays := mesh.surface_get_arrays(s)
+	var index: Variant = arrays[Mesh.ARRAY_INDEX]
+	return (index as PackedInt32Array).size() / 3 if index is PackedInt32Array and not (index as PackedInt32Array).is_empty() \
+			else (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3
 
 
 ## A camera position (vehicle frame): fit.json's, or where the game would place it.
@@ -177,6 +289,13 @@ func _gui_input(event: InputEvent) -> void:
 		var mb := event as InputEventMouseButton
 		if mb.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
 			_dragging = mb.pressed
+			if mb.button_index == MOUSE_BUTTON_LEFT:
+				if mb.pressed:
+					_press = mb.position
+				elif pick_enabled and mb.position.distance_to(_press) < CLICK_SLOP:
+					var hit := pick(mb.position)
+					if not hit.is_empty():
+						part_clicked.emit(hit)
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_UP and mb.pressed:
 			_distance = maxf(_distance * 0.9, 1.0)
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and mb.pressed:
@@ -230,12 +349,13 @@ func _update_camera() -> void:
 	camera.look_at_from_position(target + dir * _distance, target)
 
 
-static func _material(c: Color) -> StandardMaterial3D:
+## Unshaded `c`, drawn over everything unless `through` is off.
+static func _material(c: Color, through := true) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = c
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA if c.a < 1.0 else BaseMaterial3D.TRANSPARENCY_DISABLED
-	m.no_depth_test = true
+	m.no_depth_test = through
 	m.render_priority = 1
 	return m
 

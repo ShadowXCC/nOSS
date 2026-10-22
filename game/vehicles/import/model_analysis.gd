@@ -100,6 +100,17 @@ static func analyze(scene: Node3D) -> Result:
 						kept.append(wheels[i])
 				wheels = kept
 				axes = _axes(wheels, shown)
+			var lone: Array[int] = []
+			if not axes.is_empty():
+				lone = _unpaired(wheels, axes)
+			if not lone.is_empty():
+				r.notes.append("Ignored %d wheel%s with no partner" % [lone.size(), "s" if lone.size() > 1 else ""])
+				var kept := []
+				for i in wheels.size():
+					if i not in lone:
+						kept.append(wheels[i])
+				wheels = kept
+				axes = _axes(wheels, shown)
 			if not axes.is_empty() and _match_partners(wheels, axes) > 0:
 				axes = _axes(wheels, shown)
 		if axes.is_empty():
@@ -190,21 +201,27 @@ static func _meshes(scene: Node3D) -> Array[Dictionary]:
 		if mi.mesh == null:
 			continue
 		var xf := _to_root(mi, scene)
-		var points := PackedVector3Array()
 		var triangles := 0
-		var total := 0
-		for s in mi.mesh.get_surface_count():
-			total += (mi.mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
-		var step := maxi(1, total / SAMPLES)
 		for s in mi.mesh.get_surface_count():
 			var arrays := mi.mesh.surface_get_arrays(s)
-			var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 			var index: Variant = arrays[Mesh.ARRAY_INDEX]
-			triangles += (index as PackedInt32Array).size() / 3 if index is PackedInt32Array and not (index as PackedInt32Array).is_empty() else verts.size() / 3
-			for i in range(0, verts.size(), step):
-				points.append(xf * verts[i])
-		out.append({ "node": mi, "xform": xf, "points": points, "triangles": triangles })
+			triangles += (index as PackedInt32Array).size() / 3 if index is PackedInt32Array and not (index as PackedInt32Array).is_empty() else (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3
+		out.append({ "node": mi, "xform": xf, "points": sample(mi, xf), "triangles": triangles })
 	return out
+
+
+## About SAMPLES of `mi`'s vertices, through `xf` (its transform to the root).
+static func sample(mi: MeshInstance3D, xf: Transform3D) -> PackedVector3Array:
+	var points := PackedVector3Array()
+	var total := 0
+	for s in mi.mesh.get_surface_count():
+		total += (mi.mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+	var step := maxi(1, total / SAMPLES)
+	for s in mi.mesh.get_surface_count():
+		var verts: PackedVector3Array = mi.mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]
+		for i in range(0, verts.size(), step):
+			points.append(xf * verts[i])
+	return points
 
 
 # --- wheels -------------------------------------------------------------------
@@ -256,15 +273,8 @@ static func _wheel_parts(meshes: Array[Dictionary], hidden: Dictionary, size: fl
 		# Wheels merged into a bigger mesh: look at its connected parts.
 		var xf: Transform3D = m.xform
 		for s in mi.mesh.get_surface_count():
-			var arrays := mi.mesh.surface_get_arrays(s)
-			var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-			var index: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] is PackedInt32Array else PackedInt32Array()
-			if index.is_empty():
-				index.resize(verts.size())
-				for i in verts.size():
-					index[i] = i
-			var weld := 1e-4 * size / maxf(xf.basis.get_scale().length() / sqrt(3.0), 1e-12)
-			var labels := NossMesh.components(index, verts, weld)
+			var c := components(mi, s, xf, size)
+			var labels: PackedInt32Array = c.labels
 			var groups := {} # label -> Array of triangles (packed arrays would be copied on access)
 			for t in labels.size():
 				var l := labels[t]
@@ -277,11 +287,7 @@ static func _wheel_parts(meshes: Array[Dictionary], hidden: Dictionary, size: fl
 				var tris: Array = groups[l]
 				if tris.size() < 24:
 					continue
-				var points := PackedVector3Array()
-				var step := maxi(1, tris.size() / SAMPLES)
-				for k in range(0, tris.size(), step):
-					points.append(xf * verts[index[tris[k] * 3]])
-					points.append(xf * verts[index[tris[k] * 3 + 1]])
+				var points := triangle_points(c, xf, tris)
 				if _aabb(points).size.length() < 0.025 * size:
 					continue
 				var disc := _disc(points)
@@ -296,6 +302,58 @@ static func _wheel_parts(meshes: Array[Dictionary], hidden: Dictionary, size: fl
 				p.name_score = 0.5 if named else 0.0
 				parts.append(p)
 	return parts
+
+
+## The connected parts of `mi`'s surface `s`: {verts, index, labels (one per triangle)}. Points
+## closer than a ten-thousandth of `size` (the model's size) are welded; `xf` is mi's transform
+## to the root.
+static func components(mi: MeshInstance3D, s: int, xf: Transform3D, size: float) -> Dictionary:
+	var arrays := mi.mesh.surface_get_arrays(s)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var index: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] is PackedInt32Array else PackedInt32Array()
+	if index.is_empty():
+		index.resize(verts.size())
+		for i in verts.size():
+			index[i] = i
+	var weld := 1e-4 * size / maxf(xf.basis.get_scale().length() / sqrt(3.0), 1e-12)
+	return { "verts": verts, "index": index, "labels": NossMesh.components(index, verts, weld) }
+
+
+## Points on triangles `tris` of a surface (components()), about SAMPLES of them, through `xf`.
+static func triangle_points(surface: Dictionary, xf: Transform3D, tris: Array) -> PackedVector3Array:
+	var verts: PackedVector3Array = surface.verts
+	var index: PackedInt32Array = surface.index
+	var points := PackedVector3Array()
+	var step := maxi(1, tris.size() / SAMPLES)
+	for k in range(0, tris.size(), step):
+		points.append(xf * verts[index[tris[k] * 3]])
+		points.append(xf * verts[index[tris[k] * 3 + 1]])
+	return points
+
+
+## The model's size: the diagonal of its meshes' bounds (root space).
+static func model_size(scene: Node3D) -> float:
+	var points := PackedVector3Array()
+	for m: Dictionary in _meshes(scene):
+		points.append_array(m.points)
+	return _aabb(points).size.length()
+
+
+## A wheel measured from its parts' points (root space): {center, normal, radius, width} from the
+## biggest round part, with the widest part's width; {} if none is round. As _pick_wheels has it.
+static func measure(parts: Array) -> Dictionary:
+	var best := {}
+	var width := 0.0
+	for points: PackedVector3Array in parts:
+		var disc := _disc(points)
+		if disc.is_empty():
+			continue
+		width = maxf(width, disc.width)
+		if best.is_empty() or disc.radius > best.radius:
+			best = disc
+	if not best.is_empty():
+		best.width = maxf(width, 0.05 * float(best.radius)) # a lone brake disc is flat
+	return best
 
 
 static func _part(mi: MeshInstance3D, surface: int, label: int, disc: Dictionary) -> Part:
@@ -416,41 +474,73 @@ static func _off_ground(wheels: Array, up: Vector3) -> Array[int]:
 ## left one's is tilted further and stayed out). Its parts bigger than the partner are dropped
 ## and it's measured again from what's left. Returns how many wheels changed.
 static func _match_partners(wheels: Array, axes: Dictionary) -> int:
+	var partners := _partners(wheels, axes) # as found
+	var radii: Array = wheels.map(func(w: Dictionary) -> float: return w.radius)
+	var changed := 0
+	for i in wheels.size():
+		var w: Dictionary = wheels[i]
+		if partners[i] < 0 or w.radius <= 1.25 * float(radii[partners[i]]):
+			continue
+		var partner: float = radii[partners[i]]
+		var kept: Array = w.parts.filter(func(p: Part) -> bool: return p.radius <= 1.1 * partner)
+		if kept.is_empty():
+			continue
+		var biggest: Part = kept[0]
+		var width := 0.0
+		for p: Part in kept:
+			width = maxf(width, p.width)
+			if p.radius > biggest.radius:
+				biggest = p
+		w.parts = kept
+		w.center = biggest.center
+		w.normal = biggest.normal
+		w.radius = biggest.radius
+		w.width = width
+		w.score = kept.reduce(func(s: float, p: Part) -> float: return maxf(s, p.name_score), 0.0)
+		changed += 1
+	return changed
+
+
+## Indices of wheels off the middle of the car with no partner across it, when at least four
+## others pair up: a round part low on the body (a model saved after its wheels were split out
+## can have one). None on a three-wheeler or a bike, whose odd wheels sit in the middle.
+static func _unpaired(wheels: Array, axes: Dictionary) -> Array[int]:
+	var partners := _partners(wheels, axes)
+	var mid := Vector3.ZERO
+	for w: Dictionary in wheels:
+		mid += w.center / wheels.size()
+	var half_track := 0.0
+	for w: Dictionary in wheels:
+		half_track = maxf(half_track, absf(((w.center as Vector3) - mid).dot(axes.left)))
+	var out: Array[int] = []
+	for i in wheels.size():
+		if partners[i] < 0 and absf(((wheels[i].center as Vector3) - mid).dot(axes.left)) >= 0.25 * half_track:
+			out.append(i)
+	if partners.size() - partners.count(-1) < 4:
+		out.clear()
+	return out
+
+
+## Per wheel, the index of the one across the car from it (the other side of the middle, at the
+## same place along the car), or -1.
+static func _partners(wheels: Array, axes: Dictionary) -> Array[int]:
 	var left: Vector3 = axes.left
 	var forward: Vector3 = axes.forward
 	var mid := Vector3.ZERO
 	for w: Dictionary in wheels:
 		mid += w.center / wheels.size()
-	var radii: Array = wheels.map(func(w: Dictionary) -> float: return w.radius) # as found
-	var changed := 0
+	var out: Array[int] = []
 	for w: Dictionary in wheels:
 		var side := signf(((w.center as Vector3) - mid).dot(left))
+		var found := -1
 		for i in wheels.size():
 			var q: Dictionary = wheels[i]
-			var partner: float = radii[i]
-			if is_same(q, w) or absf(((q.center as Vector3) - w.center).dot(forward)) > 0.5 * minf(w.radius, partner) \
-					or signf(((q.center as Vector3) - mid).dot(left)) == side:
-				continue
-			if w.radius <= 1.25 * partner:
+			if side != 0.0 and not is_same(q, w) and absf(((q.center as Vector3) - w.center).dot(forward)) <= 0.5 * minf(w.radius, q.radius) \
+					and signf(((q.center as Vector3) - mid).dot(left)) == -side:
+				found = i
 				break
-			var kept: Array = w.parts.filter(func(p: Part) -> bool: return p.radius <= 1.1 * partner)
-			if kept.is_empty():
-				break
-			var biggest: Part = kept[0]
-			var width := 0.0
-			for p: Part in kept:
-				width = maxf(width, p.width)
-				if p.radius > biggest.radius:
-					biggest = p
-			w.parts = kept
-			w.center = biggest.center
-			w.normal = biggest.normal
-			w.radius = biggest.radius
-			w.width = width
-			w.score = kept.reduce(func(s: float, p: Part) -> float: return maxf(s, p.name_score), 0.0)
-			changed += 1
-			break
-	return changed
+		out.append(found)
+	return out
 
 
 ## Ids of a fit's wheels that don't stand on the ground (older imports could take a round part on
@@ -553,14 +643,42 @@ static func _hub_fit_wheels(wheels: Array, _to_vehicle: Basis) -> Array:
 ## Detected wheels: ids from their place in the vehicle frame; their parts get a pivot at the
 ## wheel's centre (pivot "insert"). Parts inside a bigger mesh are split out first.
 static func _part_fit_wheels(scene: Node3D, wheels: Array, to_vehicle: Basis, r: Result) -> Array:
+	var out := []
+	for label: Dictionary in wheel_ids(wheels.map(func(w: Dictionary) -> Vector3: return to_vehicle * (w.center as Vector3)),
+			wheels.map(func(w: Dictionary) -> float: return w.radius)):
+		var id: String = label.id
+		var w: Dictionary = wheels[label.index]
+		var spin := []
+		var fixed := []
+		for part: Part in w.parts:
+			var source: Mesh = part.node.get_meta("noss_original_mesh") if part.node.has_meta("noss_original_mesh") else part.node.mesh
+			for si in source.get_surface_count():
+				if (part.surface < 0 or si == part.surface) and source.surface_get_material(si):
+					r.wheel_materials[source.surface_get_material(si).resource_name] = true
+			var node_name := _split_or_name(scene, part, id, spin.size() + fixed.size(), r)
+			(fixed if String(part.node.name).to_lower().contains("caliper") else spin).append(node_name)
+		r.wheel_nodes[id] = spin
+		out.append({
+			"id": id, "axle": label.axle, "side": label.side, "center": _arr(w.center), "radius": w.radius, "width": w.width,
+			"node": "noss_hub_" + id, "spin_node": "noss_wheel_" + id, "pivot": "insert", "spin_nodes": spin,
+		})
+		if not fixed.is_empty():
+			out[-1].fixed_nodes = fixed
+	return out
+
+
+## Ids for wheels at `centers` (vehicle frame) with `radii`: axles front to back, split where
+## the gap along the car is over half a wheel radius, and sides from the middle. LF/RF/LR/RR
+## for two axles of two, otherwise L1, R1, C2... Each {index (into centers), id, axle, side},
+## front axle first.
+static func wheel_ids(centers: Array, radii: Array) -> Array:
 	var placed := []
-	for w: Dictionary in wheels:
-		placed.append({ "w": w, "v": to_vehicle * (w.center as Vector3) })
+	for i in centers.size():
+		placed.append({ "i": i, "v": centers[i], "r": float(radii[i]) })
 	placed.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.v.z > b.v.z)
-	# Axles: gaps along the car bigger than half a wheel radius.
-	var axles := [[placed[0]]]
+	var axles := [[placed[0]]] if not placed.is_empty() else []
 	for i in range(1, placed.size()):
-		if placed[i - 1].v.z - placed[i].v.z > 0.5 * float(placed[i].w.radius):
+		if placed[i - 1].v.z - placed[i].v.z > 0.5 * float(placed[i].r):
 			axles.append([])
 		axles[-1].append(placed[i])
 	var mid_x := 0.0
@@ -582,23 +700,7 @@ static func _part_fit_wheels(scene: Node3D, wheels: Array, to_vehicle: Basis, r:
 				n += 1
 				id = "%s%d" % [side, n]
 			used[id] = true
-			var w: Dictionary = p.w
-			var spin := []
-			var fixed := []
-			for part: Part in w.parts:
-				var source: Mesh = part.node.get_meta("noss_original_mesh") if part.node.has_meta("noss_original_mesh") else part.node.mesh
-				for si in source.get_surface_count():
-					if (part.surface < 0 or si == part.surface) and source.surface_get_material(si):
-						r.wheel_materials[source.surface_get_material(si).resource_name] = true
-				var node_name := _split_or_name(scene, part, id, spin.size() + fixed.size(), r)
-				(fixed if String(part.node.name).to_lower().contains("caliper") else spin).append(node_name)
-			r.wheel_nodes[id] = spin
-			out.append({
-				"id": id, "axle": ai + 1, "side": side, "center": _arr(w.center), "radius": w.radius, "width": w.width,
-				"node": "noss_hub_" + id, "spin_node": "noss_wheel_" + id, "pivot": "insert", "spin_nodes": spin,
-			})
-			if not fixed.is_empty():
-				out[-1].fixed_nodes = fixed
+			out.append({ "index": p.i, "id": id, "axle": ai + 1, "side": side })
 	return out
 
 
@@ -608,7 +710,7 @@ static func _split_or_name(scene: Node3D, part: Part, id: String, n: int, r: Res
 	if part.label < 0:
 		if scene.find_children(part.node.name, "", true, false).size() == 1:
 			return String(part.node.name)
-		part.node.name = "noss_part_%s_%d" % [id, n]
+		part.node.name = _free_name(scene, "noss_part_%s_" % id, n)
 		r.scene_changed = true
 		return String(part.node.name)
 	# Every split of a mesh cuts from its original, so earlier splits don't shift the triangles.
@@ -643,13 +745,34 @@ static func _split_or_name(scene: Node3D, part: Part, id: String, n: int, r: Res
 	wheel_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, keep)
 	wheel_mesh.surface_set_material(0, mesh.surface_get_material(part.surface))
 	var split := MeshInstance3D.new()
-	split.name = "noss_split_%s_%d" % [id, n]
+	split.name = _free_name(scene, "noss_split_%s_" % id, n)
 	split.mesh = wheel_mesh
 	split.transform = part.node.transform
 	part.node.get_parent().add_child(split)
 	split.owner = scene
 	r.scene_changed = true
 	return String(split.name)
+
+
+## Splits triangles `mask` (one byte per triangle) of `mi`'s surface `surface` out into a mesh
+## of their own beside it, noss_split_<id>_<n> (the first free n). Returns its name.
+static func split_out(scene: Node3D, mi: MeshInstance3D, surface: int, mask: PackedByteArray, id: String) -> String:
+	var part := Part.new()
+	part.node = mi
+	part.surface = surface
+	part.label = 0
+	part.triangles = mask
+	var name := _split_or_name(scene, part, id, 0, Result.new())
+	mi.remove_meta("noss_original_mesh")
+	mi.remove_meta("noss_removed")
+	return name
+
+
+## `prefix` with the first number from `n` up that no node in `scene` is named yet.
+static func _free_name(scene: Node3D, prefix: String, n: int) -> String:
+	while scene.find_child(prefix + str(n), true, false):
+		n += 1
+	return prefix + str(n)
 
 
 ## Four anchors at the corners when no wheels were found (wheel_mode "stock").

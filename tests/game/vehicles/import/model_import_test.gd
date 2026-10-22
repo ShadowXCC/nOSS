@@ -125,6 +125,28 @@ func test_an_arch_around_a_wheel_is_not_part_of_it() -> void:
 	scene.free()
 
 
+## A round part low on one side, between the axles (the Tezeract's body, saved after its wheels
+## were split out, has one): wheel-sized and on the ground, but nothing across the car matches it.
+func test_a_round_part_without_a_partner_is_not_a_wheel() -> void:
+	var scene := _merged_car(Basis.IDENTITY)
+	var disc := MeshInstance3D.new()
+	disc.name = "skirt"
+	var cylinder := CylinderMesh.new()
+	cylinder.top_radius = 0.3
+	cylinder.bottom_radius = 0.3
+	cylinder.height = 0.2
+	cylinder.radial_segments = 24
+	cylinder.rings = 1
+	disc.mesh = cylinder
+	disc.transform = Transform3D(Basis(Vector3.BACK, PI / 2.0), Vector3(0.93, 0.2, 0.4))
+	scene.add_child(disc)
+	disc.owner = scene
+	var a := ModelAnalysis.analyze(scene)
+	assert_array(a.fit.wheels.map(func(w: Dictionary) -> String: return w.id)).contains_exactly_in_any_order(["LF", "RF", "LR", "RR"])
+	assert_array(a.notes).contains(["Ignored 1 wheel with no partner"])
+	scene.free()
+
+
 ## An older import's fit with a wheel on the roof: found in the model's own frame (here +Z up).
 func test_floating_wheels_are_found_in_a_fit() -> void:
 	var scene := _merged_car(Basis(Vector3(0, 1, 0), Vector3(0, 0, 1), Vector3(1, 0, 0)))

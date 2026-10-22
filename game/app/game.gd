@@ -59,6 +59,7 @@ extends Node
 ##   --import=<path>      Fitting Bay: import this model
 ##   --bay-auto           Fitting Bay: save and drive as soon as the import is in (timed runs)
 ##   --bay-step=<step>    Fitting Bay: show this step after the import (screenshots)
+##   --bay-wheel=<id>     Fitting Bay: pick this wheel in the Wheels step (screenshots)
 ##   --editor             open the track editor; --editor-track=<ref>: on that track,
 ##                        --editor-template=<id>: on a new track from a template, --editor-tool=<t>,
 ##                        --editor-import=<file>: a new track on a 3D scene (Track Fitting)
