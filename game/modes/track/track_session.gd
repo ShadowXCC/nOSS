@@ -92,6 +92,8 @@ var time_trial: TimeTrial
 var world_env: Environment
 ## The sky: time of day and weather (D153).
 var env: EnvDirector
+## Tracks in snow and off the road, to look at (D197); null where nothing's drawn.
+var tire_tracks: TireTracks
 ## Who has the game paused, or null.
 var paused_by: SessionPlayer
 ## Online (D84): the session's SESSION message ({track, class, event, roster}); {} offline.
@@ -382,6 +384,9 @@ func _ready() -> void:
 		return racers.filter(func(r: Racer) -> bool: return r is SessionPlayer and r.vehicle != null).map(func(r: Racer) -> Vehicle: return r.vehicle)
 	add_child(env)
 	env.apply()
+	if not dedicated and Vehicle.drawn:
+		tire_tracks = TireTracks.new()
+		add_child(tire_tracks)
 	if event.kind == "sumo":
 		sumo_world = SumoBuilder.new()
 		sumo_world.name = "SumoArena"
