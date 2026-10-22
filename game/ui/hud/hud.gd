@@ -21,11 +21,12 @@ var palette: Dictionary = Palette.PRESETS.default
 
 ## HUD elements that can be hidden on their own, and the presets (docs/ACCESSIBILITY.md §6).
 const ELEMENTS := [["speed", "Speed and gear"], ["timing", "Lap times"], ["delta", "Delta"], ["position", "Position"],
-	["standings", "Standings"], ["flags", "Flags"], ["assists", "Active assists"], ["car", "Car name"]]
+	["standings", "Standings"], ["flags", "Flags"], ["assists", "Active assists"], ["car", "Car name"],
+	["nametags", "Name tags"]]
 const PRESETS := {
 	"full": [],
 	"minimal": ["timing", "delta", "standings", "assists", "car"],
-	"off": ["speed", "timing", "delta", "position", "standings", "flags", "assists", "car"],
+	"off": ["speed", "timing", "delta", "position", "standings", "flags", "assists", "car", "nametags"],
 }
 
 var _speed := _label(96)

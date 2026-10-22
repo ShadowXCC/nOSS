@@ -66,6 +66,13 @@ func setup() -> void:
 	hud.racer = self
 	hud.race = session.race
 	hud.camera = cameras.camera
+	# The other players' name tags, under the HUD's own readouts (D199).
+	var plates := Nameplates.new()
+	plates.name = "Nameplates"
+	plates.session = session
+	plates.player = self
+	hud.add_child(plates)
+	hud.move_child(plates, 0)
 	hud.show_message("Loading", 30.0)
 	update_badge(1)
 	cameras.camera.global_transform = Transform3D(Basis.looking_at(spawn_at.basis.z), spawn_at.origin + Vector3(0, 3, 0) - spawn_at.basis.z * 8.0)

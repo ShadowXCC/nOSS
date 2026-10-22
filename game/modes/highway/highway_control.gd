@@ -24,8 +24,6 @@ func _ready() -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	if Engine.get_physics_frames() % 60 == 0:
-		_ready_plates() # players join; their HUDs come with them
 	if session.run and session.run.state.is_empty() and not session.players.is_empty() \
 			and session.players.all(func(p: SessionPlayer) -> bool: return p.vehicle != null) \
 			and session.race.phase == RaceControl.Phase.RUNNING: # online, after the start's hold (D127)
@@ -211,14 +209,3 @@ func join(p: Racer, friend: Racer) -> void:
 	p.track_index = -1
 	p.timer.teleported(p.lap_pos(p.distance))
 	p.notify("Behind %s" % friend.display_name, 2.0)
-
-
-## Name plates over the other players' cars on each of this game's players' HUDs.
-func _ready_plates() -> void:
-	for pl in session.players:
-		if pl.hud and pl.hud.get_node_or_null(^"Nameplates") == null:
-			var plates := Nameplates.new()
-			plates.name = "Nameplates"
-			plates.session = session
-			plates.player = pl
-			pl.hud.add_child(plates)
