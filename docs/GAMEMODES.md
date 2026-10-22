@@ -9,6 +9,7 @@ Rules and flow for each mode. Every mode uses the same vehicle core ([PHYSICS.md
 - **Flow:** Lobby → (Practice) → (Qualifying) → Main session → Results. Single player goes straight to the session.
 - **Before a session:** each player picks a **class** (platform), a **car** (package) and **assists**.
 - **AI** fills empty slots where the mode supports it, with skill 0–100.
+- **Other players (D199):** name tags float over other players' cars (splitscreen and online, never bots) within 400 m: their name, how far, and a triangle down at the car. The HUD's "Name tags" element hides them.
 - **Environment (D153):** every event menu has three sky rows.
   - **Time:** Track's (the track's own fixed sun), Dawn, Morning, Noon, Afternoon, Dusk or Night.
   - **Time runs:** still, real time, or 10×, 30×, 60× or 120×.

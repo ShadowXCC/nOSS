@@ -120,7 +120,7 @@ These build on the standard assists (steer aid, ABS, TCS, stability, auto-gearbo
 |---|---|
 | Pause | Pause at any time in single player and local play. Online sessions can't pause. |
 | Game speed | 50–100% sim speed in offline single player. Those results don't count toward leaderboards. |
-| HUD presets | Full, Minimal, Off. Any HUD element can be hidden on its own. Endless shows the speed, gear and RPM bar until you hide them from the pause menu (D189); captions and messages always show (M9). With speed traps or police on, the limit shows by the speedometer as a road sign with its number in your units, which a screen reader reads as "Limit 50 mph" (D193). |
+| HUD presets | Full, Minimal, Off. Any HUD element can be hidden on its own. Endless shows the speed, gear and RPM bar until you hide them from the pause menu (D189); captions and messages always show (M9). With speed traps or police on, the limit shows by the speedometer as a road sign with its number in your units, which a screen reader reads as "Limit 50 mph" (D193). Name tags over other players' cars are an element too: Off hides them, Minimal keeps them (D199). |
 | Navigation | Checkpoint arrows on highway runs. "Wrong way" warnings in every mode. |
 | Difficulty | AI skill 0–100, traffic density, police on/off ([GAMEMODES.md §0](GAMEMODES.md#0-common-to-all-modes)) |
 
@@ -137,6 +137,7 @@ Each new local player who joins (press-to-join, [INPUT.md §3](INPUT.md#3-joinin
 ## 8. Splitscreen and online
 
 - **Per viewport:** HUD scale, palette, camera, shake, flashing and brightness follow that viewport's player.
+- **Who's who (D199):** a name tag over each other player's car pairs their colour with their name (never colour alone, §1). It follows the viewing player's HUD size, font and high contrast (a solid plate that fades less).
 - **Shared menus** (primary window) use P1's font and the largest text size of any joined player (M3; the game can't tell which player is navigating a shared menu).
 - **One audio output:** in local play, audio settings (volumes, mono, spotter) are shared and any player can change them.
 - **Online:** presentation and input settings stay local. Only assist use is sent, for rules and results (M5).
