@@ -143,10 +143,12 @@ func _batches(first: int, end: int) -> Dictionary:
 		var k := i % n
 		var j := (i + 1) % n
 		var surface := int(track.surface[k])
-		_road_quad(_batch(out, "road:%d" % surface), k, j)
+		# A highway's tunnels keep the weather off their road (D153).
+		var dry := _hw != null and _hw.sheltered(k, j)
+		_road_quad(_batch(out, ("road_dry:%d" if dry else "road:%d") % surface), k, j)
 		if visual:
 			if _hw:
-				_hw.lines(_batch(out, "lines"), k, j)
+				_hw.lines(_batch(out, "lines_dry" if dry else "lines"), k, j)
 			elif markings:
 				markings.lines(_batch(out, "lines"), _batch(out, "lines_yellow"), k, j)
 			else:
@@ -397,7 +399,7 @@ func _perimeter() -> MeshBatch:
 # --- nodes ----------------------------------------------------------------------------------
 
 
-const NAMES := { "lines": "Lines", "lines_yellow": "LinesYellow", "curbs": "Curbs", "bridge": "Bridge", "lamps": "Lamps", "lamp_heads": "LampHeads",
+const NAMES := { "lines": "Lines", "lines_dry": "LinesSheltered", "lines_yellow": "LinesYellow", "curbs": "Curbs", "bridge": "Bridge", "lamps": "Lamps", "lamp_heads": "LampHeads",
 	"tunnel": "Tunnel", "tunnel_lights": "TunnelLights", "gantry": "Gantries", "sign_board": "SignBoards", "cushion": "Cushions",
 	"portal": "Portals", "portal_dark": "PortalShells", "portal_floor": "PortalFloors" }
 
@@ -428,14 +430,19 @@ func _add_batches(parent: Node3D, batches: Dictionary, built := {}) -> void:
 		var material: Material
 		var surface := -1
 		match parts[0]:
-			"road":
+			"road", "road_dry":
 				surface = int(parts[1])
 				node_name = "Road" if surface == VehicleSim.SURFACE_ASPHALT else "Road_" + TrackFormat.SURFACES[surface].capitalize()
 				material = WorldMaterials.surface(surface)
+				if parts[0] == "road_dry":
+					node_name += "Sheltered"
+					material = WorldMaterials.sheltered(material)
 			"lines":
-				material = WorldMaterials.get_material("paint_white", null, 0.6, 0.2, false, Vector2.ONE, Color(0.9, 0.9, 0.88))
+				material = WorldMaterials.paint("paint_white", Color(0.9, 0.9, 0.88))
+			"lines_dry":
+				material = WorldMaterials.sheltered(WorldMaterials.paint("paint_white", Color(0.9, 0.9, 0.88)))
 			"lines_yellow":
-				material = WorldMaterials.get_material("paint_yellow", null, 0.6, 0.2, false, Vector2.ONE, Color(0.93, 0.72, 0.12))
+				material = WorldMaterials.paint("paint_yellow", Color(0.93, 0.72, 0.12))
 			"curbs":
 				surface = VehicleSim.SURFACE_CURB
 				material = WorldMaterials.surface(surface)
@@ -488,7 +495,7 @@ func _add_batches(parent: Node3D, batches: Dictionary, built := {}) -> void:
 				material = WorldMaterials.get_material("portal_dark", null, 1.0, 0.0, false, Vector2.ONE, Color(0.03, 0.03, 0.035))
 			"portal_floor":
 				surface = VehicleSim.SURFACE_ASPHALT
-				material = WorldMaterials.surface(VehicleSim.SURFACE_ASPHALT)
+				material = WorldMaterials.sheltered(WorldMaterials.surface(VehicleSim.SURFACE_ASPHALT))
 			"prop":
 				# Prop parts by material ("prop:<material>:<surface>"): the endless road's signs.
 				node_name = "Props_" + parts[1].capitalize()

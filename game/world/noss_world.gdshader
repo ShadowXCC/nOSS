@@ -1,6 +1,7 @@
 // Shared world material (docs/ARCHITECTURE.md §7). Tracks never hard-code their look: the
 // style profile drives the global style_* uniforms, and the sky (EnvDirector, D153) the env_*
-// ones: wet surfaces darken (roads shine), snow settles on what faces up, lamps light at night.
+// ones: wet surfaces darken (roads shine), snow settles on what faces up (dusting the roads),
+// lamps light at night.
 shader_type spatial;
 render_mode diffuse_lambert, specular_schlick_ggx;
 
@@ -24,6 +25,12 @@ uniform bool night_glow = false;
 // Roads and paved ground shine when wet (1); how much snow settles on it (lamps, signs: 0).
 uniform float wet_shine = 0.0;
 uniform float snow_settle = 1.0;
+// Paved: snow lies as a dusting, specks over drifting patches (snow_noise: red the specks, green
+// the patches), rather than a sheet.
+uniform float snow_dust = 0.0;
+uniform sampler2D snow_noise : repeat_enable, filter_linear_mipmap, hint_default_white;
+// 0 under cover (highway tunnels): no rain or snow reaches it.
+uniform float weathered = 1.0;
 // Low-frequency colour variation in world space, to break up tiling.
 uniform float variation = 0.0;
 uniform sampler2D variation_noise : repeat_enable, filter_linear_mipmap, hint_default_white;
@@ -44,15 +51,30 @@ void fragment() {
 	}
 	float grey = dot(c, vec3(0.299, 0.587, 0.114));
 	c = mix(vec3(grey), c, style_saturation);
-	float wet = env_wetness * (1.0 - env_snow);
-	if (wet > 0.0 || env_snow > 0.0) {
+	float snow = env_snow * weathered;
+	float wet = env_wetness * (1.0 - env_snow) * weathered;
+	float dusted = 0.0;
+	if (wet > 0.0 || snow > 0.0) {
 		float up = smoothstep(0.55, 0.85, (INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).y);
 		c *= 1.0 - (0.18 + 0.2 * wet_shine) * wet;
-		c = mix(c, vec3(0.9, 0.92, 0.96), env_snow * snow_settle * up * 0.85);
+		float cover = snow * snow_settle * up;
+		if (snow_dust > 0.0) {
+			// Specks a few centimetres across over patches drawn out by the wind; the more falls,
+			// the more the gaps fill. A thin frost over it all, the road damp between.
+			float specks = texture(snow_noise, world_pos.xz * 0.6).r;
+			float patches = texture(snow_noise, world_pos.xz * vec2(0.05, 0.022) + vec2(0.31, 0.67)).g;
+			float n = specks * 0.55 + patches * 0.45;
+			float lying = smoothstep(1.0 - 0.6 * cover, 1.16 - 0.6 * cover, n);
+			dusted = cover * (0.12 + 0.75 * lying) * snow_dust;
+			c *= 1.0 - 0.12 * cover * snow_dust;
+			c = mix(c, vec3(0.9, 0.92, 0.96), dusted);
+		} else {
+			c = mix(c, vec3(0.9, 0.92, 0.96), cover * 0.85);
+		}
 	}
 	ALBEDO = c;
-	ROUGHNESS = mix(roughness, 0.15, wet * wet_shine);
-	SPECULAR = mix(specular, 0.65, wet * wet_shine);
+	ROUGHNESS = mix(mix(roughness, 0.15, wet * wet_shine), 1.0, dusted);
+	SPECULAR = mix(mix(specular, 0.65, wet * wet_shine), 0.1, dusted);
 	EMISSION = night_glow ? emission * smoothstep(0.05, 0.5, env_night) : emission;
 	if (alpha_scissor) {
 		ALPHA = t.a * albedo.a;

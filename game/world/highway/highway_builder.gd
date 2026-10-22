@@ -127,13 +127,18 @@ func _lamp(out: Dictionary, k: int) -> void:
 		heads.box(base + Vector3.UP * (LAMP_H - 1.35) + level.x * side * LAMP_REACH, level, Vector3(0.9, 0.18, 0.35))
 
 
+## True if the main road from sample k to j is inside a tunnel (ramps never are).
+func sheltered(k: int, j: int) -> bool:
+	return ramp == null and highway.in_tunnel(track.distances[k]) and highway.in_tunnel(track.distances[j])
+
+
 ## Tunnel shells over zones marked tunnel: a wall outside each barrier, a roof, light strips.
 func _tunnels(out: Dictionary, first: int, end: int) -> void:
 	var n := track.samples.size()
 	for i in range(first, end):
 		var k := i % n
 		var j := (i + 1) % n
-		if not (highway.in_tunnel(track.distances[k]) and highway.in_tunnel(track.distances[j])):
+		if not sheltered(k, j):
 			continue
 		var tops := {}
 		for side: float in [1.0, -1.0]:

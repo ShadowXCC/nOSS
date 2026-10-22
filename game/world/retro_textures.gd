@@ -206,6 +206,26 @@ static func variation() -> Texture2D:
 		return noise.get_seamless_image(128, 128))
 
 
+## Snow dusting a road (noss_world's snow_noise): fine specks in red, drifting patches in green.
+static func snow_dust() -> Texture2D:
+	return _cached("snow_dust", func() -> Image:
+		var specks := FastNoiseLite.new()
+		specks.seed = 113
+		specks.frequency = 0.25
+		specks.fractal_octaves = 2
+		var patches := FastNoiseLite.new()
+		patches.seed = 127
+		patches.frequency = 0.03
+		patches.fractal_octaves = 3
+		var s := specks.get_seamless_image(128, 128)
+		var p := patches.get_seamless_image(128, 128)
+		var img := Image.create(128, 128, false, Image.FORMAT_RGBA8)
+		for y in 128:
+			for x in 128:
+				img.set_pixel(x, y, Color(s.get_pixel(x, y).r, p.get_pixel(x, y).r, 0.0))
+		return img)
+
+
 static func _cached(key: String, make: Callable) -> Texture2D:
 	if not _cache.has(key):
 		var img: Image = make.call()

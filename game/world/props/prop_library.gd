@@ -333,7 +333,7 @@ static func material(key: String) -> Material:
 		"concrete":
 			return WorldMaterials.get_material("concrete_world", RetroTextures.concrete(), 0.8, 0.25, true, Vector2.ONE / 6.0)
 		"paint":
-			return WorldMaterials.get_material("paint_white", null, 0.6, 0.2, false, Vector2.ONE, Color(0.9, 0.9, 0.88))
+			return WorldMaterials.paint("paint_white", Color(0.9, 0.9, 0.88))
 		"bark":
 			return WorldMaterials.get_material("bark", RetroTextures.dirt(), 1.0, 0.05, false, Vector2.ONE, Color(0.55, 0.42, 0.32))
 		"leaves":

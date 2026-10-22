@@ -36,10 +36,27 @@ static func glowing(key: String, color: Color, glow := 1.0, night_only := false)
 	return m
 
 
-## A paved surface: it shines when wet, and snow lies thinner on it (D153).
+## Road paint in `color` (lines, painted props): paved, like the road it's on.
+static func paint(key: String, color: Color) -> ShaderMaterial:
+	return _paved(get_material(key, null, 0.6, 0.2, false, Vector2.ONE, color))
+
+
+## `m` under cover (highway tunnels): no rain or snow reaches it (D153). Made once per material.
+static func sheltered(m: ShaderMaterial) -> ShaderMaterial:
+	var key := "sheltered:%d" % m.get_instance_id()
+	if not _cache.has(key):
+		var dry := m.duplicate() as ShaderMaterial
+		dry.set_shader_parameter("weathered", 0.0)
+		_cache[key] = dry
+	return _cache[key]
+
+
+## A paved surface: it shines when wet, and snow dusts it rather than lying in a sheet (D153).
 static func _paved(m: ShaderMaterial) -> ShaderMaterial:
 	m.set_shader_parameter("wet_shine", 1.0)
-	m.set_shader_parameter("snow_settle", 0.55) # traffic keeps a road greyer than the verges
+	m.set_shader_parameter("snow_settle", 0.8) # traffic keeps a road thinner than the verges
+	m.set_shader_parameter("snow_dust", 1.0)
+	m.set_shader_parameter("snow_noise", RetroTextures.snow_dust())
 	return m
 
 
@@ -61,5 +78,5 @@ static func surface(id: int) -> ShaderMaterial:
 		VehicleSim.SURFACE_CURB:
 			return _paved(get_material("curb", RetroTextures.curb(), 0.6, 0.3))
 		VehicleSim.SURFACE_PAINT:
-			return _paved(get_material("paint_white", null, 0.6, 0.2, false, Vector2.ONE, Color(0.9, 0.9, 0.88)))
+			return paint("paint_white", Color(0.9, 0.9, 0.88))
 	return _paved(get_material("asphalt_plain", RetroTextures.asphalt_plain(), 0.85, 0.3, true, Vector2.ONE / 6.0))
