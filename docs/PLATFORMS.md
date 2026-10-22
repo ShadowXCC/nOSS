@@ -165,7 +165,8 @@ When a package is mounted on a platform:
 1. **Measure** the model: wheelbase `L_m`, average track `T_m` (hub centers), visual wheel radius `r_vis` and envelope (AABB), all from `fit.json`.
 2. **Scale if needed:** if `L_m` is outside `wheelbase_m [min, max]`, apply the uniform scale `s` that brings it to the nearest bound. Every measurement is multiplied by `s`. A platform may also set `fit.wheelbase_max_m`: a longer model is scaled down to that even when the range would take it (the kart classes: 1.35 m, so a car becomes kart-sized; the Fitting Bay says "Kart size (52%)", D150).
 3. **Clamp:** after scaling, clamp track to `track_m`. If the track had to be clamped, the visual wheels move in or out along the axle. The Fitting Bay reports this, e.g. "Wheels moved 4 cm in".
-4. The resulting **fitted geometry** `L`, `T` and envelope are used below. The wheel radius is cosmetic (§4.2).
+4. **Ground:** where the simulated wheels touch down: the mean of hub height less radius over the physics wheels (the model's first and last axles; any in between are visual only). `Fitting` and the sim work it out the same way. A `fit.json` `ground_y` that disagrees is overruled. A package's ride height (`body_lift_m`) first moves every wheel that much lower on the body.
+5. The resulting **fitted geometry** `L`, `T` and envelope are used below. The wheel radius is cosmetic (§4.2).
 
 ### 4.2 Invariants that keep performance equal
 

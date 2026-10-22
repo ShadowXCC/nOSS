@@ -118,6 +118,8 @@ These match the FM4 rips, so those convert with no manual work. Models that don'
 - `null` cameras are auto-placed from the envelope.
 - `steering_wheel.visual_lock_deg` is the model's steering wheel rotation lock-to-lock, used with keyboard and controller. With a real wheel, the in-car wheel turns with it, up to the platform's lock.
 - `hide_nodes` takes glob patterns, e.g. FM4 alternate race parts like `*race`.
+- `ground_y` is a hint. The ground is where the wheels the sim drives touch down (the first and last axle; any in between are visual only). A value that disagrees is overruled, and the class notes it ("Ground moved 3 cm").
+- `body_lift_m` (optional): ride height. It raises the body on its wheels, in metres before a class scales it (−1 to 1; negative lowers it). The wheels stay on the road, drawn and simulated. The Fitting Bay writes it only when it isn't 0.
 - `lod_materials`: `own` (default) or `shared`. Generated LODs (§7 step 9) carry plain materials without textures; with `shared` the loader gives each LOD≥1 surface LOD0's material of the same name, so LODs add no texture memory (D40) and paint and lights still match by name.
 
 ## 5. `paint.json`
@@ -199,7 +201,7 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 
 **How the automatic steps work** (`ModelImport`, `ModelAnalysis`):
 - **Import:** a GLB that already passes §9 is stored byte for byte. Anything else (FBX through `FBXDocument`, `.gltf` with separate files, external, WebP or oversized textures) is re-exported through Godot into a plain GLB (PNG textures, JPEG if PNG would pass 50 MB; textures over 4096 are scaled down). Draco- and meshopt-compressed files are refused with "Re-export without compression". The resulting GLB is parsed again, so the bay sees exactly what the game will load.
-- **Wheels:** named hubs if present. Otherwise round, thin parts: whole meshes, or connected parts inside a merged mesh (meshoptimizer-based, `NossMesh.components`). Parts on one axle line (tire, rim, disc) form a wheel; the wheels kept share an axle direction and similar radii. Wheel-like names (`wheel`, `tire`, `rim`…) count as extra evidence. Wheels merged into the body are split out into their own meshes.
+- **Wheels:** named hubs if present. Otherwise round, thin parts: whole meshes, or connected parts inside a merged mesh (meshoptimizer-based, `NossMesh.components`). Parts on one axle line (tire, rim, disc) form a wheel; the wheels kept share an axle direction and similar radii. Wheel-like names (`wheel`, `tire`, `rim`…) count as extra evidence. A round part whose bottom is more than its radius above the lowest wheel's (a turret ring, a roof light) isn't a wheel. Wheels merged into the body are split out into their own meshes.
 - **Orientation:** the axle direction is the car's left-right; the spread of the wheel centres is its length; up is the side the car reaches further from its wheels. Front comes from names (`front`, `head`, `FL`… against `rear`, `tail`, `back`…) and the steering wheel; glTF's +Z breaks a tie. Rotations within 3° of a right angle snap to it.
 - **Scale:** the wheelbase decides: a common unit (m, cm, mm, inch, foot) if one gives 1.8–3.6 m, otherwise whatever gives 2.6 m.
 - **Other parts:** ground planes, stands and cloths (by name, or much bigger than the car's footprint) are hidden. `Paint_*` materials become slots; otherwise the body's main material is offered unless the wheels or glass use it too. Lights and the steering wheel come from names, the eye point from the steering wheel, hood and bumper cameras from the body's shape. A model whose wheels stand outside its body is `open`, others `car`.
@@ -208,7 +210,7 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 |---|---|---|
 | 1. Import | Pick a `.glb`, `.gltf`, `.fbx` or `.noss` (Browse, or the `import/` folder next to the garage). It's checked, converted if needed and analysed on a worker thread, with a bar naming each phase as it goes. Name, author, license and type (car, open-wheel, truck) are set here. | Yes |
 | 2. Orient | The yellow arrow shows the front. Buttons turn it 90°/180° or tip and roll it. | Yes, overridable |
-| 3. Wheels | Found wheels are shown as rings. Without any (or by choice), `stock` or `static` wheels are placed with sliders: front and rear axle, track, radius, height. | Mostly |
+| 3. Wheels | Found wheels are shown as rings. Without any (or by choice), `stock` or `static` wheels are placed with sliders: front and rear axle, track, radius, height. **Ride height** raises or lowers the body on its wheels. A body more than 2 cm in the ground is reported ("Body 5 cm in the ground"), and **Lift clear** raises it to 1 cm over. A wheel off the ground (an older import's roof part) is reported and can be removed. Neither changes the car until pressed. | Mostly |
 | 4. Scale | From the wheelbase. The player can type the real length; the class may still scale it to fit (shown, e.g. "Scaled to 92%"). | Yes, overridable |
 | 5. Paint | Each material can be primary, secondary, tertiary or not painted; then colour and finish per slot. | `Paint_*` materials, or the body's main material |
 | 6. Cockpit | Sliders for the driver's eye, hood and bumper cameras, with a view from each. | Guessed |
