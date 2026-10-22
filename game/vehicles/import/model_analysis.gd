@@ -872,6 +872,33 @@ static func _surface_samples(meshes: Array[Dictionary], hidden: Dictionary, to_v
 	return out
 
 
+## How low `scene`'s meshes reach along `dir` (root space): the least `dir`·vertex, leaving out
+## the nodes in `skip` and everything under them. INF without any.
+static func lowest_along(scene: Node3D, dir: Vector3, skip: Dictionary) -> float:
+	var low := INF
+	for mi: MeshInstance3D in scene.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null or _under(mi, scene, skip):
+			continue
+		var xf := _to_root(mi, scene)
+		# dir·(xf * v) is a·v + b.
+		var a := xf.basis.transposed() * dir
+		var mesh_low := INF
+		for s in mi.mesh.get_surface_count():
+			for v: Vector3 in mi.mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]:
+				mesh_low = minf(mesh_low, a.dot(v))
+		low = minf(low, mesh_low + xf.origin.dot(dir))
+	return low
+
+
+## True if `node` or one of its parents below `root` is in `nodes`.
+static func _under(node: Node, root: Node, nodes: Dictionary) -> bool:
+	while node and node != root:
+		if nodes.has(node):
+			return true
+		node = node.get_parent()
+	return false
+
+
 ## Rounds a rotation to exact 90 degree steps when it's within 3 degrees of one.
 static func _snap(b: Basis) -> Basis:
 	var cols := [b.x, b.y, b.z]

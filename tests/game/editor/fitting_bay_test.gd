@@ -48,6 +48,49 @@ func test_stock_wheels_follow_the_anchors() -> void:
 	assert_float(_bay._preview.fitted.track).is_greater(1.6)
 
 
+## Ride height lowers the wheels on the body; it's packed only when it's set.
+func test_ride_height() -> void:
+	var before: float = _bay._preview.fitted.wheels[0].center.y
+	_bay._set_lift(0.05)
+	var f := _bay._preview.fitted
+	assert_float(f.wheels[0].center.y).is_equal_approx(before - 0.05 * f.scale, 0.0001)
+	assert_str(_bay.draft.files()["fit.json"].get_string_from_utf8()).contains("body_lift_m")
+	_bay._set_lift(0.0)
+	assert_str(_bay.draft.files()["fit.json"].get_string_from_utf8()).not_contains("body_lift_m")
+
+
+## A body lowered into the ground is reported, and Lift clear raises it to just over it.
+func test_lift_clear() -> void:
+	var clearance := -_bay._clip_depth()
+	assert_float(clearance).is_between(0.0, 0.5)
+	_bay._set_lift(-(clearance + 0.1) / _bay._preview.fitted.scale)
+	assert_float(_bay._clip_depth()).is_equal_approx(0.1, 0.001)
+	assert_str(_bay._status.text).contains("Body 10 cm in the ground")
+	_bay._show_step("Wheels")
+	var lift := _button("Lift clear")
+	assert_object(lift).is_not_null()
+	if lift == null:
+		return
+	lift.pressed.emit()
+	assert_float(_bay._clip_depth()).is_between(-0.03, 0.0)
+	assert_str(_bay._status.text).not_contains("in the ground")
+
+
+## A wheel off the ground (an older import's roof part) is shown and can be removed.
+func test_a_wheel_off_the_ground_can_be_removed() -> void:
+	_bay.draft.fit.wheels.append({ "id": "C2", "axle": 2, "side": "C", "center": [0.0, 1.5, 0.0], "radius": 0.3, "width": 0.2 })
+	_bay._refresh()
+	assert_str(_bay._status.text).contains("Wheel C2 is off the ground")
+	_bay._show_step("Wheels")
+	var remove := _button("Remove it")
+	assert_object(remove).is_not_null()
+	if remove == null:
+		return
+	remove.pressed.emit()
+	assert_int(_bay.draft.fit.wheels.size()).is_equal(4)
+	assert_str(_bay._status.text).not_contains("off the ground")
+
+
 func test_paint_assignment() -> void:
 	_bay._assign_material("primary", "colormap")
 	assert_array(_bay.draft.paint.slots.primary.materials).contains_exactly(["colormap"])
@@ -58,10 +101,12 @@ func test_paint_assignment() -> void:
 func test_draft_packs() -> void:
 	if FileAccess.file_exists(_bay.draft.edit_path):
 		DirAccess.remove_absolute(_bay.draft.edit_path)
+	_bay.draft.fit.body_lift_m = 0.05
 	var result := _bay.draft.pack()
 	assert_str(result.error).is_empty()
 	var pkg := PackageLoader.load_package(result.path)
 	assert_str(pkg.error).is_empty()
+	assert_float(float(pkg.fit.get("body_lift_m", 0.0))).is_equal(0.05)
 	pkg.free_scenes()
 
 
@@ -93,6 +138,14 @@ func test_a_noss_already_in_the_garage_asks_first() -> void:
 	assert_object(_bay.draft.scene).is_not_null() # the question must not free it
 	assert_bool(is_instance_valid(_bay._overlay)).is_false()
 	DirAccess.remove_absolute(path)
+
+
+## The step's button labelled `text` (not one of the old step's, still waiting to be freed).
+func _button(text: String) -> Button:
+	for b: Button in _bay._content.find_children("*", "Button", true, false):
+		if b.text == text and not b.is_queued_for_deletion():
+			return b
+	return null
 
 
 ## A .noss of the built-in box at `path`, named `car_name`.

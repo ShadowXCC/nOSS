@@ -189,6 +189,21 @@ func test_a_car_with_a_roof_wheel_stays_down() -> void:
 	assert_float(rising).is_less(0.5)
 
 
+## Ride height (body_lift_m): the body rises on its wheels, so they, the physics wheels and the
+## ground sit that much lower on it. The body stays where it is.
+func test_ride_height_lowers_the_wheels_on_the_body() -> void:
+	var level := Fitting.fit(_platform, _fit(2.55, 1.57))
+	var data := _fit(2.55, 1.57)
+	data.body_lift_m = 0.05
+	var r := Fitting.fit(_platform, data)
+	assert_float(r.body_lift).is_equal_approx(0.05, 0.0001)
+	assert_float(r.ground_y).is_equal_approx(level.ground_y - 0.05, 0.0001)
+	assert_float(r.wheels[0].center.y).is_equal_approx(level.wheels[0].center.y - 0.05, 0.0001)
+	assert_float(r.physics_wheels[0].center.y).is_equal_approx(level.physics_wheels[0].center.y - 0.05, 0.0001)
+	assert_vector(r.model_bounds.position).is_equal_approx(level.model_bounds.position, Vector3.ONE * 0.0001)
+	assert_array(r.notes).is_empty()
+
+
 ## `data` with its rear wheels on axle 3 and a wheel on the roof on axle 2.
 static func _with_roof_wheel(data: Dictionary) -> Dictionary:
 	for w: Dictionary in data.wheels:

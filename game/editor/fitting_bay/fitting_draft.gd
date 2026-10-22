@@ -34,6 +34,9 @@ var kept_thumbnail := PackedByteArray()
 ## Own engine recordings (AV-06): "sound/<file>" -> bytes, each named in `sound`.
 var sound_files := {}
 var _streams := {} # file (relative to sound/) -> AudioStream, for the bay's engine
+## body_bottom()'s scan, and what it was made for.
+var _bottom := INF
+var _bottom_key := ""
 
 
 ## A new car from an imported model, with everything the analysis could work out.
@@ -121,6 +124,8 @@ func files(lods := false, thumbnail := PackedByteArray()) -> Dictionary:
 		if named.has(rel.trim_prefix("sound/")):
 			out[rel] = sound_files[rel]
 	var fit_out := fit.duplicate(true)
+	if is_zero_approx(float(fit_out.get("body_lift_m", 0.0))):
+		fit_out.erase("body_lift_m") # a car without a ride height reads as it always has
 	if lods and not kept_lods.is_empty():
 		out.merge(kept_lods)
 		fit_out.merge(kept_lod_fit, true)
@@ -140,6 +145,35 @@ func files(lods := false, thumbnail := PackedByteArray()) -> Dictionary:
 	elif not kept_thumbnail.is_empty():
 		out["thumb.png"] = kept_thumbnail
 	return out
+
+
+## The body's lowest point in the vehicle frame, metres before a class scales it (what sits
+## nearest the road; INF without a model). Parts hidden by the fit are left out, and so are the
+## wheels unless they're fixed to the body (wheel_mode static). The scan is kept while the
+## model's turn and parts stay the same, so scale, offset and ride height don't redo it.
+func body_bottom() -> float:
+	if scene == null:
+		return INF
+	var mt: Dictionary = fit.model_transform
+	var r: Array = mt.rotation_deg
+	var wheel_nodes := []
+	if fit.get("wheel_mode") != "static":
+		for w: Dictionary in fit.wheels:
+			wheel_nodes.append_array([w.get("node", ""), w.get("spin_node", "")] + w.get("spin_nodes", []) + w.get("fixed_nodes", []))
+	var key := JSON.stringify([scene.get_instance_id(), r, fit.get("hide_nodes", []), wheel_nodes])
+	if key != _bottom_key:
+		_bottom_key = key
+		var skip := {}
+		for pattern: String in fit.get("hide_nodes", []):
+			for node in scene.find_children(pattern, "Node3D", true, false):
+				skip[node] = true
+		for node_name: String in wheel_nodes:
+			var node: Node = scene.find_child(node_name, true, false) if node_name else null
+			if node:
+				skip[node] = true
+		var up := Basis.from_euler(Vector3(deg_to_rad(r[0]), deg_to_rad(r[1]), deg_to_rad(r[2]))).transposed() * Vector3.UP
+		_bottom = ModelAnalysis.lowest_along(scene, up, skip)
+	return _bottom * float(mt.scale) + float(mt.offset_m[1])
 
 
 ## Adds an own recording from `disk_path`: for an emitter's loop at `rpm` ("on" or "off" load),

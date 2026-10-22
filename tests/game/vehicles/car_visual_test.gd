@@ -31,6 +31,18 @@ func test_wheel_pose_moves_hub_and_spins_wheel() -> void:
 	assert_float(wheel.basis.get_euler().x).is_equal_approx(1.0, 0.0001)
 
 
+## Ride height lowers the wheels on the body.
+func test_ride_height_drops_the_hubs() -> void:
+	var pkg := PackageLoader.load_package("res://content/cars/noss_box")
+	pkg.fit = pkg.fit.duplicate(true)
+	pkg.fit.body_lift_m = 0.05
+	var platform := PlatformLoader.load_official("official.track.gt").platform
+	var lifted: CarVisual = auto_free(CarVisual.create(pkg, Fitting.fit(platform, pkg.fit)))
+	var level := _visual.find_child("hub_LF", true, false) as Node3D
+	var hub := lifted.find_child("hub_LF", true, false) as Node3D
+	assert_vector(hub.position).is_equal_approx(level.position - Vector3(0, 0.05, 0), Vector3.ONE * 0.0001)
+
+
 func test_steering_wheel_rotates_about_its_center() -> void:
 	var sw := _visual.find_child("steering_wheel", true, false) as Node3D
 	var rest := sw.transform

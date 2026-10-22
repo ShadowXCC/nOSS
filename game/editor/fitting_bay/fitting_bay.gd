@@ -12,6 +12,11 @@ const IMPORT_DIR := "user://import/"
 const FONT_SIZE := 24
 const FAMILIES := [["car", "Car"], ["open", "Open-wheel"], ["truck", "Truck"]]
 const FINISHES := [["solid", "Solid"], ["metallic", "Metallic"], ["pearl", "Pearl"], ["matte", "Matte"], ["chrome", "Chrome"]]
+## Ride height slider range (m, fit.json body_lift_m).
+const LIFT_MIN := -0.3
+const LIFT_MAX := 0.6
+## The body may sit this far into the ground (m) before the bay says so (a tyre's bulge).
+const CLIP_TOLERANCE := 0.02
 
 var draft: FittingDraft
 var platform_id := ""
@@ -211,6 +216,17 @@ func _step_wheels() -> Array:
 		out.append(UiKit.number("Track", a.track, 0.5, 2.6, 0.01, "%.2f m", func(v: float) -> void: _move_anchor("track", v)))
 		out.append(UiKit.number("Radius", a.radius, 0.1, 0.8, 0.005, "%.3f m", func(v: float) -> void: _move_anchor("radius", v)))
 		out.append(UiKit.number("Height", a.height, 0.0, 1.0, 0.005, "%.3f m", func(v: float) -> void: _move_anchor("height", v)))
+	out.append(UiKit.number("Ride height", float(draft.fit.get("body_lift_m", 0.0)), LIFT_MIN, LIFT_MAX, 0.005, "%+.3f m", _set_lift,
+		"Raise or lower the body on its wheels"))
+	var clip := _clip_depth()
+	if clip > CLIP_TOLERANCE:
+		out.append(_text("Body %d cm in the ground." % roundi(clip * 100.0)))
+		out.append(UiKit.button("Lift clear", _lift_clear, "Raise the body just clear of the ground"))
+	var floating := ModelAnalysis.floating_wheels(draft.fit)
+	if not floating.is_empty():
+		out.append(_text(_floating_text(floating) + "."))
+		out.append(UiKit.button("Remove it" if floating.size() == 1 else "Remove them", _remove_wheels.bind(floating),
+			"Not a wheel: keep it as part of the body"))
 	return out
 
 
@@ -646,6 +662,31 @@ func _rotate(axis: Vector3, degrees: float) -> void:
 	_refresh()
 
 
+func _set_lift(value: float) -> void:
+	draft.fit.body_lift_m = snappedf(value, 0.001)
+	_refresh()
+
+
+## Raises the body to 1 cm over the ground.
+func _lift_clear() -> void:
+	var clip := _clip_depth()
+	if clip <= 0.0:
+		return
+	var lift := float(draft.fit.get("body_lift_m", 0.0)) + clip / _preview.fitted.scale + 0.01
+	draft.fit.body_lift_m = minf(ceilf(lift / 0.005 - 1e-6) * 0.005, LIFT_MAX)
+	_refresh()
+	_show_step("Wheels")
+
+
+## Takes wheels out of the fit (their parts stay on the body), and moves the ground to the rest.
+func _remove_wheels(ids: PackedStringArray) -> void:
+	draft.fit.wheels = draft.fit.wheels.filter(func(w: Dictionary) -> bool: return String(w.id) not in ids)
+	var r: Array = draft.fit.model_transform.rotation_deg
+	draft.fit.ground_y = ModelAnalysis.ground_of(draft.fit.wheels, Basis.from_euler(Vector3(deg_to_rad(r[0]), deg_to_rad(r[1]), deg_to_rad(r[2]))))
+	_refresh()
+	_show_step("Wheels")
+
+
 func _assign_material(slot: String, material: String) -> void:
 	var slots: Dictionary = draft.paint.get("slots", {})
 	draft.paint.slots = slots
@@ -716,6 +757,19 @@ func _ground() -> float:
 	var env: Dictionary = draft.fit.envelope
 	var box := _base() * AABB(Vector3(env.min[0], env.min[1], env.min[2]), Vector3(env.max[0], env.max[1], env.max[2]) - Vector3(env.min[0], env.min[1], env.min[2]))
 	return box.position.y
+
+
+## How far the body sits in the ground as fitted, metres (0 or less: clear of it).
+func _clip_depth() -> float:
+	var bottom := draft.body_bottom() if draft else INF
+	if _preview.fitted == null or is_inf(bottom):
+		return 0.0
+	return _preview.fitted.ground_y - _preview.fitted.scale * bottom
+
+
+## "Wheel C2 is off the ground", or "Wheels C2, C3 are off the ground".
+static func _floating_text(ids: PackedStringArray) -> String:
+	return ("Wheel %s is off the ground" if ids.size() == 1 else "Wheels %s are off the ground") % ", ".join(ids)
 
 
 ## The model's length in its own units (along the car).
@@ -799,6 +853,12 @@ func _refresh(rebuild := true) -> void:
 	_preview.show_draft(draft, loaded.platform, rebuild)
 	var notes := PackedStringArray(draft.notes)
 	notes.append_array(_preview.fitted.notes)
+	var clip := _clip_depth()
+	if clip > CLIP_TOLERANCE:
+		notes.append("Body %d cm in the ground" % roundi(clip * 100.0))
+	var floating := ModelAnalysis.floating_wheels(draft.fit)
+	if not floating.is_empty():
+		notes.append(_floating_text(floating))
 	_set_status("%s · %s %s\n%s" % [draft.car_name, _mode_name(loaded.platform), loaded.platform.name, ", ".join(notes)])
 	_update_actions()
 	if rebuild:

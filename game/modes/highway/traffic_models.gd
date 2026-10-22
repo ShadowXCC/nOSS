@@ -62,7 +62,8 @@ static func far_mesh_of(pkg: VehiclePackage, platform: Dictionary, most := 15000
 	if pkg == null or not pkg.ok() or pkg.lods.is_empty():
 		return null
 	var fitted := Fitting.fit(platform, pkg.fit)
-	var place := Transform3D(Basis(), Vector3(0.0, -fitted.ground_y, 0.0)) * fitted.model_xform
+	# Its wheels are part of the mesh: they stand on the ground, whatever its ride height.
+	var place := Transform3D(Basis(), Vector3(0.0, -fitted.ground_y - fitted.body_lift, 0.0)) * fitted.model_xform
 	var paint: Array = pkg.paint.get("slots", {}).get("primary", {}).get("materials", [])
 	var lod: Node3D = pkg.lods[pkg.lods.size() - 1]
 	var groups := {} # material name -> SurfaceTool

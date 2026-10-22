@@ -19,6 +19,12 @@
       }
     },
     "ground_y": { "type": "number" },
+    "body_lift_m": {
+      "description": "Ride height: raises the body on its wheels (metres, before a class scales it; negative lowers it). The wheels stay on the ground.",
+      "type": "number",
+      "minimum": -1,
+      "maximum": 1
+    },
     "wheel_mode": { "enum": ["model", "stock", "static"] },
     "wheels": {
       "type": "array",

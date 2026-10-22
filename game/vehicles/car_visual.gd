@@ -259,8 +259,9 @@ func _setup() -> void:
 				var rest := node.transform
 				# Vehicle-frame vectors in the hub's parent space, through the model transform.
 				var to_parent := _xform_to(node.get_parent()).basis.inverse() * to_model
-				# Track clamping moves the wheel along the axle (Fitting, §4.1 step 3).
-				rest.origin += to_parent * Vector3(fitted_wheel.shift, 0, 0)
+				# Track clamping moves the wheel along the axle (Fitting, §4.1 step 3), and ride
+				# height down from the body.
+				rest.origin += to_parent * Vector3(fitted_wheel.shift, -fitted_wheel.drop, 0)
 				node.transform = rest
 				w.hubs.append([node, rest])
 				w.lift = to_parent * Vector3.UP

@@ -11,10 +11,12 @@ class Result:
 	var scale := 1.0
 	## Model transform from fit.json, with the fitting scale applied.
 	var model_xform := Transform3D.IDENTITY
-	var wheels: Array[Dictionary] = [] # {id, axle, side, center: Vector3, radius, width, shift}
+	var wheels: Array[Dictionary] = [] # {id, axle, side, center: Vector3, radius, width, shift, drop}
 	var wheelbase := 0.0
 	var track := 0.0
 	var ground_y := 0.0
+	## Ride height (fit.json body_lift_m, scaled): the wheels sit this much lower on the body.
+	var body_lift := 0.0
 	## Collision box (clamped), and the unclamped model bounds.
 	var envelope := AABB()
 	var model_bounds := AABB()
@@ -79,18 +81,21 @@ static func fit(platform: Dictionary, fit_data: Dictionary, mode := "normal") ->
 		track = clampf(track, tb.min, tb.max)
 	r.track = track
 
+	# Ride height: the body rises on its wheels, so they (and the ground) sit lower on it.
+	r.body_lift = float(fit_data.get("body_lift_m", 0.0)) * r.scale
 	for w: Dictionary in fit_data.wheels:
 		var c: Vector3 = Transform3D(Basis.from_scale(Vector3.ONE * r.scale), Vector3.ZERO) * centers[w.id]
 		var side_shift := shift if w.side == "L" else -shift if w.side == "R" else 0.0
 		c.x += side_shift
+		c.y -= r.body_lift
 		r.wheels.append({
 			"id": w.id, "axle": int(w.axle), "side": w.side, "center": c,
 			"radius": float(w.radius) * r.scale * float(mt.scale), "width": float(w.width) * r.scale * float(mt.scale),
-			"shift": side_shift,
+			"shift": side_shift, "drop": r.body_lift,
 		})
 	# The ground is where the driven wheels touch down (_physics_wheels; the sim uses the same
 	# plane). A fit.json ground line that disagrees is overruled.
-	var declared := r.scale * (base * Vector3(0, float(fit_data.ground_y), 0)).y
+	var declared := r.scale * (base * Vector3(0, float(fit_data.ground_y), 0)).y - r.body_lift
 	r.ground_y = declared
 	_physics_wheels(r, platform)
 	if absf(r.ground_y - declared) > 0.01:
