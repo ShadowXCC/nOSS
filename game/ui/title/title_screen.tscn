@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://game/ui/title/title_screen.gd" id="1_title"]
+[ext_resource type="Texture2D" uid="uid://b63xdmbsnilhi" path="res://content/branding/logo.png" id="2_logo"]
 
 [node name="TitleScreen" type="Control"]
 layout_mode = 3
@@ -20,49 +21,52 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.07, 0.07, 0.09, 1)
 
-[node name="Center" type="VBoxContainer" parent="."]
+[node name="Logo" type="TextureRect" parent="."]
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
+anchors_preset = -1
+anchor_top = 0.08
 anchor_right = 0.5
-anchor_bottom = 0.5
+anchor_bottom = 0.84
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 12
-alignment = 1
+accessibility_name = "nOSS"
+texture = ExtResource("2_logo")
+expand_mode = 1
+stretch_mode = 5
 
-[node name="TitleLabel" type="Label" parent="Center"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.96, 0.96, 0.96, 1)
-theme_override_font_sizes/font_size = 100
-text = "nOSS"
-horizontal_alignment = 1
-
-[node name="TaglineLabel" type="Label" parent="Center"]
-layout_mode = 2
+[node name="TaglineLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 0.86
+anchor_right = 0.5
+anchor_bottom = 0.86
+grow_horizontal = 2
 theme_override_colors/font_color = Color(0.7, 0.7, 0.75, 1)
 theme_override_font_sizes/font_size = 36
 text = "Bring your own car."
 horizontal_alignment = 1
 
-[node name="Spacer" type="Control" parent="Center"]
-custom_minimum_size = Vector2(0, 8)
-layout_mode = 2
+[node name="Menu" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.5
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 
-[node name="Buttons" type="ScrollContainer" parent="Center"]
+[node name="Buttons" type="ScrollContainer" parent="Menu"]
 unique_name_in_owner = true
 layout_mode = 2
 follow_focus = true
 horizontal_scroll_mode = 0
 
-[node name="List" type="VBoxContainer" parent="Center/Buttons"]
+[node name="List" type="VBoxContainer" parent="Menu/Buttons"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
-[node name="SoloDriveButton" type="Button" parent="Center/Buttons/List"]
+[node name="SoloDriveButton" type="Button" parent="Menu/Buttons/List"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(320, 64)
 layout_mode = 2
@@ -70,7 +74,7 @@ size_flags_horizontal = 4
 theme_override_font_sizes/font_size = 26
 text = "Solo Drive"
 
-[node name="SettingsButton" type="Button" parent="Center/Buttons/List"]
+[node name="SettingsButton" type="Button" parent="Menu/Buttons/List"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(320, 64)
 layout_mode = 2
@@ -78,7 +82,7 @@ size_flags_horizontal = 4
 theme_override_font_sizes/font_size = 26
 text = "Settings"
 
-[node name="QuitButton" type="Button" parent="Center/Buttons/List"]
+[node name="QuitButton" type="Button" parent="Menu/Buttons/List"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(320, 64)
 layout_mode = 2

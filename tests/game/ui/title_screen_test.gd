@@ -3,10 +3,37 @@ extends GdUnitTestSuite
 const TITLE_SCENE := "res://game/ui/title/title_screen.tscn"
 
 
-func test_title_reads_noss() -> void:
+## The bottle is the title (D198): screen readers hear its name.
+func test_logo_reads_noss() -> void:
 	var runner := scene_runner(TITLE_SCENE)
-	var title: Label = runner.find_child("TitleLabel")
-	assert_str(title.text).is_equal("nOSS")
+	var logo: TextureRect = runner.find_child("Logo")
+	assert_object(logo.texture).is_not_null()
+	assert_str(String(logo.accessibility_name)).is_equal("nOSS")
+
+
+## The logo and tagline on the left half, the buttons on the right, at any text size.
+func test_logo_left_buttons_right() -> void:
+	var root := get_tree().root
+	var old_size := root.size
+	root.size = Vector2i(1280, 720) # headless windows start at 64 x 64
+	var runner := scene_runner(TITLE_SCENE)
+	var screen := runner.scene() as Control
+	var logo: TextureRect = runner.find_child("Logo")
+	var tagline: Label = runner.find_child("TaglineLabel")
+	var scroll: ScrollContainer = runner.find_child("Buttons")
+	for text_scale in [1.0, 1.5]:
+		root.content_scale_factor = text_scale
+		await runner.simulate_frames(6)
+		var half := screen.size.x / 2.0
+		var area := Rect2(Vector2.ZERO, screen.size)
+		assert_float(logo.get_global_rect().end.x).override_failure_message("scale %s: logo past the middle" % text_scale).is_less_equal(half)
+		assert_float(logo.size.y).override_failure_message("scale %s: logo too short" % text_scale).is_greater(screen.size.y * 0.7)
+		assert_float(tagline.get_global_rect().position.y).is_greater_equal(logo.get_global_rect().end.y)
+		assert_float(tagline.get_global_rect().end.x).is_less_equal(half)
+		assert_bool(area.encloses(tagline.get_global_rect())).override_failure_message("scale %s: tagline off screen" % text_scale).is_true()
+		assert_float(scroll.get_global_rect().position.x).override_failure_message("scale %s: buttons left of the middle" % text_scale).is_greater_equal(half)
+	root.content_scale_factor = 1.0
+	root.size = old_size
 
 
 func test_shows_game_version() -> void:

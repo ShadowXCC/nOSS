@@ -451,11 +451,11 @@ func _apply_text_scale() -> void:
 		_fit_buttons.call_deferred()
 
 
-## The buttons get the height left under the title; with big text they scroll (to the focus).
+## The buttons get the screen's height (the logo has the other half); with big text they scroll
+## (to the focus).
 func _fit_buttons() -> void:
 	var list := _buttons.get_child(0) as Control
-	var others := (_buttons.get_parent() as Control).get_combined_minimum_size().y - _buttons.custom_minimum_size.y
-	_buttons.custom_minimum_size.y = clampf(size.y - 48.0 - others, 120.0, list.get_combined_minimum_size().y)
+	_buttons.custom_minimum_size.y = clampf(size.y - 48.0, 120.0, list.get_combined_minimum_size().y)
 	# Focus may have scrolled while the area was still small: show the focused button again.
 	await get_tree().process_frame
 	var focused := get_viewport().gui_get_focus_owner()
