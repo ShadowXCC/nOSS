@@ -384,7 +384,7 @@ func _ready() -> void:
 		return racers.filter(func(r: Racer) -> bool: return r is SessionPlayer and r.vehicle != null).map(func(r: Racer) -> Vehicle: return r.vehicle)
 	add_child(env)
 	env.apply()
-	if not dedicated and Vehicle.drawn:
+	if not dedicated and Vehicle.drawn and not Game.headless: # headless draws nothing (tests, checks)
 		tire_tracks = TireTracks.new()
 		add_child(tire_tracks)
 	if event.kind == "sumo":
