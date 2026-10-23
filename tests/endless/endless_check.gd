@@ -1,16 +1,19 @@
 extends Node
 ## Endless check (M9 acceptance 1): an autodriven endless drive, headless at a fixed 120 Hz.
-##   tools/endless_check.sh [--minutes=10] [--code=FOREST-0000007 | --seed=n --biome=1] [--traffic=light] [--lanes=2|4] [--side=right|left] [--garage-traffic=off] [--traps] [--police] [--speed-factor=1.4]
+##   tools/endless_check.sh [--minutes=10] [--code=FOREST-0000007 | --seed=n --biome=1] [--traffic=light] [--lanes=2|4] [--side=right|left] [--garage-traffic=off] [--traps] [--police [--heat=1-5]] [--speed-factor=1.4] [--flat-out]
 ##                          [--players=1] [--no-rebase] [--weather=..] [--time=..] [--verbose] [--windowed]
 ## Fails on:
 ## - precision: each tick the car's centre of mass must move by its velocity × dt, give or take the
 ##   32-bit float's step where it is. Near the origin that's under 0.1 mm; far out (no floating
 ##   origin) it grows to centimetres. The RMS over the last 10 minutes must stay under PRECISION_M.
+##   Ticks with a knock (police, traffic, a wall) don't count: it changes the velocity mid-tick.
 ## - a rebase that changes the car's velocity (it must carry on as if nothing happened).
 ## - memory: static memory growing more than MEMORY_MB_PER_H after the first 10 minutes, orphan
 ##   nodes piling up, or world pieces built and not freed; drawn (--windowed), video memory growing
 ##   more than VIDEO_MB_PER_H after the first 10 minutes.
 ## - the car stuck (under 2 m/s) for STUCK_S, or the world not built where the car is.
+## --police: a line on how the police did (PoliceWatch); --heat holds the heat at that level,
+## --flat-out drives the players as fast as they can (D201).
 
 const PRECISION_M := 0.0005
 const REBASE_DV := 0.5
@@ -43,6 +46,7 @@ var _max_scene := 0.0
 var _frame_us := 0
 var _frames: PackedFloat32Array = []
 var _v_before := Vector3.ZERO
+var _police_watch: PoliceWatch
 
 
 func _ready() -> void:
@@ -92,6 +96,10 @@ func _tick() -> void:
 				for sp in session.players:
 					if sp.driver is EndlessDriver:
 						(sp.driver as EndlessDriver).speed_factor = clampf(float(opts["speed-factor"]), 0.5, 2.0)
+			if opts.has("flat-out"):
+				for sp in session.players:
+					if sp.driver is EndlessDriver:
+						(sp.driver as EndlessDriver).flat_out()
 			if opts.has("no-rebase"):
 				session.origin.enabled = false
 			_start_d = session.players[0].distance
@@ -99,13 +107,18 @@ func _tick() -> void:
 		return
 	var dt := 1.0 / Engine.physics_ticks_per_second
 	time += dt
+	if session.police and _police_watch == null:
+		_police_watch = PoliceWatch.new(session.police, session.players[0], int(opts.get("heat", "0")))
+	if _police_watch:
+		_police_watch.step(dt)
 	var p := session.players[0]
 	var v := p.vehicle
 	var com := v.global_transform * v.center_of_mass
 	var shifts := session.origin.shifts
 	var resets := v.reset_count
 	var vel := v.linear_velocity
-	if _have_last and shifts == _last_shifts and resets == _last_resets and not p.waiting:
+	var knocked := maxf(v.car_impulse, maxf(v.wall_impulse, v.traffic_impulse)) > 0.0
+	if _have_last and shifts == _last_shifts and resets == _last_resets and not p.waiting and not knocked:
 		var residual := ((com - _last_com) - vel * dt).length()
 		var minute := int(time / 60.0)
 		while _residuals.size() <= minute:
@@ -209,10 +222,8 @@ func _report() -> void:
 		print("  video memory: %.1f MB at %d min, %.1f MB at the end (%.1f MB/h after %d min); textures %.1f -> %.1f MB" % [mem_first[5], int(WARMUP_MIN),
 			mem_last[5], video_slope, int(WARMUP_MIN), mem_first[6], mem_last[6]])
 	print("  world: %s, built %s; resets %d, stuck %d, not built under the car %d" % [w.counts(), w.stats, _resets, _stuck_events, _not_built])
-	if session.police:
-		var pc := session.police
-		print("  police: %d pursuits, %d busts, %d evaded, %d roadblocks, %d spike strips, %d patrols joined" % [pc.pursuits, pc.busts, pc.evades, pc.roadblocks,
-			pc.spikes_laid, pc.patrols_converted])
+	if _police_watch:
+		print(_police_watch.line())
 	if session.endless_traps:
 		print("  traps: " + session.endless_traps.tally_text(session.players[0]))
 	print("Time %.0f s of driving: frames %.2f ms on average, p99 %.2f ms" % [time, mean, p99])

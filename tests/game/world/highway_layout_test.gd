@@ -236,3 +236,23 @@ func test_highway_settings_fill_defaults() -> void:
 	assert_float(h.ramps[0].taper_m).is_equal(200.0)
 	assert_float(TrackFormat.highway_half(h)).is_equal_approx(1.2 + 0.8 + 14.4 + 3.0, 0.001)
 	assert_dict(TrackFormat.highway_settings(TrackFormat.blank("c", "C"))).is_empty()
+
+
+## The police's bend room (D201): never more than the bend's radius there, and from each sample no
+## more than the next one's (the way it's driven) plus twice the way to it, so a car braking at
+## the acceleration it corners at is down to speed in time; made once per way, and not the same
+## both ways.
+func test_bend_room_eases_back_from_bends() -> void:
+	var h := _t.highway
+	var n := _t.samples.size()
+	for dir: int in [1, -1]:
+		var room := h.bend_room(dir)
+		assert_int(room.size()).is_equal(n)
+		for k in n:
+			var bend := 0.0
+			for o in range(-3, 4):
+				bend += absf(_t.curvature[posmod(k + o, n)])
+			assert_float(room[k]).is_less_equal(1.0 / maxf(bend / 7.0, 1e-5) + 0.01)
+			var next := posmod(k + dir, n)
+			assert_float(room[k]).is_less_equal(room[next] + 2.0 * _t.samples[k].distance_to(_t.samples[next]) + 0.01)
+	assert_bool(h.bend_room(1) == h.bend_room(-1)).is_false()
