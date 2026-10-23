@@ -52,6 +52,7 @@ var patrols_converted := 0
 var strips: Array[SpikeStrip] = []
 
 var _trap_units := {} # PoliceRacer -> trap index
+var _ahead_units := {} # PoliceRacer -> true: the ones that wait ahead (D201)
 var _miss := {} # Racer -> NearMiss
 var _knocked := {} # Racer -> time of the last crash or ram counted
 var _blocks := {} # Racer -> {closures, at_m, units}
@@ -88,6 +89,11 @@ func _make_units() -> void:
 ## Who has heat (the road says).
 func players() -> Array:
 	return road.watched_players()
+
+
+## The units chasing `p` (not the ones that wait ahead of them, D201).
+func chasers(p: Racer) -> Array:
+	return units.filter(func(u: PoliceRacer) -> bool: return u.ai and u.ai.target == p and not _ahead_units.has(u))
 
 
 ## Racer `r`'s heat (made the first time).
@@ -332,8 +338,7 @@ func _roadblocks() -> void:
 			if u == null:
 				break
 			u.deploy(road.across_xform(dir, int(across[i]), at_m, i), Vector3.ZERO)
-			u.ai.mode = PoliceAI.Mode.PARKED
-			u.vehicle.light_bar = true
+			u.ai.mode = PoliceAI.Mode.READY # parked, its light bar on
 			parked.append(u)
 		_blocks[p] = { "closures": closures, "at_m": at_m, "units": parked }
 		roadblocks += 1

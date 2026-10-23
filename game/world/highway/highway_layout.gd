@@ -37,6 +37,7 @@ var gap_r := PackedByteArray()
 var errors := PackedStringArray()
 var _ramp_boxes: Array[AABB] = []
 var _main: WeakRef
+var _room := [PackedFloat32Array(), PackedFloat32Array()] # bend_room's, direction +1 then -1
 
 
 static func build(t: TrackData, h: Dictionary, ground: Callable) -> HighwayLayout:
@@ -134,6 +135,32 @@ func in_tunnel(d: float) -> bool:
 func _within(d: float, from_m: float, to_m: float) -> bool:
 	var a := fposmod(d - from_m, main.length)
 	return a <= fposmod(to_m - from_m, main.length)
+
+
+## Per main sample, driving `dir`: the room for speed the bends ahead leave (m), the least over
+## the samples ahead of the bend's radius there plus twice the way to it. A car that takes `a`
+## m/s^2 sideways and brakes at `a` goes at most sqrt(a * room) there (police, D201). Made once.
+func bend_room(dir: int) -> PackedFloat32Array:
+	var which := 0 if dir > 0 else 1
+	if not (_room[which] as PackedFloat32Array).is_empty():
+		return _room[which]
+	var t := main
+	var n := t.samples.size()
+	var room := PackedFloat32Array()
+	room.resize(n)
+	for k in n:
+		var bend := 0.0
+		for o in range(-3, 4):
+			bend += absf(t.curvature[posmod(k + o, n)])
+		room[k] = 1.0 / maxf(bend / 7.0, 1e-5)
+	# Back from each bend, against the way it's driven: twice round, for the loop.
+	for pass_i in 2:
+		for step in n:
+			var k := n - 1 - step if dir > 0 else step
+			var next := posmod(k + dir, n)
+			room[k] = minf(room[k], room[next] + 2.0 * t.samples[k].distance_to(t.samples[next]))
+	_room[which] = room
+	return room
 
 
 ## Main samples from `at_m` driving along `dir` until `length` m have passed (both ends included).

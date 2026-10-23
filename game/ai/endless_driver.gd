@@ -6,6 +6,8 @@ extends Node
 ## road), behind anything slower in its lane. It passes slower cars (traffic) and comes back once
 ## by: one lane each way, in the oncoming lane, with a clear straight and nothing coming; two each
 ## way, in the passing lane once that's clear. Stuck or on its side or roof for a while, it resets.
+## Police after a target (D201) and dev --flat-out take bends and brake harder (`lateral`,
+## `braking`).
 
 ## Sideways and braking acceleration it plans with, on a dry road (m/s^2).
 const LATERAL := 2.8
@@ -27,6 +29,8 @@ const PASS_SLOWER := 4.0
 const PASS_CLEAR_M := 420.0
 const STUCK_S := 6.0
 const UPSET_S := 3.0
+## Dev --flat-out: a player's autodrive at this share of its tyres' grip, with no cruising limit.
+const FLAT_OUT_GRIP := 0.85
 
 var racer: Racer
 var as_guide := false
@@ -34,6 +38,15 @@ var as_guide := false
 var overtakes := true
 ## Of its usual cruising speed (dev: --speed-factor).
 var speed_factor := 1.0
+## Sideways and braking acceleration it plans with on a dry road (m/s^2), and how hard it brakes
+## for each m/s over what it wants.
+var lateral := LATERAL
+var braking := BRAKING
+var brake_gain := 0.22
+## As fast as it can (flat_out): no cruising limit.
+var flat := false
+## Resets so far (checks).
+var resets := 0
 ## The road's lanes, and the one it's in (EndlessLanes ids: the keep lane, or the passing one).
 var lanes: EndlessLanes
 var lane := 0
@@ -60,6 +73,16 @@ func _ready() -> void:
 		assists[a] = a in allowed
 	assists.auto_clutch = true
 	racer.vehicle.sim.set_assists(assists)
+	if racer is SessionPlayer and Game.dev.has("flat-out"):
+		flat_out()
+
+
+## As fast as it can (dev --flat-out, checks: a player driving flat out): no cruising limit, and
+## bends and braking at FLAT_OUT_GRIP of its tyres' grip.
+func flat_out() -> void:
+	flat = true
+	lateral = FLAT_OUT_GRIP * float(racer.vehicle.platform.get("tires", {}).get("mu_peak", 1.2)) * 9.81
+	braking = lateral
 
 
 func _physics_process(delta: float) -> void:
@@ -70,6 +93,7 @@ func _physics_process(delta: float) -> void:
 		return
 	if _trouble(c, delta):
 		racer.reset_car()
+		resets += 1
 		return
 	var v := racer.vehicle
 	v.steer = c.steer
@@ -88,7 +112,7 @@ func controls(delta: float) -> Dictionary:
 		return { "steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": 1.0 }
 	var speed := maxf(v.speed(), 0.0)
 	var d := racer.distance
-	var want := _cruise(road, d) * speed_factor
+	var want := INF if flat else _cruise(road, d) * speed_factor
 	if racer.pace_limit > 0.0:
 		want = minf(want, racer.pace_limit)
 	# Passing: back once well past what it passed; in the oncoming lane, back at once if anything
@@ -135,20 +159,20 @@ func follow(in_lane: int, want: float, offset := 0.0) -> Dictionary:
 	var steer := clampf(-atan(2.0 * wheelbase * sin(alpha) / look) / max_steer, -1.0, 1.0) # the input: + = right
 	# Speed: slowing in time for what's ahead.
 	var grip := _grip(v)
-	var reach := minf(speed * speed / (2.0 * BRAKING * grip) + 40.0, road.end_m() - d)
+	var reach := minf(speed * speed / (2.0 * braking * grip) + 40.0, road.end_m() - d)
 	var s := 4.0
 	while s < reach:
 		var k := absf(road.curvature[road.index_at(d + s)])
 		if k > 1e-4:
-			var bend := sqrt(LATERAL * grip / k)
-			want = minf(want, sqrt(bend * bend + 2.0 * BRAKING * grip * s))
+			var bend := sqrt(lateral * grip / k)
+			want = minf(want, sqrt(bend * bend + 2.0 * braking * grip * s))
 		s += 4.0
 	var here := absf(road.curvature[road.index_at(d)])
 	if here > 1e-4:
-		want = minf(want, sqrt(LATERAL * grip / here))
+		want = minf(want, sqrt(lateral * grip / here))
 	var err := want - speed
 	var throttle := clampf(0.2 + err * 0.3, 0.0, 1.0) if err > 0.0 else 0.0
-	var brake := clampf(-err * 0.22, 0.0, 1.0) if err < -0.8 else 0.0
+	var brake := clampf(-err * brake_gain, 0.0, 1.0) if err < -0.8 else 0.0
 	return { "steer": steer, "throttle": throttle, "brake": brake, "handbrake": 0.0 }
 
 

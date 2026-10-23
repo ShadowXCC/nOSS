@@ -259,3 +259,30 @@ func test_traffic_moves_over_for_a_siren() -> void:
 	assert_bool(road._moving.is_empty()).is_true()
 	s.queue_free()
 	await get_tree().process_frame
+
+
+## A chaser gets right up to its target (D201): the lane driver used to follow the target as
+## traffic, a headway behind (about 45 m at 30 m/s), never inside CLOSE_M; now the target is no
+## car to follow and the unit's own pedals close in.
+func test_a_unit_gets_up_to_the_target() -> void:
+	var s := await _session()
+	var pc := s.police
+	var p := s.players[0]
+	pc.heat_of(p).points = Heat.LEVELS[1] # level 2
+	await _ticks(120 * 2) # the autodriven player up to speed
+	var u: PoliceRacer = pc.chasers(p)[0]
+	var lane := s.track.highway.lane_at(p.lateral)
+	var at := pc.road.lane_xform(p.direction, lane, pc.road.along(p, -120.0))
+	u.deploy(at, at.basis.z * absf(p.vehicle.speed()))
+	# What it keeps clear of leaves the target out (the rest of the traffic stays).
+	var members: PackedFloat32Array = u.ai._members(s.traffic)
+	var ids := range(0, members.size(), 9).map(func(i: int) -> int: return int(members[i]))
+	assert_bool(s.traffic.member_id(p) in ids).is_false()
+	assert_bool(s.traffic.member_id(u) in ids).is_true()
+	var nearest := INF
+	for i in 120 * 10:
+		await get_tree().physics_frame
+		nearest = minf(nearest, u.vehicle.global_position.distance_to(p.vehicle.global_position))
+	assert_float(nearest).is_less(PoliceTuning.CLOSE_M)
+	s.queue_free()
+	await get_tree().process_frame

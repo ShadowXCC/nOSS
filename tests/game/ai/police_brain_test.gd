@@ -1,7 +1,8 @@
 extends GdUnitTestSuite
 ## The police up close (D192), on states alone: a PIT lines up on the target's rear wheels, turns
 ## in towards it, then backs off; a blocker never slows below its floor; a tail at level 1 keeps
-## off; a ram steers towards the target (the old one steered away).
+## off; a ram steers towards the target (the old one steered away). The heat table: more heat,
+## more units, faster and harder into bends, with no cap on their speed from heat 2 (D201).
 
 const HALF := Vector2(2.3, 0.95)
 
@@ -102,8 +103,11 @@ func test_more_heat_more_units_harder() -> void:
 		assert_int(int(b.units)).is_equal(int(a.units) + 1)
 		assert_int((b.roles as Array).size()).is_equal(int(b.units))
 		assert_float(float(b.closing_mps)).is_greater(float(a.closing_mps))
-		assert_float(float(b.max_factor)).is_greater(float(a.max_factor))
+		assert_float(float(b.grip)).is_greater(float(a.grip))
 		assert_float(float(b.sight_m)).is_greater(float(a.sight_m))
+		assert_float(float(b.max_factor)).is_equal(0.0)
+	assert_float(float(PoliceTuning.at(1).max_factor)).is_greater(1.0)
+	assert_array(range(1, 6).map(func(l: int) -> int: return int(PoliceTuning.at(l).ahead))).is_equal([0, 1, 1, 2, 2])
 	assert_float(float(PoliceTuning.at(2).spikes_s)).is_equal(0.0)
 	assert_float(float(PoliceTuning.at(3).spikes_s)).is_greater(0.0)
 	assert_bool(PoliceTuning.at(3).roadblock).is_false()

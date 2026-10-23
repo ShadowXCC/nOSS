@@ -110,6 +110,37 @@ func decide(me: Dictionary, them: Dictionary, delta: float) -> Dictionary:
 	}
 
 
+## How fast a unit drives the road after its target going `ts` m/s, `dist` m off (D201): the
+## level's closing speed over the target's, easing in to RAM_MPS over it by CLOSE_M (braking at
+## `braking` m/s^2); at a level with a cap, within `limit` to max_factor times it. A unit that
+## waited ahead and pulled out keeps to LAUNCH_SHARE of the target's speed until they meet
+## (`waiting_for`).
+static func chase_speed(level: int, ts: float, dist: float, limit: float, braking: float, waiting_for := false) -> float:
+	if waiting_for:
+		return maxf(ts * PoliceTuning.LAUNCH_SHARE, PoliceTuning.AHEAD_CRAWL_MPS)
+	var t := PoliceTuning.at(level)
+	var want := ts + float(t.closing_mps)
+	if float(t.max_factor) > 0.0:
+		want = clampf(want, limit, limit * float(t.max_factor))
+	var ease := ts + PoliceTuning.RAM_MPS + sqrt(2.0 * braking * PoliceTuning.EASE_IN * maxf(dist - PoliceTuning.CLOSE_M, 0.0))
+	return minf(want, ease)
+
+
+## A unit that waited ahead, up close to its target (`me`, `them`: state_of; D201): it blocks
+## while it's ahead of them; once they're clearly past it (`passed` already, or now), the level's
+## lead role (ram at 2-3, pit at 4-5) for good, from the side it's on. [role, passed, side].
+static func ahead_role(me: Dictionary, them: Dictionary, level: int, passed: bool, side: float) -> Array:
+	if not passed:
+		var tf: Vector3 = them.fwd
+		var rel: Vector3 = me.pos - them.pos
+		var me_half: Vector2 = me.half
+		var them_half: Vector2 = them.half
+		if rel.dot(tf) < -(me_half.x + them_half.x + 2.0):
+			passed = true
+			side = 1.0 if rel.dot(Vector3(tf.z, 0.0, -tf.x)) >= 0.0 else -1.0
+	return [PoliceTuning.role(level, 0) if passed else "block", passed, side]
+
+
 ## The PIT: {aim, want, steer (added)}. Its nose by the target's rear wheels on `side`, then a turn
 ## into the target, then back off.
 func _pit(me: Dictionary, them: Dictionary, along: float, across: float, delta: float) -> Dictionary:

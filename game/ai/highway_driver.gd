@@ -6,7 +6,10 @@ extends Node
 ## driver (NossTraffic.follow) works out steering and pedals. Held up behind something slower it
 ## moves to a lane beside with room (the inner one first), and after a while with a clear road it
 ## moves back out: it keeps to the outside. Stuck (wanting to go but not moving, or lost off the
-## lanes) or on its side or roof for a while, it resets (to the shoulder).
+## lanes) or on its side or roof for a while, it resets (to the shoulder). With `lateral` set
+## (police after a target, D201; dev --flat-out) it goes at its own speed instead of the lane's:
+## up to `want_speed`, as fast as the bends ahead allow taking `lateral` sideways and braking at
+## it, on pedals of its own; the lane driver then only steers and says what's ahead.
 
 ## Held up this long: over a lane; not again for this long; back out after this long clear.
 const OVERTAKE_AFTER_S := 1.5
@@ -24,6 +27,13 @@ const ESCAPE_AGAIN_S := 1.5
 ## Stuck this long, or on its side or roof this long (s): reset.
 const STUCK_S := 6.0
 const UPSET_S := 3.0
+## Its own speed: behind what's ahead by this gap plus this many seconds of the lead's speed; the
+## lane graph's own bend budget (m/s^2, native lane_graph.h), which a ramp's limits are made with.
+const OWN_GAP_M := 6.0
+const OWN_GAP_S := 0.8
+const LANE_LATERAL := 2.5
+## Dev --flat-out: a player's autodrive at this share of its tyres' grip, with no limit.
+const FLAT_OUT_GRIP := 0.85
 
 var racer: Racer
 ## Changes lanes to get by (autodrive, bots, police); a guide never does (the player steers).
@@ -33,6 +43,16 @@ var overtakes := true
 var as_guide := false
 ## Of the lane's limit.
 var speed_factor := 1.0
+## Its own speed: sideways and braking acceleration it plans with on a dry road (m/s^2; 0: off,
+## the lane's limit), and the most it goes (m/s).
+var lateral := 0.0
+var want_speed := INF
+## Over a lane when held up this long, not again for this long; back out once clear (keep_out).
+var overtake_after_s := OVERTAKE_AFTER_S
+var change_again_s := CHANGE_AGAIN_S
+var keep_out := true
+## Resets so far (checks).
+var resets := 0
 ## The lane followed (the lane graph's index) and where along it, m; -1 until found.
 var lane := -1
 var _s := -1.0
@@ -58,6 +78,15 @@ func _ready() -> void:
 		assists[a] = a in allowed
 	assists.auto_clutch = true
 	racer.vehicle.sim.set_assists(assists)
+	if racer is SessionPlayer and Game.dev.has("flat-out"):
+		flat_out()
+
+
+## As fast as it can (dev --flat-out, checks: a player driving flat out): no limit, and bends at
+## FLAT_OUT_GRIP of its tyres' grip.
+func flat_out() -> void:
+	lateral = FLAT_OUT_GRIP * float(racer.vehicle.platform.get("tires", {}).get("mu_peak", 1.2)) * 9.81
+	want_speed = INF
 
 
 func _physics_process(delta: float) -> void:
@@ -69,6 +98,7 @@ func _physics_process(delta: float) -> void:
 	if _trouble(c, delta):
 		racer.reset_car()
 		lane = -1
+		resets += 1
 		return
 	var v := racer.vehicle
 	v.steer = c.steer
@@ -94,11 +124,12 @@ func controls(delta: float) -> Dictionary:
 			return { "steer": 0.0, "throttle": 0.0, "brake": 1.0, "handbrake": 0.0 }
 	var p := v.platform
 	var e := v.fitted.envelope
-	var limit := tm.sim.lane_limit(lane, maxf(_s, 0.0)) * speed_factor
+	var own := lateral > 0.0
+	var limit := minf(want_speed, _bend_cap(tm, v)) if own else tm.sim.lane_limit(lane, maxf(_s, 0.0)) * speed_factor
 	if racer.pace_limit > 0.0:
 		limit = minf(limit, racer.pace_limit) # a run's rolling start
 	var out := tm.sim.follow(lane, _s, limit, tm.member_id(racer), pos, v.global_basis.z, v.speed(),
-		float(p.geometry.wheelbase_m.ref), deg_to_rad(float(p.steering.max_road_angle_deg)), Vector2(e.size.z / 2.0, e.size.x / 2.0), tm.members())
+		float(p.geometry.wheelbase_m.ref), deg_to_rad(float(p.steering.max_road_angle_deg)), Vector2(e.size.z / 2.0, e.size.x / 2.0), _members(tm))
 	_s = out[5]
 	if overtakes and not as_guide:
 		_overtake(delta, float(out[10]), float(out[11]), limit)
@@ -111,7 +142,55 @@ func controls(delta: float) -> Dictionary:
 			_lost = 0.0
 	else:
 		_lost = 0.0
+	if own:
+		var c := _own_pedals(limit, float(out[10]), float(out[11]), v.speed(), lateral * _grip(v))
+		c.steer = out[0]
+		return c
 	return { "steer": out[0], "throttle": out[1], "brake": out[2], "handbrake": out[3] }
+
+
+## The cars the lane driver follows and keeps clear of (TrafficManager.members()).
+func _members(tm: TrafficManager) -> PackedFloat32Array:
+	return tm.members()
+
+
+## Its own speed: the most the bends ahead allow, taking `lateral` sideways and braking at it
+## (less on a wet or snowy road). The main road by its bend room; a ramp by its own limits, scaled
+## from the lane graph's budget.
+func _bend_cap(tm: TrafficManager, v: Vehicle) -> float:
+	var a := lateral * _grip(v)
+	var info := tm.sim.lane_info(lane)
+	var layout: HighwayLayout = racer.session.track.highway if racer.session.track else null
+	if layout == null or int(info.get("road", -1)) >= 0:
+		return tm.sim.lane_limit(lane, maxf(_s, 0.0)) * sqrt(a / LANE_LATERAL)
+	return sqrt(a * layout.bend_room(int(info.dir))[layout.main.index_at(racer.distance)])
+
+
+## Its own pedals: up to `want` m/s, slowing in time (braking at `a` m/s^2) for what's `gap` m
+## ahead going `lead_v`.
+func _own_pedals(want: float, gap: float, lead_v: float, speed: float, a: float) -> Dictionary:
+	lead_v = maxf(lead_v, 0.0)
+	if gap < 250.0:
+		want = minf(want, sqrt(lead_v * lead_v + 2.0 * a * maxf(gap - OWN_GAP_M - OWN_GAP_S * lead_v, 0.0)))
+	var err := want - speed
+	var c := {
+		"throttle": clampf(0.2 + err * 0.3, 0.0, 1.0) if err > 0.0 else 0.0,
+		"brake": clampf(-err * 0.5, 0.0, 1.0) if err < -0.5 else 0.0,
+		"handbrake": 0.0,
+	}
+	if gap < 1.5 and speed > lead_v:
+		c.throttle = 0.0
+		c.brake = 1.0
+	if speed < 0.6 and c.throttle < 0.05: # stopped: held still (the brake would select reverse)
+		c.brake = 0.0
+		c.handbrake = 1.0
+	return c
+
+
+## Grip on the road under it now, of dry (wet and snow lower it, D153).
+func _grip(v: Vehicle) -> float:
+	var c := v.road_conditions()
+	return VehicleSim.surface_grip(VehicleSim.SURFACE_ASPHALT, c.x, c.y)
 
 
 ## True once it has wanted to go but not moved (against a barrier or a wreck; a queue isn't
@@ -150,14 +229,14 @@ func _overtake(delta: float, gap: float, lead_v: float, limit: float) -> void:
 		var side := _open_side(info)
 		if not side.is_empty() and _room(side == "inner"):
 			to = int(info[side])
-	elif since < CHANGE_AGAIN_S:
+	elif since < change_again_s:
 		return
-	elif _held > OVERTAKE_AFTER_S:
+	elif _held > overtake_after_s:
 		for side: String in ["inner", "outer"]:
 			if int(info.get(side, -1)) >= 0 and not _closed(int(info[side])) and _room(side == "inner"):
 				to = int(info[side])
 				break
-	elif _clear > KEEP_OUT_S and int(info.get("outer", -1)) >= 0 and not _closed(int(info.outer)) and _room(false):
+	elif keep_out and _clear > KEEP_OUT_S and int(info.get("outer", -1)) >= 0 and not _closed(int(info.outer)) and _room(false):
 		to = int(info.outer)
 	if to >= 0:
 		lane = to
