@@ -5,6 +5,9 @@ extends RefCounted
 ## is loaded back with TrackLoader before it replaces anything.
 
 const SOURCE := "nOSS Track Editor"
+## Godot imports a PNG under res:// as a texture and leaves the PNG itself out of exports, but a
+## track reads its own bytes: a built-in track's PNGs are kept as they are (D200).
+const KEEP_IMPORT := "[remap]\n\nimporter=\"keep\"\n"
 
 
 ## Writes `files` ({relative path: bytes}, track.json among them, without manifest.json) to
@@ -78,6 +81,12 @@ static func write_folder(dir: String, info: Dictionary, files: Dictionary) -> St
 			return "Can't write " + target
 		f.store_buffer(files[rel])
 		f.close()
+		if dir.begins_with("res://") and rel.get_extension() == "png":
+			var keep := FileAccess.open(target + ".import", FileAccess.WRITE)
+			if keep == null:
+				return "Can't write " + target + ".import"
+			keep.store_string(KEEP_IMPORT)
+			keep.close()
 	var f := FileAccess.open(dir.path_join("manifest.json"), FileAccess.WRITE)
 	if f == null:
 		return "Can't write the manifest"
