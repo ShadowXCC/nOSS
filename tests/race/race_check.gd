@@ -201,7 +201,11 @@ func _report() -> void:
 	finishers.sort_custom(func(a: Racer, b: Racer) -> bool: return finish_time[a] < finish_time[b])
 	for i in finishers.size():
 		var r: Racer = finishers[i]
-		print("  P%d %-8s %6.1f s  resets %d  laps %s" % [i + 1, r.display_name, finish_time[r], resets[r], ", ".join(PackedStringArray((lap_times[r] as Array).map(func(t: float) -> String: return "%.1f" % t)))])
+		var worn := ""
+		if session.wear and session.wear.cars.has(r):
+			var w: CarWear = session.wear.cars[r]
+			worn = "  fuel %.1f L (%.2f L a lap)  tread %d%%" % [w.fuel_l, w.lap_fuel, roundi(w.tread() * 100.0)]
+		print("  P%d %-8s %6.1f s  resets %d  laps %s%s" % [i + 1, r.display_name, finish_time[r], resets[r], ", ".join(PackedStringArray((lap_times[r] as Array).map(func(t: float) -> String: return "%.1f" % t))), worn])
 	if fails.is_empty():
 		print("PASS")
 		get_tree().quit(0)

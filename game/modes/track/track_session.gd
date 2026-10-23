@@ -116,6 +116,8 @@ var police: PoliceControl
 var kart: KartControl
 ## Drafting (D208): with the event's drafting on, in Track mode.
 var draft: DraftControl
+## Fuel use and tire wear (D209): with either on in the event, in Track mode.
+var wear: WearControl
 ## Battles (D144): lives and hits. Null otherwise.
 var battle: BattleControl
 ## A sumo match (docs/GAMEMODES.md §5, D162): the platforms, their rules and the HUD; the world
@@ -472,6 +474,12 @@ func _ready() -> void:
 		draft.session = self
 		draft.tuning = DraftControl.tuning_for(mode)
 		add_child(draft)
+	if (event.fuel_x > 0 or event.tyre_x > 0) and mode.get("id") == "track" and event.kind != "time_trial":
+		wear = WearControl.new()
+		wear.session = self
+		wear.fuel_x = event.fuel_x
+		wear.tyre_x = event.tyre_x
+		add_child(wear)
 
 	add_child(views)
 	if not endless: # no map of a road that never ends

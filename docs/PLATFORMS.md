@@ -93,7 +93,9 @@ Example: an official Track/GT platform. All values are illustrative and get tune
     "peak_slip_ratio": 0.10, "peak_slip_angle_deg": 7.5,
     "relaxation_length_m": 0.25, "rolling_resistance": 0.012,
     "wear": false, "temperature": false
+    // optional (D204, D209): "life_mj" (sliding work a tire takes to wear out), "worn_grip" (the grip it keeps then)
   },
+  // optional (D204, D209): "fuel": { "tank_l": 68, "l_per_kwh": 0.32 }
 
   "assists_allowed": ["abs", "tcs", "stability", "auto_gearbox", "auto_clutch", "steer_aid", "racing_line"],
   "damage": { "cosmetic": true, "mechanical": ["alignment", "aero", "engine", "suspension"] },

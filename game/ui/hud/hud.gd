@@ -22,11 +22,11 @@ var palette: Dictionary = Palette.PRESETS.default
 ## HUD elements that can be hidden on their own, and the presets (docs/ACCESSIBILITY.md §6).
 const ELEMENTS := [["speed", "Speed and gear"], ["timing", "Lap times"], ["delta", "Delta"], ["position", "Position"],
 	["standings", "Standings"], ["flags", "Flags"], ["assists", "Active assists"], ["car", "Car name"],
-	["nametags", "Name tags"]]
+	["nametags", "Name tags"], ["wear", "Fuel and tires"]]
 const PRESETS := {
 	"full": [],
 	"minimal": ["timing", "delta", "standings", "assists", "car"],
-	"off": ["speed", "timing", "delta", "position", "standings", "flags", "assists", "car", "nametags"],
+	"off": ["speed", "timing", "delta", "position", "standings", "flags", "assists", "car", "nametags", "wear"],
 }
 
 var _speed := _label(96)
@@ -37,6 +37,9 @@ var _lap := _label(34)
 var _time := _label(48)
 var _last := _label(28, DIM)
 var _best := _label(28, DIM)
+## Fuel and tires (D209): "Fuel 12 laps  Tires 86%", with fuel use or tire wear on.
+var _wear := _label(28, DIM)
+var _fuel_low := false
 var _delta := _label(44)
 var _message := _label(56)
 var _assists := _label(26, Color(1.0, 0.8, 0.3))
@@ -91,6 +94,8 @@ func _init() -> void:
 	_place(_time, Vector2(0, 0), Vector2(40, 66), HORIZONTAL_ALIGNMENT_LEFT, 400)
 	_place(_last, Vector2(0, 0), Vector2(40, 128), HORIZONTAL_ALIGNMENT_LEFT, 400)
 	_place(_best, Vector2(0, 0), Vector2(40, 162), HORIZONTAL_ALIGNMENT_LEFT, 400)
+	_place(_wear, Vector2(0, 0), Vector2(40, 196), HORIZONTAL_ALIGNMENT_LEFT, 500)
+	_wear.visible = false
 	_place(_delta, Vector2(0.5, 0), Vector2(-200, 40), HORIZONTAL_ALIGNMENT_CENTER, 400)
 	_place(_message, Vector2(0.5, 0.3), Vector2(-500, 0), HORIZONTAL_ALIGNMENT_CENTER, 1000)
 	_place(_car, Vector2(0, 1), Vector2(40, -60), HORIZONTAL_ALIGNMENT_LEFT, 800)
@@ -312,6 +317,7 @@ func _process(delta: float) -> void:
 		if timer.wrong_way:
 			show_message("Wrong way", 0.2)
 	_lap.visible = shows("timing") or (race != null and race.kind == "race")
+	_update_wear()
 	_update_captions(delta)
 	_update_arrows()
 	_fps.visible = show_fps
@@ -321,6 +327,27 @@ func _process(delta: float) -> void:
 	_delta.visible = _delta_timer > 0.0 and shows("delta")
 	_message_timer -= delta
 	_message.visible = _message_timer > 0.0
+
+
+## Fuel left in laps (litres until a lap has been measured) and the tires' tread, and "Fuel low"
+## once as it runs down.
+func _update_wear() -> void:
+	var wear: WearControl = racer.session.wear if racer and racer.session else null
+	var w := wear.cars.get(racer) as CarWear if wear else null
+	_wear.visible = w != null and shows("wear")
+	if w == null:
+		return
+	var bits := PackedStringArray()
+	if w.uses_fuel():
+		var laps := w.laps_left()
+		bits.append("Out of fuel" if w.fuel_l <= 0.0 else ("Fuel %d laps" % floori(laps) if is_finite(laps) else "Fuel %d L" % roundi(w.fuel_l)))
+		var low := w.fuel_l > 0.0 and laps < CarWear.LOW_LAPS
+		if low and not _fuel_low:
+			show_message("Fuel low", 2.0)
+		_fuel_low = low
+	if w.wears_tires():
+		bits.append("Tires %d%%" % roundi(w.tread() * 100.0))
+	_wear.text = "  ".join(bits)
 
 
 ## Position, gaps, standings, flag, lights and the live delta (race sessions).

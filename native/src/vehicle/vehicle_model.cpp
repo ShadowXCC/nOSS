@@ -615,7 +615,9 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 		if (rpm_now < idle + 50.0) {
 			thr = std::max(thr, clampd(0.1 + (idle - rpm_now) * 0.002, 0.0, 0.6));
 		}
-		double torque = thr * engine_torque(engine, rpm_now) - (1.0 - thr) * engine_friction(engine, rpm_now);
+		double burnt = thr * engine_torque(engine, rpm_now) * power_scale;
+		double torque = burnt - (1.0 - thr) * engine_friction(engine, rpm_now);
+		engine_work += burnt * std::max(engine_omega, 0.0) * h;
 		engine_omega += h * torque / engine.inertia;
 		throttle_out += thr / SUBSTEPS;
 		engine_load += (torque / std::max(engine_torque(engine, rpm_now), 1.0)) / SUBSTEPS;
@@ -640,7 +642,7 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 			w.deflection = clampd(w.deflection, -sigma * max_tan_alpha, sigma * max_tan_alpha);
 			w.tan_alpha = w.deflection / sigma;
 			v_den[i] = std::max(std::abs(vl), SLIP_SPEED_FLOOR);
-			mu[i] = tire_mu(spec.tire, w.fz) * surface_grip(w.surface, conditions) * mods.grip * (flat(i) ? FLAT_GRIP : 1.0);
+			mu[i] = tire_mu(spec.tire, w.fz) * surface_grip(w.surface, conditions) * mods.grip * (flat(i) ? FLAT_GRIP : 1.0) * w.wear_grip;
 			double kappa = (w.omega * r - vl) / v_den[i];
 			double dk = 0.01 * spec.tire.peak_slip_ratio;
 			double tan_alpha = w.tan_alpha * mods.slip_seen;
@@ -815,6 +817,7 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 		out.torque += cross(point[i] - p_chassis.com, load) + cross(plane[i] - p_chassis.com, grip);
 		longitudinal += dot(grip, forward);
 		w.slip_speed = std::sqrt(std::pow(w.omega * r - v_long[i], 2.0) + v_lat[i] * v_lat[i]);
+		w.slide_work += std::sqrt(w.fx * w.fx + w.fy * w.fy) * w.slip_speed * p_dt;
 		if (wc.steer) {
 			rack_torque += w.mz - MECHANICAL_TRAIL * w.fy;
 		}

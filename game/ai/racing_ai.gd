@@ -120,7 +120,12 @@ func _check_road() -> void:
 	if racer.vehicle == null or not is_instance_valid(racer.vehicle):
 		return
 	var c := racer.vehicle.sim.get_conditions()
-	var road := snappedf(VehicleSim.surface_grip(VehicleSim.SURFACE_ASPHALT, c.x, c.y), 0.05)
+	var road := VehicleSim.surface_grip(VehicleSim.SURFACE_ASPHALT, c.x, c.y)
+	# Worn tires grip less too (D209).
+	var wear := racer.session.wear.of(racer) if racer.session and racer.session.wear else null
+	if wear:
+		road *= wear.tire_grip()
+	road = snappedf(road, 0.05)
 	if not is_equal_approx(road, _road_grip):
 		_road_grip = road
 		_make_profiles()

@@ -59,7 +59,8 @@ VehicleSim (per vehicle, C++)
 - **Low-speed blend:** below ~3 m/s, the slip-based model blends into a damped static-friction model. Cars stop and hold on slopes instead of jittering.
 - **Self-aligning torque** `Mz = −t(α) · Fy`, where pneumatic trail `t` falls off past the slip peak. Drives FFB (§11).
 - **Rolling resistance:** `C_rr · Fz`.
-- **Optional, per platform (off by default):** temperature grip window and wear (for endurance, later).
+- **Optional, per platform (off by default):** temperature grip window (later).
+- **Fuel and tire wear (D209):** with an event's fuel use or tire wear on (1×–10×), `CarWear` counts what each car's sim did (`VehicleSim.take_wear`, ten times a second): the engine's work burns fuel at the platform's `fuel.l_per_kwh` times the multiplier from its `fuel.tank_l`, and each tire's sliding work (|F| × slip speed) wears it, a whole `tires.life_mj` (÷ the multiplier) taking it from new to its `tires.worn_grip`. Worn tires grip less (`set_wheel_grip`, a share per wheel on μ); out of fuel the engine makes no power (`set_power_scale` 0) and the car only coasts. A class without its own figures takes 70 L, 0.32 L/kWh, 60 MJ and 0.85. The car's mass stays the same as its fuel burns, so conformance and the online checks hold. At 1× a Stock Car on Piedmont Speedway burns about 1.16 L a lap (about 59 laps a tank) and a set of tires lasts about 84 laps. With full power and new tires the sim is bit for bit what it was.
 
 ### Surfaces
 

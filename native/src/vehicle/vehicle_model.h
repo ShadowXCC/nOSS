@@ -259,6 +259,10 @@ struct WheelState {
 	double kappa = 0.0;
 	double tan_alpha = 0.0;
 	double slip_speed = 0.0; // contact patch sliding speed, m/s
+	// Tire wear (D209): the share of its grip the tire keeps (1: new, the sim exactly), and the
+	// work done sliding it since take_wear() last read it, J.
+	double wear_grip = 1.0;
+	double slide_work = 0.0;
 	double steer = 0.0; // rad, + = left
 	double abs_factor = 1.0;
 	bool contact = false;
@@ -284,6 +288,11 @@ public:
 	// The car's drag times this: in another's slipstream it drops (drafting, D208). 1: the
 	// platform's own, the sim exactly.
 	double drag_scale = 1.0;
+	// The engine's power times this (D209): 0 is out of fuel, and the car only coasts. 1: the sim
+	// exactly.
+	double power_scale = 1.0;
+	// Work the engine has done burning fuel since it was last read, J (fuel use, D209).
+	double engine_work = 0.0;
 	bool flat(size_t p_wheel) const { return p_wheel < 32 && (flats >> p_wheel) & 1u; }
 
 	// Ray each wheel casts this tick; the caller fills a Contact per wheel.

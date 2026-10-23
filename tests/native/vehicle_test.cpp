@@ -445,3 +445,54 @@ TEST_CASE("sim: drafting cuts the drag; a scale of 1 is the sim exactly") {
 	MESSAGE("12 s: " << kmh(plain.forward_speed()) << " km/h alone, " << kmh(tow.forward_speed()) << " km/h in a tow");
 	CHECK(tow.forward_speed() > plain.forward_speed() + 5.0 / 3.6);
 }
+
+TEST_CASE("sim: fuel and tire wear: work counted; full power and new tires are the sim exactly") {
+	Harness plain = gt(), same = gt();
+	same.model.power_scale = 1.0;
+	for (WheelState &w : same.model.wheels) {
+		w.wear_grip = 1.0;
+	}
+	for (Harness *h : { &plain, &same }) {
+		h->model.controls.throttle = 1.0;
+		h->model.controls.steer = -0.15;
+		h->run(8.0);
+	}
+	CHECK(plain.chassis.com.x == same.chassis.com.x);
+	CHECK(plain.chassis.com.z == same.chassis.com.z);
+	// The engine's work is about the energy the car took on (kinetic, drag, rolling, slip).
+	double kinetic = 0.5 * 1300.0 * plain.forward_speed() * plain.forward_speed();
+	MESSAGE("engine " << plain.model.engine_work / 1e6 << " MJ, kinetic " << kinetic / 1e6 << " MJ");
+	CHECK(plain.model.engine_work > kinetic);
+	CHECK(plain.model.engine_work < kinetic * 3.0);
+	double slid = 0.0;
+	for (const WheelState &w : plain.model.wheels) {
+		slid += w.slide_work;
+	}
+	CHECK(slid > 0.0);
+	// Out of fuel: the car only coasts.
+	Harness dry = gt();
+	dry.model.power_scale = 0.0;
+	dry.model.controls.throttle = 1.0;
+	dry.run(4.0);
+	CHECK(dry.forward_speed() < 0.5);
+	// Worn tires: less cornering grip (the same circle at speed holds less load).
+	double peak[2] = { 0.0, 0.0 };
+	for (int k = 0; k < 2; k++) {
+		Harness h = gt();
+		for (WheelState &w : h.model.wheels) {
+			w.wear_grip = k == 0 ? 1.0 : 0.75;
+		}
+		h.model.controls.throttle = 1.0;
+		while (h.forward_speed() < 30.0) {
+			h.step();
+		}
+		h.model.controls.steer = 0.35;
+		for (int i = 0; i < 600; i++) {
+			h.model.controls.throttle = std::clamp((30.0 - h.forward_speed()) * 0.3, 0.0, 1.0);
+			h.step();
+			peak[k] = std::max(peak[k], -h.lateral_accel());
+		}
+	}
+	MESSAGE("lateral " << peak[0] / GRAVITY << " g new, " << peak[1] / GRAVITY << " g worn");
+	CHECK(peak[1] < peak[0] * 0.92);
+}

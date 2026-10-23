@@ -61,6 +61,9 @@ void VehicleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_kart_drag", "scale"), &VehicleSim::set_kart_drag);
 	ClassDB::bind_method(D_METHOD("set_drag_scale", "scale"), &VehicleSim::set_drag_scale);
 	ClassDB::bind_method(D_METHOD("get_drag_scale"), &VehicleSim::get_drag_scale);
+	ClassDB::bind_method(D_METHOD("set_power_scale", "scale"), &VehicleSim::set_power_scale);
+	ClassDB::bind_method(D_METHOD("set_wheel_grip", "wheel", "grip"), &VehicleSim::set_wheel_grip);
+	ClassDB::bind_method(D_METHOD("take_wear"), &VehicleSim::take_wear);
 	ClassDB::bind_method(D_METHOD("set_kart_pull", "accel"), &VehicleSim::set_kart_pull);
 	ClassDB::bind_method(D_METHOD("kart_effect", "kind", "value", "dir"), &VehicleSim::kart_effect, DEFVAL(1.0));
 	ClassDB::bind_method(D_METHOD("get_kart_flags"), &VehicleSim::get_kart_flags);
@@ -386,6 +389,35 @@ void VehicleSim::set_drag_scale(double p_scale) {
 
 double VehicleSim::get_drag_scale() const {
 	return _model ? _model->drag_scale : 1.0;
+}
+
+void VehicleSim::set_power_scale(double p_scale) {
+	if (_model) {
+		_model->power_scale = std::clamp(p_scale, 0.0, 1.0);
+	}
+}
+
+void VehicleSim::set_wheel_grip(int64_t p_wheel, double p_grip) {
+	if (_model && p_wheel >= 0 && p_wheel < int64_t(_model->wheels.size())) {
+		_model->wheels[size_t(p_wheel)].wear_grip = std::clamp(p_grip, 0.0, 1.0);
+	}
+}
+
+Dictionary VehicleSim::take_wear() {
+	Dictionary out;
+	PackedFloat32Array slide;
+	if (_model) {
+		out["engine_j"] = _model->engine_work;
+		_model->engine_work = 0.0;
+		for (vehicle::WheelState &w : _model->wheels) {
+			slide.push_back(float(w.slide_work));
+			w.slide_work = 0.0;
+		}
+	} else {
+		out["engine_j"] = 0.0;
+	}
+	out["slide_j"] = slide;
+	return out;
 }
 
 void VehicleSim::set_kart_pull(const Vector3 &p_accel) {

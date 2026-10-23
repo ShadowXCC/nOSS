@@ -83,6 +83,11 @@ public:
 	// Drafting (D208): the car's drag times this, set at 30 Hz by whoever drives it; 1 = none.
 	void set_drag_scale(double p_scale);
 	double get_drag_scale() const;
+	// Fuel and tire wear (D209): the engine's power share (0: out of fuel), a tire's grip share,
+	// and the engine's work and each tire's sliding work since the last call ({engine_j, slide_j}).
+	void set_power_scale(double p_scale);
+	void set_wheel_grip(int64_t p_wheel, double p_grip);
+	godot::Dictionary take_wear();
 	void set_kart_pull(const godot::Vector3 &p_accel);
 	// KART_BOOST (value s), KART_SPIN (value s, dir +1 left / -1 right), KART_SLOW (value s,
 	// dir = power left), KART_CANCEL.
