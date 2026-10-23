@@ -141,12 +141,15 @@ func _overlaps() -> void:
 	var hits := PackedInt32Array()
 	for i in range(0, n, 2):
 		var a := t.samples[i]
-		var room_a := maxf(t.half_l[i], t.half_r[i])
 		for j in t.samples_near(a, 2.0 * reach):
 			var along := absf(t.distances[j] - t.distances[i])
 			if minf(along, t.length - along) < skip or absf(a.y - t.samples[j].y) >= CLEARANCE_M:
 				continue
-			if Vector2(a.x - t.samples[j].x, a.z - t.samples[j].z).length() < room_a + maxf(t.half_l[j], t.half_r[j]):
+			# Each road's half on the side facing the other (two roads side by side, narrowed there).
+			var b := t.samples[j]
+			var room_a: float = t.half_l[i] if (b - a).dot(t.lefts[i]) > 0.0 else t.half_r[i]
+			var room_b: float = t.half_l[j] if (a - b).dot(t.lefts[j]) > 0.0 else t.half_r[j]
+			if Vector2(a.x - b.x, a.z - b.z).length() < room_a + room_b:
 				hits.append(i)
 				break
 	_spots(hits, "error", "Road overlaps at %s")

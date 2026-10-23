@@ -15,6 +15,8 @@ const CURB_USE := 0.5
 ## in: brushing it at speed spins a car.
 const WALL_NEAR_M := 2.0
 const WALL_MARGIN := 0.6
+## corridor_ahead() looks this often, m.
+const AHEAD_STEP_M := 4.0
 ## Relaxation passes per level (sample step): coarse levels shape the line, fine ones polish it.
 const LEVELS := [[16, 2500], [4, 700], [1, 150]]
 const GRAVITY := 9.81
@@ -104,6 +106,18 @@ func corridor(distance: float) -> Vector2:
 
 static func corridor_at(t: TrackData, distance: float) -> Vector2:
 	return limits(t, t.index_at(distance))
+
+
+## The corridor at its tightest over the `span` m from `distance`: where the road narrows ahead (a
+## wall coming in), what a car can count on until then.
+func corridor_ahead(distance: float, span: float) -> Vector2:
+	var c := corridor(distance)
+	var x := AHEAD_STEP_M
+	while x <= span:
+		var o := corridor(distance + x)
+		c = Vector2(minf(c.x, o.x), maxf(c.y, o.y))
+		x += AHEAD_STEP_M
+	return c
 
 
 ## The corridor at sample `i`.

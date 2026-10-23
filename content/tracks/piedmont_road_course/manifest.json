@@ -1,0 +1,29 @@
+{
+  "attributions": [
+    "Layout © OpenStreetMap contributors (ODbL 1.0)",
+    "Ground: U.S. Geological Survey, 3D Elevation Program (public domain)"
+  ],
+  "author": "nOSS contributors",
+  "created": "2026-10-23",
+  "files": {
+    "terrain/height.png": "sha256:37b30f71c497868108ad021bfe6a04311bdb630b76e2ca76f317889ad5bbb08a",
+    "terrain/meta.json": "sha256:8b138c903d89eb3841a3507d6361237d02a9c32600ed6fdfc131e91825e7891a",
+    "terrain/splat_0.png": "sha256:5a7088178a0b29a5b7df6a76009cbd0cbd5d4ea4093938a8be441ef980af76e0",
+    "terrain/splat_1.png": "sha256:d5a37e605b31462a25e92d10e630f2c628627d2f2ffaeccea6c1acbd2abe8b01",
+    "track.json": "sha256:628f920b25fd06515fa455ca0db460f0e5d95b5ed4586cbdfd51b2ab1ded83e8"
+  },
+  "game_min_version": "0.12.0",
+  "id": "piedmont_road_course",
+  "kind": "road",
+  "layout": "sha256:638e4286aa8cbd538396f6aa5568de3ba3b8311d25180bd079c317b92bef2fbb",
+  "length_m": 3784.1,
+  "license": "ODbL-1.0",
+  "name": "Piedmont Road Course",
+  "schema": "noss.track_package/1",
+  "source": "OpenStreetMap ways 402168711, 116107372, 402168714, 402168718, 116107359, 585912895, 676112675, 918050113, 923003592 and the oval's, USGS NED 1/3 arc-second",
+  "tags": [
+    "real-world"
+  ],
+  "type": "circuit",
+  "version": 1
+}

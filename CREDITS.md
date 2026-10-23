@@ -36,6 +36,8 @@ Part of the game:
 | The Eifel GP's ground: EU-DEM v1.1, 25 m (via [OpenTopoData](https://www.opentopodata.org/)) | Copernicus Land Monitoring Service, European Union | Free use with attribution: "Produced using Copernicus data and information funded by the European Union" | `content/tracks/eifel_gp/terrain/`, `tools/data/eifel_gp.json` |
 | Piedmont Speedway's layout: the Charlotte Motor Speedway oval, its pit road and the raceways round it ([OpenStreetMap](https://www.openstreetmap.org/way/396483278) ways 396483278, 116034341, 402168709, 1052107104, 402168711 and others) | © OpenStreetMap contributors | ODbL 1.0 | `content/tracks/piedmont_speedway/`, `tools/data/piedmont.json` |
 | Piedmont Speedway's ground: USGS 3DEP / National Elevation Dataset, 1/3 arc-second (via [OpenTopoData](https://www.opentopodata.org/), dataset ned10m) | U.S. Geological Survey | Public domain | `content/tracks/piedmont_speedway/terrain/`, `tools/data/piedmont.json` |
+| Piedmont Road Course's layout: the Charlotte Motor Speedway "Roval" through the infield ([OpenStreetMap](https://www.openstreetmap.org/way/402168711) ways 402168711, 116107372, 402168714, 402168718, 116107359, 585912895, 676112675, 918050113 and 923003592) and the oval's | © OpenStreetMap contributors | ODbL 1.0 | `content/tracks/piedmont_road_course/`, `tools/data/piedmont.json` |
+| Piedmont Road Course's ground: the same USGS heights as Piedmont Speedway's | U.S. Geological Survey | Public domain | `content/tracks/piedmont_road_course/terrain/` |
 
 Used for testing only; not part of the game.
 

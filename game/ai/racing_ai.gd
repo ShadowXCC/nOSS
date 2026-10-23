@@ -19,8 +19,12 @@ const LOOK_BEHIND_M := 30.0
 ## After a standing start the car keeps its grid column this far.
 const START_HOLD_M := 200.0
 const CAUTION_GRIP := 0.93
-## Lateral speed of the planned offset, m/s.
+## Lateral speed of the planned offset across the road, m/s (keeping its place while the line
+## sweeps across under it is free).
 const OFFSET_RATE := 2.5
+## The plan keeps to the road as narrow as it gets over the next car length plus 10 m plus this
+## much travel, s.
+const AHEAD_S := 0.6
 ## Body slip past this catches a slide (steering toward where the car is going), degrees.
 const CATCH_SLIP_DEG := 2.0
 ## Pit road (D210): a car pitting slows on its line from this far before the entry (braking for
@@ -56,6 +60,8 @@ var _caution_profile := PackedFloat32Array()
 var _ceiling := PackedFloat32Array()
 ## Driving pit road last tick (so the line's offset is picked up again after).
 var _was_pitting := false
+## The line's offset from the centre last tick, m.
+var _line_was := 0.0
 ## Deceleration at full brake pedal, m/s² (before the tires' limit).
 var _brake_full := 14.0
 ## What emergency braking counts on, m/s² (the brake balance's limit, with margin).
@@ -187,7 +193,13 @@ func controls(delta: float) -> Dictionary:
 	if _plan_time <= 0.0:
 		_plan_time += 1.0 / PLAN_HZ
 		_plan()
-	offset = move_toward(offset, _want, OFFSET_RATE * delta)
+	var line_now := _line.offset_at(racer.distance)
+	var step := OFFSET_RATE * delta
+	var shift := line_now - _line_was
+	if absf(shift) < 1.0 and signf(_want - offset) == -signf(shift):
+		step += absf(shift)
+	_line_was = line_now
+	offset = move_toward(offset, _want, step)
 	if not as_guide and _recover(out, delta):
 		return out
 	_steer(vehicle, v, out)
@@ -374,7 +386,8 @@ func _plan() -> void:
 	var s := _skill()
 	var v := maxf(racer.speed, 0.0)
 	var line_here := _line.offset_at(racer.distance)
-	var corridor := _line.corridor(racer.distance)
+	# The road as narrow as it gets in the next moment: no move to where it runs out.
+	var corridor := _line.corridor_ahead(racer.distance, CAR_LENGTH + 10.0 + v * AHEAD_S)
 	var gap_time := lerpf(GAP_TIME.x, GAP_TIME.y, s) + (0.3 if _cautious() else 0.0)
 	_speed_cap = INF
 	var formation := racer.pace_limit > 0.0
@@ -520,7 +533,7 @@ func _follow(other: Racer, bumper: float, v: float, gap_time: float) -> void:
 func _pass_side(other: Racer, cars: Array[Dictionary], inside: float, me_lat: float) -> float:
 	var best := 0.0
 	var best_score := -INF
-	var corridor := _line.corridor(other.distance)
+	var corridor := _line.corridor_ahead(other.distance, CAR_LENGTH + 20.0)
 	for side: float in [1.0, -1.0]:
 		var lat := other.lateral + side * (CAR_WIDTH + SIDE_GAP + 0.2)
 		if lat > corridor.x or lat < corridor.y:
