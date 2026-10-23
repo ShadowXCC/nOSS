@@ -242,3 +242,16 @@ func test_presets_have_the_kart_actions() -> void:
 	# handbrake instead (D173).
 	assert_array(Bindings.effective("kb_full").ram).is_equal([{ "key": KEY_E }])
 	assert_array(Bindings.effective("kb_full").boost).is_equal([{ "key": KEY_SPACE }])
+
+
+## Pit service (D210): the presets with keys to spare have Pit fuel and Pit tires (the pad's
+## D-pad right and left, which Track mode leaves free); the one-handed pads use the pause menu.
+func test_presets_have_the_pit_keys() -> void:
+	var want := { "kb_full": [KEY_F, KEY_T], "kb_left": [KEY_1, KEY_2], "kb_right": [KEY_9, KEY_0] }
+	for id: String in want:
+		var b := Bindings.effective(id)
+		assert_array(b.pit_fuel).is_equal([{ "key": want[id][0] }])
+		assert_array(b.pit_tyres).is_equal([{ "key": want[id][1] }])
+	var pad := Bindings.effective("pad_standard")
+	assert_array(pad.pit_fuel).is_equal([{ "button": JOY_BUTTON_DPAD_RIGHT }])
+	assert_array(pad.pit_tyres).is_equal([{ "button": JOY_BUTTON_DPAD_LEFT }])

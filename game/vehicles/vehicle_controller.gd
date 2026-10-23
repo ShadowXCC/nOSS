@@ -126,6 +126,14 @@ func _physics_process(delta: float) -> void:
 		vehicle.handbrake = 1.0
 	elif racer and racer.pace_limit > 0.0 and speed > racer.pace_limit:
 		vehicle.throttle = 0.0
+	elif racer and racer.pit_hold:
+		# In the box for service (D210): held on the brakes.
+		vehicle.throttle = 0.0
+		vehicle.brake = 1.0
+	elif racer and racer.pit_limit > 0.0 and speed > racer.pit_limit:
+		# The pit lane's limiter: no more power, and the brakes if it's well over.
+		vehicle.throttle = 0.0
+		vehicle.brake = maxf(vehicle.brake, clampf((speed - racer.pit_limit - 0.2) * 0.5, 0.0, 1.0))
 	elif _guide:
 		_apply_access_assists(delta)
 
@@ -139,6 +147,11 @@ func _physics_process(delta: float) -> void:
 		reset_requested.emit()
 	if input.just_pressed("camera_next"):
 		camera_next_requested.emit()
+	if racer and racer.session.pits:
+		if input.just_pressed("pit_fuel"):
+			racer.session.pits.cycle(racer, "fuel")
+		if input.just_pressed("pit_tyres"):
+			racer.session.pits.cycle(racer, "tires")
 	if input.just_pressed("autodrive"):
 		autodrive_requested.emit()
 

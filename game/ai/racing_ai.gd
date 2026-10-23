@@ -23,6 +23,15 @@ const CAUTION_GRIP := 0.93
 const OFFSET_RATE := 2.5
 ## Body slip past this catches a slide (steering toward where the car is going), degrees.
 const CATCH_SLIP_DEG := 2.0
+## Pit road (D210): a car pitting slows on its line from this far before the entry (braking for
+## the limit line at PIT_BRAKE, never past the line's own pace) and eases down to the paved edge
+## over the last PIT_DROP_M; brakes for its box at PIT_BOX_BRAKE (m/s²); keeps PIT_GAP_M (plus a
+## metre a m/s) behind a car ahead in the lane.
+const PIT_APPROACH_M := 450.0
+const PIT_DROP_M := 160.0
+const PIT_BRAKE := 3.5
+const PIT_BOX_BRAKE := 3.5
+const PIT_GAP_M := 14.0
 ## Skill 0 -> 100.
 const GRIP := Vector2(0.78, 0.95)
 const GAP_TIME := Vector2(1.1, 0.55)
@@ -45,6 +54,8 @@ var _caution_profile := PackedFloat32Array()
 ## With drafting (D208): how fast the corners and their braking allow, power aside; a car a tow
 ## has carried past its own pace keeps its foot down up to it. Empty without drafting.
 var _ceiling := PackedFloat32Array()
+## Driving pit road last tick (so the line's offset is picked up again after).
+var _was_pitting := false
 ## Deceleration at full brake pedal, m/s² (before the tires' limit).
 var _brake_full := 14.0
 ## What emergency braking counts on, m/s² (the brake balance's limit, with margin).
@@ -157,7 +168,20 @@ func controls(delta: float) -> Dictionary:
 	if racer.held or racer.waiting:
 		_hold(out)
 		return out
+	if racer.pit_hold: # in its box for service: on the handbrake, nothing else changes
+		out.handbrake = 1.0
+		return out
 	var v := maxf(racer.speed, 0.0)
+	if not as_guide and _pitting():
+		_was_pitting = true
+		if not _recover(out, delta):
+			_pit_drive(vehicle, v, out)
+		return out
+	if _was_pitting:
+		# Back on the road: the line from where the car is.
+		_was_pitting = false
+		offset = racer.lateral - _line.offset_at(racer.distance)
+		_want = offset
 	_covered += v * delta
 	_plan_time -= delta
 	if _plan_time <= 0.0:
@@ -169,6 +193,86 @@ func controls(delta: float) -> Dictionary:
 	_steer(vehicle, v, out)
 	_pedals(vehicle, v, out)
 	return out
+
+
+# --- pit road (D210) -----------------------------------------------------------------------
+
+
+## In the pit lane, or heading for it to pit.
+func _pitting() -> bool:
+	var pit := racer.track.pit
+	if pit == null:
+		return false
+	if racer.in_pit:
+		return true
+	if not racer.pit_plan:
+		return false
+	# Heading for the entry, or past it and still getting into the lane.
+	return fposmod(pit.entry_m - racer.distance, racer.track.length) < PIT_APPROACH_M \
+		or (pit.beside(racer.distance) and racer.pit_distance < pit.limit_in_m)
+
+
+## Pit road: along the lane (its fast half, its box half near the box), the limit between the
+## lines, a stop in the box when it's pitting, room to a car ahead; out at the line's pace.
+func _pit_drive(vehicle: Vehicle, v: float, out: Dictionary) -> void:
+	var pit := racer.track.pit
+	var pits := racer.session.pits
+	var t := racer.track
+	var d := racer.pit_distance if pit.beside(racer.distance) else -fposmod(pit.entry_m - racer.distance, t.length)
+	var stopping := racer.pit_plan and pits != null and pits.services() and String(pits.stop_of(racer).state) in ["track", "lane"]
+	var box := pits.box_m(racer) if pits else -1.0
+	var look := clampf(4.0 + 0.3 * v, 6.0, 22.0)
+	# The fast half of the lane, into the box half only past the box before its own.
+	var lane := -pit.side * pit.width / 4.0
+	if stopping and box - d < pit.box_m + 4.0:
+		lane = pit.side * pit.width / 4.0
+	var just_out := pits != null and String(pits.stop_of(racer).state) == "leaving" and absf(box - d) < pit.box_m
+	var at := d + look
+	var target: Vector3
+	if at < 0.0:
+		# Still on the road: along the line, easing down to the paved edge for the mouth.
+		var ahead := racer.distance + look
+		var down := smoothstep(0.0, 1.0, 1.0 - (-at) / PIT_DROP_M)
+		var edge := pit.side * (t.half_width(ahead, pit.side) + t.apron(t.index_at(ahead), pit.side) * 0.5)
+		target = t.transform_at(ahead, lerpf(_line.offset_at(ahead), edge, down)).origin
+	else:
+		var aim := minf(at, pit.track.length)
+		var room := maxf(pit.track.half_width(aim, 1.0) - 1.0, 0.0)
+		target = pit.track.transform_at(aim, clampf(lane, -room, room)).origin
+	out.steer = _pursue(vehicle, target, v)
+	var want := RacingLine.MAX_SPEED
+	if d < pit.limit_in_m:
+		want = sqrt(pit.speed * pit.speed + 2.0 * PIT_BRAKE * maxf(pit.limit_in_m - d, 0.0))
+		if d < 0.0:
+			want = minf(want, _line.speed_at(_profile, racer.distance))
+	elif d <= pit.limit_out_m:
+		want = pit.speed * 0.98
+	else:
+		want = _line.speed_at(_profile, racer.distance)
+	if stopping and box >= 0.0:
+		var to_box := box - d
+		want = minf(want, 0.0 if to_box < 1.0 else sqrt(2.0 * PIT_BOX_BRAKE * to_box))
+	for other: Racer in racer.session.racers:
+		if other == racer or not other.in_pit or other.vehicle == null:
+			continue
+		var rel := other.vehicle.global_position - vehicle.global_position
+		var ahead := other.pit_distance - d
+		# A car ahead in this half of the lane (one held in its box too): keep room behind it.
+		if ahead > 0.0 and ahead < PIT_GAP_M + v and rel.length() < PIT_GAP_M + v and absf(rel.dot(vehicle.global_basis.x)) < CAR_WIDTH:
+			want = minf(want, maxf(other.speed, 0.0) * clampf((ahead - CAR_LENGTH) / PIT_GAP_M, 0.0, 1.0))
+		# Out of the box: not across a car coming up the fast half.
+		if just_out and not other.pit_hold and ahead < 0.0 and ahead > -PIT_GAP_M * 1.5 and other.speed > 3.0:
+			want = 0.0
+	var error := want - v
+	if error < -0.3:
+		out.brake = clampf(-error * 0.3, 0.0, 1.0)
+		out.throttle = 0.0
+	else:
+		out.throttle = clampf(0.4 + error * 0.4, 0.0, 1.0)
+		out.brake = 0.0
+	if want <= 0.0 and v < 2.0:
+		out.brake = 1.0
+		out.throttle = 0.0
 
 
 ## Waits on the handbrake: holding the brake at a standstill would select reverse with the
@@ -468,13 +572,14 @@ func _recover(out: Dictionary, delta: float) -> bool:
 	var v := absf(racer.speed)
 	var upright := vehicle.global_basis.y.y > 0.3
 	var heading := vehicle.global_basis.z.dot(racer.track.tangents[maxi(racer.track_index, 0)])
-	var off := absf(racer.lateral) > racer.track.half_width(racer.distance, racer.lateral) + racer.track.apron(racer.track_index, racer.lateral) + 4.0
+	var off := absf(racer.lateral) > racer.track.half_width(racer.distance, racer.lateral) + racer.track.apron(racer.track_index, racer.lateral) + 4.0 \
+		and not racer.in_pit
 	var backwards := heading < -0.2 and v > 3.0
 	if not upright or off or backwards:
 		_trouble_time += delta
 	else:
 		_trouble_time = maxf(_trouble_time - delta * 2.0, 0.0)
-	if v < 1.0 and not racer.held and (_speed_cap > 1.0 or stuck_behind):
+	if v < 1.0 and not racer.held and not racer.pit_hold and (_speed_cap > 1.0 or stuck_behind or racer.in_pit):
 		_stuck_time += delta
 	else:
 		_stuck_time = 0.0

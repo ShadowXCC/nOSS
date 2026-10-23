@@ -45,6 +45,8 @@ const ACTIONS := {
 	"ram": { "name": "Ram boost" },
 	"boost": { "name": "Boost" },
 	"autodrive": { "name": "Autodrive" },
+	"pit_fuel": { "name": "Pit fuel" },
+	"pit_tyres": { "name": "Pit tires" },
 	"menu_up": { "name": "Menu up", "repeat": true },
 	"menu_down": { "name": "Menu down", "repeat": true },
 	"menu_left": { "name": "Menu left", "repeat": true },
@@ -55,7 +57,8 @@ const ACTIONS := {
 const DRIVING := ["steer_left", "steer_right", "throttle", "brake", "handbrake", "clutch", "shift_up", "shift_down",
 	"gear_r", "gear_n", "gear_1", "gear_2", "gear_3", "gear_4", "gear_5", "gear_6", "gear_7",
 	"camera_next", "look_back", "look_left", "look_right", "look_up", "look_down", "reset_car", "hotswap_menu",
-	"pause", "editor_back", "horn", "lights", "drift", "use_item", "throw_back", "ram", "boost", "autodrive"]
+	"pause", "editor_back", "horn", "lights", "drift", "use_item", "throw_back", "ram", "boost", "autodrive",
+	"pit_fuel", "pit_tyres"]
 ## Kart actions (D135), and the driving actions each may share an input with: ones kart sessions
 ## ignore (no handbrake, a one-gear automatic), and looking back for throwing back.
 const KART := ["drift", "use_item", "throw_back"]

@@ -135,6 +135,16 @@
       {
         "key": "Backspace"
       }
+    ],
+    "pit_fuel": [
+      {
+        "key": "9"
+      }
+    ],
+    "pit_tyres": [
+      {
+        "key": "0"
+      }
     ]
   }
 }

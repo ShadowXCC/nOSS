@@ -115,7 +115,14 @@ func _tick() -> void:
 			var beta := rad_to_deg(atan2(lv.x, absf(lv.z)))
 			var yaw := rad_to_deg(r.vehicle.angular_velocity.y)
 			var prof: PackedFloat32Array = ai._caution_profile if ai._cautious() else ai._profile
-			print("  L%d %5.1f s d %4.0f lat %5.1f line %5.1f v %3.0f tgt %3.0f thr %.2f brk %.2f st %+.2f gear %d slip %+5.1f yaw %+5.1f %s" % [r.timer.lap, time, d, r.lateral, ai._line.offset_at(r.distance), r.speed * 3.6, ai._line.speed_at(prof, r.distance) * 3.6, r.vehicle.throttle, r.vehicle.brake, r.vehicle.steer, r.vehicle.sim.get_gear(), beta, yaw, ai.intent])
+			var pit := ""
+			if session.pits:
+				var st: Dictionary = session.pits.stop_of(r)
+				pit = " pit[%s%s%s %.0f]" % [st.state, " plan" if r.pit_plan else "", " in" if r.in_pit else "", r.pit_distance]
+			if session.wear:
+				var w: CarWear = session.wear.of(r)
+				pit += " fuel %.1f (%.1f laps) tread %d%%" % [w.fuel_l, w.laps_left(), roundi(w.tread() * 100.0)]
+			print("  L%d %5.1f s d %4.0f lat %5.1f line %5.1f v %3.0f tgt %3.0f thr %.2f brk %.2f st %+.2f gear %d slip %+5.1f yaw %+5.1f %s%s" % [r.timer.lap, time, d, r.lateral, ai._line.offset_at(r.distance), r.speed * 3.6, ai._line.speed_at(prof, r.distance) * 3.6, r.vehicle.throttle, r.vehicle.brake, r.vehicle.steer, r.vehicle.sim.get_gear(), beta, yaw, ai.intent, pit])
 	var laps := int(opts.laps)
 	for r in session.racers:
 		var v := r.vehicle
@@ -135,7 +142,7 @@ func _tick() -> void:
 				print("  reset %.1f s: %s at %.0f m (lateral %.1f m%s)" % [time, r.display_name, r.track.from_start(r.distance), r.lateral, ", in the pits" if r.in_pit else ""])
 		was_waiting[r] = r.waiting
 		# Stuck: not moving (and not waiting to rejoin) before finishing.
-		if absf(r.speed) < 1.0 and not r.waiting and not finish_time.has(r) and time > 8.0:
+		if absf(r.speed) < 1.0 and not r.waiting and not r.pit_hold and not finish_time.has(r) and time > 8.0:
 			stuck[r] = stuck.get(r, 0.0) + dt
 			if stuck[r] > STUCK_S and stuck[r] - dt <= STUCK_S:
 				stuck_events.append("%s at %.0f m (lateral %.1f m%s), %.1f s" % [r.display_name, r.track.from_start(r.distance), r.lateral, ", in the pits" if r.in_pit else "", time])
@@ -205,6 +212,8 @@ func _report() -> void:
 		if session.wear and session.wear.cars.has(r):
 			var w: CarWear = session.wear.cars[r]
 			worn = "  fuel %.1f L (%.2f L a lap)  tread %d%%" % [w.fuel_l, w.lap_fuel, roundi(w.tread() * 100.0)]
+		if session.pits and session.pits.stops.has(r):
+			worn += "  stops %d" % int(session.pits.stops[r].stops)
 		print("  P%d %-8s %6.1f s  resets %d  laps %s%s" % [i + 1, r.display_name, finish_time[r], resets[r], ", ".join(PackedStringArray((lap_times[r] as Array).map(func(t: float) -> String: return "%.1f" % t))), worn])
 	if fails.is_empty():
 		print("PASS")

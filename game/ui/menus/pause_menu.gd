@@ -49,6 +49,8 @@ var leaderboard_scores := false
 ## The mode's own items, after Reset car: [[text, callable, description]] (highways: Change
 ## direction).
 var extra_items: Array = []
+## Rows the session adds after those (Track: the pit service asked for, D210).
+var extra_rows: Array[Control] = []
 ## Online (D85): chat is offered, quitting leaves the game; `is_host` can send everyone to the lobby.
 var online := false
 var is_host := false
@@ -76,6 +78,7 @@ func _ready() -> void:
 	]
 	for item: Array in extra_items:
 		_buttons.append(UiKit.button(String(item[0]), item[1], String(item[2]) if item.size() > 2 else ""))
+	_buttons.append_array(extra_rows)
 	if can_change_car:
 		_buttons.append(UiKit.button("Change car", func() -> void: change_car.emit()))
 	if can_setup:

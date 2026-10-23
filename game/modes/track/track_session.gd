@@ -118,6 +118,8 @@ var kart: KartControl
 var draft: DraftControl
 ## Fuel use and tire wear (D209): with either on in the event, in Track mode.
 var wear: WearControl
+## Pit stops (D210): on a track with a pit lane, in Track mode.
+var pits: PitControl
 ## Battles (D144): lives and hits. Null otherwise.
 var battle: BattleControl
 ## A sumo match (docs/GAMEMODES.md §5, D162): the platforms, their rules and the HUD; the world
@@ -480,6 +482,10 @@ func _ready() -> void:
 		wear.fuel_x = event.fuel_x
 		wear.tyre_x = event.tyre_x
 		add_child(wear)
+	if track.pit and mode.get("id") == "track" and event.kind != "time_trial":
+		pits = PitControl.new()
+		pits.session = self
+		add_child(pits)
 
 	add_child(views)
 	if not endless: # no map of a road that never ends
@@ -1630,6 +1636,15 @@ func _open_pause(p: SessionPlayer) -> void:
 	menu.can_setup = race.kind != "race" and p.car_setup != null and not p.car_setup.allowed.is_empty()
 	menu.setup = p.car_setup
 	menu.setup_closed.connect(func() -> void: p.setup_changed())
+	if pits and pits.services():
+		# The pit service by menu (D210), for every preset (some have no keys to spare for it).
+		var request: Dictionary = pits.stop_of(p).request
+		var fuel := PitControl.FUEL.map(func(f: String) -> Array: return [f, PitControl.FUEL_WORDS[f]])
+		var tires := PitControl.TIRES.map(func(t: int) -> Array: return [t, "%d" % t if t > 0 else "None"])
+		menu.extra_rows.append(UiKit.spinner("Pit fuel", fuel, String(request.fuel), func(v: String) -> void: pits.set_request(p, "fuel", v),
+			"What the next stop puts in"))
+		menu.extra_rows.append(UiKit.spinner("Pit tires", tires, int(request.tires), func(v: int) -> void: pits.set_request(p, "tires", v),
+			"How many tires the next stop changes"))
 	if time_trial:
 		menu.ghost_items = time_trial.choices()
 		menu.ghost_current = time_trial.choice

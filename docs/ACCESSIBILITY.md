@@ -122,6 +122,7 @@ These build on the standard assists (steer aid, ABS, TCS, stability, auto-gearbo
 | Game speed | 50–100% sim speed in offline single player. Those results don't count toward leaderboards. |
 | HUD presets | Full, Minimal, Off. Any HUD element can be hidden on its own. Endless shows the speed, gear and RPM bar until you hide them from the pause menu (D189); captions and messages always show (M9). With speed traps or police on, the limit shows by the speedometer as a road sign with its number in your units, which a screen reader reads as "Limit 50 mph" (D193). Name tags over other players' cars are an element too: Off hides them, Minimal keeps them (D199). |
 | Navigation | Checkpoint arrows on highway runs. "Wrong way" warnings in every mode. |
+| Pit stops (D210) | The pit panel says it in words ("Pit: Full · 4 tires", "Locked · Box 120 m", "Service 8.1", "Go"), as a polite live region; each change ("Pit: Finish · 2 tires", "Locked", "Go") is spoken with race narration and captioned. The lane's limiter does the speed for you, and the limit sign shows the pit road's limit while it holds. The service can also be set in the pause menu, so no extra buttons are needed. |
 | Difficulty | AI skill 0–100, traffic density, police on/off ([GAMEMODES.md §0](GAMEMODES.md#0-common-to-all-modes)) |
 
 ## 7. First boot

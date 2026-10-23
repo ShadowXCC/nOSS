@@ -179,6 +179,16 @@
       {
         "button": "b"
       }
+    ],
+    "pit_fuel": [
+      {
+        "button": "dpad_right"
+      }
+    ],
+    "pit_tyres": [
+      {
+        "button": "dpad_left"
+      }
     ]
   }
 }

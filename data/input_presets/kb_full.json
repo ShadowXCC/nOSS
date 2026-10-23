@@ -170,6 +170,16 @@
       {
         "key": "Backspace"
       }
+    ],
+    "pit_fuel": [
+      {
+        "key": "F"
+      }
+    ],
+    "pit_tyres": [
+      {
+        "key": "T"
+      }
     ]
   }
 }

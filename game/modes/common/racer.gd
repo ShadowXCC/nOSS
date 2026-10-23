@@ -104,6 +104,11 @@ var out_of_bounds := false
 var in_pit := false
 var pit_distance := 0.0
 var pit_index := -1
+## Pit stops (D210, PitControl): the lane's speed limit while it holds here (m/s; 0: none),
+## held in the box for service, and (the AI) pitting this lap.
+var pit_limit := 0.0
+var pit_hold := false
+var pit_plan := false
 
 var _loading := false
 var _rejoin_at := 0.0
@@ -446,6 +451,8 @@ func reset_car() -> void:
 	if vehicle == null or waiting:
 		return
 	vehicle.repair()
+	if session.wear and session.wear.of(self).splash():
+		notify("Splash of fuel", 2.0) # never stranded dry (D209)
 	if session.sumo:
 		session.sumo.recover(self)
 		return

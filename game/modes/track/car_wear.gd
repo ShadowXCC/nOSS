@@ -10,6 +10,9 @@ const DEFAULT_FUEL := { "tank_l": 70.0, "l_per_kwh": 0.32 }
 const DEFAULT_TIRES := { "life_mj": 60.0, "worn_grip": 0.85 }
 ## "Fuel low" under this many laps.
 const LOW_LAPS := 2.0
+## A car reset dry gets a splash: this many laps' fuel (or SPLASH_L before a lap's measured).
+const SPLASH_LAPS := 1.5
+const SPLASH_L := 8.0
 
 var tank_l := 70.0
 var fuel_l := 70.0
@@ -19,7 +22,7 @@ var l_per_j := 0.0
 var wear := PackedFloat32Array()
 var life_j := 0.0
 var worn_grip := 0.85
-## Fuel used over the last lap, litres (0: no lap measured yet).
+## Fuel used over the last racing lap, litres (0: no lap measured yet).
 var lap_fuel := 0.0
 var _lap := -1
 var _fuel_at_lap := 0.0
@@ -98,10 +101,25 @@ func lap_started(lap: int) -> void:
 	if lap == _lap:
 		return
 	if _lap >= 1 and lap == _lap + 1 and _fuel_at_lap > fuel_l and not _refilled:
-		lap_fuel = _fuel_at_lap - fuel_l
+		# A slow lap (through the pits, behind a crash) burns less: it isn't a racing lap's measure.
+		var used := _fuel_at_lap - fuel_l
+		if lap_fuel <= 0.0 or used > lap_fuel * 0.75:
+			lap_fuel = used
 	_refilled = false
 	_lap = lap
 	_fuel_at_lap = fuel_l
+
+
+## Reset while dry (or nearly): a splash of fuel to reach the pits on. True if it got one.
+func splash() -> bool:
+	if not uses_fuel():
+		return false
+	var want := lap_fuel * SPLASH_LAPS if lap_fuel > 0.0 else SPLASH_L
+	if fuel_l >= want:
+		return false
+	fuel_l = minf(want, tank_l)
+	_refilled = true
+	return true
 
 
 ## A pit stop's service: `litres` of fuel (to the tank's top at most), and `tires` new tires
