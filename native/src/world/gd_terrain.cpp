@@ -226,6 +226,8 @@ Rect2i NossTerrain::conform(const Rect2i &p_rect, const PackedFloat32Array &p_ro
 			road[i].apron_r = a[3];
 			road[i].slope_l = a[4];
 			road[i].slope_r = a[5];
+			road[i].paved_l = a[0] + a[2];
+			road[i].paved_r = a[1] + a[3];
 		}
 	}
 	return to_rect2i(_field.conform(to_rect(p_rect), road, p_falloff_m, p_depth_m));

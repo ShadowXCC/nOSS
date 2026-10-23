@@ -2,7 +2,7 @@ extends GdUnitTestSuite
 ## Piedmont Road Course (D211): the built-in infield road course at Piedmont Speedway comes again
 ## the same from its generator and passes the checks; it runs counter-clockwise, about 3.7 km with
 ## its corners; its banked sections are the oval's own; it has pit road, a floodlit night and the
-## rules it suggests, and lists as a circuit.
+## rules it suggests, and lists as a circuit; the oval it leaves is scenery (D212).
 
 const DIR := "res://content/tracks/piedmont_road_course"
 const OVAL := "res://content/tracks/piedmont_speedway"
@@ -64,3 +64,25 @@ func test_it_has_pit_road_lights_and_its_rules() -> void:
 	assert_str(attributions).contains("OpenStreetMap")
 	var circuits := TrackLibrary.list(false, false, "circuit").map(func(e: Dictionary) -> String: return e.id)
 	assert_array(circuits).contains(["piedmont_road_course"])
+
+
+func test_the_oval_it_leaves_is_scenery() -> void:
+	var t := TrackLoader.load_package(DIR).track
+	var names := (t.raw.roads as Array).map(func(r: Dictionary) -> String: return r.name)
+	assert_array(names).contains_exactly_in_any_order(["Oval turn 1", "Oval backstretch", "Oval turn 4"])
+	assert_int(t.scenery.size()).is_equal(3)
+	for piece in t.scenery:
+		# The oval's own: its SAFER wall all along, its banking; it meets the course in a point at
+		# each end, never on it.
+		assert_int(Array(piece.barrier_r).count(TrackFormat.BARRIER_SAFER)).is_equal(piece.samples.size())
+		assert_float(piece.half_l[0] + piece.half_r[0]).is_less(1.0)
+		var last := piece.samples.size() - 1
+		assert_float(piece.half_l[last] + piece.half_r[last]).is_less(1.0)
+		for i in range(0, piece.samples.size(), 5):
+			var proj := t.project(piece.samples[i])
+			assert_float(absf(float(proj.lateral))).is_greater(t.edge_at(float(proj.distance), float(proj.lateral)) - 0.05)
+	var turn_1: TrackData = t.scenery.filter(func(p: TrackData) -> bool: return p.display_name == "Oval turn 1")[0]
+	var steepest := 0.0
+	for b in turn_1.bank:
+		steepest = maxf(steepest, absf(rad_to_deg(b)))
+	assert_float(steepest).is_greater(15.0)

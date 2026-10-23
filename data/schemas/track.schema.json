@@ -118,6 +118,31 @@
         "wall": { "type": "boolean" }
       }
     },
+    "roads": {
+      "description": "Scenery roads (docs/TRACK_EDITOR.md §4, D212): open roads round the course that aren't part of it, the rest of a venue. Each is made as the road is, from its own points and defaults; where it runs onto the road or its pit lane its edge stops at theirs, and where it's wholly on them it's cut. Cars can drive them; nothing is timed there.",
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["points"],
+        "properties": {
+          "name": { "type": "string", "maxLength": 64 },
+          "defaults": { "$ref": "#/$defs/attributes" },
+          "points": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2000,
+            "items": {
+              "allOf": [
+                { "$ref": "#/$defs/attributes" },
+                { "type": "object", "required": ["p"] }
+              ]
+            }
+          }
+        }
+      }
+    },
     "highway": {
       "description": "A highway's carriageways, ramps, portals, runs and traffic (type highway; docs/TRACK_EDITOR.md §1, D106). The road is the median's centreline; direction 1 drives along it on its right, -1 the other way.",
       "type": "object",

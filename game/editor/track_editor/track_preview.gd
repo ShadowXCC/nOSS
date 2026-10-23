@@ -214,6 +214,7 @@ func _rebuild_road(t: TrackData, segments: PackedInt32Array, ground_rect: Rect2i
 		builder.rebuild_segments(_road, segments)
 		builder.rebuild_highway(_road) # ramps share the road's samples where they leave and join it
 		builder.rebuild_pit(_road) # so does a pit lane
+		builder.rebuild_scenery(_road) # and scenery roads are fitted to it
 	else:
 		_clear(_road)
 		_build_road(t)

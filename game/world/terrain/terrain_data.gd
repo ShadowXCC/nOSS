@@ -140,18 +140,26 @@ static func road_samples(track: TrackData) -> PackedFloat32Array:
 	if track == null or track.kind != "road":
 		return out
 	_append_samples(out, track, range(track.samples.size()))
-	var strips := []
-	if track.highway:
-		for r in track.highway.ramps:
-			strips.append(r.track)
-	if track.pit:
-		strips.append(track.pit.track)
+	var strips := _strips(track)
 	if not strips.is_empty():
 		_append_samples(out, track, [0])
 		out[out.size() - 1] += 2.0
 		for strip: TrackData in strips:
 			_append_samples(out, strip, range(strip.samples.size()))
 			out[out.size() - 1] += 2.0
+	return out
+
+
+## The open roads shaped into the ground with the road, in road_samples()'s order: a highway's
+## ramps, a pit lane, scenery roads (D212).
+static func _strips(track: TrackData) -> Array[TrackData]:
+	var out: Array[TrackData] = []
+	if track.highway:
+		for r in track.highway.ramps:
+			out.append(r.track)
+	if track.pit:
+		out.append(track.pit.track)
+	out.append_array(track.scenery)
 	return out
 
 
@@ -175,28 +183,46 @@ static func _append_samples(out: PackedFloat32Array, track: TrackData, indices: 
 
 ## The road's aprons for conform (D202), lined up with road_samples(): per sample the edge each
 ## side (centreline to it, past the curb), the aprons' widths and their slopes (rise per metre).
-## Empty when the road has none, so the bed is shaped as it always was.
+## Scenery roads have theirs too. Empty when no road has one, so the bed is shaped as it always was.
 static func road_aprons(track: TrackData) -> PackedFloat32Array:
 	var out := PackedFloat32Array()
 	if track == null or track.kind != "road":
 		return out
+	var strips := _strips(track)
 	var any := false
-	for i in track.samples.size():
-		if track.apron(i, 1.0) > 0.0 or track.apron(i, -1.0) > 0.0:
-			any = true
-			break
+	for road: TrackData in [track] + strips:
+		for i in road.apron_l.size():
+			if road.apron(i, 1.0) > 0.0 or road.apron(i, -1.0) > 0.0:
+				any = true
+				break
 	if not any:
 		return out
-	out.resize(road_samples(track).size() / 9 * 6) # ramps and closing copies get none
-	for i in track.samples.size():
-		var k := i * 6
-		out[k] = track.half_l[i] + (TrackData.CURB_WIDTH if track.curb_l[i] else 0.0)
-		out[k + 1] = track.half_r[i] + (TrackData.CURB_WIDTH if track.curb_r[i] else 0.0)
-		out[k + 2] = track.apron_l[i]
-		out[k + 3] = track.apron_r[i]
-		out[k + 4] = tan(track.apron_l_bank[i])
-		out[k + 5] = tan(track.apron_r_bank[i])
+	out.resize(road_samples(track).size() / 9 * 6)
+	_apron_rows(out, track, 0)
+	var row := track.samples.size()
+	if not strips.is_empty():
+		for c in 6: # the closing copy of the first sample, as it
+			out[row * 6 + c] = out[c]
+		row += 1
+	for strip in strips:
+		_apron_rows(out, strip, row)
+		row += strip.samples.size()
 	return out
+
+
+## Rows from `row` on for `road`'s samples (a road without aprons, a ramp or a pit lane, still has
+## its edges: they're how far its paving reaches, which holds against another road's run-off).
+static func _apron_rows(out: PackedFloat32Array, road: TrackData, row: int) -> void:
+	var aprons := road.apron_l.size() == road.samples.size()
+	for i in road.samples.size():
+		var k := (row + i) * 6
+		out[k] = road.half_l[i] + (TrackData.CURB_WIDTH if road.curb_l[i] else 0.0)
+		out[k + 1] = road.half_r[i] + (TrackData.CURB_WIDTH if road.curb_r[i] else 0.0)
+		if aprons:
+			out[k + 2] = road.apron_l[i]
+			out[k + 3] = road.apron_r[i]
+			out[k + 4] = tan(road.apron_l_bank[i])
+			out[k + 5] = tan(road.apron_r_bank[i])
 
 
 ## Samples of chunk `c` (with the shared edge sample).

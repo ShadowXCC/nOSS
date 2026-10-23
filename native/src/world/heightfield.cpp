@@ -216,6 +216,7 @@ Rect Heightfield::conform(const Rect &p_rect, const std::vector<RoadSample> &p_r
 	std::vector<float> best_w(size_t(r.width()) * size_t(r.depth()), 0.0f);
 	std::vector<float> best_h(best_w.size(), 0.0f);
 	std::vector<float> best_d(best_w.size(), 1e30f);
+	std::vector<uint8_t> best_paved(best_w.size(), 0);
 	std::vector<float> ceiling(best_w.size(), 1e30f);
 	for (size_t k = 0; k < n; k++) {
 		const RoadSample &a = p_road[k];
@@ -253,6 +254,7 @@ Rect Heightfield::conform(const Rect &p_rect, const std::vector<RoadSample> &p_r
 				if (dist >= flat + falloff) {
 					continue;
 				}
+				uint8_t paved = dist <= (lateral >= 0.0 ? a.paved_l + (b.paved_l - a.paved_l) * t : a.paved_r + (b.paved_r - a.paved_r) * t) ? 1 : 0;
 				double bed = a.y + (b.y - a.y) * t + lateral * ly / lxz - p_depth_m;
 				double apron = lateral >= 0.0 ? a.apron_l + (b.apron_l - a.apron_l) * t : a.apron_r + (b.apron_r - a.apron_r) * t;
 				if (apron > 0.0) {
@@ -278,13 +280,15 @@ Rect Heightfield::conform(const Rect &p_rect, const std::vector<RoadSample> &p_r
 				if (to_lifted) {
 					weight *= a.lifted ? t : (1.0 - t); // easing off toward the lifted end, none past it
 				}
-				// The part of the road that holds the cell most wins; among equals, the nearest
-				// (across the flat zone many 2 m segments reach a cell, at their own heights).
-				if (weight <= 0.0 || weight < best_w[i] || (weight == best_w[i] && dist >= best_d[i])) {
+				// The part of the road that holds the cell most wins; among equals, paving over
+				// run-off, then the nearest (across the flat zone many 2 m segments reach a cell, at
+				// their own heights).
+				if (weight <= 0.0 || weight < best_w[i] || (weight == best_w[i] && (paved < best_paved[i] || (paved == best_paved[i] && dist >= best_d[i])))) {
 					continue;
 				}
 				best_w[i] = float(weight);
 				best_d[i] = float(dist);
+				best_paved[i] = paved;
 				best_h[i] = float(bed);
 			}
 		}

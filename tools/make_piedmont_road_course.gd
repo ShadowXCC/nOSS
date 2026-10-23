@@ -8,7 +8,8 @@ extends Node
 ## the infield before turn 1 and comes back up onto the banking in turn 1. Chicanes on the
 ## backstretch and at the end of turn 4. The infield is flat, 13 m wide, with curbs and grass
 ## run-off. The ground is the oval's (the same venue). Pit road is the oval's, its exit through the
-## infield. From tools/data/piedmont.json (OpenStreetMap, ODbL; USGS ground): the infield is routed
+## infield. The oval's banking the course leaves and the straights its chicanes cut off are scenery
+## roads (D212). From tools/data/piedmont.json (OpenStreetMap, ODbL; USGS ground): the infield is routed
 ## through the map's road course ways from LEAVE_NODE to JOIN_NODE, the chicanes are its ways.
 ##   tools/godot.sh --headless res://tools/make_piedmont_road_course.tscn [-- --out=<folder>]
 
@@ -89,6 +90,36 @@ static func build() -> TrackDraft:
 	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(DATA))
 	var oval := Oval.build()
 	var ot := oval.track()
+	var d := course(oval, data)
+	var t := d.track()
+	# The race: the oval's start line, three sectors, twenty cars, rolling from further back.
+	var start_p := ot.point_at(ot.start_m)
+	var start := snappedf(float(t.project(start_p).distance), 0.1)
+	d.set_race("start_m", start)
+	d.set_race("sectors_m", [snappedf(fposmod(start + t.length / 3.0, t.length), 0.1), snappedf(fposmod(start + t.length * 2.0 / 3.0, t.length), 0.1)])
+	d.set_race("grid/slots", Oval.GRID_SLOTS)
+	d.set_race("rolling_back_m", Oval.GRID_ROLL_M)
+	_pits(d, d.track(), data)
+	# The rest of the venue (D212): the oval's banking the course leaves, and its straights the
+	# chicanes cut off.
+	for road: Dictionary in _unused_oval(oval, d):
+		d.add_road(road)
+	d.set_env("time", "night")
+	d.set_env("floodlit", true)
+	for rule: Array in [["start", "rolling"], ["draft", true], ["fuel_x", 5], ["tyre_x", 5]]:
+		d.set_rule(rule[0], rule[1])
+	_props(d, oval)
+	d.history = EditHistory.new()
+	d.saved_version = d.history.version()
+	return d
+
+
+## The course's road on `oval`'s ground: no race, pit road or scenery yet. Meta "parts": its
+## chicanes' and the infield's points, [{kind, from, to (indices, inclusive), oval_m (a chicane's
+## start on the oval)}]; "oval": where on the oval it leaves and joins it and the chicanes start
+## and end, m.
+static func course(oval: TrackDraft, data: Dictionary) -> TrackDraft:
+	var ot := oval.track()
 	var d := TrackDraft.blank("Piedmont Road Course")
 	d.id = "piedmont_road_course"
 	d.info.author = "nOSS contributors"
@@ -114,6 +145,7 @@ static func build() -> TrackDraft:
 	var at_m := func(i: int) -> float: return fposmod(ot.distances[ot.seg_first[i]] - join_m, ot.length)
 	order.sort_custom(func(a: int, b: int) -> bool: return at_m.call(a) < at_m.call(b))
 	var placed := {}
+	var parts := []
 	for i: int in order:
 		var m: float = at_m.call(i)
 		if m < OVAL_GAP_M or m > span - OVAL_GAP_M:
@@ -122,34 +154,92 @@ static func build() -> TrackDraft:
 		if not chicane.is_empty():
 			if not placed.has(chicane.from):
 				placed[chicane.from] = true
+				var first := points.size()
 				points.append_array(_chicane_points(chicane.line))
+				parts.append({ "kind": "chicane", "from": first, "to": points.size() - 1, "oval_m": chicane.from })
 			continue
 		var low := MERGE_LOW_M * maxf(1.0 - smoothstep(0.0, MERGE_M, m), 1.0 - smoothstep(0.0, MERGE_M, span - m))
 		points.append(_oval_point(oval, i, low))
+	var infield := points.size()
 	points.append_array(_infield_points(_route(data), JOIN_SKIP_M))
+	parts.append({ "kind": "infield", "from": infield, "to": points.size() - 1 })
 	d.layout.road.points = points
 	d.layout.road.defaults.merge({ "width_l": INFIELD_HALF_M, "width_r": INFIELD_HALF_M, "height": "ground",
 		"runoff_l_m": INFIELD_RUNOFF_M, "runoff_r_m": INFIELD_RUNOFF_M }, true)
 	d._track = null
 	_side_by_side(d)
 	d._track = null
-	var t := d.track()
-	# The race: the oval's start line, three sectors, twenty cars, rolling from further back.
-	var start_p := ot.point_at(ot.start_m)
-	var start := snappedf(float(t.project(start_p).distance), 0.1)
-	d.set_race("start_m", start)
-	d.set_race("sectors_m", [snappedf(fposmod(start + t.length / 3.0, t.length), 0.1), snappedf(fposmod(start + t.length * 2.0 / 3.0, t.length), 0.1)])
-	d.set_race("grid/slots", Oval.GRID_SLOTS)
-	d.set_race("rolling_back_m", Oval.GRID_ROLL_M)
-	_pits(d, d.track(), data)
-	d.set_env("time", "night")
-	d.set_env("floodlit", true)
-	for rule: Array in [["start", "rolling"], ["draft", true], ["fuel_x", 5], ["tyre_x", 5]]:
-		d.set_rule(rule[0], rule[1])
-	_props(d, oval)
-	d.history = EditHistory.new()
-	d.saved_version = d.history.version()
+	d.set_meta(&"parts", parts)
+	d.set_meta(&"oval", { "leave_m": leave_m, "join_m": join_m, "chicanes": chicanes.map(func(c: Dictionary) -> Array: return [c.from, c.to]) })
 	return d
+
+
+## Piedmont Speedway's scenery roads (D212): this course's infield and chicanes, each with the
+## course's two points either side of it on the banking (fitted away: the road comes off the
+## oval as the course does).
+static func infield_roads(oval: TrackDraft) -> Array:
+	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(DATA))
+	var d := course(oval, data)
+	var ot := oval.track()
+	var points: Array = d.points()
+	var n := points.size()
+	var out := []
+	for part: Dictionary in d.get_meta(&"parts"):
+		var road_points := []
+		for i in range(int(part.from) - 2, int(part.to) + 3):
+			var p: Dictionary = (points[posmod(i, n)] as Dictionary).duplicate(true)
+			road_points.append(_scenery_end(p) if i < int(part.from) or i > int(part.to) else p)
+		var name := "Road course infield"
+		if part.kind == "chicane":
+			name = "Backstretch chicane" if _on_backstretch(ot, float(part.oval_m)) else "Turn 4 chicane"
+		out.append({ "name": name, "defaults": (d.layout.road.defaults as Dictionary).duplicate(true), "points": road_points })
+	return out
+
+
+## An oval point of the course's as the end of a scenery road on the oval: where it is, its
+## banking and widths; no apron, curbs or walls (the oval has its own).
+static func _scenery_end(p: Dictionary) -> Dictionary:
+	var out := {}
+	for key: String in ["p", "height", "bank_deg", "width_l", "width_r"]:
+		if p.has(key):
+			out[key] = p[key]
+	out.merge({ "apron_l_m": 0.0, "apron_r_m": 0.0, "curb_l": "off", "curb_r": "off", "barrier_l": "none", "barrier_r": "none" }, true)
+	return out
+
+
+## True if oval distance `m` is on the backstretch: round the middle of the lap from the line.
+static func _on_backstretch(ot: TrackData, m: float) -> bool:
+	var along := fposmod(m - ot.start_m, ot.length) / ot.length
+	return along > 0.3 and along < 0.7
+
+
+## The oval this course leaves (D212): its banking from where the course leaves the frontstretch
+## to where it comes back in turn 1, and the straights its chicanes cut off, as scenery roads:
+## the oval's own points (banking, apron, wall), UNUSED_EXTRA_M on into the course each end
+## (fitted away).
+const UNUSED_EXTRA_M := 60.0
+
+
+static func _unused_oval(oval: TrackDraft, d: TrackDraft) -> Array:
+	var ot := oval.track()
+	var at: Dictionary = d.get_meta(&"oval")
+	var spans := [[float(at.leave_m) - OVAL_GAP_M, float(at.join_m) + OVAL_GAP_M, "Oval turn 1"]]
+	for c: Array in at.chicanes:
+		spans.append([float(c[0]) - OVAL_GAP_M, float(c[1]) + OVAL_GAP_M, "Oval backstretch" if _on_backstretch(ot, float(c[0])) else "Oval turn 4"])
+	var out := []
+	var oval_points: Array = oval.points()
+	for span: Array in spans:
+		var from := float(span[0]) - UNUSED_EXTRA_M
+		var length := fposmod(float(span[1]) + UNUSED_EXTRA_M - from, ot.length)
+		var picked := []
+		for i in oval_points.size():
+			var m := fposmod(ot.distances[ot.seg_first[i]] - from, ot.length)
+			if m <= length:
+				picked.append([m, i])
+		picked.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+		out.append({ "name": span[2], "defaults": (oval.layout.road.defaults as Dictionary).duplicate(true),
+			"points": picked.map(func(e: Array) -> Dictionary: return (oval_points[e[1]] as Dictionary).duplicate(true)) })
+	return out
 
 
 ## Infield points with another part of the course close beside them: that side narrowed so the

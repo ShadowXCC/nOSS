@@ -4,7 +4,8 @@ extends RefCounted
 ## or noss.track/0 upgraded on load (TrackFormat). The road is a closed centripetal Catmull-Rom
 ## through its control points, sampled every ~2 m. Each sample carries its frame (banked),
 ## widths to the left and right edge, curbs per side, surface, run-off and barriers.
-## Heights follow the ground (smoothed) or the points (set), D93.
+## Heights follow the ground (smoothed) or the points (set), D93. A scenery road (D212) is an
+## open one made the same way (open_road).
 
 const SAMPLE_M := 2.0
 const GRID_M := 40.0
@@ -43,6 +44,8 @@ var arena: ArenaLayout
 ## A circuit's pit lane (D203); null if it has none, or it doesn't build (pit_error says why).
 var pit: PitLane
 var pit_error := ""
+## Scenery roads (D212): the pieces of the track's `roads`, fitted to the road and its pit lane.
+var scenery: Array[TrackData] = []
 ## The ground it was laid on (for rebuilding a highway's ramps without resampling the road).
 var _ground := Callable()
 ## Built in (res://): records are keyed by id alone.
@@ -150,6 +153,7 @@ static func from_dict(data: Dictionary, ground_height := Callable()) -> TrackDat
 		t.highway = HighwayLayout.build(t, TrackFormat.highway_settings(data), ground)
 	t._read_kart(data)
 	t._read_pit(data)
+	t._read_roads(data)
 	return t
 
 
@@ -168,7 +172,33 @@ func with_race(data: Dictionary) -> TrackData:
 		t.highway = HighwayLayout.build(t, TrackFormat.highway_settings(data), _ground)
 	t._read_kart(data)
 	t._read_pit(data)
+	t._read_roads(data)
 	return t
+
+
+## An open road made as the main road is from `road` ({points, defaults}), beside `main`: a
+## scenery road's (D212).
+static func open_road(main: TrackData, road: Dictionary, ground: Callable) -> TrackData:
+	var t := TrackData.new()
+	t.raw = main.raw
+	t.id = main.id
+	t.type = main.type
+	t.closed = false
+	t._ground = ground
+	if (road.get("points", []) as Array).size() >= 2:
+		t._sample(road, ground)
+	return t
+
+
+func _read_roads(data: Dictionary) -> void:
+	scenery = []
+	if not data.get("roads") is Array or kind != "road" or samples.size() < 3:
+		return
+	var ground := _ground if _ground.is_valid() else func(_x: float, _z: float) -> float: return 0.0
+	var others: Array[TrackData] = []
+	if pit:
+		others.append(pit.track)
+	scenery = SceneryRoad.build_all(self, data.roads, others, ground)
 
 
 func _read_pit(data: Dictionary) -> void:
@@ -475,19 +505,24 @@ func _sample(road: Dictionary, ground_height: Callable) -> void:
 		var is_set: bool = TrackFormat.attr(road, i, "height") == "set"
 		set_h.append(1.0 if is_set else 0.0)
 		points.append(Vector3(p[0], float(p[1]) if is_set else ground.call(float(p[0]), float(p[2])), p[2]))
-	# Sample the spline, noting each sample's segment and how far along it.
+	# Sample the spline, noting each sample's segment and how far along it. An open road's ends
+	# run on straight (a mirrored point beyond each), and its last point ends it.
 	var along := PackedFloat32Array()
-	for i in n:
-		var p0 := points[(i - 1 + n) % n]
+	for i in (n if closed else n - 1):
 		var p1 := points[i]
 		var p2 := points[(i + 1) % n]
-		var p3 := points[(i + 2) % n]
+		var p0 := points[(i - 1 + n) % n] if closed or i > 0 else p1 * 2.0 - p2
+		var p3 := points[(i + 2) % n] if closed or i + 2 < n else p2 * 2.0 - p1
 		var steps := maxi(2, int(p1.distance_to(p2) / SAMPLE_M))
 		seg_first.append(samples.size())
 		for s in steps:
 			samples.append(_catmull_rom(p0, p1, p2, p3, float(s) / steps))
 			sample_seg.append(i)
 			along.append(float(s) / steps)
+	if not closed:
+		samples.append(points[n - 1])
+		sample_seg.append(n - 2)
+		along.append(1.0)
 	var m := samples.size()
 	# Per-sample attributes: blended across the segment, or the segment's own.
 	var seg_attr := []
@@ -525,8 +560,8 @@ func _sample(road: Dictionary, ground_height: Callable) -> void:
 		half_r[k] = lerpf(float(a.width_r), float(b.width_r), u)
 		# Banking follows a smooth curve through the points, as the heights do: blended per segment
 		# it would twist the road in steps, rippling the surface off the centreline.
-		var bank_prev := float((seg_attr[(s - 1 + n) % n] as Dictionary).bank_deg)
-		var bank_next := float((seg_attr[(s + 2) % n] as Dictionary).bank_deg)
+		var bank_prev := float((seg_attr[_wrap(s - 1, n)] as Dictionary).bank_deg)
+		var bank_next := float((seg_attr[_wrap(s + 2, n)] as Dictionary).bank_deg)
 		bank[k] = deg_to_rad(_curve(bank_prev, float(a.bank_deg), float(b.bank_deg), bank_next, along[k]))
 		apron_l[k] = lerpf(float(a.apron_l_m), float(b.apron_l_m), u)
 		apron_r[k] = lerpf(float(a.apron_r_m), float(b.apron_r_m), u)
@@ -545,10 +580,11 @@ func _sample(road: Dictionary, ground_height: Callable) -> void:
 	var total := 0.0
 	for i in m:
 		distances.append(total)
-		total += samples[i].distance_to(samples[(i + 1) % m])
+		if closed or i + 1 < m:
+			total += samples[i].distance_to(samples[(i + 1) % m])
 	length = total
 	for i in m:
-		var fwd := (samples[(i + 1) % m] - samples[(i - 1 + m) % m]).normalized()
+		var fwd := (samples[_wrap(i + 1, m)] - samples[_wrap(i - 1, m)]).normalized()
 		tangents.append(fwd)
 		var left := Vector3.UP.cross(fwd).normalized()
 		var up := fwd.cross(left)
@@ -561,9 +597,9 @@ func _sample(road: Dictionary, ground_height: Callable) -> void:
 		lefts.append(left)
 		ups.append(up.normalized())
 	for i in m:
-		var a := tangents[(i - 1 + m) % m]
-		var b := tangents[(i + 1) % m]
-		var ds := samples[(i - 1 + m) % m].distance_to(samples[(i + 1) % m])
+		var a := tangents[_wrap(i - 1, m)]
+		var b := tangents[_wrap(i + 1, m)]
+		var ds := samples[_wrap(i - 1, m)].distance_to(samples[_wrap(i + 1, m)])
 		curvature.append(asin(clampf(a.cross(b).y, -1.0, 1.0)) / maxf(ds, 0.01))
 	_find_curbs(seg_attr)
 	var lowest := INF
@@ -591,11 +627,11 @@ func _heights(set_h: PackedFloat32Array, along: PackedFloat32Array, ground: Call
 	g.resize(m)
 	for k in m:
 		var p := samples[k]
-		var fwd := (samples[(k + 1) % m] - samples[(k - 1 + m) % m])
+		var fwd := (samples[_wrap(k + 1, m)] - samples[_wrap(k - 1, m)])
 		var left := Vector3(-fwd.z, 0.0, fwd.x).normalized()
 		g[k] = (float(ground.call(p.x, p.z)) + float(ground.call(p.x + left.x * half_l[k], p.z + left.z * half_l[k]))
 			+ float(ground.call(p.x - left.x * half_r[k], p.z - left.z * half_r[k]))) / 3.0
-	# Smooth along the road (Gaussian, sigma GROUND_SMOOTH_M), wrapping.
+	# Smooth along the road (Gaussian, sigma GROUND_SMOOTH_M), wrapping (an open road's ends hold).
 	var reach := int(ceil(GROUND_SMOOTH_M * 1.5 / SAMPLE_M))
 	var weights := PackedFloat32Array()
 	for o in range(-reach, reach + 1):
@@ -608,16 +644,16 @@ func _heights(set_h: PackedFloat32Array, along: PackedFloat32Array, ground: Call
 		var wsum := 0.0
 		for o in range(-reach, reach + 1):
 			var w := weights[o + reach]
-			sum += g[posmod(k + o, m)] * w
+			sum += g[_wrap(k + o, m)] * w
 			wsum += w
 		smooth[k] = sum / wsum
 	# Keep the grade under MAX_GRADE: a pass each way, twice round so it closes.
-	for pass_i in 2:
-		for k in m:
+	for pass_i in (2 if closed else 1):
+		for k in (m if closed else m - 1):
 			var j := (k + 1) % m
 			var step := Vector2(samples[j].x - samples[k].x, samples[j].z - samples[k].z).length() * MAX_GRADE
 			smooth[j] = clampf(smooth[j], smooth[k] - step, smooth[k] + step)
-		for k in range(m - 1, -1, -1):
+		for k in range(m - 1, -1 if closed else 0, -1):
 			var j := (k - 1 + m) % m
 			var step := Vector2(samples[j].x - samples[k].x, samples[j].z - samples[k].z).length() * MAX_GRADE
 			smooth[j] = clampf(smooth[j], smooth[k] - step, smooth[k] + step)
@@ -638,19 +674,24 @@ func _find_curbs(seg_attr: Array) -> void:
 	for i in n:
 		var sum := 0.0
 		for k in range(-6, 7):
-			sum += curvature[posmod(i + k, n)]
+			sum += curvature[_wrap(i + k, n)]
 		smooth[i] = sum / 13.0
 	curbs.resize(n)
 	for i in n:
 		var on := 0
 		for k in range(-5, 6):
-			if absf(smooth[posmod(i + k, n)]) > CURB_CURVATURE:
+			if absf(smooth[_wrap(i + k, n)]) > CURB_CURVATURE:
 				on = 1
 				break
 		var a: Dictionary = seg_attr[sample_seg[i]]
 		curb_l[i] = on if a.curb_l == "auto" else (1 if a.curb_l == "on" else 0)
 		curb_r[i] = on if a.curb_r == "auto" else (1 if a.curb_r == "on" else 0)
 		curbs[i] = curb_l[i] | curb_r[i]
+
+
+## Index `i` of `n` round a closed road, held at an open road's ends.
+func _wrap(i: int, n: int) -> int:
+	return posmod(i, n) if closed else clampi(i, 0, n - 1)
 
 
 ## Extra width at `distance` that still counts as track: the curb, where there is one.

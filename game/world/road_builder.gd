@@ -68,6 +68,8 @@ func build_all(root: Node3D, segmented := false) -> void:
 		root.add_child(_hw.extras())
 	if track.pit:
 		root.add_child(build_pit())
+	if not track.scenery.is_empty():
+		root.add_child(build_scenery())
 
 
 ## A circuit's pit lane (D203) as one node, "Pit": its road and lines, the limit lines, the box
@@ -93,6 +95,33 @@ func rebuild_pit(root: Node3D) -> void:
 		old.queue_free()
 	if track.pit:
 		root.add_child(build_pit())
+
+
+## The track's scenery roads (D212) as one node, "Scenery", a "Piece_<n>" in it for each piece.
+func build_scenery() -> Node3D:
+	var node := Node3D.new()
+	node.name = "Scenery"
+	for k in track.scenery.size():
+		var piece := track.scenery[k]
+		var rb := RoadBuilder.new(piece, terrain)
+		rb.visual = visual
+		rb._ground_y = _ground_y
+		var part := Node3D.new()
+		part.name = "Piece_%d" % k
+		rb._add_batches(part, rb._batches(0, piece.samples.size() - 1))
+		node.add_child(part)
+	return node
+
+
+## Replaces the scenery roads' node under `root` (the editor, after the road moved: they're fitted
+## to it).
+func rebuild_scenery(root: Node3D) -> void:
+	var old := root.get_node_or_null(^"Scenery")
+	if old:
+		root.remove_child(old)
+		old.queue_free()
+	if not track.scenery.is_empty():
+		root.add_child(build_scenery())
 
 
 ## A highway ramp's road as one node, "Ramp_<id>".

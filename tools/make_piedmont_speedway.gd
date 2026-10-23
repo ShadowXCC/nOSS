@@ -14,13 +14,16 @@ extends Node
 ## apron inside, a SAFER wall with its catch fence right at the outside. The ground is the DEM,
 ## level over the venue (and up to the top of the banking for a berm outside the wall, where the
 ## grandstands stand), blending back into the real hills further out. Pit road inside the
-## frontstretch, 20 boxes, 45 mph. Night under the lights; it suggests a rolling start, drafting,
+## frontstretch, 20 boxes, 45 mph. The road course's infield and chicanes are scenery roads in the
+## infield (D212). Night under the lights; it suggests a rolling start, drafting,
 ## fuel and tires at five times their wear, and pack racing (D207).
 ##   tools/godot.sh --headless res://tools/make_piedmont_speedway.tscn [-- --out=<folder>]
 
 const G := preload("res://tools/track_gen_util.gd")
 const OUT := "res://content/tracks/piedmont_speedway"
 const DATA := "res://tools/data/piedmont.json"
+## Its infield road course's generator (loaded when building: it builds this one first).
+const ROAD_COURSE := "res://tools/make_piedmont_road_course.gd"
 const CREATED := "2026-10-23"
 const LICENSE := "ODbL-1.0"
 const ATTRIBUTIONS := ["Layout © OpenStreetMap contributors (ODbL 1.0)",
@@ -153,6 +156,9 @@ static func build() -> TrackDraft:
 	d.set_race("grid/stagger", 0.0)
 	d.set_race("rolling_back_m", GRID_ROLL_M)
 	_pits(d, d.track(), data.pit_lane)
+	# The rest of the venue (D212): the road course's infield and chicanes.
+	for road: Dictionary in load(ROAD_COURSE).infield_roads(d):
+		d.add_road(road)
 	d.set_env("time", "night")
 	d.set_env("floodlit", true)
 	# What events that keep "Track's" race with (D207): a rolling start, drafting, five times the
@@ -388,6 +394,10 @@ static func _props(d: TrackDraft, t: TrackData, start: float, line: PackedVector
 	for i in range(0, t.pit.track.samples.size(), 4): # pit road stays clear
 		var q := t.pit.track.samples[i]
 		keep.call(Vector2(q.x, q.z), t.pit.width / 2.0 + 2.0)
+	for piece in t.scenery: # and the road course's roads
+		for i in range(0, piece.samples.size(), 3):
+			var q := piece.samples[i]
+			keep.call(Vector2(q.x, q.z), maxf(piece.half_l[i], piece.half_r[i]) + 3.0)
 	# Light towers behind the wall, the lamps facing the track.
 	for k in int(t.length / LIGHT_EVERY_M):
 		var m := fposmod(start + 30.0 + k * LIGHT_EVERY_M, t.length)

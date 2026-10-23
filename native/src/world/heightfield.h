@@ -61,6 +61,10 @@ struct RoadSample {
 	double edge_l = 0.0, edge_r = 0.0;
 	double apron_l = 0.0, apron_r = 0.0;
 	double slope_l = 0.0, slope_r = 0.0;
+	// How far its paving reaches each side (road, curb, apron; m): where another road's run-off
+	// reaches over it, its bed holds (a scenery road beside the course, D212). Unset, all of the
+	// flat zone counts as paving.
+	double paved_l = 1e30, paved_r = 1e30;
 };
 
 class Heightfield {

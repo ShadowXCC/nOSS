@@ -3,7 +3,7 @@ extends GdUnitTestSuite
 ## again the same from its generator (made with the editor's commands), passes the checks, runs
 ## counter-clockwise, is banked 24° in the turns and 5° on the frontstretch, has its pit road and
 ## boxes and a grid on the flat, is a floodlit night, says where its layout and ground come from,
-## and lists as a circuit.
+## lists as a circuit, and has the road course's infield and chicanes as scenery (D212).
 
 const DIR := "res://content/tracks/piedmont_speedway"
 const MakePiedmont := preload("res://tools/make_piedmont_speedway.gd")
@@ -73,3 +73,22 @@ func test_it_lists_as_a_circuit() -> void:
 	var oval: Array = circuits.filter(func(e: Dictionary) -> bool: return e.id == "piedmont_speedway")
 	assert_int(oval.size()).is_equal(1)
 	assert_str(TrackLibrary.label(oval[0])).is_equal("Piedmont Speedway · 2.4 km")
+
+
+func test_the_road_courses_roads_are_its_scenery() -> void:
+	var pkg := TrackLoader.load_package(DIR)
+	var t := pkg.track
+	var names := (t.raw.roads as Array).map(func(r: Dictionary) -> String: return r.name)
+	assert_array(names).contains_exactly_in_any_order(["Road course infield", "Backstretch chicane", "Turn 4 chicane"])
+	# The infield's main piece runs most of the course's infield, off the oval's paving and its pit
+	# road; nothing in the infield stands on them.
+	var longest := 0.0
+	for piece in t.scenery:
+		longest = maxf(longest, piece.length)
+		for i in range(0, piece.samples.size(), 5):
+			var proj := t.project(piece.samples[i])
+			assert_float(absf(float(proj.lateral))).is_greater(t.edge_at(float(proj.distance), float(proj.lateral)) - 0.05)
+	assert_float(longest).is_greater(1200.0)
+	var d := MakePiedmont.build()
+	var warnings := TrackValidator.check(d).filter(func(p: Dictionary) -> bool: return p.text == "Prop on a scenery road")
+	assert_array(warnings).is_empty()

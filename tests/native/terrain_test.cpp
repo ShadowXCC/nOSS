@@ -335,6 +335,42 @@ TEST_CASE("terrain: on a slope the bed follows the road beside it") {
 	}
 }
 
+TEST_CASE("terrain: paving holds its bed where another road's run-off reaches over it") {
+	Heightfield f = flat();
+	Rect all{ 0, 0, f.w, f.d };
+	// A road at y 0, paved 5 m each side, levelled out to 20; beside it (a road of its own) one at
+	// y 1, centred 14 m to the left (-z), paved 9 m each side: its paving starts at the first one's
+	// edge. A cell 6 m left of the first is nearer its centreline, on the second's paving.
+	std::vector<RoadSample> road = straight(0.0);
+	for (RoadSample &s : road) {
+		s.flat_l = 20.0;
+		s.flat_r = 20.0;
+		s.paved_l = 5.0;
+		s.paved_r = 5.0;
+	}
+	road.back().end = true;
+	for (RoadSample s : straight(1.0)) {
+		s.z = -14.0;
+		s.flat_l = 9.0;
+		s.flat_r = 9.0;
+		s.paved_l = 9.0;
+		s.paved_r = 9.0;
+		road.push_back(s);
+	}
+	road.back().end = true;
+	f.conform(all, road, 6.0, 0.0);
+	CHECK(f.height_at(0.0, -6.0) == doctest::Approx(1.0).epsilon(0.001));
+	CHECK(f.height_at(0.0, -3.0) == doctest::Approx(0.0).epsilon(0.001)); // its own paving
+	// Without paving widths the nearest still wins, as before.
+	for (RoadSample &s : road) {
+		s.paved_l = 1e30;
+		s.paved_r = 1e30;
+	}
+	Heightfield g = flat();
+	g.conform(all, road, 6.0, 0.0);
+	CHECK(g.height_at(0.0, -6.0) == doctest::Approx(0.0).epsilon(0.001));
+}
+
 TEST_CASE("terrain: an apron's bed leaves the banking for its own slope; none changes nothing") {
 	Heightfield f = flat();
 	Rect all{ 0, 0, f.w, f.d };

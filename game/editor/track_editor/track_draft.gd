@@ -311,6 +311,24 @@ func remove_pit() -> void:
 		_edit("Remove pit lane", "pit", func() -> void: layout.erase("pit"), &"road")
 
 
+## A scenery road (D212): {name, points, defaults} as the road's, added after the others.
+func add_road(road: Dictionary) -> void:
+	_edit("Add scenery road", "roads", func() -> void:
+		if not layout.has("roads"):
+			layout.roads = []
+		layout.roads.append(road.duplicate(true)), &"road")
+
+
+## Scenery road `i` goes (the key with the last of them).
+func remove_road(i: int) -> void:
+	if i < 0 or i >= (layout.get("roads", []) as Array).size():
+		return
+	_edit("Remove scenery road", "roads", func() -> void:
+		layout.roads.remove_at(i)
+		if layout.roads.is_empty():
+			layout.erase("roads"), &"road")
+
+
 ## The points that lay a pit lane along the road between its tapers: PIT_GAP_M past the paved
 ## edge (room for the wall), every PIT_POINT_M.
 const PIT_GAP_M := 3.0
@@ -1094,6 +1112,8 @@ func _section(section: String) -> Dictionary:
 		"highway":
 			return { "type": layout.get("type", "circuit"), "road": layout.road.duplicate(true),
 				"highway": (layout.highway as Dictionary).duplicate(true) if layout.has("highway") else null }
+		"roads":
+			return { "roads": (layout.roads as Array).duplicate(true) if layout.has("roads") else null }
 		"type":
 			var out := { "type": layout.get("type", "circuit"), "road": layout.road.duplicate(true), "race": layout.race.duplicate(true) }
 			for key in ["highway", "kart", "arena"]:

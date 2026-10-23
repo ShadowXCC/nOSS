@@ -79,6 +79,8 @@ static func errors(found: Array) -> Array:
 static func inputs(draft: TrackDraft) -> Dictionary:
 	var track := draft.track()
 	track.index_cells()
+	for piece in track.scenery:
+		piece.index_cells()
 	return {
 		"track": track,
 		"race": (draft.layout.get("race", {}) as Dictionary).duplicate(true),
@@ -322,6 +324,8 @@ func _props() -> void:
 				lo = minf(lo, hit.lateral)
 				hi = maxf(hi, hit.lateral)
 		if at < 0:
+			if _on_scenery(pos, extent, basis, steps):
+				_add("warning", "Prop on a scenery road", -1.0, pos)
 			continue
 		var half := PROP_STEP_M / 2.0
 		var free := maxf(t.half_l[at] - (hi + half), (lo - half) + t.half_r[at])
@@ -337,21 +341,39 @@ func _props() -> void:
 			var hit := _on_road(Vector3(xf[k], 0.0, xf[k + 1]), false)
 			if not hit.is_empty():
 				_add("warning", "Prop on the road", t.distances[hit.i], Vector3(xf[k], t.samples[hit.i].y, xf[k + 1]))
+			for piece in t.scenery:
+				hit = _on_road(Vector3(xf[k], 0.0, xf[k + 1]), false, piece)
+				if not hit.is_empty():
+					_add("warning", "Prop on a scenery road", -1.0, Vector3(xf[k], piece.samples[hit.i].y, xf[k + 1]))
+					break
 
 
-## The road sample `pos` stands on and how far left of the centreline: {i, lateral}, or {}.
-## Without `use_y` (the prop's height isn't known) it can't be under a bridge.
-func _on_road(pos: Vector3, use_y: bool) -> Dictionary:
-	for i in t.samples_near(pos, 30.0):
-		var s := t.samples[i]
-		if (use_y and absf(pos.y - s.y) > 3.0) or (not use_y and t.lifted[i]):
+## True if any of a prop's footprint (as _props() samples it) is on a scenery road (D212).
+func _on_scenery(pos: Vector3, extent: Rect2, basis: Basis, steps: Vector2i) -> bool:
+	for piece in t.scenery:
+		for sx in steps.x + 1:
+			for sz in steps.y + 1:
+				var local := Vector3(extent.position.x + sx * extent.size.x / maxi(steps.x, 1), 0.0, extent.position.y + sz * extent.size.y / maxi(steps.y, 1))
+				if not _on_road(pos + basis * local, false, piece).is_empty():
+					return true
+	return false
+
+
+## The sample of `road` (the track's, or a scenery road) `pos` stands on and how far left of its
+## centreline: {i, lateral}, or {}. Without `use_y` (the prop's height isn't known) it can't be
+## under a bridge.
+func _on_road(pos: Vector3, use_y: bool, road: TrackData = null) -> Dictionary:
+	var r := road if road else t
+	for i in r.samples_near(pos, 30.0):
+		var s := r.samples[i]
+		if (use_y and absf(pos.y - s.y) > 3.0) or (not use_y and r.lifted[i]):
 			continue
 		var d := Vector3(pos.x - s.x, 0.0, pos.z - s.z)
-		if absf(d.dot(t.tangents[i])) > TrackData.SAMPLE_M * 0.75:
+		if absf(d.dot(r.tangents[i])) > TrackData.SAMPLE_M * 0.75:
 			continue
-		var left := Vector3(t.lefts[i].x, 0.0, t.lefts[i].z).normalized()
+		var left := Vector3(r.lefts[i].x, 0.0, r.lefts[i].z).normalized()
 		var lateral := d.dot(left)
-		if absf(lateral) < (t.half_l[i] if lateral >= 0.0 else t.half_r[i]):
+		if absf(lateral) < (r.half_l[i] if lateral >= 0.0 else r.half_r[i]):
 			return { "i": i, "lateral": lateral }
 	return {}
 

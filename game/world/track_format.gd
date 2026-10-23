@@ -324,8 +324,8 @@ static func validate(d: Dictionary) -> String:
 
 ## A track's layout identity: its road and race setup (AI pins left out), so editing props or
 ## paint keeps lap records while moving a corner doesn't. A highway's carriageways and ramps
-## count too (its traffic doesn't), and so do kart pieces and an arena; tracks without them hash
-## as they always did.
+## count too (its traffic doesn't), and so do kart pieces, an arena, a pit lane and scenery roads
+## (cars can drive them); tracks without them hash as they always did.
 static func layout_hash(d: Dictionary) -> String:
 	var race: Dictionary = d.get("race", {}).duplicate(true)
 	if race.get("ai") is Dictionary:
@@ -338,6 +338,8 @@ static func layout_hash(d: Dictionary) -> String:
 	for key in ["kart", "arena", "pit"]:
 		if d.get(key) is Dictionary:
 			layout[key] = d[key]
+	if d.get("roads") is Array and not (d.roads as Array).is_empty():
+		layout.roads = d.roads
 	if d.get("type") == "arena":
 		layout.type = "arena"
 	# Through JSON first: numbers come back as floats, as they do from a file, so a draft (16) and

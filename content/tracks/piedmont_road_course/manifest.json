@@ -10,12 +10,12 @@
     "terrain/meta.json": "sha256:8b138c903d89eb3841a3507d6361237d02a9c32600ed6fdfc131e91825e7891a",
     "terrain/splat_0.png": "sha256:5a7088178a0b29a5b7df6a76009cbd0cbd5d4ea4093938a8be441ef980af76e0",
     "terrain/splat_1.png": "sha256:d5a37e605b31462a25e92d10e630f2c628627d2f2ffaeccea6c1acbd2abe8b01",
-    "track.json": "sha256:628f920b25fd06515fa455ca0db460f0e5d95b5ed4586cbdfd51b2ab1ded83e8"
+    "track.json": "sha256:c635fce4aac9f33eae4476e1626205ed4d586ceb47efd25fbb500a2269e7f287"
   },
   "game_min_version": "0.12.0",
   "id": "piedmont_road_course",
   "kind": "road",
-  "layout": "sha256:638e4286aa8cbd538396f6aa5568de3ba3b8311d25180bd079c317b92bef2fbb",
+  "layout": "sha256:974da903cb0fb4709924caea3571b541b5299b850c57e05312ad1eed4a636e22",
   "length_m": 3784.1,
   "license": "ODbL-1.0",
   "name": "Piedmont Road Course",

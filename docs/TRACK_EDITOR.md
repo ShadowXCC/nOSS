@@ -181,6 +181,14 @@ my_track.nosstrack
 ```
 
   Flip direction swaps its ends and side.
+- Scenery roads (D212) go in a `roads` list: open roads round the course that aren't part of it, the rest of a venue (an oval's infield road course, a road course's unused banking). Each is made as the road is, from its own points and defaults (widths, banking, apron, curbs, run-off, barriers); where it runs onto the road, its pit lane or a scenery road before it, its edge stops at theirs (the cross-section tilted to meet it), and where it's wholly on them it's cut, so a road may cross another. They're built and shaped into the ground as the road is; cars can drive them, but nothing is timed there (a car on one is off the track). The editor shows them, fitted again as the road moves; there's no tool to draw them yet (`TrackDraft.add_road`, `remove_road`). A prop on one is a warning.
+
+```jsonc
+"roads": [{ "name":"Oval turn 1",
+  "defaults":{ "width_l":9, "width_r":9, "height":"set", "apron_l_m":9, "barrier_r":"safer" },
+  "points":[{ "p":[x,y,z], "bank_deg":-24 }, …] }]                // two or more
+```
+
 - Kart pieces (D136) go in a `kart` section on circuits and arenas; an arena (`"type":"arena"`, D138) adds an `arena` section:
 
 ```jsonc
@@ -199,7 +207,7 @@ my_track.nosstrack
 
   At most 64 boxes. Flip direction mirrors the pieces' distances and swaps wall-rides' sides.
 - **Content hash** = SHA-256 of `manifest.json`, the same scheme as cars ([VEHICLE_PACKAGE.md §2](VEHICLE_PACKAGE.md#2-manifestjson)).
-- **Layout hash** = SHA-256 of the road and race setup (AI pins left out), a highway's section (its traffic settings left out), and the `kart`, `arena` and `pit` sections when a track has them (so tracks without them keep their hashes). Records for a track you made are kept under its id and layout, so changing the layout starts them afresh; built-in tracks keep theirs under the id (D97).
+- **Layout hash** = SHA-256 of the road and race setup (AI pins left out), a highway's section (its traffic settings left out), and the `kart`, `arena`, `pit` and `roads` sections when a track has them (so tracks without them keep their hashes). Records for a track you made are kept under its id and layout, so changing the layout starts them afresh; built-in tracks keep theirs under the id (D97).
 - **Limits:** 100 MB zipped, 250 MB unpacked, 512 files; scenes up to 2 M triangles, 20 000 nodes and 4096² textures. Servers can lower them.
 - **Safety:** the same rules as car packages ([VEHICLE_PACKAGE.md §9](VEHICLE_PACKAGE.md#9-limits-and-safety)): every file is checked against the manifest's hash before any is used, sizes before anything is decompressed or decoded. Never Godot resource files or scripts.
 - **Where:** your tracks are `user://tracks/*.nosstrack` (File → Show track files); built-in tracks are folders in `content/tracks/`. A built-in track's PNGs use Godot's **Keep File** import (`importer="keep"` in their `.import`, written by `TrackWriter`), so builds carry the PNG itself. As textures they'd be left out, and the track wouldn't load ("Missing file", D200).
