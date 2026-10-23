@@ -99,3 +99,16 @@ func test_city_props_keep_their_footprint_off_the_road_and_bridges_stand_over_it
 	assert_array(TrackValidator.errors(TrackValidator.check(d))).is_empty()
 	d.add_prop({ "prop": "tower_block", "p": TrackDraft._vec(on.origin), "yaw_deg": 0.0, "scale": 1.0 })
 	assert_bool(TrackValidator.errors(TrackValidator.check(d)).any(func(e: String) -> bool: return e.begins_with("Road blocked"))).is_true()
+
+
+## A light tower (D205): a 30 m mast, solid, and lamps that glow only after dark.
+func test_a_light_tower_glows_at_night() -> void:
+	var parts := PropLibrary.parts("light_tower")
+	var top := 0.0
+	for part: Dictionary in parts:
+		for v in (part.batch as MeshBatch).verts:
+			top = maxf(top, v.y)
+	assert_float(top).is_between(30.0, 33.0)
+	assert_int(int(parts[0].surface)).is_equal(VehicleSim.SURFACE_CONCRETE)
+	var lamps := PropLibrary.material(String(parts[1].material)) as ShaderMaterial
+	assert_bool(bool(lamps.get_shader_parameter("night_glow"))).is_true()

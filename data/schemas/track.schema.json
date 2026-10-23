@@ -310,6 +310,7 @@
         "sun_elevation_deg": { "type": "number", "minimum": -10, "maximum": 90 },
         "sun_azimuth_deg": { "type": "number", "minimum": -360, "maximum": 360 },
         "fog": { "enum": ["light", "normal", "heavy"] },
+        "floodlit": { "description": "Light towers: after dark the track is lit (D205).", "type": "boolean" },
         "time": { "description": "The track's own time of day (absent: its fixed sun). M9.", "enum": ["dawn", "morning", "noon", "afternoon", "dusk", "night"] },
         "weather": { "description": "The track's own weather (absent: clear). M9.", "enum": ["clear", "cloudy", "rain", "storm", "fog", "snow", "changing"] }
       }

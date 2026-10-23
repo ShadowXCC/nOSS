@@ -87,3 +87,28 @@ func test_views_follow_the_sky_and_keep_their_brightness() -> void:
 func after_test() -> void:
 	for g: StringName in [&"env_wetness", &"env_snow", &"env_night"]:
 		RenderingServer.global_shader_parameter_set(g, 0.0)
+
+
+## A floodlit track (D205): at night one high, warm light and more ambient light; by day nothing
+## changes.
+func test_a_floodlit_night_is_brighter() -> void:
+	var dark := _director("night", "clear")
+	(dark[0] as EnvDirector).apply()
+	var lit := _director("night", "clear")
+	var d: EnvDirector = lit[0]
+	d.floodlit = true
+	d.apply()
+	var sun: DirectionalLight3D = lit[2]
+	assert_float(d.flood).is_greater(0.9)
+	assert_float(sun.light_energy).is_greater((dark[2] as DirectionalLight3D).light_energy * 4.0)
+	assert_float(rad_to_deg(-sun.rotation.x)).is_greater(55.0) # high overhead
+	assert_float(sun.light_color.b).is_less(sun.light_color.r) # warm, not the moon's blue
+	assert_float((lit[1] as Environment).ambient_light_energy).is_greater((dark[1] as Environment).ambient_light_energy * 1.5)
+	assert_float(d.globals[&"env_night"]).is_greater(0.9) # still night: the lamps glow, the sky is dark
+	var day := _director("noon", "clear")
+	(day[0] as EnvDirector).floodlit = true
+	(day[0] as EnvDirector).apply()
+	var plain := _director("noon", "clear")
+	(plain[0] as EnvDirector).apply()
+	assert_float((day[0] as EnvDirector).flood).is_equal(0.0)
+	assert_float((day[2] as DirectionalLight3D).light_energy).is_equal_approx((plain[2] as DirectionalLight3D).light_energy, 1e-6)

@@ -16,8 +16,21 @@ const LIGHTS_BELOW_DEG := 4.0
 ## Cars besides the players' that cast light from their headlights (nearest a camera first).
 const BEAMS_NEAREST := 4
 const BEAMS_M := 150.0
+## A floodlit track (D205): from dusk one high, warm-white light stands in for the moon and the
+## ambient light comes up, as a stadium's light towers would light it. No more lights than by day.
+const FLOOD_COLOR := Color(1.0, 0.94, 0.84)
+const FLOOD_ENERGY := 0.95
+const FLOOD_ELEVATION_DEG := 62.0
+## Of the style's daytime ambient light.
+const FLOOD_AMBIENT := 0.6
+const FLOOD_FOG := Color(0.16, 0.15, 0.13)
+const FLOOD_SHADOW := 0.55
 
 var state: EnvState
+## The track has floodlights (its environment's "floodlit").
+var floodlit := false
+## How far they're up now, 0..1 (off by day).
+var flood := 0.0
 ## Seconds since the sky started (online: from the server's clock). Unset: this node's own clock,
 ## which stops while the game is paused.
 var clock := Callable()
@@ -129,6 +142,10 @@ func apply() -> void:
 	var fog_density: float = _base.fog_density * _fog_scale * (1.0 + 2.0 * precip + 9.0 * fog) * (1.6 if snapshot.snowing else 1.0)
 	var ambient: float = _base.ambient * float(p.ambient) * (1.0 - 0.15 * cloud)
 	var exposure: float = _base.exposure * float(p.exposure)
+	flood = 1.0 - smoothstep(-6.0, 2.0, el) if floodlit else 0.0
+	if flood > 0.0:
+		ambient = lerpf(ambient, maxf(ambient, _base.ambient * FLOOD_AMBIENT), flood)
+		fog_color = fog_color.lerp(FLOOD_FOG, 0.5 * flood) # the lit haze over a stadium
 	_write(_env, fog_color, fog_density, ambient, exposure)
 	for view in get_tree().get_nodes_in_group(&"player_views"):
 		var copy: Environment = view.call(&"environment")
@@ -147,6 +164,11 @@ func apply() -> void:
 		_sun.light_energy = float(night_p.moon_energy) * (1.0 - smoothstep(-12.0, -3.0, el)) * (1.0 - 0.6 * cloud)
 		_sun.rotation = Vector3(-deg_to_rad(maxf(-el, 12.0)), deg_to_rad(az + 180.0), 0.0)
 	_sun.shadow_opacity = 1.0 - 0.8 * cloud
+	if flood > 0.0:
+		_sun.light_color = _sun.light_color.lerp(FLOOD_COLOR, flood)
+		_sun.light_energy = lerpf(_sun.light_energy, maxf(_sun.light_energy, FLOOD_ENERGY), flood)
+		_sun.rotation = Vector3(lerp_angle(_sun.rotation.x, -deg_to_rad(FLOOD_ELEVATION_DEG), flood), _sun.rotation.y, 0.0)
+		_sun.shadow_opacity = lerpf(_sun.shadow_opacity, FLOOD_SHADOW, flood)
 
 	if _sky:
 		var sun_dir := Basis.from_euler(Vector3(-deg_to_rad(el), deg_to_rad(az), 0.0)).z

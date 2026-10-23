@@ -35,6 +35,7 @@ const TYPES := {
 	"sign_gantry": { "name": "Sign gantry", "category": "trackside", "collide": true, "over": true, "size": [36.0, 6.8, 0.0] },
 	"crash_cushion": { "name": "Crash cushion", "category": "trackside", "collide": true },
 	"lamp_double": { "name": "Double lamp", "category": "trackside", "collide": true },
+	"light_tower": { "name": "Light tower", "category": "trackside", "collide": true },
 	"layby": { "name": "Layby", "category": "ground", "collide": true, "size": [6.0, 0.0, 40.0] },
 	# Yards and arenas (kart, M8).
 	"crate": { "name": "Crate", "category": "trackside", "collide": true },
@@ -165,6 +166,16 @@ static func parts(id: String, size := Vector3.ZERO) -> Array:
 				pole.box(Vector3(side * 1.4, 11.8, 0), Basis(), Vector3(2.8, 0.18, 0.18))
 				pole.box(Vector3(side * 2.6, 11.6, 0), Basis(), Vector3(1.0, 0.22, 0.5))
 			return [_part("", "metal", pole, VehicleSim.SURFACE_CONCRETE)]
+		"light_tower":
+			# A floodlit track's mast (D205): 30 m, its bank of lamps facing +z, lit after dark.
+			var mast := MeshBatch.new()
+			_cylinder(mast, Vector3(0, 15.0, 0), 0.45, 30.0, 6)
+			mast.box(Vector3(0, 30.6, 0.3), Basis(), Vector3(5.2, 2.6, 0.3))
+			var lamps := MeshBatch.new()
+			for row in 2:
+				for col in 4:
+					lamps.box(Vector3(-1.8 + col * 1.2, 30.0 + row * 1.2, 0.52), Basis(), Vector3(0.95, 0.8, 0.14))
+			return [_part("", "metal", mast, VehicleSim.SURFACE_CONCRETE), _part("Lamps", "flood_lamp", lamps, -1)]
 		"crate":
 			var b := MeshBatch.new()
 			b.box(Vector3(0, 0.9, 0), Basis(), Vector3(1.8, 1.8, 1.8), Vector2(1, 1))
@@ -350,6 +361,8 @@ static func material(key: String) -> Material:
 			return WorldMaterials.get_material("metal", null, 0.4, 0.6, false, Vector2.ONE, Color(0.62, 0.64, 0.68))
 		"billboard":
 			return WorldMaterials.get_material("billboard", RetroTextures.checker(), 0.6, 0.2, false, Vector2(6, 3))
+		"flood_lamp":
+			return WorldMaterials.glowing("flood_lamp", Color(1.0, 0.95, 0.86), 2.4, true)
 		"cone":
 			return WorldMaterials.get_material("cone", null, 0.6, 0.3, false, Vector2.ONE, Color(0.98, 0.45, 0.1))
 		"tyre":

@@ -73,7 +73,7 @@ Our own, not the Terrain3D addon (D91, closes Q4).
 
 ### Props
 
-- Original low-poly pieces in the retro style, made in code (D100): pine, tree, flat tree, bush, rock; grandstand and pit building (with a length), tent, marshal post; billboard, light pole, crowd, cone, tyre stack; skidpad (drivable concrete).
+- Original low-poly pieces in the retro style, made in code (D100): pine, tree, flat tree, bush, rock; grandstand and pit building (with a length), tent, marshal post; billboard, light pole, light tower (30 m, its lamps lit after dark), crowd, cone, tyre stack; skidpad (drivable concrete).
 - Placed items are baked into the world; scattered ones are `MultiMeshInstance3D`s per 256 m chunk, seen to 1500 m, with simple collision where the type has it.
 
 ## 3. Stunt pieces (Kart, M8)
@@ -144,7 +144,7 @@ my_track.nosstrack
   "ground": { "terrain":"terrain/meta.json" },   // or { "flat_y":-0.03, "surface":"grass" }
   "props": { "items":[{ "prop":"grandstand","p":[…],"yaw_deg":90,"scale":1,"size":[13,9.9,110],"ground":true }],
              "scatter":[{ "prop":"tree_pine","xf":[x,z,yaw,scale, …] }] },
-  "environment": { "time":"dusk", "weather":"rain" },   // optional: also sun_elevation_deg, sun_azimuth_deg, fog
+  "environment": { "time":"dusk", "weather":"rain" },   // optional: also sun_elevation_deg, sun_azimuth_deg, fog, floodlit (D205)
   "scene": null }   // a fitted scene: { "glb":"scene/scene.glb", "tags":"scene/tags.json" }
 ```
 
