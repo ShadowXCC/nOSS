@@ -184,7 +184,7 @@ my_track.nosstrack
 - **Layout hash** = SHA-256 of the road and race setup (AI pins left out), a highway's section (its traffic settings left out), and the `kart` and `arena` sections when a track has them (so tracks without them keep their hashes). Records for a track you made are kept under its id and layout, so changing the layout starts them afresh; built-in tracks keep theirs under the id (D97).
 - **Limits:** 100 MB zipped, 250 MB unpacked, 512 files; scenes up to 2 M triangles, 20 000 nodes and 4096² textures. Servers can lower them.
 - **Safety:** the same rules as car packages ([VEHICLE_PACKAGE.md §9](VEHICLE_PACKAGE.md#9-limits-and-safety)): every file is checked against the manifest's hash before any is used, sizes before anything is decompressed or decoded. Never Godot resource files or scripts.
-- **Where:** your tracks are `user://tracks/*.nosstrack` (File → Show track files); built-in tracks are folders in `content/tracks/`.
+- **Where:** your tracks are `user://tracks/*.nosstrack` (File → Show track files); built-in tracks are folders in `content/tracks/`. A built-in track's PNGs use Godot's **Keep File** import (`importer="keep"` in their `.import`, written by `TrackWriter`), so builds carry the PNG itself. As textures they'd be left out, and the track wouldn't load ("Missing file", D200).
 - **Export…** writes the track as it stands to a file anywhere on disk, leaving the library copy alone; a saved track's version carries over, so an export says which one it is.
 - **Downloaded tracks** lists the tracks that arrived from a host and sit in the content cache ([NETWORKING.md §7](NETWORKING.md)), each with Save to my tracks and Export…: the cache is cleared from time to time, so this is how a track from an online session is kept.
 - **Sharing:** tracks go to players who don't have them when they join online (EDT-07, D98, [NETWORKING.md §7](NETWORKING.md)). Tracks marked "Personal use only" never go online.
@@ -259,3 +259,7 @@ Generates an **editable** nOSS track from real places.
   5. The player picks the roads that form a circuit or route, or keeps the whole network (highway or free roam).
 - **Online fetch is optional and off by default.** When used, it must follow the Overpass API's and elevation providers' usage policies, so local files are the preferred path.
 - **Attribution travels with the track:** "© OpenStreetMap contributors (ODbL)" plus the DEM source are written to `manifest.attributions`. Tracks containing OSM-derived data keep the ODbL notice.
+- **First real-world track:** the **Eifel GP** (D200) was made ahead of this importer by two one-off tools:
+  - `tools/fetch_eifel_gp.py` fetches OSM relation 38567 and EU-DEM heights once, into `tools/data/eifel_gp.json`.
+  - `tools/make_eifel_gp.gd` turns that into an editable track.
+  - Its steps can seed EDT-09: join the circuit's ways into a loop, project, smooth out the mapping jitter, place points closer in corners, and lower the DEM under terrain's 555 m ceiling.
