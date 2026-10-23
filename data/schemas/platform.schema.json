@@ -215,6 +215,17 @@
       }
     },
 
+    "fuel": {
+      "description": "What the car carries and burns (D204): the tank in litres, and litres per kWh of engine work. Fuel use is an event setting; without it there's none.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tank_l", "l_per_kwh"],
+      "properties": {
+        "tank_l": { "$ref": "#/$defs/positive" },
+        "l_per_kwh": { "$ref": "#/$defs/positive" }
+      }
+    },
+
     "tires": {
       "type": "object",
       "additionalProperties": false,
@@ -233,6 +244,11 @@
           "$ref": "#/$defs/positive"
         },
         "wear": { "type": "boolean" },
+        "life_mj": {
+          "description": "Sliding energy a tire takes, MJ per wheel, before it is fully worn (D204). Only with wear.",
+          "$ref": "#/$defs/positive"
+        },
+        "worn_grip": { "description": "Share of its grip a fully worn tire keeps.", "type": "number", "minimum": 0.3, "maximum": 1 },
         "temperature": { "type": "boolean" }
       }
     },

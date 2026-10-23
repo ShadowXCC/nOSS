@@ -77,3 +77,19 @@ func test_missing_blocks_use_family_defaults() -> void:
 
 func _gt() -> Dictionary:
 	return JSON.parse_string(FileAccess.get_file_as_string("res://data/platforms/track/gt.platform.json"))
+
+
+## The Stock Car (D204): heavy, about 500 kW, low downforce and lots of drag, a tank of fuel and
+## tires that wear.
+func test_the_stock_car_loads() -> void:
+	var result := PlatformLoader.load_official("official.track.stock_car")
+	assert_array(result.errors).is_empty()
+	var p := result.platform
+	assert_float(float(p.mass.kg)).is_equal(1550.0)
+	assert_float(GameModes.peak_power_kw(p)).is_between(480.0, 520.0)
+	assert_float(float(p.aero.cd_a)).is_equal(1.0)
+	assert_bool(bool(p.aero.slipstream)).is_true()
+	assert_float(float(p.fuel.tank_l)).is_equal(68.0)
+	assert_bool(bool(p.tires.wear)).is_true()
+	assert_float(float(p.tires.worn_grip)).is_less(1.0)
+	assert_array(GameModes.mode_for("official.track.stock_car").classes).contains(["official.track.stock_car"])
