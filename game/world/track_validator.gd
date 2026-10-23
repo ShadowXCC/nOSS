@@ -149,12 +149,12 @@ func _overlaps() -> void:
 	_spots(hits, "error", "Road overlaps at %s")
 
 
-## Corners tighter than the road is wide: the inner edge folds over itself.
+## Corners tighter than the road (and its apron) is wide: the inner edge folds over itself.
 func _folds() -> void:
 	var hits := PackedInt32Array()
 	for i in t.samples.size():
 		var k := t.curvature[i]
-		if absf(k) * (t.half_l[i] if k > 0.0 else t.half_r[i]) > FOLD:
+		if absf(k) * (t.half_l[i] + t.apron(i, 1.0) if k > 0.0 else t.half_r[i] + t.apron(i, -1.0)) > FOLD:
 			hits.append(i)
 	_spots(hits, "error", "Too tight at %s")
 

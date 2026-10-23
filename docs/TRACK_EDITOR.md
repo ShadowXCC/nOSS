@@ -21,7 +21,7 @@ Endless mode generates its roads procedurally and doesn't use editor tracks. It 
 
 | Tool | What it does |
 |---|---|
-| **Road** | Click to add control points (on the road: into it), drag to move, Alt+drag for height. Per point: widths left and right, banking, height (on the ground or set). Per segment (to the next point): surface, lanes, lines, curbs, barriers (sound walls too) and run-off each side. "Use these everywhere", Flip direction, Track type. On a highway the points are the median's line, and instead of widths: lanes each way (2–4), lane width, median width and barrier, shoulders, speed limit and the outer barriers (the widths follow). On a fitted scene: the centreline only (§7.1). |
+| **Road** | Click to add control points (on the road: into it), drag to move, Alt+drag for height. Per point: widths left and right, banking, an apron each side (width and slope), height (on the ground or set). Per segment (to the next point): surface, lanes, lines, curbs, barriers (sound walls too) and run-off each side. "Use these everywhere", Flip direction, Track type. On a highway the points are the median's line, and instead of widths: lanes each way (2–4), lane width, median width and barrier, shoulders, speed limit and the outer barriers (the widths follow). On a fitted scene: the centreline only (§7.1). |
 | **Ramps** | Highways only (D122). Add at the cursor, on the carriageway it's on: an exit and an entry (an interchange), an exit, an entry, or a crossover (a flyover to the other carriageway). Click a ramp to pick it; drag its points (Alt+drag: height) or set them by field; insert and delete points; move it along the road; name, lanes (1–2), speed limit, whether traffic uses it, its portal's name; delete it (and its portal). A drag rebuilds only that ramp. |
 | **Surfaces** | Fitted scenes only (§7.1): what each material is to a car, rules by name, style, Measure widths. |
 | **Terrain** | Raise, lower, smooth, flatten (with "Pick height") and noise brushes; size, strength, falloff. "Fit terrain to track". |
@@ -57,7 +57,8 @@ The keyboard and controller work round a crosshair in the middle of the view. Ed
 - Catmull-Rom control points. Widths and banking blend across a segment (smoothstep); the other settings hold for the segment that starts at the point.
 - **Road mesh:** extruded along the spline with banked frames: the left vector is horizontal, rolled by the banking (D93). UVs are in metres, so retro textures tile cleanly. Lines: edges, lanes, both or none.
 - **Curbs:** automatic on the inside and outside of corners above a curvature threshold, or on or off per side.
-- **Barriers per side:** auto, none, tyres, armco, concrete, fence, at the run-off edge.
+- **Barriers per side:** auto, none, tyres, armco, concrete, fence, sound wall, or a SAFER wall (an oval's: 1.2 m of white wall with a 3.8 m chain-link catch fence and posts on top), at the run-off edge.
+- **Apron per side (D202):** paved road past the edge (and its curb), 0–30 m across, at its own slope (±30°; + raises the left, as banking does). It drives and collides as the road's own surface and counts as track. Run-off and the barrier move out past it, and the ground's bed takes the apron's slope from the road's edge out, where without one it carries the banking on. An oval's flat inside is an apron next to banked road.
 - **Run-off per side:** grass, gravel, asphalt, concrete, sand or dirt, with a width.
 - **Height:** a point either follows the ground (smoothed, at most 15% grade) or has its own height. Where the road is 3 m or more above the ground it gets a deck, parapets and pillars (a bridge). Near another part of the road, height decides which one a car is on, so crossings and bridges work (D94).
 
@@ -66,7 +67,7 @@ The keyboard and controller work round a crosshair in the middle of the view. Ed
 Our own, not the Terrain3D addon (D91, closes Q4).
 
 - Heightmap grid at 1 m, in 256 × 256 m chunks, up to 16 × 16 chunks (4 × 4 km). Two layers: what was sculpted, and that with the road's bed cut in (worked out again on load, never saved).
-- **Road bed:** the ground is flattened 5 cm under the road out to its edge, curbs and run-off, with a 12 m falloff.
+- **Road bed:** the ground is flattened 5 cm under the road out to its edge, curbs, apron and run-off, with a 12 m falloff. Banked road counts as lifted (a bridge) only when its lower edge is 3 m or more above the ground, so an oval standing on its inner edge isn't one.
 - **Rendering:** a shared grid mesh per level of detail (1, 2, 4 and 8 m), displaced in the shader from a 16-bit height texture per chunk; eight paint layers blended in the shader.
 - **Collision:** a `HeightMapShape3D` per chunk. What a wheel drives on comes from the paint under it (a native surface map).
 
@@ -135,6 +136,7 @@ my_track.nosstrack
     "defaults": { "width_l":6, "width_r":6, "bank_deg":0, "height":"ground", "lanes":1, "lines":"edges",
                   "surface":"asphalt", "curb_l":"auto", "curb_r":"auto", "runoff_l":"grass", "runoff_r":"grass",
                   "runoff_l_m":16, "runoff_r_m":16, "barrier_l":"auto", "barrier_r":"auto" },
+                  // optional (D202): "apron_l_m", "apron_r_m" (0-30), "apron_l_deg", "apron_r_deg" (±30); barrier "safer"
     "points": [ { "p":[x,y,z] }, { "p":[…], "width_l":7.5, "bank_deg":5, "height":"set", "barrier_l":"armco" } ] },
   "race": { "start_m":150, "sectors_m":[880,1690], "checkpoint_spacing_m":100,
             "grid":{ "slots":20, "front_m":12, "row_m":13, "stagger":0.5, "pole":"left" },

@@ -55,6 +55,12 @@ struct RoadSample {
 	double flat_l = 6.0, flat_r = 6.0;
 	bool lifted = false; // on supports: the ground is left alone
 	bool end = false; // no road from here to the next sample
+	// An apron (D202): past the edge (centreline to it, m along the road), the bed leaves the road's
+	// banking for the apron's slope (rise per metre outward on the left, + raises the left as the
+	// banking does). With no apron (width 0) the bed carries the banking on, as before.
+	double edge_l = 0.0, edge_r = 0.0;
+	double apron_l = 0.0, apron_r = 0.0;
+	double slope_l = 0.0, slope_r = 0.0;
 };
 
 class Heightfield {

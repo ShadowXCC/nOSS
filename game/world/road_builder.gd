@@ -20,7 +20,11 @@ const DASH_OFF := 9.0
 ## Auto barriers: tyre walls on the outside of corners tighter than this radius.
 const BARRIER_CURVATURE := 1.0 / 260.0
 ## Barrier sizes by type id (TrackFormat.BARRIERS): [height, thickness].
-const BARRIER_SIZE := { 2: [0.9, 1.0], 3: [0.75, 0.3], 4: [1.0, 0.6], 5: [2.5, 0.12], 6: [4.5, 0.25] }
+const BARRIER_SIZE := { 2: [0.9, 1.0], 3: [0.75, 0.3], 4: [1.0, 0.6], 5: [2.5, 0.12], 6: [4.5, 0.25], 7: [1.2, 0.6] }
+## A SAFER wall's catch fence (D202): on the wall's top, [height, thickness]; a post every POST_M.
+const CATCH_FENCE := [3.8, 0.06]
+const POST_M := 6.0
+const POST := 0.12
 const SKIRT := 0.3
 const DECK := 0.6
 const PILLAR_EVERY_M := 20.0
@@ -146,6 +150,9 @@ func _batches(first: int, end: int) -> Dictionary:
 		# A highway's tunnels keep the weather off their road (D153).
 		var dry := _hw != null and _hw.sheltered(k, j)
 		_road_quad(_batch(out, ("road_dry:%d" if dry else "road:%d") % surface), k, j)
+		for side: float in [1.0, -1.0]:
+			if track.apron(k, side) > 0.0 or track.apron(j, side) > 0.0:
+				_apron(_batch(out, ("road_dry:%d" if dry else "road:%d") % surface), k, j, side)
 		if visual:
 			if _hw:
 				_hw.lines(_batch(out, "lines_dry" if dry else "lines"), k, j)
@@ -196,13 +203,35 @@ func _road_quad(b: MeshBatch, i: int, j: int) -> void:
 	var rj := _edge(j, -1.0)
 	b.quad([li, ri, rj, lj], [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO], c)
 	if terrain:
-		# Skirts down the edges hide the ground's 5 cm step under the road.
+		# Skirts down the edges hide the ground's 5 cm step under the road (past an apron).
 		for side: float in [1.0, -1.0]:
-			var ti := _edge(i, side)
-			var tj := _edge(j, side)
+			var ti := _paved(i, side)
+			var tj := _paved(j, side)
 			var down := Vector3.DOWN * SKIRT
 			var face := [ti + down, ti, tj, tj + down] if side > 0.0 else [ti, ti + down, tj + down, tj]
 			b.quad(face, [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO], c)
+
+
+## The paved edge on `side`: the road's own edge, or past its apron (and the curb before it).
+func _paved(i: int, side: float) -> Vector3:
+	var apron: float = track.apron(i, side)
+	return _edge(i, side) if apron <= 0.0 else track.paved_edge(i, side)
+
+
+## A point `out` past the road's edge across the cross-section (TrackData.cross_point), `up` over it.
+func _cross(i: int, side: float, out: float, up := 0.0) -> Vector3:
+	return track.cross_point(i, side, out) + track.ups[i] * up
+
+
+## The apron (D202): paved road past the edge and its curb, at its own slope.
+func _apron(b: MeshBatch, i: int, j: int, side: float) -> void:
+	var c := Color(0.82, 0.82, 0.82)
+	var from_i := CURB_WIDTH if (track.curb_l if side > 0.0 else track.curb_r)[i] else 0.0
+	var from_j := CURB_WIDTH if (track.curb_l if side > 0.0 else track.curb_r)[j] else 0.0
+	var to_i: float = from_i + track.apron(i, side)
+	var to_j: float = from_j + track.apron(j, side)
+	var q := [_cross(i, side, from_i), _cross(i, side, to_i), _cross(j, side, to_j), _cross(j, side, from_j)]
+	b.quad(q if side < 0.0 else [q[1], q[0], q[3], q[2]], [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO], c)
 
 
 ## Edge lines and dashed lane lines (TrackFormat.LINES: none, edges, lanes, all).
@@ -254,14 +283,17 @@ func _low(i: int) -> float:
 	return _ground_y if terrain == null else track.samples[i].y - SKIRT
 
 
+## Run-off from the curb (or past the apron) out to its width, which an apron moves out.
 func _runoff(b: MeshBatch, i: int, j: int, side: float) -> void:
-	var start_i := CURB_WIDTH if (track.curb_l if side > 0.0 else track.curb_r)[i] else 0.0
-	var start_j := CURB_WIDTH if (track.curb_l if side > 0.0 else track.curb_r)[j] else 0.0
-	var end_i: float = (track.runoff_l_m if side > 0.0 else track.runoff_r_m)[i]
-	var end_j: float = (track.runoff_l_m if side > 0.0 else track.runoff_r_m)[j]
+	var apron_i: float = track.apron(i, side)
+	var apron_j: float = track.apron(j, side)
+	var start_i := (CURB_WIDTH if (track.curb_l if side > 0.0 else track.curb_r)[i] else 0.0) + apron_i
+	var start_j := (CURB_WIDTH if (track.curb_l if side > 0.0 else track.curb_r)[j] else 0.0) + apron_j
+	var end_i: float = (track.runoff_l_m if side > 0.0 else track.runoff_r_m)[i] + apron_i
+	var end_j: float = (track.runoff_l_m if side > 0.0 else track.runoff_r_m)[j] + apron_j
 	# On flat ground, a little over it (the same height flickered through it), still under the road.
 	var drop := Vector3.UP * (_ground_y + RUNOFF_OVER_GROUND if terrain == null else -0.03)
-	var q := [_edge(i, side, start_i) + drop, _edge(i, side, end_i) + drop, _edge(j, side, end_j) + drop, _edge(j, side, start_j) + drop]
+	var q := [_cross(i, side, start_i) + drop, _cross(i, side, end_i) + drop, _cross(j, side, end_j) + drop, _cross(j, side, start_j) + drop]
 	b.quad(q if side < 0.0 else [q[1], q[0], q[3], q[2]], [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
 
 
@@ -318,7 +350,26 @@ func _wall(out: Dictionary, path: PackedVector3Array, kind: int, u: float, size:
 	if kind <= 0 or path.size() < 2:
 		return u
 	var dims: Array = size if not size.is_empty() else BARRIER_SIZE[kind]
+	if kind == TrackFormat.BARRIER_SAFER:
+		_catch_fence(out, path, dims[0], u)
 	return _batch(out, "barrier:%d" % kind).wall(path, dims[0], dims[1], u)
+
+
+## The chain-link fence on a SAFER wall's top, with posts.
+func _catch_fence(out: Dictionary, path: PackedVector3Array, on: float, u: float) -> void:
+	var top := PackedVector3Array()
+	for p in path:
+		top.append(p + Vector3.UP * on)
+	_batch(out, "catch_fence").wall(top, CATCH_FENCE[0], CATCH_FENCE[1], u)
+	var posts := _batch(out, "barrier:posts")
+	var along := 0.0
+	for k in top.size() - 1:
+		var step := top[k].distance_to(top[k + 1])
+		while along <= step:
+			var p := top[k].lerp(top[k + 1], along / maxf(step, 0.001))
+			posts.box(p + Vector3.UP * CATCH_FENCE[0] / 2.0, Basis(), Vector3(POST, CATCH_FENCE[0], POST))
+			along += POST_M
+		along -= step
 
 
 ## The barrier type on `side` at sample `k` (0: none).
@@ -337,10 +388,10 @@ func _barrier_at(k: int, side: float) -> int:
 	return TrackFormat.BARRIER_TYRES if not track.is_near_centreline(p, reach) else 0
 
 
+## Where a barrier stands: past the run-off (and an apron).
 func _barrier_point(k: int, side: float) -> Vector3:
-	var half: float = track.half_l[k] if side > 0.0 else track.half_r[k]
 	var runoff: float = track.runoff_l_m[k] if side > 0.0 else track.runoff_r_m[k]
-	var p := track.samples[k] + track.lefts[k] * side * (half + runoff)
+	var p := track.cross_point(k, side, runoff + track.apron(k, side))
 	if terrain:
 		p.y = terrain.edge_ground(p)
 	return p
@@ -399,7 +450,7 @@ func _perimeter() -> MeshBatch:
 # --- nodes ----------------------------------------------------------------------------------
 
 
-const NAMES := { "lines": "Lines", "lines_dry": "LinesSheltered", "lines_yellow": "LinesYellow", "curbs": "Curbs", "bridge": "Bridge", "lamps": "Lamps", "lamp_heads": "LampHeads",
+const NAMES := { "catch_fence": "CatchFences", "lines": "Lines", "lines_dry": "LinesSheltered", "lines_yellow": "LinesYellow", "curbs": "Curbs", "bridge": "Bridge", "lamps": "Lamps", "lamp_heads": "LampHeads",
 	"tunnel": "Tunnel", "tunnel_lights": "TunnelLights", "gantry": "Gantries", "sign_board": "SignBoards", "cushion": "Cushions",
 	"portal": "Portals", "portal_dark": "PortalShells", "portal_floor": "PortalFloors" }
 
@@ -437,6 +488,9 @@ func _add_batches(parent: Node3D, batches: Dictionary, built := {}) -> void:
 				if parts[0] == "road_dry":
 					node_name += "Sheltered"
 					material = WorldMaterials.sheltered(material)
+			"catch_fence":
+				surface = VehicleSim.SURFACE_CONCRETE
+				material = WorldMaterials.see_through("catch_fence", RetroTextures.chain_link(), Vector2(8.0, 8.0), Color(0.72, 0.74, 0.76))
 			"lines":
 				material = WorldMaterials.paint("paint_white", Color(0.9, 0.9, 0.88))
 			"lines_dry":
@@ -468,6 +522,12 @@ func _add_batches(parent: Node3D, batches: Dictionary, built := {}) -> void:
 					"5":
 						node_name = "Fences"
 						material = WorldMaterials.get_material("fence", RetroTextures.concrete(), 0.6, 0.3, false, Vector2.ONE, Color(0.45, 0.5, 0.45))
+					"7":
+						node_name = "SaferWalls"
+						material = WorldMaterials.get_material("safer_wall", RetroTextures.concrete(), 0.6, 0.3, false, Vector2.ONE, Color(0.97, 0.97, 0.95))
+					"posts":
+						node_name = "FencePosts"
+						material = WorldMaterials.get_material("gantry_steel", null, 0.45, 0.6, false, Vector2.ONE, Color(0.6, 0.62, 0.66))
 			"bridge", "tunnel", "portal":
 				surface = VehicleSim.SURFACE_CONCRETE
 				material = WorldMaterials.get_material("concrete_world_uv", RetroTextures.concrete(), 0.8, 0.25, true, Vector2.ONE / 6.0)

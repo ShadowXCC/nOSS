@@ -61,9 +61,14 @@ func test_clicks_add_points_and_a_drag_is_one_undo() -> void:
 	assert_int(d.history.version()).is_equal(version) # back where it was: nothing to save
 	# Every row of the point's panel is named.
 	road.call("_select", 1)
+	var names := []
 	for c: Control in e._content.find_children("*", "Control", true, false) + e._content.get_children():
 		if c.focus_mode != Control.FOCUS_NONE and (c is BaseButton or c is Range or c is LineEdit):
 			assert_str(String(c.accessibility_name)).is_not_empty()
+			names.append(String(c.accessibility_name))
+	# An apron each side (D202), its width and slope.
+	for row in ["Apron left", "Apron left slope", "Apron right", "Apron right slope"]:
+		assert_bool(names.any(func(n: String) -> bool: return n.begins_with(row))).override_failure_message(row).is_true()
 	e.queue_free()
 	await get_tree().process_frame
 

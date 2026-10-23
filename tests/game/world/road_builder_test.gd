@@ -112,3 +112,57 @@ func test_a_terrain_track_follows_its_ground() -> void:
 	var top := t.samples[t.project(Vector3(t.samples[0].x, 0, 0)).index]
 	assert_float(top.y).is_greater(5.0) # over the hill
 	root.free()
+
+
+## A banked oval turning left (so its inside is the left), standing on its inner edge: a level
+## apron inside, a SAFER wall just outside (D202).
+static func oval_track(half := 9.0, bank := -24.0, apron := 9.0) -> Dictionary:
+	var d := TrackFormat.blank("oval", "Oval")
+	var y := half * sin(deg_to_rad(-bank))
+	var points := []
+	for end in [1.0, -1.0]: # the top straight and right end, then the bottom and left
+		for x in [-200.0, -100.0, 0.0, 100.0, 200.0]:
+			points.append({ "p": [x * end, y, 150.0 * end] })
+		for deg in [30.0, 60.0, 90.0, 120.0, 150.0]:
+			var a := deg_to_rad(deg)
+			points.append({ "p": [(200.0 + 150.0 * sin(a)) * end, y, 150.0 * cos(a) * end] })
+	d.road.points = points
+	d.road.defaults.merge({ "height": "set", "width_l": half, "width_r": half, "bank_deg": bank, "curb_l": "off", "curb_r": "off",
+		"apron_l_m": apron, "runoff_l_m": 6.0, "runoff_r_m": 0.3, "barrier_l": "none", "barrier_r": "safer" }, true)
+	d.race.start_m = 100.0
+	return d
+
+
+func test_an_oval_has_an_apron_and_a_safer_wall() -> void:
+	var terrain := TerrainData.around(Rect2(-400, -200, 800, 400), 100.0)
+	var t := TrackData.from_dict(oval_track(), terrain.ground_height())
+	terrain.conform(t)
+	assert_int(Array(t.lifted).count(1)).is_equal(0) # on its inner edge, not a bridge
+	var k := t.segment_samples(7).x # the middle of the right-hand turn
+	assert_float(t.cross_point(k, 1.0, 0.0).y).is_equal_approx(0.0, 0.05)
+	var mid := t.cross_point(k, 1.0, 4.5)
+	assert_float(mid.y).is_equal_approx(t.paved_edge(k, 1.0).y, 0.01) # a level apron
+	assert_float(t.edge_at(t.distances[k], 1.0)).is_equal_approx(18.0, 0.01) # it counts as track
+	# The ground is shaped to the apron and to the banking out to the wall.
+	assert_float(terrain.height_at(mid.x, mid.z)).is_equal_approx(mid.y - TerrainData.BED_DEPTH_M, 0.1)
+	var outer := t.cross_point(k, -1.0, 0.0)
+	assert_float(outer.y).is_greater(7.0)
+	assert_float(terrain.height_at(outer.x, outer.z)).is_equal_approx(outer.y - TerrainData.BED_DEPTH_M, 0.15)
+	# The apron is road: it's in the road's own piece, so it drives and collides like it.
+	var pieces := RoadBuilder.new(t, terrain)._batches(0, t.samples.size())
+	var edge := t.paved_edge(k, 1.0)
+	var found := false
+	for v in (pieces["road:%d" % VehicleSim.SURFACE_ASPHALT] as MeshBatch).verts:
+		found = found or v.distance_to(edge) < 0.01
+	assert_bool(found).is_true()
+	var root := TrackBuilder.build(t, terrain)
+	var wall := root.get_node("SaferWalls") as MeshInstance3D
+	var fence := root.get_node("CatchFences") as MeshInstance3D
+	assert_object(root.get_node_or_null("SaferWallsBody")).is_not_null()
+	assert_object(root.get_node_or_null("CatchFencesBody")).is_not_null()
+	assert_object(root.get_node_or_null("FencePosts")).is_not_null()
+	assert_float(fence.mesh.get_aabb().end.y - wall.mesh.get_aabb().end.y).is_equal_approx(RoadBuilder.CATCH_FENCE[0], 0.01)
+	# The gantry's inside foot stands on the apron, not in the air or under it.
+	var gantry := root.get_node("Gantry") as MeshInstance3D
+	assert_float(gantry.mesh.get_aabb().position.y).is_less(0.5)
+	root.free()

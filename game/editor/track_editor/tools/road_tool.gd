@@ -8,7 +8,8 @@ extends EditorTool
 ## at the scene's height, and nothing is built from them. On a highway (EDT-10) the points are
 ## the median's line, and the widths come from the lanes, median and shoulders set here.
 
-const BARRIERS := [["auto", "Auto"], ["none", "None"], ["tyres", "Tyres"], ["armco", "Armco"], ["concrete", "Concrete"], ["fence", "Fence"], ["sound_wall", "Sound wall"]]
+const BARRIERS := [["auto", "Auto"], ["none", "None"], ["tyres", "Tyres"], ["armco", "Armco"], ["concrete", "Concrete"], ["fence", "Fence"], ["sound_wall", "Sound wall"],
+	["safer", "SAFER wall"]]
 const HIGHWAY_BARRIERS := [["concrete", "Concrete"], ["armco", "Armco"], ["sound_wall", "Sound wall"], ["fence", "Fence"], ["none", "None"]]
 
 ## A point is under the cursor within this many pixels.
@@ -312,6 +313,12 @@ func _attr_rows(idx: PackedInt32Array, i: int, point: bool, widths_only := false
 		if widths_only:
 			return out
 		out.append(UiKit.number("Banking", float(TrackFormat.attr(road, i, "bank_deg")), -25.0, 25.0, 0.5, "%.1f°", set_attr.bind("bank_deg"), "Positive raises the left edge"))
+		# An apron (D202): paved past the edge at its own slope, like an oval's flat inside.
+		for side: Array in [["l", "left"], ["r", "right"]]:
+			out.append(UiKit.number("Apron %s" % side[1], float(TrackFormat.attr(road, i, "apron_%s_m" % side[0])), 0.0, 30.0, 0.5, "%.1f m",
+				set_attr.bind("apron_%s_m" % side[0]), "Paved, past the edge"))
+			out.append(UiKit.number("Apron %s slope" % side[1], float(TrackFormat.attr(road, i, "apron_%s_deg" % side[0])), -25.0, 25.0, 0.5, "%.1f°",
+				set_attr.bind("apron_%s_deg" % side[0]), "Positive raises the left side"))
 		return out
 	out.append(UiKit.spinner("Surface", _surfaces(["asphalt", "concrete", "dirt", "gravel", "sand", "snow", "ice", "grass"]), String(TrackFormat.attr(road, i, "surface")), set_attr.bind("surface")))
 	var lanes := []

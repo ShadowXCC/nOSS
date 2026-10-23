@@ -71,6 +71,9 @@ func test_flipping_drives_the_other_way() -> void:
 	var d := _square()
 	d.set_attr(PackedInt32Array([0]), "barrier_l", "armco")
 	d.set_attr(PackedInt32Array([1]), "width_l", 8.0)
+	d.set_attr(PackedInt32Array([1]), "apron_l_m", 5.0)
+	d.set_attr(PackedInt32Array([1]), "apron_l_deg", 3.0)
+	d.set_default("apron_r_deg", 2.0)
 	d.set_race("sectors_m", [300.0, 700.0])
 	d.set_race("ai/pins", [{ "at_m": 400.0, "offset_m": 2.0 }])
 	var t := d.track()
@@ -84,6 +87,11 @@ func test_flipping_drives_the_other_way() -> void:
 	# other way, it starts at the second-last point).
 	var p: Dictionary = d.points()[d.points().size() - 2]
 	assert_str(String(p.get("barrier_r", ""))).is_equal("armco")
+	# Point 1's apron is on its right now, sloping the other way; so is the road's default.
+	assert_float(float(p.get("apron_r_m", 0.0))).is_equal(5.0)
+	assert_float(float(p.get("apron_r_deg", 0.0))).is_equal(-3.0)
+	assert_bool(p.has("apron_l_m")).is_false()
+	assert_float(float(d.layout.road.defaults.apron_l_deg)).is_equal(-2.0)
 	assert_float(float(d.layout.race.ai.pins[0].offset_m)).is_equal(-2.0)
 	d.undo()
 	assert_float(d.track().point_at(d.track().start_m).distance_to(start)).is_less(0.01)

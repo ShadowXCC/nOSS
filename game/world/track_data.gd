@@ -61,6 +61,11 @@ var curb_r := PackedByteArray()
 var half_l := PackedFloat32Array()
 var half_r := PackedFloat32Array()
 var bank := PackedFloat32Array()
+## An apron past each edge (and its curb), m across it, and its slope, rad (+ raises the left), D202.
+var apron_l := PackedFloat32Array()
+var apron_r := PackedFloat32Array()
+var apron_l_bank := PackedFloat32Array()
+var apron_r_bank := PackedFloat32Array()
 ## Per sample: VehicleSim surface ids of the road and run-offs, run-off widths, barrier types
 ## (TrackFormat.BARRIERS), lanes, line style (TrackFormat.LINES), and lifted (on supports).
 var surface := PackedByteArray()
@@ -247,12 +252,45 @@ func half_width(distance: float, side: float) -> float:
 	return half_l[i] if side >= 0.0 else half_r[i]
 
 
-## How far from the centreline still counts as track on `side`: the road and its curb.
+## How far from the centreline still counts as track on `side`: the road, its curb and apron.
 func edge_at(distance: float, side: float) -> float:
 	var i := index_at(distance)
 	if side >= 0.0:
-		return half_l[i] + (CURB_WIDTH if curb_l[i] else 0.0)
-	return half_r[i] + (CURB_WIDTH if curb_r[i] else 0.0)
+		return half_l[i] + (CURB_WIDTH if curb_l[i] else 0.0) + apron(i, 1.0)
+	return half_r[i] + (CURB_WIDTH if curb_r[i] else 0.0) + apron(i, -1.0)
+
+
+## The apron's width on `side` at sample `i`, m (0: none; roads built without one, like a
+## highway's ramps, have none).
+func apron(i: int, side: float) -> float:
+	var a := apron_l if side > 0.0 else apron_r
+	return a[i] if i < a.size() else 0.0
+
+
+## The outer edge of the paving on `side` (+1 left, -1 right) at sample `i`: past the curb and
+## the apron.
+func paved_edge(i: int, side: float) -> Vector3:
+	var curb := CURB_WIDTH if (curb_l[i] if side > 0.0 else curb_r[i]) else 0.0
+	return cross_point(i, side, curb + apron(i, side))
+
+
+## The point `out` m past the road's edge on `side` at sample `i`, across the cross-section: on
+## along the road's banking over its curb, then at the apron's own slope, and on at that slope past
+## it (run-off, barriers). Without an apron, straight on along the banking.
+func cross_point(i: int, side: float, out: float) -> Vector3:
+	var half: float = half_l[i] if side > 0.0 else half_r[i]
+	var curb := CURB_WIDTH if (curb_l[i] if side > 0.0 else curb_r[i]) else 0.0
+	if apron(i, side) <= 0.0 or out <= curb:
+		return samples[i] + lefts[i] * side * (half + out)
+	return samples[i] + lefts[i] * side * (half + curb) + apron_left(i, side) * side * (out - curb)
+
+
+## The apron's left on `side` at sample `i`: the level left tilted by the apron's slope.
+func apron_left(i: int, side: float) -> Vector3:
+	var level := Vector3.UP.cross(tangents[i]).normalized()
+	var up := tangents[i].cross(level)
+	var a: float = apron_l_bank[i] if side > 0.0 else apron_r_bank[i]
+	return level * cos(a) + up * sin(a)
 
 
 ## The sector (0-based) `distance` is in.
@@ -444,6 +482,10 @@ func _sample(road: Dictionary, ground_height: Callable) -> void:
 	half_l.resize(m)
 	half_r.resize(m)
 	bank.resize(m)
+	apron_l.resize(m)
+	apron_r.resize(m)
+	apron_l_bank.resize(m)
+	apron_r_bank.resize(m)
 	runoff_l_m.resize(m)
 	runoff_r_m.resize(m)
 	surface.resize(m)
@@ -464,6 +506,10 @@ func _sample(road: Dictionary, ground_height: Callable) -> void:
 		half_l[k] = lerpf(float(a.width_l), float(b.width_l), u)
 		half_r[k] = lerpf(float(a.width_r), float(b.width_r), u)
 		bank[k] = deg_to_rad(lerpf(float(a.bank_deg), float(b.bank_deg), u))
+		apron_l[k] = lerpf(float(a.apron_l_m), float(b.apron_l_m), u)
+		apron_r[k] = lerpf(float(a.apron_r_m), float(b.apron_r_m), u)
+		apron_l_bank[k] = deg_to_rad(lerpf(float(a.apron_l_deg), float(b.apron_l_deg), u))
+		apron_r_bank[k] = deg_to_rad(lerpf(float(a.apron_r_deg), float(b.apron_r_deg), u))
 		surface[k] = TrackFormat.surface_id(String(a.surface))
 		runoff_l[k] = TrackFormat.surface_id(String(a.runoff_l))
 		runoff_r[k] = TrackFormat.surface_id(String(a.runoff_r))
@@ -501,7 +547,11 @@ func _sample(road: Dictionary, ground_height: Callable) -> void:
 	var lowest := INF
 	for i in m:
 		lowest = minf(lowest, samples[i].y)
-		lifted[i] = 1 if ground_height.is_valid() and samples[i].y - float(ground.call(samples[i].x, samples[i].z)) > LIFTED_M else 0
+		# Banked road is measured from its lower edge: one standing on that edge isn't a bridge.
+		var low := samples[i]
+		if bank[i] != 0.0:
+			low += lefts[i] * (half_l[i] if bank[i] < 0.0 else -half_r[i])
+		lifted[i] = 1 if ground_height.is_valid() and low.y - float(ground.call(low.x, low.z)) > LIFTED_M else 0
 	kill_y = lowest - 30.0
 
 

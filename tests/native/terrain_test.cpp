@@ -334,3 +334,41 @@ TEST_CASE("terrain: on a slope the bed follows the road beside it") {
 		CHECK(f.height_at(x, 15.0) == doctest::Approx(x * 0.1).epsilon(0.01));
 	}
 }
+
+TEST_CASE("terrain: an apron's bed leaves the banking for its own slope; none changes nothing") {
+	Heightfield f = flat();
+	Rect all{ 0, 0, f.w, f.d };
+	// Banked down to the left (ly < 0), 6 m to each edge, levelled 14 m on the left.
+	std::vector<RoadSample> road = straight(4.0, -std::sin(0.4));
+	for (RoadSample &s : road) {
+		s.lx = 0.0;
+		s.lz = -std::cos(0.4);
+		s.flat_l = 14.0;
+	}
+	Heightfield plain = flat();
+	plain.conform(all, road, 12.0, 0.0);
+	// An apron of width 0 is no apron: the same ground, sample for sample.
+	std::vector<RoadSample> zero = road;
+	for (RoadSample &s : zero) {
+		s.edge_l = 6.0;
+		s.edge_r = 6.0;
+		s.slope_l = 0.3;
+	}
+	f.conform(all, zero, 12.0, 0.0);
+	CHECK(f.final_h == plain.final_h);
+	// A level apron past the left edge: flat from the edge out; the banking carries on without.
+	std::vector<RoadSample> apron = zero;
+	for (RoadSample &s : apron) {
+		s.apron_l = 8.0;
+		s.slope_l = 0.0;
+	}
+	Heightfield g = flat();
+	g.conform(all, apron, 12.0, 0.0);
+	double edge_x = 6.0 * std::cos(0.4); // across the map
+	double edge_y = 4.0 - 6.0 * std::sin(0.4);
+	CHECK(g.height_at(0.0, -(edge_x + 1.0)) == doctest::Approx(edge_y).epsilon(0.02));
+	CHECK(g.height_at(0.0, -(edge_x + 6.0)) == doctest::Approx(edge_y).epsilon(0.02));
+	CHECK(plain.height_at(0.0, -(edge_x + 6.0)) < edge_y - 2.0);
+	// The right side, with no apron, is as it was.
+	CHECK(g.height_at(0.0, 4.0) == doctest::Approx(plain.height_at(0.0, 4.0)));
+}

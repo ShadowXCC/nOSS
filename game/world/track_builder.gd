@@ -133,14 +133,23 @@ func _start_gantry() -> void:
 		line.mesh = st.mesh()
 		line.material_override = WorldMaterials.get_material("checker", RetroTextures.checker(), 0.7, 0.2)
 		root.add_child(line)
-	# Pillars and a banner over the road, standing upright on banked road too.
+	# Pillars and a banner over the road, standing upright on banked road too. Each foot is 2 m
+	# past the paving (an apron's too), or on the barrier line if that's nearer (an oval's wall).
 	var gantry := MeshBatch.new()
 	var level := Basis(t.basis.x.slide(Vector3.UP).normalized(), Vector3.UP, t.basis.z.slide(Vector3.UP).normalized())
+	var feet := []
 	for side: float in [1.0, -1.0]:
-		var foot := t.origin + t.basis.x * side * ((hl if side > 0.0 else hr) + 2.0)
-		gantry.box(foot + Vector3.UP * 3.5, level, Vector3(0.6, 7.0, 0.6))
+		var apron: float = track.apron(i, side)
+		var out := 2.0 + apron
+		if int(track.barrier_l[i] if side > 0.0 else track.barrier_r[i]) > TrackFormat.BARRIER_AUTO:
+			out = minf(out, (track.runoff_l_m[i] if side > 0.0 else track.runoff_r_m[i]) + apron)
+		feet.append(t.origin + track.cross_point(i, side, out) - track.samples[i])
+	var top := maxf(feet[0].y, feet[1].y) + 7.0
+	for foot: Vector3 in feet:
+		gantry.box(Vector3(foot.x, (foot.y + top) / 2.0, foot.z), level, Vector3(0.6, top - foot.y, 0.6))
 	var mid := t.origin + t.basis.x * (hl - hr) / 2.0
-	gantry.box(mid + Vector3.UP * 7.3, level, Vector3(hl + hr + 5.0, 1.2, 0.5))
+	var span := Vector2(feet[0].x - feet[1].x, feet[0].z - feet[1].z).length()
+	gantry.box(Vector3(mid.x, top + 0.3, mid.z), level, Vector3(maxf(hl + hr + 5.0, span + 1.0), 1.2, 0.5))
 	_add_body("Gantry", gantry, WorldMaterials.get_material("gantry", RetroTextures.checker(), 0.6, 0.2, false, Vector2(6, 1)), VehicleSim.SURFACE_CONCRETE)
 
 

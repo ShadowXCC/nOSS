@@ -323,7 +323,7 @@
     },
     "label": { "type": "string", "maxLength": 48 },
     "speed": { "type": "number", "minimum": 20, "maximum": 300 },
-    "barrier": { "enum": ["none", "auto", "tyres", "armco", "concrete", "fence", "sound_wall"] },
+    "barrier": { "enum": ["none", "auto", "tyres", "armco", "concrete", "fence", "sound_wall", "safer"] },
     "ramp_end": {
       "description": "Where a ramp meets the road: a carriageway (dir) at a distance along the road (from: where it starts to leave; to: where it has merged), or a portal.",
       "type": "object",
@@ -362,6 +362,10 @@
         "runoff_r": { "$ref": "#/$defs/surface" },
         "runoff_l_m": { "type": "number", "minimum": 0, "maximum": 200 },
         "runoff_r_m": { "type": "number", "minimum": 0, "maximum": 200 },
+        "apron_l_m": { "description": "A paved apron past the road's left edge (and its curb), m across it (D202).", "type": "number", "minimum": 0, "maximum": 30 },
+        "apron_r_m": { "type": "number", "minimum": 0, "maximum": 30 },
+        "apron_l_deg": { "description": "The apron's slope, degrees; + raises the left side, as bank_deg.", "type": "number", "minimum": -30, "maximum": 30 },
+        "apron_r_deg": { "type": "number", "minimum": -30, "maximum": 30 },
         "barrier_l": { "$ref": "#/$defs/barrier" },
         "barrier_r": { "$ref": "#/$defs/barrier" }
       }

@@ -254,6 +254,15 @@ Rect Heightfield::conform(const Rect &p_rect, const std::vector<RoadSample> &p_r
 					continue;
 				}
 				double bed = a.y + (b.y - a.y) * t + lateral * ly / lxz - p_depth_m;
+				double apron = lateral >= 0.0 ? a.apron_l + (b.apron_l - a.apron_l) * t : a.apron_r + (b.apron_r - a.apron_r) * t;
+				if (apron > 0.0) {
+					// Past the road's edge (across the map), on at the apron's slope.
+					double edge = lateral >= 0.0 ? (a.edge_l + (b.edge_l - a.edge_l) * t) * lxz : -(a.edge_r + (b.edge_r - a.edge_r) * t) * lxz;
+					if (lateral >= 0.0 ? lateral > edge : lateral < edge) {
+						double slope = lateral >= 0.0 ? a.slope_l + (b.slope_l - a.slope_l) * t : a.slope_r + (b.slope_r - a.slope_r) * t;
+						bed = a.y + (b.y - a.y) * t + edge * ly / lxz + (lateral - edge) * slope - p_depth_m;
+					}
+				}
 				size_t i = size_t(z - r.z0) * size_t(r.width()) + size_t(x - r.x0);
 				if (to_lifted && t_raw >= -over && t_raw <= 1.0 + over && dist <= flat) {
 					ceiling[i] = std::min(ceiling[i], float(bed - (deck ? LIFTED_CLEAR_M : 0.0)));

@@ -70,7 +70,7 @@ void NossTerrain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_splat_rgba", "image", "rgba"), &NossTerrain::set_splat_rgba);
 	ClassDB::bind_method(D_METHOD("brush", "mode", "at", "radius", "strength", "falloff", "target", "scale", "seed"), &NossTerrain::brush);
 	ClassDB::bind_method(D_METHOD("paint", "layer", "at", "radius", "strength", "falloff"), &NossTerrain::paint);
-	ClassDB::bind_method(D_METHOD("conform", "rect", "road", "falloff_m", "depth_m"), &NossTerrain::conform);
+	ClassDB::bind_method(D_METHOD("conform", "rect", "road", "falloff_m", "depth_m", "aprons"), &NossTerrain::conform, DEFVAL(PackedFloat32Array()));
 	ClassDB::bind_method(D_METHOD("rect_around", "at", "radius"), &NossTerrain::rect_around);
 	ClassDB::bind_method(D_METHOD("raycast", "origin", "dir", "max_dist"), &NossTerrain::raycast);
 	ClassDB::bind_method(D_METHOD("region_get", "rect"), &NossTerrain::region_get);
@@ -209,13 +209,24 @@ Rect2i NossTerrain::paint(int64_t p_layer, const Vector2 &p_at, double p_radius,
 	return to_rect2i(_field.paint(int(p_layer), p_at.x, p_at.y, p_radius, p_strength, p_falloff));
 }
 
-Rect2i NossTerrain::conform(const Rect2i &p_rect, const PackedFloat32Array &p_road, double p_falloff_m, double p_depth_m) {
+Rect2i NossTerrain::conform(const Rect2i &p_rect, const PackedFloat32Array &p_road, double p_falloff_m, double p_depth_m, const PackedFloat32Array &p_aprons) {
 	std::vector<world::RoadSample> road(size_t(p_road.size() / 9));
 	const float *r = p_road.ptr();
+	// Aprons, if any: six per sample (edge_l, edge_r, apron_l, apron_r, slope_l, slope_r).
+	const float *ap = size_t(p_aprons.size()) == road.size() * 6 ? p_aprons.ptr() : nullptr;
 	for (size_t i = 0; i < road.size(); i++) {
 		const float *s = r + i * 9;
 		int flags = int(s[8] + 0.5f); // 1: lifted, 2: the road ends here
 		road[i] = { s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], (flags & 1) != 0, (flags & 2) != 0 };
+		if (ap) {
+			const float *a = ap + i * 6;
+			road[i].edge_l = a[0];
+			road[i].edge_r = a[1];
+			road[i].apron_l = a[2];
+			road[i].apron_r = a[3];
+			road[i].slope_l = a[4];
+			road[i].slope_r = a[5];
+		}
 	}
 	return to_rect2i(_field.conform(to_rect(p_rect), road, p_falloff_m, p_depth_m));
 }

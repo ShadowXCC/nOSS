@@ -11,16 +11,20 @@ extends RefCounted
 const SCHEMA := "noss.track/1"
 const LEGACY := "noss.track/0"
 
-## Road attributes and their defaults. width_l / width_r: centreline to each edge, m.
+## Road attributes and their defaults. width_l / width_r: centreline to each edge, m. An apron
+## (D202) is paved road past the edge (and its curb) at its own slope: an oval's flat inside.
 const DEFAULTS := {
 	"width_l": 6.0, "width_r": 6.0, "bank_deg": 0.0, "height": "ground",
 	"lanes": 1, "lines": "edges", "surface": "asphalt",
 	"curb_l": "auto", "curb_r": "auto",
 	"runoff_l": "grass", "runoff_r": "grass", "runoff_l_m": 16.0, "runoff_r_m": 16.0,
 	"barrier_l": "auto", "barrier_r": "auto",
+	"apron_l_m": 0.0, "apron_r_m": 0.0, "apron_l_deg": 0.0, "apron_r_deg": 0.0,
 }
+## Keys new tracks leave out of their defaults until they're used, so older layouts hash the same.
+const APRON_KEYS := ["apron_l_m", "apron_r_m", "apron_l_deg", "apron_r_deg"]
 ## Blended across a segment; the rest hold for the segment.
-const BLENDED := ["width_l", "width_r", "bank_deg"]
+const BLENDED := ["width_l", "width_r", "bank_deg", "apron_l_m", "apron_r_m", "apron_l_deg", "apron_r_deg"]
 const GRID := { "slots": 20, "front_m": 12.0, "row_m": 13.0, "stagger": 0.5, "pole": "left" }
 const ROLLING_BACK_M := 220.0
 ## The AI drives carefully on its first lap until this far; -1: decided from the track.
@@ -28,7 +32,7 @@ const CAUTION_AUTO := -1.0
 
 ## Surfaces by name, as VehicleSim reads them (docs/PHYSICS.md §4).
 const SURFACES := ["asphalt", "concrete", "curb", "paint", "grass", "gravel", "dirt", "sand", "snow", "ice"]
-const BARRIERS := ["none", "auto", "tyres", "armco", "concrete", "fence", "sound_wall"]
+const BARRIERS := ["none", "auto", "tyres", "armco", "concrete", "fence", "sound_wall", "safer"]
 const CURBS := ["auto", "on", "off"]
 const LINES := ["none", "edges", "lanes", "all"]
 const BARRIER_NONE := 0
@@ -36,6 +40,8 @@ const BARRIER_AUTO := 1
 const BARRIER_TYRES := 2
 const BARRIER_CONCRETE := 4
 const BARRIER_SOUND_WALL := 6
+## An oval's energy-absorbing wall with a catch fence on top (D202).
+const BARRIER_SAFER := 7
 const TYPES := ["circuit", "highway", "arena"]
 
 ## A highway's carriageways and traffic (type "highway", D106): lanes each way, counted from the
@@ -69,11 +75,19 @@ static func attr(road: Dictionary, i: int, key: String) -> Variant:
 	return road.get("defaults", {}).get(key, DEFAULTS[key])
 
 
+## The road defaults a new track starts with: DEFAULTS without the apron.
+static func base_defaults() -> Dictionary:
+	var d := DEFAULTS.duplicate()
+	for key: String in APRON_KEYS:
+		d.erase(key)
+	return d
+
+
 ## An empty v1 track (no points yet) with every section present.
 static func blank(id: String, name: String) -> Dictionary:
 	return {
 		"schema": SCHEMA, "id": id, "name": name, "type": "circuit", "style": StyleProfile.DEFAULT,
-		"road": { "mode": "road", "defaults": DEFAULTS.duplicate(), "points": [] },
+		"road": { "mode": "road", "defaults": base_defaults(), "points": [] },
 		"race": { "start_m": 0.0, "sectors_m": [], "checkpoint_spacing_m": 100.0, "grid": GRID.duplicate(),
 			"rolling_back_m": ROLLING_BACK_M, "gantry": true, "ai": { "caution_until_m": CAUTION_AUTO, "pins": [] } },
 		"ground": { "flat_y": -0.03, "surface": "grass" },
@@ -112,7 +126,7 @@ static func highway_half(h: Dictionary) -> float:
 ## The road defaults a highway's carriageways need: both widths to the outer edge, no curbs, a
 ## concrete strip to a concrete barrier; the highway draws its own lines.
 static func highway_road_defaults(h: Dictionary, defaults := {}) -> Dictionary:
-	var out: Dictionary = DEFAULTS.duplicate()
+	var out: Dictionary = base_defaults()
 	out.merge(defaults, true)
 	var half := highway_half(h)
 	out.width_l = half

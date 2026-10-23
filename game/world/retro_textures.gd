@@ -131,6 +131,18 @@ static func tyre_wall() -> Texture2D:
 		return img)
 
 
+## Chain link: one diamond of wire, clear between (a catch fence).
+static func chain_link() -> Texture2D:
+	return _cached("chain_link", func() -> Image:
+		var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+		img.fill(Color(0, 0, 0, 0))
+		for k in 16:
+			for w in 2: # two pixels thick, so the wire survives the mipmaps
+				img.set_pixel((k + w) % 16, k, Color(0.85, 0.86, 0.88))
+				img.set_pixel((15 - k + w) % 16, k, Color(0.85, 0.86, 0.88))
+		return img)
+
+
 static func checker() -> Texture2D:
 	return _cached("checker", func() -> Image:
 		var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)

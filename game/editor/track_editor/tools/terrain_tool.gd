@@ -38,7 +38,7 @@ func _commit(rect: Rect2i, before: Variant, after: Variant) -> void:
 
 func _live(rect: Rect2i) -> void:
 	var t := draft.terrain
-	var changed := t.field.conform(rect, TerrainData.road_samples(draft.track()), TerrainData.FALLOFF_M, TerrainData.BED_DEPTH_M)
+	var changed := t.field.conform(rect, TerrainData.road_samples(draft.track()), TerrainData.FALLOFF_M, TerrainData.BED_DEPTH_M, TerrainData.road_aprons(draft.track()))
 	var tv := view.preview.terrain_view()
 	if tv:
 		tv.update_rect(changed)

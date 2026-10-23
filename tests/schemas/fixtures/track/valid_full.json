@@ -10,6 +10,7 @@
       { "p": [-300, 0, 0] },
       { "p": [100, 0, 0], "width_l": 7.5, "width_r": 7.5, "lanes": 2, "lines": "lanes" },
       { "p": [480, 4, 25], "bank_deg": 5, "curb_r": "off", "barrier_l": "armco" },
+      { "p": [490, 6, 50], "bank_deg": -20, "apron_l_m": 9, "apron_l_deg": 0, "apron_r_m": 0, "apron_r_deg": -2, "barrier_r": "safer", "runoff_r_m": 0.3 },
       { "p": [500, 9.5, 80], "height": "set", "runoff_l": "gravel", "runoff_l_m": 20 }
     ]
   },

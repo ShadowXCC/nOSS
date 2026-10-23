@@ -11,7 +11,10 @@ signal changed(what: StringName, info: Dictionary)
 
 ## Left and right swap places when the track is driven the other way.
 const SIDES := { "width_l": "width_r", "width_r": "width_l", "curb_l": "curb_r", "curb_r": "curb_l", "runoff_l": "runoff_r",
-	"runoff_r": "runoff_l", "runoff_l_m": "runoff_r_m", "runoff_r_m": "runoff_l_m", "barrier_l": "barrier_r", "barrier_r": "barrier_l" }
+	"runoff_r": "runoff_l", "runoff_l_m": "runoff_r_m", "runoff_r_m": "runoff_l_m", "barrier_l": "barrier_r", "barrier_r": "barrier_l",
+	"apron_l_m": "apron_r_m", "apron_r_m": "apron_l_m", "apron_l_deg": "apron_r_deg", "apron_r_deg": "apron_l_deg" }
+## Slopes that change sign when the road is driven the other way (+ raises the left).
+const SLOPES := ["bank_deg", "apron_l_deg", "apron_r_deg"]
 ## ODbL: tracks made from OpenStreetMap data (the Eifel GP, D200) and copies of them.
 const LICENSES := [["CC-BY-SA-4.0", "CC BY-SA 4.0"], ["CC-BY-4.0", "CC BY 4.0"], ["CC0-1.0", "CC0 (public domain)"], ["ODbL-1.0", "ODbL 1.0 (map data)"],
 	["personal-use-only", "Personal use only"]]
@@ -220,7 +223,7 @@ func flip_direction() -> void:
 			var from: Dictionary = held[(i + 1) % pts.size()]
 			for k: String in from:
 				pts[i][String(SIDES.get(k, k))] = from[k] # left is right now
-			for pair: Array in [["width_l", "width_r"]]:
+			for pair: Array in [["width_l", "width_r"], ["apron_l_m", "apron_r_m"], ["apron_l_deg", "apron_r_deg"]]:
 				var a: Variant = pts[i].get(pair[0])
 				var b: Variant = pts[i].get(pair[1])
 				pts[i].erase(pair[0])
@@ -229,12 +232,16 @@ func flip_direction() -> void:
 					pts[i][pair[0]] = b
 				if a != null:
 					pts[i][pair[1]] = a
-			if pts[i].has("bank_deg"):
-				pts[i].bank_deg = -float(pts[i].bank_deg)
+			for k: String in SLOPES:
+				if pts[i].has(k):
+					pts[i][k] = -float(pts[i][k])
 		var d: Dictionary = layout.road.defaults
 		var swapped := {}
 		for k: String in d:
 			swapped[String(SIDES.get(k, k))] = d[k]
+		for k: String in SLOPES:
+			if float(swapped.get(k, 0.0)) != 0.0:
+				swapped[k] = -float(swapped[k])
 		layout.road.defaults = swapped
 		var race: Dictionary = layout.race
 		race.start_m = mirror.call(float(race.get("start_m", 0.0)))
@@ -426,7 +433,7 @@ func set_type(type: String) -> void:
 		else:
 			layout.erase("highway")
 			if was == "highway":
-				layout.road.defaults = TrackFormat.DEFAULTS.duplicate()
+				layout.road.defaults = TrackFormat.base_defaults()
 		# An arena (D138): its own section; its pieces sit anywhere, so a circuit's along the road go.
 		if type == "arena":
 			layout.arena = {}

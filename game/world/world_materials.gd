@@ -36,6 +36,16 @@ static func glowing(key: String, color: Color, glow := 1.0, night_only := false)
 	return m
 
 
+## A cut-out material (`texture`'s clear pixels are holes): a catch fence's chain link.
+static func see_through(key: String, texture: Texture2D, uv_scale: Vector2, tint := Color.WHITE) -> ShaderMaterial:
+	if _cache.has(key):
+		return _cache[key]
+	var m := get_material(key, texture, 0.5, 0.5, false, uv_scale, tint)
+	m.set_shader_parameter("alpha_scissor", true)
+	m.set_shader_parameter("snow_settle", 0.0)
+	return m
+
+
 ## Road paint in `color` (lines, painted props): paved, like the road it's on.
 static func paint(key: String, color: Color) -> ShaderMaterial:
 	return _paved(get_material(key, null, 0.6, 0.2, false, Vector2.ONE, color))

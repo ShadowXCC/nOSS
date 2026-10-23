@@ -68,7 +68,7 @@ public:
 	godot::Rect2i brush(int64_t p_mode, const godot::Vector2 &p_at, double p_radius, double p_strength, double p_falloff, double p_target, double p_scale, int64_t p_seed);
 	godot::Rect2i paint(int64_t p_layer, const godot::Vector2 &p_at, double p_radius, double p_strength, double p_falloff);
 	// p_road: per centreline sample x, y, z, left x, y, z, flat left, flat right, lifted (0/1).
-	godot::Rect2i conform(const godot::Rect2i &p_rect, const godot::PackedFloat32Array &p_road, double p_falloff_m, double p_depth_m);
+	godot::Rect2i conform(const godot::Rect2i &p_rect, const godot::PackedFloat32Array &p_road, double p_falloff_m, double p_depth_m, const godot::PackedFloat32Array &p_aprons = godot::PackedFloat32Array());
 	godot::Rect2i rect_around(const godot::Vector2 &p_at, double p_radius) const;
 	// {hit: bool, position: Vector3}
 	godot::Dictionary raycast(const godot::Vector3 &p_origin, const godot::Vector3 &p_dir, double p_max_dist) const;

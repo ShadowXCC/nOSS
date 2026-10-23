@@ -129,7 +129,7 @@ func ground_height() -> Callable:
 ## Returns the samples changed.
 func conform(track: TrackData, rect := Rect2i()) -> Rect2i:
 	var area_rect := rect if rect.has_area() else Rect2i(Vector2i.ZERO, field.get_size())
-	return field.conform(area_rect, road_samples(track), FALLOFF_M, BED_DEPTH_M)
+	return field.conform(area_rect, road_samples(track), FALLOFF_M, BED_DEPTH_M, road_aprons(track))
 
 
 ## The road for conform: per sample x, y, z, left, how far it levels each side, and flags (1:
@@ -161,10 +161,36 @@ static func _append_samples(out: PackedFloat32Array, track: TrackData, indices: 
 		out[k + 3] = l.x
 		out[k + 4] = l.y
 		out[k + 5] = l.z
-		out[k + 6] = track.half_l[i] + (TrackData.CURB_WIDTH if track.curb_l[i] else 0.0) + track.runoff_l_m[i]
-		out[k + 7] = track.half_r[i] + (TrackData.CURB_WIDTH if track.curb_r[i] else 0.0) + track.runoff_r_m[i]
+		out[k + 6] = track.half_l[i] + (TrackData.CURB_WIDTH if track.curb_l[i] else 0.0) + track.apron(i, 1.0) + track.runoff_l_m[i]
+		out[k + 7] = track.half_r[i] + (TrackData.CURB_WIDTH if track.curb_r[i] else 0.0) + track.apron(i, -1.0) + track.runoff_r_m[i]
 		out[k + 8] = 1.0 if track.lifted[i] else 0.0
 		k += 9
+
+
+## The road's aprons for conform (D202), lined up with road_samples(): per sample the edge each
+## side (centreline to it, past the curb), the aprons' widths and their slopes (rise per metre).
+## Empty when the road has none, so the bed is shaped as it always was.
+static func road_aprons(track: TrackData) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	if track == null or track.kind != "road":
+		return out
+	var any := false
+	for i in track.samples.size():
+		if track.apron(i, 1.0) > 0.0 or track.apron(i, -1.0) > 0.0:
+			any = true
+			break
+	if not any:
+		return out
+	out.resize(road_samples(track).size() / 9 * 6) # ramps and closing copies get none
+	for i in track.samples.size():
+		var k := i * 6
+		out[k] = track.half_l[i] + (TrackData.CURB_WIDTH if track.curb_l[i] else 0.0)
+		out[k + 1] = track.half_r[i] + (TrackData.CURB_WIDTH if track.curb_r[i] else 0.0)
+		out[k + 2] = track.apron_l[i]
+		out[k + 3] = track.apron_r[i]
+		out[k + 4] = tan(track.apron_l_bank[i])
+		out[k + 5] = tan(track.apron_r_bank[i])
+	return out
 
 
 ## Samples of chunk `c` (with the shared edge sample).
