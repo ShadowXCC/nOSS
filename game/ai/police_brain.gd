@@ -12,6 +12,9 @@ extends RefCounted
 ##   the tail round (TURN), then drops back (BACK_OFF) and lines up again;
 ## - block: gets ahead of the target in its path and slows, never below BLOCK_FLOOR of the target's
 ##   speed.
+## A target that's all but stopped is boxed in whatever the role: each unit noses up to it slowly
+## until they touch (busted, Heat.BUST_S on; D201), backing into it if it's behind (a stopped car
+## the brake puts in reverse; a spun target can be behind a unit that's ahead of it on the road).
 
 enum Pit { ALIGN, TURN, BACK_OFF }
 
@@ -31,6 +34,13 @@ const BLOCK_PASS_SIDE_M := 3.2
 const BLOCK_PASS_MPS := 9.0
 const BLOCK_SLOW_MPS := 4.0
 const BLOCK_FLOOR := 0.4
+## Boxing in: a target slower than this (m/s); nosing up to it at this share of the gap a second,
+## within these (m/s); backing into it on this much brake (reverse).
+const BOX_MPS := 3.0
+const BOX_CLOSE := 0.3
+const BOX_CREEP_MPS := 2.5
+const BOX_MAX_MPS := 8.0
+const BOX_REVERSE := 0.35
 
 ## Which side it comes at the target from (+1 left, -1 right).
 var side := 1.0
@@ -71,7 +81,16 @@ func decide(me: Dictionary, them: Dictionary, delta: float) -> Dictionary:
 	var aim: Vector3
 	var want := ts
 	var steer_bias := 0.0
-	match role:
+	match "box" if ts < BOX_MPS else role:
+		"box":
+			aim = them.pos
+			want = clampf((rel.length() - (them.half as Vector2).x - (me.half as Vector2).x) * BOX_CLOSE, BOX_CREEP_MPS, BOX_MAX_MPS)
+			if (them.pos - me.pos).dot(me.fwd) < 0.0:
+				# Behind it: back into it, steering to the side it's on (the tail goes that way).
+				last_want = -BOX_CREEP_MPS
+				var to_it: Vector3 = them.pos - me.pos
+				var it_right := atan2(-to_it.dot(Vector3((me.fwd as Vector3).z, 0.0, -(me.fwd as Vector3).x)), 0.5)
+				return { "steer": clampf(it_right * float(t.steer_gain), -1.0, 1.0), "throttle": 0.0, "brake": BOX_REVERSE, "handbrake": 0.0 }
 		"tail":
 			aim = them.pos - tf * TAIL_GAP_M + lead
 			var gap := -along - TAIL_GAP_M

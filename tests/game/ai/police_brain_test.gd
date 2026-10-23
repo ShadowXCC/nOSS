@@ -2,7 +2,8 @@ extends GdUnitTestSuite
 ## The police up close (D192), on states alone: a PIT lines up on the target's rear wheels, turns
 ## in towards it, then backs off; a blocker never slows below its floor; a tail at level 1 keeps
 ## off; a ram steers towards the target (the old one steered away). The heat table: more heat,
-## more units, faster and harder into bends, with no cap on their speed from heat 2 (D201).
+## more units, faster and harder into bends, with no cap on their speed from heat 2 (D201). A
+## stopped target is boxed in.
 
 const HALF := Vector2(2.3, 0.95)
 
@@ -114,3 +115,25 @@ func test_more_heat_more_units_harder() -> void:
 	assert_bool(PoliceTuning.at(4).roadblock).is_true()
 	assert_bool("block" in PoliceTuning.at(2).roles).is_true()
 	assert_bool("pit" in PoliceTuning.at(4).roles).is_true()
+
+
+## A target that's all but stopped is boxed in (D201): whatever its role a unit noses up to it,
+## slowly when close, steering at it; one it's behind backs into it (the brake reverses a stopped
+## car), the tail swung its way.
+func test_a_stopped_target_is_boxed_in() -> void:
+	var target := _car(Vector3.ZERO, 0.5)
+	for role: String in ["pit", "ram", "tail", "block"]:
+		var b := PoliceBrain.new()
+		b.level = 4
+		b.role = role
+		var c := b.decide(_car(Vector3(3.0, 0, -8.0), 0.0), target, 1.0 / 120.0)
+		assert_float(b.last_want).is_equal(PoliceBrain.BOX_CREEP_MPS) # close: slowly
+		assert_float(float(c.throttle)).is_greater(0.0)
+		assert_float(float(c.steer)).is_greater(0.0) # towards it: on the unit's right (-x, going +z)
+		b.decide(_car(Vector3(3.0, 0, -40.0), 0.0), target, 1.0 / 120.0)
+		assert_float(b.last_want).is_equal(PoliceBrain.BOX_MAX_MPS) # further off: quicker
+		# Ahead of it (it's behind the unit, to the unit's right): back into it, wheel to the right.
+		c = b.decide(_car(Vector3(3.0, 0, 8.0), 0.0), target, 1.0 / 120.0)
+		assert_float(float(c.throttle)).is_equal(0.0)
+		assert_float(float(c.brake)).is_equal(PoliceBrain.BOX_REVERSE)
+		assert_float(float(c.steer)).is_greater(0.0)
