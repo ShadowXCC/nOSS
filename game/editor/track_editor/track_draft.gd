@@ -12,7 +12,9 @@ signal changed(what: StringName, info: Dictionary)
 ## Left and right swap places when the track is driven the other way.
 const SIDES := { "width_l": "width_r", "width_r": "width_l", "curb_l": "curb_r", "curb_r": "curb_l", "runoff_l": "runoff_r",
 	"runoff_r": "runoff_l", "runoff_l_m": "runoff_r_m", "runoff_r_m": "runoff_l_m", "barrier_l": "barrier_r", "barrier_r": "barrier_l" }
-const LICENSES := [["CC-BY-SA-4.0", "CC BY-SA 4.0"], ["CC-BY-4.0", "CC BY 4.0"], ["CC0-1.0", "CC0 (public domain)"], ["personal-use-only", "Personal use only"]]
+## ODbL: tracks made from OpenStreetMap data (the Eifel GP, D200) and copies of them.
+const LICENSES := [["CC-BY-SA-4.0", "CC BY-SA 4.0"], ["CC-BY-4.0", "CC BY 4.0"], ["CC0-1.0", "CC0 (public domain)"], ["ODbL-1.0", "ODbL 1.0 (map data)"],
+	["personal-use-only", "Personal use only"]]
 const AUTOSAVE := ".autosave"
 
 var id := ""
