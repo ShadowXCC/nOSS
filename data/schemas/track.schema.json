@@ -78,6 +78,18 @@
         }
       }
     },
+    "rules": {
+      "description": "Track-mode rules the track suggests (D207): events that keep \"Track's\" race with them. Not part of the layout.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "start": { "enum": ["standing", "rolling"] },
+        "draft": { "type": "boolean" },
+        "fuel_x": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "tyre_x": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "pack": { "description": "Pack racing for the AI, with drafting on.", "type": "boolean" }
+      }
+    },
     "pit": {
       "description": "A circuit's pit lane (docs/TRACK_EDITOR.md §4, D203): it leaves the road on one side at from_m and has joined it again by to_m (metres along the road from point 0), attached for taper_m at each end and through its own points between.",
       "type": "object",

@@ -7561,6 +7561,13 @@
       }
     ]
   },
+  "rules": {
+    "draft": true,
+    "fuel_x": 5,
+    "pack": true,
+    "start": "rolling",
+    "tyre_x": 5
+  },
   "scene": null,
   "schema": "noss.track/1",
   "style": "retro_ps2",

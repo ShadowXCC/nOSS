@@ -24,8 +24,8 @@ var race_laps := 5
 var race_min := 0
 var ai_count := 11
 var ai_skill := 70.0
-## "standing" or "rolling".
-var start := "standing"
+## "standing", "rolling" or "track" (the track's: its `rules`, D207).
+var start := "track"
 ## Grid order: "qualifying", "reverse" (of qualifying) or "random".
 var grid := "qualifying"
 ## Car-to-car contact; false = ghosted.
@@ -34,6 +34,13 @@ var collisions := true
 var track_limits := "lenient"
 ## AI cars: "garage" (garage and built-in cars the class takes) or "builtin".
 var ai_cars := "garage"
+## Track-mode rules a track may suggest (its `rules`, D207): drafting ("track", "off" or "on"),
+## and fuel use and tire wear (-1: the track's, 0: off, 1-10: times the platform's own rate).
+var draft := "track"
+var fuel_x := -1
+var tyre_x := -1
+## Pack racing for the AI: the track's `rules.pack` with drafting on. Set by resolved() only.
+var pack := false
 ## Kart (D139, D144): item boxes on; a battle's rule ("standing": last one standing, "hits": most
 ## hits), its length in minutes, and a most-hits match's target (first to it wins; 0: time only).
 var items := true
@@ -93,7 +100,8 @@ var speed_traps := false
 
 ## The values each text field may take; the first is the default.
 const CHOICES := {
-	"kind": ["free", "race", "time_trial", "highway", "battle", "endless", "sumo", "drag"], "start": ["standing", "rolling"], "grid": ["qualifying", "reverse", "random"],
+	"kind": ["free", "race", "time_trial", "highway", "battle", "endless", "sumo", "drag"], "start": ["track", "standing", "rolling"], "grid": ["qualifying", "reverse", "random"],
+	"draft": ["track", "off", "on"],
 	"track_limits": ["lenient", "off", "strict"], "ai_cars": ["garage", "builtin"], "sub": ["cruise", "score", "run", "loop"],
 	"battle_rule": ["standing", "hits"],
 	"sumo_hazard": ["lava", "acid"], "sumo_shrink": ["smooth", "crumble", "stepped"],
@@ -106,7 +114,7 @@ const CHOICES := {
 ## Time rates offered in menus (game minutes per real minute).
 const TIME_RATES := [0, 1, 10, 30, 60, 120]
 const KEYS := ["kind", "practice_min", "qualifying_min", "race_laps", "race_min", "ai_count", "ai_skill",
-	"start", "grid", "collisions", "track_limits", "ai_cars", "sub", "police", "traffic", "run", "direction",
+	"start", "grid", "collisions", "track_limits", "ai_cars", "draft", "fuel_x", "tyre_x", "sub", "police", "traffic", "run", "direction",
 	"items", "battle_rule", "battle_min", "battle_hits",
 	"sumo_tiers", "sumo_hazard", "sumo_shrink", "sumo_secs", "sumo_pillar", "sumo_drift",
 	"drag_length_m", "drag_boost", "drag_timing", "drag_qtes", "drag_tree", "drag_two_step",
@@ -115,6 +123,10 @@ const KEYS := ["kind", "practice_min", "qualifying_min", "race_laps", "race_min"
 	"road_seed", "biome", "endless_traffic", "oncoming", "spread", "lanes", "drive_side", "garage_traffic", "speed_traps"]
 ## Written only for highway events (circuit events stay as older games and servers know them).
 const HIGHWAY_KEYS := ["sub", "police", "traffic", "run", "direction"]
+## Written only for circuit events (free drive, time trial, race weekends).
+const TRACK_KEYS := ["draft", "fuel_x", "tyre_x"]
+## Fuel and tire multipliers at most.
+const WEAR_X_MAX := 10
 ## Written only for battles, or with items off.
 const KART_KEYS := ["items", "battle_rule", "battle_min", "battle_hits"]
 ## Written only for sumo matches.
@@ -234,6 +246,8 @@ func to_dict() -> Dictionary:
 			continue
 		if key in ENDLESS_KEYS and kind != "endless":
 			continue
+		if key in TRACK_KEYS and kind not in ["free", "race", "time_trial"]:
+			continue
 		d[key] = get(key)
 	return d
 
@@ -264,10 +278,47 @@ static func from_dict(d: Dictionary) -> RaceEvent:
 	e.road_seed = clampi(e.road_seed, 0, 0x7FFFFFFF)
 	e.biome = clampi(e.biome, 0, 6)
 	e.lanes = 4 if e.lanes >= 4 else 2
+	e.fuel_x = clampi(e.fuel_x, -1, WEAR_X_MAX)
+	e.tyre_x = clampi(e.tyre_x, -1, WEAR_X_MAX)
 	# Text fields only take their known values (events also come from servers).
 	for key: String in CHOICES:
 		if e.get(key) not in CHOICES[key]:
 			e.set(key, CHOICES[key][0])
+	return e
+
+
+## The track's suggested rules (its `rules`, D207), every key there: a track without any races
+## as tracks always have (standing start, no drafting, no fuel use or tire wear).
+static func track_rules(track: TrackData) -> Dictionary:
+	return rules_of(track.raw.get("rules", {}) if track else {})
+
+
+## A track file's `rules` with every key filled in.
+static func rules_of(own: Variant) -> Dictionary:
+	var out := { "start": "standing", "draft": false, "fuel_x": 0, "tyre_x": 0, "pack": false }
+	if own is Dictionary:
+		for key: String in out:
+			if (own as Dictionary).has(key):
+				out[key] = own[key]
+	return out
+
+
+## A copy with the track's suggestions where this event keeps "Track's" (D207). The session
+## races the copy; the remembered event keeps "Track's" for the next track.
+func resolved(track: TrackData) -> RaceEvent:
+	var e := RaceEvent.new()
+	for key: String in KEYS:
+		e.set(key, get(key))
+	var rules := track_rules(track)
+	if e.start == "track":
+		e.start = "rolling" if String(rules.start) == "rolling" else "standing"
+	if e.draft == "track":
+		e.draft = "on" if bool(rules.draft) else "off"
+	if e.fuel_x < 0:
+		e.fuel_x = clampi(int(rules.fuel_x), 0, WEAR_X_MAX)
+	if e.tyre_x < 0:
+		e.tyre_x = clampi(int(rules.tyre_x), 0, WEAR_X_MAX)
+	e.pack = e.draft == "on" and bool(rules.pack)
 	return e
 
 

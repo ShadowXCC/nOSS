@@ -370,6 +370,9 @@ func _ready() -> void:
 			track_package = TrackLoader.load_package(DEFAULT_TRACK)
 		track = track_package.track
 		terrain = track_package.terrain
+	# The track's suggested rules where the event keeps "Track's" (D207): this session races a
+	# copy, so the remembered event keeps "Track's" for the next track.
+	event = event.resolved(track)
 	var style := StyleProfile.load_profile(track.style)
 	style.apply_globals()
 	var env_node := style.create_environment()

@@ -166,6 +166,12 @@ my_track.nosstrack
 ```
 
   Direction 1 drives along the road's line on its right side, −1 the other way on its left; lanes count from the outside; `race.start_m` is the lap line. Flip direction swaps the directions and mirrors the distances; the ramps stay where they are.
+- A track can suggest Track-mode rules (D207) in a `rules` section, used by events that keep "Track's"; it isn't part of the layout. The Race tool's "Suggested rules" sets it:
+
+```jsonc
+"rules": { "start":"rolling", "draft":true, "fuel_x":5, "tyre_x":5, "pack":true }
+```
+
 - A pit lane (D203) goes in a `pit` section on circuits:
 
 ```jsonc

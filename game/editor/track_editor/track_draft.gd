@@ -271,6 +271,21 @@ static func _flip_pit(pit: Dictionary, mirror: Callable) -> void:
 		(pit.points as Array).reverse()
 
 
+## A rule the track suggests to events that keep "Track's" (D207): start ("standing" or
+## "rolling"), draft, fuel_x, tyre_x (0-10) or pack; null: back to the plain default.
+func set_rule(key: String, value: Variant) -> void:
+	_edit("Set " + key.trim_suffix("_x").replace("_", " "), "rules", func() -> void:
+		var rules: Dictionary = layout.get("rules", {})
+		if value == null:
+			rules.erase(key)
+		else:
+			rules[key] = value
+		if rules.is_empty():
+			layout.erase("rules")
+		else:
+			layout.rules = rules, &"rules")
+
+
 ## A pit lane (D203) from `from_m` to `to_m` along the road on `side`, laid along the road
 ## (pit_along_road). Replaces one there was.
 func add_pit(from_m: float, to_m: float, side := "right") -> void:

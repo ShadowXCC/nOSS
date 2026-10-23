@@ -10,6 +10,8 @@ signal closed
 var event: RaceEvent
 var _rows: Array = []
 var _length_row: Button
+## The rows that show the track's suggestions ("Track's (Rolling)"): made again when the track changes.
+var _rule_rows: Array = []
 
 
 func _ready() -> void:
@@ -30,7 +32,9 @@ func _ready() -> void:
 	scroll.add_child(rows)
 
 	var tracks := TrackLibrary.list(true, true, "circuit").map(func(e: Dictionary) -> Array: return [e.path, TrackLibrary.label(e)])
-	_add(rows, UiKit.spinner("Track", tracks, Game.selected_track("circuit"), func(path: String) -> void: Settings.profile.last_track = path))
+	_add(rows, UiKit.spinner("Track", tracks, Game.selected_track("circuit"), func(path: String) -> void:
+		Settings.profile.last_track = path
+		_rebuild_rules()))
 	_add(rows, UiKit.spinner("Practice", _minutes([0, 5, 10, 15, 30]), event.practice_min, func(v: int) -> void: event.practice_min = v))
 	_add(rows, UiKit.spinner("Qualifying", _minutes([0, 5, 10, 15]), event.qualifying_min, func(v: int) -> void: event.qualifying_min = v))
 	_add(rows, UiKit.spinner("Race length", [["laps", "Laps"], ["time", "Time"]], "time" if event.race_min > 0 else "laps", func(v: String) -> void:
@@ -47,7 +51,9 @@ func _ready() -> void:
 		skills.append([float(n), "%d" % n])
 	_add(rows, UiKit.spinner("AI skill", skills, snappedf(event.ai_skill, 5.0), func(v: float) -> void: event.ai_skill = v))
 	_add(rows, UiKit.spinner("AI cars look", [["garage", "Garage"], ["builtin", "Built-in"]], event.ai_cars, func(v: String) -> void: event.ai_cars = v))
-	_add(rows, UiKit.spinner("Start", [["standing", "Standing"], ["rolling", "Rolling"]], event.start, func(v: String) -> void: event.start = v))
+	for row in _rules_spinners():
+		_add(rows, row)
+		_rule_rows.append(row)
 	_add(rows, UiKit.spinner("Grid", [["qualifying", "Qualifying"], ["reverse", "Reverse"], ["random", "Random"]], event.grid, func(v: String) -> void: event.grid = v))
 	_add(rows, UiKit.spinner("Collisions", [[true, "On"], [false, "Ghosted"]], event.collisions, func(v: bool) -> void: event.collisions = v))
 	_add(rows, UiKit.spinner("Track limits", [["off", "Off"], ["lenient", "Lenient"], ["strict", "Strict"]], event.track_limits, func(v: String) -> void: event.track_limits = v))
@@ -80,6 +86,40 @@ func _length_spinner() -> Button:
 	for n in [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50]:
 		laps.append([n, "%d lap%s" % [n, "" if n == 1 else "s"]])
 	return UiKit.spinner("Race", laps, event.race_laps, func(v: int) -> void: event.race_laps = v)
+
+
+## Start, drafting, fuel use and tire wear (D207): each "Track's" or the event's own, the
+## track's shown beside it.
+func _rules_spinners() -> Array[Control]:
+	var rules := RaceEvent.rules_of(TrackLibrary.rules(Game.selected_track("circuit")))
+	var times := func(x: int) -> String: return "Off" if x <= 0 else "%dx" % x
+	var multipliers := func(track_x: int) -> Array:
+		var out := [[-1, "Track's (%s)" % times.call(track_x)], [0, "Off"]]
+		for x in range(1, RaceEvent.WEAR_X_MAX + 1):
+			out.append([x, "%dx" % x])
+		return out
+	var out: Array[Control] = []
+	out.append(UiKit.spinner("Start", [["track", "Track's (%s)" % String(rules.start).capitalize()], ["standing", "Standing"], ["rolling", "Rolling"]], event.start,
+		func(v: String) -> void: event.start = v, "Rolling: the field follows at a steady pace and the green comes at the line"))
+	out.append(UiKit.spinner("Drafting", [["track", "Track's (%s)" % ("On" if bool(rules.draft) else "Off")], ["off", "Off"], ["on", "On"]], event.draft,
+		func(v: String) -> void: event.draft = v, "Close behind another car, less drag"))
+	out.append(UiKit.spinner("Fuel use", multipliers.call(int(rules.fuel_x)), event.fuel_x, func(v: int) -> void: event.fuel_x = v,
+		"Times the car's own: more means more pit stops"))
+	out.append(UiKit.spinner("Tire wear", multipliers.call(int(rules.tyre_x)), event.tyre_x, func(v: int) -> void: event.tyre_x = v,
+		"Times the car's own: worn tires grip less"))
+	return out
+
+
+## The track changed: the rows that show its suggestions again, focus kept on the track.
+func _rebuild_rules() -> void:
+	var fresh := _rules_spinners()
+	for k in _rule_rows.size():
+		var old: Control = _rule_rows[k]
+		old.add_sibling(fresh[k])
+		_rows[_rows.find(old)] = fresh[k]
+		old.queue_free()
+	_rule_rows.assign(fresh)
+	UiKit.chain_focus(_rows)
 
 
 ## Laps and time swap the length row in place.

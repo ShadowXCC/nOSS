@@ -108,6 +108,10 @@ func save() -> void:
 ## The last race set up, or the defaults.
 func last_event() -> RaceEvent:
 	var e := RaceEvent.from_dict(race_event) if race_event is Dictionary else RaceEvent.new()
+	# Saved before tracks suggested their rules (D207): a standing start was the only default
+	# there was, so it becomes "Track's" once (on every older track that still means standing).
+	if race_event is Dictionary and not (race_event as Dictionary).has("draft") and e.start == "standing":
+		e.start = "track"
 	e.kind = "race"
 	Game.apply_dev_event(e)
 	return e

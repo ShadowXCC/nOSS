@@ -86,6 +86,21 @@ static func manifest_hash(path: String) -> String:
 	return h
 
 
+## The rules a track suggests (its track.json's `rules`, D207); {} if none (or no track).
+static func rules(path: String) -> Dictionary:
+	var text := ""
+	if path.ends_with(".json"):
+		text = FileAccess.get_file_as_string(path)
+	elif path:
+		var source := PackageSource.open(path, TrackLoader.LIMITS)
+		if not source.error and source.has("track.json"):
+			text = source.read("track.json").get_string_from_utf8()
+		source.close()
+	var d: Variant = JSON.parse_string(text) if text else null
+	var own: Variant = (d as Dictionary).get("rules", {}) if d is Dictionary else {}
+	return own if own is Dictionary else {}
+
+
 ## A track's type ("circuit", "highway") by its manifest, or a bare track.json's own; "" if it's
 ## not a track.
 static func type_of(path: String) -> String:

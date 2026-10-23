@@ -209,6 +209,7 @@ func panel() -> Array:
 		func(v: float) -> void: draft.set_race("rolling_back_m", v, "Rolling start"), "Before the line"))
 	out.append(UiKit.spinner("Start gantry", [[true, "On"], [false, "Off"]], t.gantry, func(v: bool) -> void: draft.set_race("gantry", v, "Start gantry")))
 	out.append_array(_pit_rows(t))
+	out.append_array(_rule_rows())
 	out.append_array(_ai_rows(t))
 	out.append_array(_sky_rows())
 	return out
@@ -239,6 +240,23 @@ func _pit_rows(t: TrackData) -> Array:
 	out.append(UiKit.button("Remove pit lane", func() -> void:
 		draft.remove_pit()
 		editor.say("Pit lane removed")))
+	return out
+
+
+## The rules the track suggests to events that keep "Track's" (D207).
+func _rule_rows() -> Array:
+	var rules := RaceEvent.rules_of(draft.layout.get("rules", {}))
+	var out := [UiKit.label("Suggested rules", 26)]
+	var times := []
+	for x in range(0, RaceEvent.WEAR_X_MAX + 1):
+		times.append([x, "Off" if x == 0 else "%dx" % x])
+	out.append(UiKit.spinner("Start", [["standing", "Standing"], ["rolling", "Rolling"]], String(rules.start), func(v: String) -> void: draft.set_rule("start", v),
+		"For events that keep the track's"))
+	out.append(UiKit.spinner("Drafting", [[false, "Off"], [true, "On"]], bool(rules.draft), func(v: bool) -> void: draft.set_rule("draft", v)))
+	out.append(UiKit.spinner("Fuel use", times, int(rules.fuel_x), func(v: int) -> void: draft.set_rule("fuel_x", v)))
+	out.append(UiKit.spinner("Tire wear", times, int(rules.tyre_x), func(v: int) -> void: draft.set_rule("tyre_x", v)))
+	out.append(UiKit.spinner("Pack racing", [[false, "Off"], [true, "On"]], bool(rules.pack), func(v: bool) -> void: draft.set_rule("pack", v),
+		"With drafting on, the AI run in grooves and draft each other"))
 	return out
 
 

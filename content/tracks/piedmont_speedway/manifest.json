@@ -10,7 +10,7 @@
     "terrain/meta.json": "sha256:8b138c903d89eb3841a3507d6361237d02a9c32600ed6fdfc131e91825e7891a",
     "terrain/splat_0.png": "sha256:5a7088178a0b29a5b7df6a76009cbd0cbd5d4ea4093938a8be441ef980af76e0",
     "terrain/splat_1.png": "sha256:d5a37e605b31462a25e92d10e630f2c628627d2f2ffaeccea6c1acbd2abe8b01",
-    "track.json": "sha256:9213a9e85528a260e98d47b85a40fd636a3bcf4057ac8b805fd8c05ea60b0e41"
+    "track.json": "sha256:abc7cf3e5e096bb3a2c7976badc52843f261fad168980cf0b970fecbddffd838"
   },
   "game_min_version": "0.12.0",
   "id": "piedmont_speedway",

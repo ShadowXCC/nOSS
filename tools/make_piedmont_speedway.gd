@@ -14,7 +14,8 @@ extends Node
 ## apron inside, a SAFER wall with its catch fence right at the outside. The ground is the DEM,
 ## level over the venue (and up to the top of the banking for a berm outside the wall, where the
 ## grandstands stand), blending back into the real hills further out. Pit road inside the
-## frontstretch, 20 boxes, 45 mph. Night under the lights.
+## frontstretch, 20 boxes, 45 mph. Night under the lights; it suggests a rolling start, drafting,
+## fuel and tires at five times their wear, and pack racing (D207).
 ##   tools/godot.sh --headless res://tools/make_piedmont_speedway.tscn [-- --out=<folder>]
 
 const G := preload("res://tools/track_gen_util.gd")
@@ -154,6 +155,10 @@ static func build() -> TrackDraft:
 	_pits(d, d.track(), data.pit_lane)
 	d.set_env("time", "night")
 	d.set_env("floodlit", true)
+	# What events that keep "Track's" race with (D207): a rolling start, drafting, five times the
+	# fuel use and tire wear (stops in a short race), the AI in packs.
+	for rule: Array in [["start", "rolling"], ["draft", true], ["fuel_x", 5], ["tyre_x", 5], ["pack", true]]:
+		d.set_rule(rule[0], rule[1])
 	_props(d, d.track(), start, line)
 	d.history = EditHistory.new()
 	d.saved_version = d.history.version()

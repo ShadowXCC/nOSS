@@ -8,7 +8,9 @@ extends Node
 ##   --speed-factor=<x>   highways: autodriven players go x times the lanes' limits (police checks)
 ##   --players=<n>        free drive with n players; the extra ones are driven by the racing AI
 ##   --ai=<n>             add n AI racers (no views); --ai-skill=<0-100>, --ai-builtin: built-in cars only
-##   --race               start a race right away (the last race set up); --race-laps=<n>, --race-ai=<n>
+##   --race               start a race right away (the last race set up); --race-laps=<n>, --race-ai=<n>,
+##                        --race-start=track|standing|rolling, --race-draft=track|off|on,
+##                        --race-fuel=<-1-10>, --race-tyres=<-1-10> (-1: the track's; 0: off)
 ##   --quit-after-results quit when a session's results come up (timed runs, checks)
 ##   --auto-continue      go straight on to the next session when results come up; quit after the last
 ##   --voices             print the text-to-speech voices
@@ -299,6 +301,13 @@ func apply_dev_event(e: RaceEvent) -> void:
 		e.grid = dev["race-grid"]
 	if dev.has("ai-skill"):
 		e.ai_skill = float(dev["ai-skill"])
+	# Track-mode rules (D207): "track", "off" or "on"; the multipliers -1 (the track's), 0 (off) to 10.
+	if dev.has("race-draft"):
+		e.draft = String(dev["race-draft"])
+	if dev.has("race-fuel"):
+		e.fuel_x = clampi(int(dev["race-fuel"]), -1, RaceEvent.WEAR_X_MAX)
+	if dev.has("race-tyres"):
+		e.tyre_x = clampi(int(dev["race-tyres"]), -1, RaceEvent.WEAR_X_MAX)
 
 
 ## The track to drive: --track, else the last one picked, else the Proving Ground (or the first
