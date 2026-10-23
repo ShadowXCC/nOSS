@@ -133,18 +133,24 @@ func conform(track: TrackData, rect := Rect2i()) -> Rect2i:
 
 
 ## The road for conform: per sample x, y, z, left, how far it levels each side, and flags (1:
-## lifted, 2: the road ends after this sample). A highway's main road closes on a copy of its first
-## sample, then each ramp follows, ending on its last.
+## lifted, 2: the road ends after this sample). With a highway's ramps or a pit lane the main road
+## closes on a copy of its first sample, then each strip follows, ending on its last.
 static func road_samples(track: TrackData) -> PackedFloat32Array:
 	var out := PackedFloat32Array()
 	if track == null or track.kind != "road":
 		return out
 	_append_samples(out, track, range(track.samples.size()))
-	if track.highway and not track.highway.ramps.is_empty():
+	var strips := []
+	if track.highway:
+		for r in track.highway.ramps:
+			strips.append(r.track)
+	if track.pit:
+		strips.append(track.pit.track)
+	if not strips.is_empty():
 		_append_samples(out, track, [0])
 		out[out.size() - 1] += 2.0
-		for r in track.highway.ramps:
-			_append_samples(out, r.track, range(r.track.samples.size()))
+		for strip: TrackData in strips:
+			_append_samples(out, strip, range(strip.samples.size()))
 			out[out.size() - 1] += 2.0
 	return out
 

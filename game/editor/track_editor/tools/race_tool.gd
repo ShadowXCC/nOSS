@@ -7,7 +7,7 @@ extends EditorTool
 ## removes one. On a highway (EDT-10): the lap line, runs, speed traps, speed limit and tunnel
 ## zones, and the traffic; no grid or AI line (traffic keeps to its lanes).
 
-const CLICKS := [["start", "Start line"], ["sector", "Sector line"], ["pin", "AI line pin"]]
+const CLICKS := [["start", "Start line"], ["sector", "Sector line"], ["pin", "AI line pin"], ["pit_entry", "Pit entry"], ["pit_exit", "Pit exit"]]
 const HIGHWAY_CLICKS := [["start", "Lap line"], ["run_start", "Run start"], ["run_end", "Run end"], ["trap", "Speed trap"],
 	["zone_start", "Zone start"], ["zone_end", "Zone end"]]
 ## A new run or zone reaches this far until its end is set.
@@ -48,6 +48,10 @@ func hint() -> String:
 			return "Click a carriageway to put a speed trap there"
 		"zone_start":
 			return "Click the road where a speed limit or tunnel starts"
+		"pit_entry":
+			return "Click the road where the pit lane leaves it"
+		"pit_exit":
+			return "Click the road where the pit lane has joined it"
 	return "Click the road to put the %s there · F5 drives" % ("lap line" if draft.is_highway() else "start line")
 
 
@@ -83,6 +87,9 @@ func pointer(e: Dictionary) -> void:
 					_add_sector(d)
 				"pin":
 					_press_pin(d, float(on.lateral), e.crosshair)
+				"pit_entry", "pit_exit":
+					view.grabbing = false
+					_pit_click(click == "pit_entry", d)
 				_:
 					view.grabbing = false
 					_highway_click(click, d, HighwayLayout.carriageway_at(float(on.lateral)))
@@ -201,9 +208,57 @@ func panel() -> Array:
 	out.append(UiKit.number("Rolling start from", t.rolling_back_m, 50.0, 1000.0, 10.0, "%.0f m",
 		func(v: float) -> void: draft.set_race("rolling_back_m", v, "Rolling start"), "Before the line"))
 	out.append(UiKit.spinner("Start gantry", [[true, "On"], [false, "Off"]], t.gantry, func(v: bool) -> void: draft.set_race("gantry", v, "Start gantry")))
+	out.append_array(_pit_rows(t))
 	out.append_array(_ai_rows(t))
 	out.append_array(_sky_rows())
 	return out
+
+
+## A pit lane (D203): where it leaves and joins the road (or "Pit entry" and "Pit exit" clicks),
+## its side, width, speed limit, boxes and wall.
+func _pit_rows(t: TrackData) -> Array:
+	var out := [UiKit.label("Pit lane", 26)]
+	var pit: Dictionary = draft.layout.get("pit", {})
+	if pit.is_empty():
+		out.append(UiKit.button("Add pit lane", func() -> void:
+			draft.add_pit(fposmod(t.start_m - 400.0, t.length), fposmod(t.start_m + 300.0, t.length))
+			editor.say(_pit_state()), "Along the start straight, on the right"))
+		return out
+	var length := t.length
+	out.append(UiKit.number("Pit entry", float(pit.from_m), 0.0, length, 5.0, "%.0f m", func(v: float) -> void: draft.set_pit("from_m", v, "Move pit entry"),
+		"Where it leaves the road, from point 1"))
+	out.append(UiKit.number("Pit exit", float(pit.to_m), 0.0, length, 5.0, "%.0f m", func(v: float) -> void: draft.set_pit("to_m", v, "Move pit exit"),
+		"Where it has joined the road"))
+	out.append(UiKit.spinner("Pit side", [["right", "Right"], ["left", "Left"]], String(pit.get("side", "right")), func(v: String) -> void: draft.set_pit("side", v)))
+	out.append(UiKit.number("Pit width", float(pit.get("width_m", PitLane.DEFAULTS.width_m)), 6.0, 20.0, 0.5, "%.1f m", func(v: float) -> void: draft.set_pit("width_m", v)))
+	out.append(UiKit.number("Pit speed limit", float(pit.get("speed_kmh", PitLane.DEFAULTS.speed_kmh)), 30.0, 120.0, 5.0, "%.0f km/h",
+		func(v: float) -> void: draft.set_pit("speed_kmh", v)))
+	out.append(UiKit.number("Pit boxes", float(pit.get("boxes", PitLane.DEFAULTS.boxes)), 1.0, 40.0, 1.0, "%.0f", func(v: float) -> void: draft.set_pit("boxes", int(v))))
+	out.append(UiKit.spinner("Pit wall", [[true, "On"], [false, "Off"]], bool(pit.get("wall", true)), func(v: bool) -> void: draft.set_pit("wall", v)))
+	out.append(_note(_pit_state()))
+	out.append(UiKit.button("Remove pit lane", func() -> void:
+		draft.remove_pit()
+		editor.say("Pit lane removed")))
+	return out
+
+
+func _pit_click(entry: bool, d: float) -> void:
+	var t := draft.track()
+	if not draft.layout.has("pit"):
+		draft.add_pit(d if entry else fposmod(d - 700.0, t.length), fposmod(d + 700.0, t.length) if entry else d)
+	else:
+		draft.set_pit("from_m" if entry else "to_m", d, "Move pit entry" if entry else "Move pit exit")
+	editor.say(_pit_state())
+
+
+## How the pit lane came out: its length and boxes, or why it didn't build.
+func _pit_state() -> String:
+	var t := draft.track()
+	if t.pit_error:
+		return t.pit_error
+	if t.pit == null:
+		return "No pit lane"
+	return "Pit lane %.0f m, %d boxes%s" % [t.pit.track.length, t.pit.boxes.size(), " (too many to fit)" if t.pit.crowded else ""]
 
 
 ## The track's own time and weather (D153): what events get when they keep "Track's".

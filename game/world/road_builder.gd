@@ -66,6 +66,33 @@ func build_all(root: Node3D, segmented := false) -> void:
 		for r in track.highway.ramps:
 			root.add_child(build_ramp(r))
 		root.add_child(_hw.extras())
+	if track.pit:
+		root.add_child(build_pit())
+
+
+## A circuit's pit lane (D203) as one node, "Pit": its road and lines, the limit lines, the box
+## outlines and the pit wall.
+func build_pit() -> Node3D:
+	var pit := track.pit
+	var rb := RoadBuilder.new(pit.track, terrain)
+	rb.visual = visual
+	var node := Node3D.new()
+	node.name = "Pit"
+	var pieces := rb._batches(0, pit.track.samples.size() - 1)
+	if visual:
+		rb._pit_paint(rb._batch(pieces, "lines"), pit)
+	rb._add_batches(node, pieces)
+	return node
+
+
+## Replaces the pit lane's node under `root` (the editor, after the road moved).
+func rebuild_pit(root: Node3D) -> void:
+	var old := root.get_node_or_null(^"Pit")
+	if old:
+		root.remove_child(old)
+		old.queue_free()
+	if track.pit:
+		root.add_child(build_pit())
 
 
 ## A highway ramp's road as one node, "Ramp_<id>".
@@ -175,9 +202,9 @@ func _batches(first: int, end: int) -> Dictionary:
 	return out
 
 
-## True where `side` of sample `k` opens onto another road (a highway's ramp mouths).
+## True where `side` of sample `k` opens onto another road (a highway's ramp mouths, a pit lane's).
 func _gapped(k: int, side: float) -> bool:
-	return (_hw != null and _hw.gapped(k, side)) or (track.kart != null and track.kart.gap(k, side))
+	return (_hw != null and _hw.gapped(k, side)) or (track.kart != null and track.kart.gap(k, side)) or (track.pit != null and track.pit.gap(k, side))
 
 
 func _batch(out: Dictionary, key: String) -> MeshBatch:
@@ -210,6 +237,31 @@ func _road_quad(b: MeshBatch, i: int, j: int) -> void:
 			var down := Vector3.DOWN * SKIRT
 			var face := [ti + down, ti, tj, tj + down] if side > 0.0 else [ti, ti + down, tj + down, tj]
 			b.quad(face, [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO], c)
+
+
+## A pit lane's paint on its own road (this builder's): the limit lines across it and each box's
+## outline.
+func _pit_paint(b: MeshBatch, pit: PitLane) -> void:
+	var half := pit.width / 2.0
+	for d: float in [pit.limit_in_m, pit.limit_out_m]:
+		var here := track.half_width(d, 1.0) # narrower in the tapers
+		_strip_quad(b, d - 0.3, d + 0.3, here - LINE_INSET, -here + LINE_INSET)
+	var inner := pit.side * LINE_INSET # the box lane: from the middle out to the edge
+	var outer := pit.side * (half - LINE_INSET)
+	for d in pit.box_at:
+		var a := d - pit.box_m / 2.0
+		var z := d + pit.box_m / 2.0
+		_strip_quad(b, a, a + LINE_WIDTH, maxf(inner, outer), minf(inner, outer))
+		_strip_quad(b, z - LINE_WIDTH, z, maxf(inner, outer), minf(inner, outer))
+		_strip_quad(b, a, z, maxf(inner, inner + pit.side * LINE_WIDTH), minf(inner, inner + pit.side * LINE_WIDTH))
+
+
+## A painted quad on this road from `d0` to `d1` along it, `l0` to `l1` across (l0 left of l1).
+func _strip_quad(b: MeshBatch, d0: float, d1: float, l0: float, l1: float) -> void:
+	var at := func(d: float, l: float) -> Vector3:
+		var x := track.transform_at(d, l)
+		return x.origin + x.basis.y * LINE_UP * 1.5
+	b.quad([at.call(d0, l0), at.call(d0, l1), at.call(d1, l1), at.call(d1, l0)], [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
 
 
 ## The paved edge on `side`: the road's own edge, or past its apron (and the curb before it).

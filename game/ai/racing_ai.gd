@@ -449,7 +449,8 @@ func _recover(out: Dictionary, delta: float) -> bool:
 	var v := absf(racer.speed)
 	var upright := vehicle.global_basis.y.y > 0.3
 	var heading := vehicle.global_basis.z.dot(racer.track.tangents[maxi(racer.track_index, 0)])
-	var off := absf(racer.lateral) > racer.track.half_width(racer.distance, racer.lateral) + 4.0
+	var off := absf(racer.lateral) > racer.track.half_width(racer.distance, racer.lateral) + racer.track.apron(racer.track_index, racer.lateral) + 4.0 \
+		and not racer.in_pit
 	var backwards := heading < -0.2 and v > 3.0
 	if not upright or off or backwards:
 		_trouble_time += delta

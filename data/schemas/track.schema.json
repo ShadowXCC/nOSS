@@ -78,6 +78,34 @@
         }
       }
     },
+    "pit": {
+      "description": "A circuit's pit lane (docs/TRACK_EDITOR.md §4, D203): it leaves the road on one side at from_m and has joined it again by to_m (metres along the road from point 0), attached for taper_m at each end and through its own points between.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from_m", "to_m"],
+      "properties": {
+        "side": { "enum": ["left", "right"] },
+        "from_m": { "$ref": "#/$defs/distance" },
+        "to_m": { "$ref": "#/$defs/distance" },
+        "taper_m": { "type": "number", "minimum": 20, "maximum": 400 },
+        "points": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["p"],
+            "properties": { "p": { "$ref": "#/$defs/vec3" }, "height": { "enum": ["ground", "set"] } }
+          }
+        },
+        "width_m": { "type": "number", "minimum": 4, "maximum": 30 },
+        "speed_kmh": { "type": "number", "minimum": 20, "maximum": 200 },
+        "limit_m": { "type": "number", "minimum": 0, "maximum": 500 },
+        "boxes": { "type": "integer", "minimum": 1, "maximum": 40 },
+        "box_m": { "type": "number", "minimum": 5, "maximum": 30 },
+        "wall": { "type": "boolean" }
+      }
+    },
     "highway": {
       "description": "A highway's carriageways, ramps, portals, runs and traffic (type highway; docs/TRACK_EDITOR.md §1, D106). The road is the median's centreline; direction 1 drives along it on its right, -1 the other way.",
       "type": "object",

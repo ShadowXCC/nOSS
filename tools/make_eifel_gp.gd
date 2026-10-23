@@ -63,7 +63,13 @@ const ARMCO_R_M := 260.0
 const ARMCO_CLEAR_M := 15.0
 ## Along-track distance inside which road counts as the same part (m).
 const SAME_PART_M := 80.0
-const PIT_LANE_HALF_M := 6.0
+## The pit lane (D203): 8 m wide (the map's line sits 12-19 m off the road's), kept PIT_CLEAR_M
+## clear of the road's edge for its wall, attached for PIT_TAPER_M at each end; 80 km/h, a box
+## for each grid slot.
+const PIT_LANE_HALF_M := 4.0
+const PIT_CLEAR_M := 2.0
+const PIT_TAPER_M := 90.0
+const PIT_SPEED_KMH := 80.0
 const TREES := 3000
 const TREE_ROAD_M := 48.0
 const MARSHAL_EVERY_M := 400.0
@@ -365,15 +371,32 @@ static func _runoff(d: TrackDraft, t: TrackData, arena: Vector2) -> void:
 	_apply(d, changes)
 
 
-## The pit lane (the real one) along the right of the start straight: paved run-off out to it,
-## no barrier (the pit building stands behind it). Its lateral at the start line (m, + left).
+## The pit lane (the real one, D203) on the right: it leaves the road in the last chicane and
+## joins it before the first corner. Between its tapers it follows the map's pit points, pushed
+## out where they come within PIT_CLEAR_M of the road; paved run-off out to its wall. Returns its
+## lateral at the start line (m, + left).
 static func _pits(d: TrackDraft, t: TrackData, pit_lane: Array, straight: Vector2, start: float) -> float:
 	var along := PackedFloat32Array()
 	var lateral := PackedFloat32Array()
 	for p: Array in pit_lane:
 		var proj := _project(d, t, Vector2(p[0], p[1]))
 		along.append(float(proj.distance))
-		lateral.append(float(proj.lateral))
+		var k := t.index_at(float(proj.distance))
+		lateral.append(minf(float(proj.lateral), -(t.half_r[k] + PIT_CLEAR_M + PIT_LANE_HALF_M)))
+	var from := snappedf(along[0], 0.1)
+	var to := snappedf(along[along.size() - 1], 0.1)
+	var points := []
+	var free := Vector2(from + PIT_TAPER_M + 15.0, to - PIT_TAPER_M - 15.0)
+	for j in along.size():
+		if _within(t, along[j], free):
+			var at := t.transform_at(along[j], lateral[j]).origin
+			points.append({ "p": [snappedf(at.x, 0.01), 0.0, snappedf(at.z, 0.01)] })
+	d.add_pit(from, to, "right")
+	d.set_pit("taper_m", PIT_TAPER_M)
+	d.set_pit("width_m", PIT_LANE_HALF_M * 2.0)
+	d.set_pit("speed_kmh", PIT_SPEED_KMH)
+	d.set_pit("boxes", int(d.layout.race.grid.slots))
+	d.set_pit("points", points)
 	var lat_at := func(m: float) -> float:
 		var best := INF
 		var lat := 0.0
@@ -387,8 +410,8 @@ static func _pits(d: TrackDraft, t: TrackData, pit_lane: Array, straight: Vector
 	for i in _points_in(d, t, straight):
 		var lat: float = lat_at.call(_point_m(t, i))
 		var k := t.index_at(_point_m(t, i))
-		var out := -lat + PIT_LANE_HALF_M - t.half_r[k]
-		if lat >= 0.0 or out < 6.0 or out > 40.0:
+		var out := -lat - PIT_LANE_HALF_M - t.half_r[k] - 1.0 # up to the wall
+		if lat >= 0.0 or out < 0.5 or out > 40.0:
 			continue
 		changes[i] = { "runoff_r": "asphalt", "runoff_r_m": snappedf(out, 0.5), "barrier_r": "none" }
 	_apply(d, changes)
@@ -469,10 +492,13 @@ static func _props(d: TrackDraft, t: TrackData, start: float, pit_lat: float) ->
 	var o := Vector2(x.origin.x, x.origin.z)
 	if pit_lat >= 0.0:
 		push_error("The pit lane isn't right of the start line")
-	var pit_c := o + left * (pit_lat - PIT_LANE_HALF_M - 7.0)
+	var pit_c := o + left * (pit_lat - PIT_LANE_HALF_M - 9.0)
 	d.add_prop({ "prop": "pit_building", "p": [snappedf(pit_c.x, 0.01), 0.0, snappedf(pit_c.y, 0.01)], "yaw_deg": _yaw_along(fwd),
 		"scale": 1.0, "size": [12.0, 9.0, 300.0], "ground": true })
 	keep_long.call(pit_c, fwd, 300.0, 40.0) # the paddock behind it stays clear
+	for i in range(0, t.pit.track.samples.size(), 4): # and so does the pit lane
+		var q := t.pit.track.samples[i]
+		keep.call(Vector2(q.x, q.z), t.pit.width / 2.0 + 2.0)
 	# Grandstands (each with its crowd at the fence): opposite the pits, on the outside of the
 	# first corner's braking (the complex's way out hems in the corner itself), outside the
 	# hairpin and the chicane's first part.

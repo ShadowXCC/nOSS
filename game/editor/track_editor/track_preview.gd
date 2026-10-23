@@ -213,6 +213,7 @@ func _rebuild_road(t: TrackData, segments: PackedInt32Array, ground_rect: Rect2i
 	if partial and t.arena == null:
 		builder.rebuild_segments(_road, segments)
 		builder.rebuild_highway(_road) # ramps share the road's samples where they leave and join it
+		builder.rebuild_pit(_road) # so does a pit lane
 	else:
 		_clear(_road)
 		_build_road(t)

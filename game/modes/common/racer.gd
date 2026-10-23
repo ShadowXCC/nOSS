@@ -97,6 +97,11 @@ var finish_time := -1.0
 var dnf := false
 ## All four wheels are past the road and curbs.
 var out_of_bounds := false
+## In a circuit's pit lane (D203): on track, clear of track limits and the flags; its laps still
+## count along the main road. Where it is along the lane (m), and the lane's nearest sample.
+var in_pit := false
+var pit_distance := 0.0
+var pit_index := -1
 
 var _loading := false
 var _rejoin_at := 0.0
@@ -325,11 +330,13 @@ func update_track(delta: float) -> void:
 		if session.highway == null:
 			wrong_way = timer.wrong_way
 	_clock += delta
-	# Last valid spot for resets: on the road, upright.
-	on_track = absf(lateral) < track.half_width(distance, lateral) + 1.0 and vehicle.global_basis.y.y > 0.8
-	if on_track:
+	_update_pit(com)
+	# Last valid spot for resets: on the road (or its apron), upright. The pit lane is on track,
+	# but a reset puts the car back where it was on the road.
+	on_track = in_pit or (absf(lateral) < track.half_width(distance, lateral) + track.apron(track_index, lateral) + 1.0 and vehicle.global_basis.y.y > 0.8)
+	if on_track and not in_pit:
 		last_valid = distance
-	if limits:
+	if limits and not in_pit:
 		_check_track_limits()
 	# Fallen off the world (off a bridge, into water): back on the road. A kart is also towed
 	# from well below the road where it is (off a jump or a loop, D132).
@@ -344,6 +351,19 @@ func update_track(delta: float) -> void:
 			reset_car()
 	else:
 		_wrong_way_time = 0.0
+
+
+## In or out of the pit lane, and where along it.
+func _update_pit(com: Vector3) -> void:
+	var pit := track.pit
+	if pit == null or not pit.beside(distance):
+		in_pit = false
+		pit_index = -1
+		return
+	var on := pit.project(com, pit_index)
+	pit_index = int(on.index)
+	pit_distance = float(on.distance)
+	in_pit = pit.contains(com, distance, on)
 
 
 ## Sumo (D162): no laps, no limits and no wrong way. Falling is the game, so nothing resets a

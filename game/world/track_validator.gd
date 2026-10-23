@@ -52,6 +52,8 @@ const ROW_TIGHT := 1.0 / 60.0
 const KART_NARROW_M := 8.0
 const ARENA_MIN_M2 := 2500.0
 const ARENA_SPAWNS := 8
+## A pit lane (D203) at least this long.
+const PIT_MIN_M := 150.0
 ## The car the AI line's speeds are checked with (and the editor's "AI lap" is timed with).
 const REFERENCE_PLATFORM := "official.track.gt"
 const LEVELS := ["error", "warning", "info"]
@@ -117,6 +119,7 @@ func _check(line: RacingLine) -> void:
 		_highway()
 	else:
 		_grid()
+		_pit()
 	if t.kart:
 		_kart()
 	_sectors()
@@ -196,6 +199,37 @@ func _grid() -> void:
 		var i := t.index_at(d)
 		if absf(rad_to_deg(t.bank[i])) > GRID_BANK_DEG or minf(t.half_l[i], t.half_r[i]) < GRID_HALF_M:
 			_add("error", "Grid off the road", d)
+			return
+
+
+## The pit lane (D203): it builds and is long enough, keeps off the road between its mouths, has
+## room for its boxes, and no grid slot stands in a mouth.
+func _pit() -> void:
+	var data: Variant = t.raw.get("pit")
+	if not data is Dictionary:
+		return
+	var at := float(data.get("from_m", 0.0))
+	if t.pit_error:
+		_add("error", t.pit_error, at)
+		return
+	var pit := t.pit
+	if pit.track.length < PIT_MIN_M:
+		_add("error", "Pit lane too short", at)
+		return
+	var hits := PackedInt32Array()
+	for i in range(pit.gore_head, pit.gore_tail + 1, 2):
+		var c := pit.track.samples[i]
+		var on := t.project(c)
+		if absf(c.y - (on.point as Vector3).y) < CLEARANCE_M and absf(float(on.lateral)) - pit.track.half_l[i] < t.edge_at(float(on.distance), float(on.lateral)):
+			hits.append(t.index_at(float(on.distance)))
+	_spots(hits, "error", "Pit lane overlaps the road at %s")
+	if pit.crowded:
+		_add("error", "Pit boxes don't fit", pit.exit_m)
+	var g := t.grid
+	for slot in int(g.slots):
+		var d := t.start_m - float(g.front_m) - (slot / 2) * float(g.row_m) - (slot % 2) * float(g.row_m) * float(g.stagger)
+		if pit.gap(t.index_at(d), pit.side):
+			_add("error", "Grid in the pit mouth", d)
 			return
 
 

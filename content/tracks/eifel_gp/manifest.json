@@ -10,12 +10,12 @@
     "terrain/meta.json": "sha256:d74113e510e916ba8ac4a826add6e70e302c9da681273e32cfdf4cb3a812a243",
     "terrain/splat_0.png": "sha256:2a5f8dc929afac37021cbbe8e58937c43b448e87c854c2dddb2f928eca59fc62",
     "terrain/splat_1.png": "sha256:ed5178376458a7737e0515620654fca60d70bed96790d1fc78837f51ca166c29",
-    "track.json": "sha256:a3b1069ea4d08f1b673aece691c64b0c6f111c41c4677c303d744186357b0437"
+    "track.json": "sha256:62d8f2762cb9b294a97f93aa235aedaff78e79b57da32d38e5b662fd52fbc2ec"
   },
   "game_min_version": "0.12.0",
   "id": "eifel_gp",
   "kind": "road",
-  "layout": "sha256:f61e6629d68a36718c0808bd93f37b508a9087e48c9a3fefee53065598dc10de",
+  "layout": "sha256:aae5222848c8da8e81fad15f15fea65faba4f5f61d3765cd971bad5dda8bfe17",
   "length_m": 5089.2,
   "license": "ODbL-1.0",
   "name": "Eifel GP",

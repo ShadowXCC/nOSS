@@ -273,12 +273,18 @@ static func _sample_open(ctrl: PackedVector3Array, t0: Vector3, t1: Vector3) -> 
 ## The ramp's road as an open TrackData the road builder can build.
 func _strip(layout: HighwayLayout, pts: PackedVector3Array, fwds: PackedVector3Array, lefts: PackedVector3Array,
 		ups: PackedVector3Array, halves: PackedFloat32Array, ground: Callable) -> TrackData:
+	return open_strip(layout.main, id, name, width, lanes, pts, fwds, lefts, ups, halves, ground)
+
+
+## An open strip of road beside `main` (a ramp, a pit lane): samples in driving order with their
+## frames and half widths, asphalt with a concrete strip each side, no barriers yet.
+static func open_strip(main: TrackData, id: String, name: String, width: float, lanes: int, pts: PackedVector3Array, fwds: PackedVector3Array,
+		lefts: PackedVector3Array, ups: PackedVector3Array, halves: PackedFloat32Array, ground: Callable) -> TrackData:
 	var t := TrackData.new()
-	var main := layout.main
 	t.id = main.id + ":" + id
 	t.display_name = name
 	t.raw = main.raw
-	t.type = "highway"
+	t.type = main.type
 	t.closed = false
 	t.kind = "road"
 	t.width = width

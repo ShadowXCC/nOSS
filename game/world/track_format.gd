@@ -217,6 +217,19 @@ static func validate_kart(d: Dictionary) -> String:
 	return ""
 
 
+## Problems the schema can't see in a pit lane ("" if none, D203): circuits only, and its ends
+## apart.
+static func validate_pit(d: Dictionary) -> String:
+	if not d.has("pit"):
+		return ""
+	if d.get("type", "circuit") != "circuit":
+		return "$.pit: only on circuits"
+	var pit: Dictionary = d.pit
+	if is_equal_approx(float(pit.from_m), float(pit.to_m)):
+		return "$.pit: from_m and to_m are the same place"
+	return ""
+
+
 ## A noss.track/0 file as noss.track/1: the same centreline (points [x, z(, y)] become set
 ## heights), one width, its start, sectors and checkpoints, the race grid and AI caution the
 ## game used then, flat grass, and its set pieces as props where they stood.
@@ -296,6 +309,9 @@ static func validate(d: Dictionary) -> String:
 	var kart := validate_kart(d)
 	if kart:
 		return kart
+	var pit := validate_pit(d)
+	if pit:
+		return pit
 	for group: Dictionary in d.get("props", {}).get("scatter", []):
 		var xf: Array = group.xf
 		if xf.size() % 4 != 0:
@@ -319,7 +335,7 @@ static func layout_hash(d: Dictionary) -> String:
 		var h: Dictionary = (d.highway as Dictionary).duplicate(true)
 		h.erase("traffic")
 		layout.highway = h
-	for key in ["kart", "arena"]:
+	for key in ["kart", "arena", "pit"]:
 		if d.get(key) is Dictionary:
 			layout[key] = d[key]
 	if d.get("type") == "arena":

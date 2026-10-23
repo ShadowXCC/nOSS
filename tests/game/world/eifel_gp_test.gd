@@ -1,8 +1,8 @@
 extends GdUnitTestSuite
 ## The Eifel GP (D200): the built-in circuit on the real Nürburgring GP layout comes again the
 ## same from its generator (made with the editor's commands), passes the checks, keeps to the
-## real line, climbs about as much as the real one, says where its layout and ground come
-## from, and lists as a circuit without a Kart badge.
+## real line, climbs about as much as the real one, has its real pit lane, says where its layout
+## and ground come from, and lists as a circuit without a Kart badge.
 
 const DIR := "res://content/tracks/eifel_gp"
 const MakeEifelGp := preload("res://tools/make_eifel_gp.gd")
@@ -32,6 +32,13 @@ func test_it_is_the_real_layout_with_its_hills() -> void:
 		high = maxf(high, p.y)
 	assert_float(high - low).is_between(45.0, 65.0)
 	assert_int(int(t.grid.slots)).is_equal(20)
+	# The real pit lane (D203), on the right, a box for each grid slot, 80 km/h.
+	assert_str(t.pit_error).is_empty()
+	assert_float(t.pit.side).is_equal(-1.0)
+	assert_int(t.pit.boxes.size()).is_equal(20)
+	assert_bool(t.pit.crowded).is_false()
+	assert_float(t.pit.speed * 3.6).is_equal_approx(80.0, 0.01)
+	assert_float(t.pit.track.length).is_between(800.0, 1200.0)
 	var attributions := " ".join(PackedStringArray(pkg.manifest.attributions))
 	assert_str(attributions).contains("OpenStreetMap")
 	assert_str(attributions).contains("EU-DEM")

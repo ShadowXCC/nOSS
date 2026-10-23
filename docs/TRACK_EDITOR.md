@@ -103,7 +103,7 @@ The checks add: piece off the road, pieces overlapping, a loop round a corner or
   - **Pins:** drag the line sideways to pin it there; it bends through the pin and stays inside the road. Pins don't change the layout (records stay, D97).
   - "AI lap" shows the reference car's lap on the line (Track GT).
 - **Sky** (M9, D153): the track's own time of day (a fixed sun, or Dawn … Night) and weather (Clear … Snow, or Changing), stored in its `environment` block. Events that keep "Track's" get them; an event can pick another.
-- **Pit lane:** later (M10).
+- **Pit lane** (D203): "Add pit lane" (along the start straight, on the right), or click "Pit entry" and "Pit exit" on the road. It leaves the road at the entry and has joined it again by the exit, attached to the paved edge for its taper at each end (as a highway's ramps are), and is laid along the road between, 3 m past the edge. Side, width, speed limit, boxes and the pit wall (on the lane's road side, where it's clear of the road) are fields. The road's barrier and run-off open at its mouths. Limit lines stand 40 m in from each end; the boxes (painted outlines, nearest the exit first) sit between them on the lane's far half. A car in the lane is on track and out of track limits and the flags; its laps count along the road. The checks: it builds, it's 150 m or more, it keeps off the road, its boxes fit, and no grid slot is in a mouth.
 
 ## 5. File format: `.nosstrack`
 
@@ -165,6 +165,15 @@ my_track.nosstrack
 ```
 
   Direction 1 drives along the road's line on its right side, −1 the other way on its left; lanes count from the outside; `race.start_m` is the lap line. Flip direction swaps the directions and mirrors the distances; the ramps stay where they are.
+- A pit lane (D203) goes in a `pit` section on circuits:
+
+```jsonc
+"pit": { "side":"right", "from_m":2990.4, "to_m":3978.0,   // where it leaves the road, where it has joined it
+  "taper_m":90, "points":[{ "p":[x,y,z] }],                  // its own points between the tapers (height: ground or set)
+  "width_m":8, "speed_kmh":80, "limit_m":40, "boxes":20, "box_m":10, "wall":true }
+```
+
+  Flip direction swaps its ends and side.
 - Kart pieces (D136) go in a `kart` section on circuits and arenas; an arena (`"type":"arena"`, D138) adds an `arena` section:
 
 ```jsonc
@@ -183,7 +192,7 @@ my_track.nosstrack
 
   At most 64 boxes. Flip direction mirrors the pieces' distances and swaps wall-rides' sides.
 - **Content hash** = SHA-256 of `manifest.json`, the same scheme as cars ([VEHICLE_PACKAGE.md §2](VEHICLE_PACKAGE.md#2-manifestjson)).
-- **Layout hash** = SHA-256 of the road and race setup (AI pins left out), a highway's section (its traffic settings left out), and the `kart` and `arena` sections when a track has them (so tracks without them keep their hashes). Records for a track you made are kept under its id and layout, so changing the layout starts them afresh; built-in tracks keep theirs under the id (D97).
+- **Layout hash** = SHA-256 of the road and race setup (AI pins left out), a highway's section (its traffic settings left out), and the `kart`, `arena` and `pit` sections when a track has them (so tracks without them keep their hashes). Records for a track you made are kept under its id and layout, so changing the layout starts them afresh; built-in tracks keep theirs under the id (D97).
 - **Limits:** 100 MB zipped, 250 MB unpacked, 512 files; scenes up to 2 M triangles, 20 000 nodes and 4096² textures. Servers can lower them.
 - **Safety:** the same rules as car packages ([VEHICLE_PACKAGE.md §9](VEHICLE_PACKAGE.md#9-limits-and-safety)): every file is checked against the manifest's hash before any is used, sizes before anything is decompressed or decoded. Never Godot resource files or scripts.
 - **Where:** your tracks are `user://tracks/*.nosstrack` (File → Show track files); built-in tracks are folders in `content/tracks/`. A built-in track's PNGs use Godot's **Keep File** import (`importer="keep"` in their `.import`, written by `TrackWriter`), so builds carry the PNG itself. As textures they'd be left out, and the track wouldn't load ("Missing file", D200).

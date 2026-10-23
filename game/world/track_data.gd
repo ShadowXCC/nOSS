@@ -40,6 +40,9 @@ var highway: HighwayLayout
 var kart: KartLayout
 ## An arena's outline, floor, spawns and box clusters (D138); null on other tracks.
 var arena: ArenaLayout
+## A circuit's pit lane (D203); null if it has none, or it doesn't build (pit_error says why).
+var pit: PitLane
+var pit_error := ""
 ## The ground it was laid on (for rebuilding a highway's ramps without resampling the road).
 var _ground := Callable()
 ## Built in (res://): records are keyed by id alone.
@@ -146,6 +149,7 @@ static func from_dict(data: Dictionary, ground_height := Callable()) -> TrackDat
 	if t.type == "highway" and t.samples.size() >= 3:
 		t.highway = HighwayLayout.build(t, TrackFormat.highway_settings(data), ground)
 	t._read_kart(data)
+	t._read_pit(data)
 	return t
 
 
@@ -163,7 +167,21 @@ func with_race(data: Dictionary) -> TrackData:
 	if highway:
 		t.highway = HighwayLayout.build(t, TrackFormat.highway_settings(data), _ground)
 	t._read_kart(data)
+	t._read_pit(data)
 	return t
+
+
+func _read_pit(data: Dictionary) -> void:
+	pit = null
+	pit_error = ""
+	if not data.get("pit") is Dictionary or type != "circuit" or kind != "road" or samples.size() < 3:
+		return
+	var ground := _ground if _ground.is_valid() else func(_x: float, _z: float) -> float: return 0.0
+	var built := PitLane.build(self, data.pit, ground)
+	if built.error:
+		pit_error = built.error
+	else:
+		pit = built
 
 
 func _read_kart(data: Dictionary) -> void:

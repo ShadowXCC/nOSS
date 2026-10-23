@@ -255,7 +255,71 @@ func flip_direction() -> void:
 		if layout.has("highway"):
 			_flip_highway(layout.highway, mirror)
 		if layout.has("kart") and layout.get("type", "circuit") != "arena":
-			_flip_kart(layout.kart, mirror), &"all")
+			_flip_kart(layout.kart, mirror)
+		if layout.has("pit"):
+			_flip_pit(layout.pit, mirror), &"all")
+
+
+## Driven the other way, a pit lane's entry is its exit: its ends swap and mirror, its side and
+## its points turn round.
+static func _flip_pit(pit: Dictionary, mirror: Callable) -> void:
+	var from := float(pit.from_m)
+	pit.from_m = snappedf(mirror.call(float(pit.to_m)), 0.1)
+	pit.to_m = snappedf(mirror.call(from), 0.1)
+	pit.side = "right" if pit.get("side", "right") == "left" else "left"
+	if pit.has("points"):
+		(pit.points as Array).reverse()
+
+
+## A pit lane (D203) from `from_m` to `to_m` along the road on `side`, laid along the road
+## (pit_along_road). Replaces one there was.
+func add_pit(from_m: float, to_m: float, side := "right") -> void:
+	_edit("Add pit lane", "pit", func() -> void:
+		layout.pit = PitLane.DEFAULTS.duplicate(true)
+		layout.pit.merge({ "side": side, "from_m": snappedf(from_m, 0.1), "to_m": snappedf(to_m, 0.1) }, true)
+		layout.pit.points = _pit_points(layout.pit), &"road")
+
+
+## A pit lane setting (side, from_m, to_m, width_m, speed_kmh, limit_m, boxes, box_m, wall).
+## Its ends or side moving lays it along the road again.
+func set_pit(key: String, value: Variant, name := "") -> void:
+	if not layout.has("pit"):
+		return
+	_edit(name if name else "Set pit " + key.trim_suffix("_m").replace("_", " "), "pit", func() -> void:
+		layout.pit[key] = value
+		if key in ["side", "from_m", "to_m", "width_m"]:
+			layout.pit.points = _pit_points(layout.pit), &"road")
+
+
+func remove_pit() -> void:
+	if layout.has("pit"):
+		_edit("Remove pit lane", "pit", func() -> void: layout.erase("pit"), &"road")
+
+
+## The points that lay a pit lane along the road between its tapers: PIT_GAP_M past the paved
+## edge (room for the wall), every PIT_POINT_M.
+const PIT_GAP_M := 3.0
+const PIT_POINT_M := 40.0
+
+
+func _pit_points(pit: Dictionary) -> Array:
+	var t := track()
+	if t.samples.size() < 3:
+		return []
+	var side := 1.0 if pit.get("side", "right") == "left" else -1.0
+	var taper := float(pit.get("taper_m", PitLane.DEFAULTS.taper_m))
+	var from := float(pit.from_m) + taper + PIT_POINT_M / 2.0
+	var span := fposmod(float(pit.to_m) - taper - PIT_POINT_M / 2.0 - from, t.length)
+	var out := []
+	var half := float(pit.get("width_m", PitLane.DEFAULTS.width_m)) / 2.0
+	var d := 0.0
+	while d <= span and span < t.length * 0.9:
+		var i := t.index_at(from + d)
+		var edge := t.paved_edge(i, side)
+		var across := (Vector3.UP.cross(t.tangents[i]).normalized()) * side
+		out.append({ "p": _vec(edge + across * (PIT_GAP_M + half)) })
+		d += PIT_POINT_M
+	return out
 
 
 ## Race setup: `key` in layout.race (a "/"-separated path for nested ones, like "grid/slots").
@@ -1009,9 +1073,8 @@ func _section(section: String) -> Dictionary:
 	match section:
 		"all":
 			var out := { "road": layout.road.duplicate(true), "race": layout.race.duplicate(true) }
-			for key in ["highway", "kart"]:
-				if layout.has(key):
-					out[key] = (layout[key] as Dictionary).duplicate(true)
+			for key in ["highway", "kart", "pit"]:
+				out[key] = (layout[key] as Dictionary).duplicate(true) if layout.has(key) else null
 			return out
 		"highway":
 			return { "type": layout.get("type", "circuit"), "road": layout.road.duplicate(true),
