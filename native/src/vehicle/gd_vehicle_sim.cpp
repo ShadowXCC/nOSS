@@ -59,6 +59,8 @@ void VehicleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("has_layer"), &VehicleSim::has_layer);
 	ClassDB::bind_method(D_METHOD("set_kart_input", "drift"), &VehicleSim::set_kart_input);
 	ClassDB::bind_method(D_METHOD("set_kart_drag", "scale"), &VehicleSim::set_kart_drag);
+	ClassDB::bind_method(D_METHOD("set_drag_scale", "scale"), &VehicleSim::set_drag_scale);
+	ClassDB::bind_method(D_METHOD("get_drag_scale"), &VehicleSim::get_drag_scale);
 	ClassDB::bind_method(D_METHOD("set_kart_pull", "accel"), &VehicleSim::set_kart_pull);
 	ClassDB::bind_method(D_METHOD("kart_effect", "kind", "value", "dir"), &VehicleSim::kart_effect, DEFVAL(1.0));
 	ClassDB::bind_method(D_METHOD("get_kart_flags"), &VehicleSim::get_kart_flags);
@@ -374,6 +376,16 @@ void VehicleSim::set_kart_drag(double p_scale) {
 	if (has_layer()) {
 		_model->kart->drag_scale = std::clamp(p_scale, 0.0, 2.0);
 	}
+}
+
+void VehicleSim::set_drag_scale(double p_scale) {
+	if (_model) {
+		_model->drag_scale = std::clamp(p_scale, 0.0, 2.0);
+	}
+}
+
+double VehicleSim::get_drag_scale() const {
+	return _model ? _model->drag_scale : 1.0;
 }
 
 void VehicleSim::set_kart_pull(const Vector3 &p_accel) {

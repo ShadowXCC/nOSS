@@ -5,6 +5,7 @@ extends Node
 ## Runs as a scene so the autoloads are there:
 ##   tools/race_check.sh [--cars=12] [--laps=5] [--seed=1] [--skill=60-100] [--track=<id|path|hash>]
 ##                       [--bad=stall|early_brake|spin] [--platform=<id>] [--builtin] [--verbose]
+##                       [--start=standing|rolling|track] [--draft[=on|off|track]] [--fuel=<n>] [--tyres=<n>]
 ## A pile-up is 3 or more cars linked by contacts (A hits B, B hits C) within 3 s and 30 m.
 
 const CONTACT_IMPULSE := 150.0 # N·s in one tick counts as contact
@@ -62,6 +63,12 @@ func _start() -> void:
 	e.ai_cars = "builtin" if opts.has("builtin") else "garage"
 	e.grid = "random"
 	e.start = opts.get("start", "standing")
+	# Track-mode rules (D207): --draft[=on|off|track], --fuel=<-1-10>, --tyres=<-1-10>; without
+	# them, the track's own.
+	if opts.has("draft"):
+		e.draft = "on" if String(opts.draft) == "true" else String(opts.draft)
+	e.fuel_x = clampi(int(opts.get("fuel", -1)), -1, RaceEvent.WEAR_X_MAX)
+	e.tyre_x = clampi(int(opts.get("tyres", -1)), -1, RaceEvent.WEAR_X_MAX)
 	session.event = e
 	session.ai_skill_spread = absf(float(skill[-1]) - float(skill[0]))
 	add_child(session)

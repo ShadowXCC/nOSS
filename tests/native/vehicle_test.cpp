@@ -431,3 +431,17 @@ TEST_CASE("sim: a rigid kart chassis lands from 0.3 m and settles") {
 	MESSAGE("kart after 4 s: " << h.forward_speed() * 3.6 << " km/h");
 	CHECK(h.forward_speed() > 10.0);
 }
+
+TEST_CASE("sim: drafting cuts the drag; a scale of 1 is the sim exactly") {
+	Harness plain = gt(), one = gt(), tow = gt();
+	one.model.drag_scale = 1.0;
+	tow.model.drag_scale = 0.6;
+	for (Harness *h : { &plain, &one, &tow }) {
+		h->model.controls.throttle = 1.0;
+		h->run(12.0); // short of the limiter: drag still holds it back
+	}
+	CHECK(plain.chassis.com.z == one.chassis.com.z);
+	CHECK(plain.forward_speed() == one.forward_speed());
+	MESSAGE("12 s: " << kmh(plain.forward_speed()) << " km/h alone, " << kmh(tow.forward_speed()) << " km/h in a tow");
+	CHECK(tow.forward_speed() > plain.forward_speed() + 5.0 / 3.6);
+}

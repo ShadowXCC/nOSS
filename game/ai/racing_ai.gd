@@ -42,6 +42,9 @@ var intent := "line"
 var _line: RacingLine
 var _profile := PackedFloat32Array()
 var _caution_profile := PackedFloat32Array()
+## With drafting (D208): how fast the corners and their braking allow, power aside; a car a tow
+## has carried past its own pace keeps its foot down up to it. Empty without drafting.
+var _ceiling := PackedFloat32Array()
 ## Deceleration at full brake pedal, m/s² (before the tires' limit).
 var _brake_full := 14.0
 ## What emergency braking counts on, m/s² (the brake balance's limit, with margin).
@@ -107,6 +110,8 @@ func _make_profiles() -> void:
 	var grip := _base_grip() * _road_grip
 	_profile = _line.speed_profile(racer.vehicle.base_platform, grip)
 	_caution_profile = _line.speed_profile(racer.vehicle.base_platform, grip * CAUTION_GRIP)
+	var drafting := racer.session != null and racer.session.draft != null and DraftControl.drafts(racer.vehicle.base_platform)
+	_ceiling = _line.ceiling(racer.vehicle.base_platform, grip) if drafting else PackedFloat32Array()
 
 
 ## The road's grip under the car (EnvDirector sets its conditions), in steps of 0.05 so the
@@ -213,6 +218,9 @@ func _pedals(vehicle: Vehicle, v: float, out: Dictionary) -> void:
 	var profile := _caution_profile if _cautious() else _profile
 	var here := racer.distance + v * 0.1
 	var target := _line.speed_at(profile, here)
+	# Carried past its own pace by a tow: keep it, up to what the corners allow.
+	if not _ceiling.is_empty() and profile == _profile and v > target - 1.0:
+		target = maxf(target, minf(v + 2.0, _line.speed_at(_ceiling, here)))
 	if racer.finished:
 		target *= 0.6 # cool-down lap
 	# Off the line in a corner the radius is different: a little slower.

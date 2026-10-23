@@ -114,3 +114,15 @@ func test_a_servers_own_platform() -> void:
 	assert_bool(Net.platform_result("official.track.gt", gt.hash).ok()).is_true()
 	assert_bool(Net.platform_result("official.track.gt", "sha256:" + "0".repeat(64)).ok()).is_false()
 	DirAccess.remove_absolute(path)
+
+
+## A Track class that drafts (D208) may go as fast as the most drafting gives, and lap faster.
+func test_drafting_is_plausible() -> void:
+	var car := PlatformLoader.load_official("official.track.stock_car").platform
+	var track := TrackData.load_file("res://content/tracks/proving_ground/track.json")
+	var p := Plausibility.for_platform(car, track)
+	var power := GameModes.peak_power_kw(car) * 1000.0
+	var alone := pow(2.0 * power / (Plausibility.AIR_DENSITY * float(car.aero.cd_a)), 1.0 / 3.0)
+	assert_float(p.top_speed).is_greater(alone * 1.05)
+	var line := RacingLine.for_track(track)
+	assert_float(p.ideal_lap).is_less(line.lap_time(line.speed_profile(car, 1.0)))

@@ -208,16 +208,6 @@ func _slipstream() -> void:
 		var v := r.vehicle
 		if v == null or v.remote or v.arcade.is_empty() or r.waiting or r.towed:
 			continue
-		var fwd := v.global_basis.z
-		var left := v.global_basis.x
-		var best := 0.0
-		for o in session.racers:
-			if o == r or o.vehicle == null or o.waiting or o.towed or absf(o.speed) < SLIP_MIN_SPEED:
-				continue
-			var rel := o.vehicle.global_position - v.global_position
-			var along := rel.dot(fwd)
-			if along <= 0.0 or along > reach or absf(rel.dot(left)) > half:
-				continue
-			best = maxf(best, 1.0 - along / reach)
+		var best := Slipstream.tow(r, session.racers, reach, half, SLIP_MIN_SPEED)
 		var cut := minf(float(s.drag_cut) * best * float(slip_boost.get(r, 1.0)), 0.9)
 		v.sim.set_kart_drag(1.0 - cut)

@@ -826,7 +826,7 @@ StepResult VehicleModel::step(const Chassis &p_chassis, const std::vector<Contac
 
 	// Aero: drag at the CoG, downforce at the axles.
 	double q_fwd = 0.5 * AIR_DENSITY * forward_speed * forward_speed;
-	out.force += p_chassis.velocity * (-0.5 * AIR_DENSITY * spec.cd_a * mods.drag * length(p_chassis.velocity));
+	out.force += p_chassis.velocity * (-0.5 * AIR_DENSITY * spec.cd_a * mods.drag * drag_scale * length(p_chassis.velocity));
 	for (int ax = 0; ax < 2; ax++) {
 		double cl = ax == 0 ? spec.cl_a_front : spec.cl_a_rear;
 		if (cl == 0.0) {

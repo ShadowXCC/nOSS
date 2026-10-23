@@ -94,3 +94,18 @@ func test_banked_line_matches_the_flat_line_seen_from_above() -> void:
 		worst = maxf(worst, pa.distance_to(pb))
 		assert_float(absf(a.offsets[i])).is_less_equal(half - RacingLine.EDGE_MARGIN + 0.001)
 	assert_float(worst).is_less(0.02)
+
+
+## Drafting (D208): less drag laps faster; the ceiling (corners and braking only) is never under
+## the profile.
+func test_less_drag_laps_faster_and_the_ceiling_is_above() -> void:
+	var t := TrackData.load_file(TRACK)
+	var line := RacingLine.for_track(t)
+	var car := PlatformLoader.load_official("official.track.stock_car").platform
+	var plain := line.speed_profile(car, 1.0)
+	assert_object(line.speed_profile(car, 1.0, 1.0)).is_same(plain) # the same profile, cached
+	var drafted := line.speed_profile(car, 1.0, 0.7)
+	assert_float(line.lap_time(drafted)).is_less(line.lap_time(plain))
+	var ceiling := line.ceiling(car, 1.0)
+	for i in plain.size():
+		assert_float(ceiling[i]).is_greater_equal(plain[i] - 0.001)

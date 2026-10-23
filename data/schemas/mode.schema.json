@@ -17,6 +17,18 @@
       "uniqueItems": true,
       "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*(\\.[a-z0-9][a-z0-9_-]*)+$" }
     },
+    "draft": {
+      "description": "Drafting (Track, D208): within range_m behind a car and half_width_m of its line, drag drops by up to drag_cut (more the closer); the car in front of one within lead_range_m loses up to lead_cut. Cars slower than min_speed (m/s) leave no slipstream.",
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "range_m": { "type": "number", "minimum": 0, "maximum": 200 },
+        "half_width_m": { "type": "number", "minimum": 0, "maximum": 5 },
+        "drag_cut": { "type": "number", "minimum": 0, "maximum": 0.9 },
+        "lead_range_m": { "type": "number", "minimum": 0, "maximum": 50 },
+        "lead_cut": { "type": "number", "minimum": 0, "maximum": 0.3 },
+        "min_speed": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
     "police_class": {
       "description": "The platform police drive in this mode (highway: AI only for now).",
       "type": "string",

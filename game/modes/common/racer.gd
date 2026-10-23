@@ -13,8 +13,10 @@ const WRONG_WAY_RESPAWN_S := 5.0
 ## Safe rejoin: a reset car waits until nothing is coming within this many seconds...
 const REJOIN_CLEAR_S := 4.0
 const REJOIN_MAX_WAIT_S := 10.0
-## ...then appears at the road's edge without collisions for this long.
+## ...then appears at the road's edge without collisions for this long, rolling at this share of
+## the AI line's speed there (a car put down at rest on an oval is in the way of the whole field).
 const REJOIN_GHOST_S := 3.0
+const REJOIN_SPEED_SHARE := 0.6
 ## Kart: this far below the road where it is, the kart is towed (D132).
 const KART_FALL_M := 6.0
 
@@ -523,7 +525,9 @@ func _place_rejoin() -> void:
 	var at := track.transform_at(_rejoin_at, edge)
 	vehicle.freeze = false
 	vehicle.visible = true
-	vehicle.reset_to(at)
+	var line_v := RacingLine.for_track(track)
+	var pace := line_v.speed_at(line_v.speed_profile(vehicle.base_platform, 1.0), _rejoin_at) if not vehicle.base_platform.is_empty() else 0.0
+	vehicle.reset_to(at, at.basis.z * pace * REJOIN_SPEED_SHARE)
 	timer.teleported(track.from_start(_rejoin_at))
 	distance = _rejoin_at
 	lateral = edge

@@ -281,6 +281,9 @@ public:
 	Conditions conditions;
 	// Flat tyres: bit i for wheel i (none: the sim exactly as it was).
 	uint32_t flats = 0;
+	// The car's drag times this: in another's slipstream it drops (drafting, D208). 1: the
+	// platform's own, the sim exactly.
+	double drag_scale = 1.0;
 	bool flat(size_t p_wheel) const { return p_wheel < 32 && (flats >> p_wheel) & 1u; }
 
 	// Ray each wheel casts this tick; the caller fills a Contact per wheel.

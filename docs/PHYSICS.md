@@ -105,7 +105,8 @@ The surface type comes from the collider (track material tag).
 
 - **Drag:** `½ρ · CdA · v²` at the CoG.
 - **Downforce:** `½ρ · ClA · v²`, front and rear, applied at the axles (fixed balance).
-- **Slipstream:** if another car is within a cone behind it (≤ 30 m, ±1.5 m lateral), drag is reduced by up to 30%. The effect fades with distance. On or off per mode. Built for karts in M8 (`KartControl`, 30 times a second; a Magnet triples it, D139); other modes later.
+- **Slipstream:** if another car is within a cone behind it (≤ 30 m, ±1.5 m lateral), drag is reduced by up to 30%. The effect fades with distance. On or off per mode. Built for karts in M8 (`KartControl`, 30 times a second; a Magnet triples it, D139).
+- **Drafting (Track, D208):** with an event's drafting on, every Track class whose platform has `aero.slipstream` drafts (`DraftControl`, 30 times a second, on the cars each game drives). Tucked in behind another car within 40 m and 1.2 m of its line, drag drops by up to 30% (more the closer, nothing behind a car under 20 m/s); the car in front of one within 10 m loses up to 4% too. The sim multiplies its drag by `VehicleModel::drag_scale` (1: the platform's own, the sim exactly). The tuning is the Track mode's `draft`. The AI keeps the speed a tow gives it, up to the line's ceiling (corners and braking, power aside).
 
 ## 8. Steering and assists
 

@@ -9,5 +9,6 @@
     "defaults": ["abs", "tcs", "auto_gearbox", "auto_clutch"]
   },
   "damage": { "cosmetic": true, "mechanical": false },
-  "physics_layer": "none"
+  "physics_layer": "none",
+  "draft": { "range_m": 40.0, "half_width_m": 1.2, "drag_cut": 0.3, "lead_range_m": 10.0, "lead_cut": 0.04, "min_speed": 20.0 }
 }

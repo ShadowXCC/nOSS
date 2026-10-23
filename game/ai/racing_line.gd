@@ -118,10 +118,13 @@ static func _limit(t: TrackData, i: int, side: float) -> float:
 	return (t.half_l if left else t.half_r)[i] - EDGE_MARGIN - (WALL_MARGIN if wall else 0.0) + (CURB_USE if (t.curb_l if left else t.curb_r)[i] else 0.0)
 
 
-## Speeds along the line for `platform` using `grip` (0-1] of what the profile counts on.
-## Cached per platform and grip.
-func speed_profile(platform: Dictionary, grip := 1.0) -> PackedFloat32Array:
+## Speeds along the line for `platform` using `grip` (0-1] of what the profile counts on, its
+## drag times `drag_scale` (in a slipstream, D208). Without `power_limited` it's the ceiling: how
+## fast the corners and the braking for them allow, however much power there is. Cached.
+func speed_profile(platform: Dictionary, grip := 1.0, drag_scale := 1.0, power_limited := true) -> PackedFloat32Array:
 	var key := "%s|%s|%.3f" % [platform.get("id", ""), platform.get("version", ""), grip]
+	if drag_scale != 1.0 or not power_limited:
+		key += "|%.3f|%s" % [drag_scale, power_limited]
 	if _profiles.has(key):
 		return _profiles[key]
 	var n := points.size()
@@ -129,7 +132,7 @@ func speed_profile(platform: Dictionary, grip := 1.0) -> PackedFloat32Array:
 	var mu := float(platform.tires.mu_peak) * GRIP_SHARE * grip
 	var aero: Dictionary = platform.get("aero", {})
 	var downforce := 0.5 * AIR_DENSITY * maxf(-(float(aero.get("cl_a_front", 0.0)) + float(aero.get("cl_a_rear", 0.0))), 0.0) / mass
-	var drag := 0.5 * AIR_DENSITY * float(aero.get("cd_a", 0.8)) / mass
+	var drag := 0.5 * AIR_DENSITY * float(aero.get("cd_a", 0.8)) / mass * drag_scale
 	var power := GameModes.peak_power_kw(platform) * 1000.0 * POWER_SHARE / mass
 	var front := float(platform.mass.front_weight)
 	var drive := String(platform.layout.drive)
@@ -137,7 +140,7 @@ func speed_profile(platform: Dictionary, grip := 1.0) -> PackedFloat32Array:
 	var brake_cap := max_braking(platform, mu) / mu # share of the grip the brake balance allows
 	if not flat:
 		var sensitivity := float(platform.tires.get("load_sensitivity", 0.08)) * LOAD_SPREAD
-		_profiles[key] = _profile_3d(mu, downforce, drag, power, driven, brake_cap, sensitivity)
+		_profiles[key] = _profile_3d(mu, downforce, drag, power, driven, brake_cap, sensitivity, power_limited)
 		return _profiles[key]
 
 	# Corner limits: v² |κ| <= mu (g + downforce v²).
@@ -153,7 +156,7 @@ func speed_profile(platform: Dictionary, grip := 1.0) -> PackedFloat32Array:
 		if v[i] < v[slowest]:
 			slowest = i
 	# Forward: power and traction.
-	for pass_i in 2:
+	for pass_i in (2 if power_limited else 0):
 		for s in n:
 			var i := (slowest + s) % n
 			var j := (i + 1) % n
@@ -180,7 +183,7 @@ func speed_profile(platform: Dictionary, grip := 1.0) -> PackedFloat32Array:
 
 ## The profile on a track with banking, slopes or crests: banking into a turn lets it be taken
 ## faster, a crest unloads the tires, a climb slows the car and helps it brake.
-func _profile_3d(mu: float, downforce: float, drag: float, power: float, driven: float, brake_cap: float, sensitivity := 0.0) -> PackedFloat32Array:
+func _profile_3d(mu: float, downforce: float, drag: float, power: float, driven: float, brake_cap: float, sensitivity := 0.0, power_limited := true) -> PackedFloat32Array:
 	var n := points.size()
 	var v := PackedFloat32Array()
 	v.resize(n)
@@ -209,7 +212,7 @@ func _profile_3d(mu: float, downforce: float, drag: float, power: float, driven:
 		var total: float = mu_at.call(normal) * (normal + downforce * u * u)
 		var lateral := maxf(u * u * absf(curvature[i]) * cos(bank_in[i]) - GRAVITY * sin(bank_in[i]), 0.0)
 		return Vector2(total, clampf(lateral / maxf(total, 1e-3), 0.0, 1.0))
-	for pass_i in 2:
+	for pass_i in (2 if power_limited else 0):
 		for step in n:
 			var i := (slowest + step) % n
 			var j := (i + 1) % n
@@ -228,6 +231,12 @@ func _profile_3d(mu: float, downforce: float, drag: float, power: float, driven:
 			var b := g.x * minf(BRAKE_SHARE, brake_cap) * spare + drag * u * u + ROLLING * GRAVITY + GRAVITY * sin(atan(grade[i]))
 			v[i] = minf(v[i], sqrt(maxf(u * u + 2.0 * b * steps[i], 0.0)))
 	return v
+
+
+## The ceiling: how fast the corners and the braking for them allow (speed_profile without the
+## power), for a car a tow can carry past its own pace.
+func ceiling(platform: Dictionary, grip := 1.0) -> PackedFloat32Array:
+	return speed_profile(platform, grip, 1.0, false)
 
 
 ## Deceleration (in g × mu units, i.e. m/s² per unit of grip) the brakes reach before one axle

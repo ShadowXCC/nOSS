@@ -12,6 +12,8 @@ extends RefCounted
 ## - a lap faster than the racing line's ideal for the platform (not karts: their boosts beat it)
 ## Karts (D142): their top speed is the class's geared top boosted; a kart under the tow drone
 ## isn't driving; jumps, landings and loops jolt them; their bumps bounce.
+## A Track class with a slipstream (D208) may draft: its top speed and ideal lap are its car's with
+## the most drag drafting can take off.
 ## A car gets strikes; STRIKES within WINDOW_S trigger the server's response (warn, flag, kick).
 
 const STRIKES := 3
@@ -44,14 +46,17 @@ static func for_platform(platform: Dictionary, track: TrackData, arcade := {}) -
 	var p := Plausibility.new()
 	var power := GameModes.peak_power_kw(platform) * 1000.0
 	var cd_a := maxf(float(platform.get("aero", {}).get("cd_a", 0.8)), 0.05)
-	p.top_speed = pow(2.0 * power / (AIR_DENSITY * cd_a), 1.0 / 3.0)
+	var mode := GameModes.mode_for(String(platform.get("id", "")))
+	var drafted := DraftControl.lowest_scale(DraftControl.tuning_for(mode)) if arcade.is_empty() and mode.get("id") == "track" \
+		and DraftControl.drafts(platform) else 1.0
+	p.top_speed = pow(2.0 * power / (AIR_DENSITY * cd_a * drafted), 1.0 / 3.0)
 	if not arcade.is_empty():
 		p.top_speed = maxf(p.top_speed, geared_top(platform) * float(arcade.boost.cap))
 		p.knock_gain = KART_KNOCK_GAIN
 		return p # no lap check: boosts beat the line
 	if track and track.arena == null: # an arena has no laps
 		var line := RacingLine.for_track(track)
-		p.ideal_lap = line.lap_time(line.speed_profile(platform, 1.0))
+		p.ideal_lap = line.lap_time(line.speed_profile(platform, 1.0, drafted))
 	return p
 
 

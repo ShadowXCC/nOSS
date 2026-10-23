@@ -80,6 +80,9 @@ public:
 	void set_kart_input(bool p_drift);
 	// Slipstream drag share, and a pull toward another kart (m/s^2, world): set at 30 Hz.
 	void set_kart_drag(double p_scale);
+	// Drafting (D208): the car's drag times this, set at 30 Hz by whoever drives it; 1 = none.
+	void set_drag_scale(double p_scale);
+	double get_drag_scale() const;
 	void set_kart_pull(const godot::Vector3 &p_accel);
 	// KART_BOOST (value s), KART_SPIN (value s, dir +1 left / -1 right), KART_SLOW (value s,
 	// dir = power left), KART_CANCEL.

@@ -114,6 +114,8 @@ var server_boards := {}
 var police: PoliceControl
 ## Kart sessions (D129): tow, slipstream, items. Null otherwise.
 var kart: KartControl
+## Drafting (D208): with the event's drafting on, in Track mode.
+var draft: DraftControl
 ## Battles (D144): lives and hits. Null otherwise.
 var battle: BattleControl
 ## A sumo match (docs/GAMEMODES.md §5, D162): the platforms, their rules and the HUD; the world
@@ -465,6 +467,11 @@ func _ready() -> void:
 		_ready_kart()
 		if event.kind == "battle":
 			_ready_battle()
+	if event.draft == "on" and mode.get("id") == "track" and event.kind != "time_trial":
+		draft = DraftControl.new()
+		draft.session = self
+		draft.tuning = DraftControl.tuning_for(mode)
+		add_child(draft)
 
 	add_child(views)
 	if not endless: # no map of a road that never ends
