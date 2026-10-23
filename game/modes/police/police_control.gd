@@ -135,6 +135,9 @@ func _physics_process(delta: float) -> void:
 	_clock += delta
 	if not _placed:
 		_placed = not units.is_empty() and _place_units()
+		if _placed and Game.dev.has("heat"): # dev: start with heat (police checks)
+			for p: Racer in players():
+				heat_of(p).points = Heat.LEVELS[clampi(int(Game.dev["heat"]), 1, Heat.LEVELS.size()) - 1]
 		return
 	_ticks += 1
 	var i := 0
