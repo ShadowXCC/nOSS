@@ -143,8 +143,13 @@ func test_an_oval_has_an_apron_and_a_safer_wall() -> void:
 	var mid := t.cross_point(k, 1.0, 4.5)
 	assert_float(mid.y).is_equal_approx(t.paved_edge(k, 1.0).y, 0.01) # a level apron
 	assert_float(t.edge_at(t.distances[k], 1.0)).is_equal_approx(18.0, 0.01) # it counts as track
-	# The ground is shaped to the apron and to the banking out to the wall.
-	assert_float(terrain.height_at(mid.x, mid.z)).is_equal_approx(mid.y - TerrainData.BED_DEPTH_M, 0.1)
+	# The ground is shaped to the apron (cut deeper for the bend at the edge, so the 1 m grid stays
+	# under the road) and to the banking out to the wall.
+	var bend := 0.25 * tan(deg_to_rad(24.0))
+	assert_float(terrain.height_at(mid.x, mid.z)).is_equal_approx(mid.y - TerrainData.BED_DEPTH_M - bend, 0.02)
+	for step in 40: # across the bend, between the grid's samples, never through the road
+		var p := t.cross_point(k, 1.0, -1.5 + step * 0.1)
+		assert_float(terrain.height_at(p.x, p.z)).is_less(p.y)
 	var outer := t.cross_point(k, -1.0, 0.0)
 	assert_float(outer.y).is_greater(7.0)
 	assert_float(terrain.height_at(outer.x, outer.z)).is_equal_approx(outer.y - TerrainData.BED_DEPTH_M, 0.15)

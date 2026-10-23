@@ -11,6 +11,10 @@ extends RefCounted
 const EDGE_MARGIN := 1.3
 ## How far onto a curb the line may go, m.
 const CURB_USE := 0.5
+## A wall standing within WALL_NEAR_M of the edge (an oval's) keeps the line WALL_MARGIN further
+## in: brushing it at speed spins a car.
+const WALL_NEAR_M := 2.0
+const WALL_MARGIN := 0.6
 ## Relaxation passes per level (sample step): coarse levels shape the line, fine ones polish it.
 const LEVELS := [[16, 2500], [4, 700], [1, 150]]
 const GRAVITY := 9.81
@@ -27,6 +31,10 @@ const ROLLING := 0.012
 ## Over a crest the line keeps this much of the car's weight on its tires (lifting for it, as a
 ## driver does), instead of taking off.
 const CREST_LOAD := 0.75
+## Tires lose grip as they're loaded (their load sensitivity), the outside ones most: across an
+## axle cornering at its limit that's about LOAD_SPREAD times the sensitivity per g of load. Only
+## the change from 1 g counts (GRIP_SHARE has the rest): banking and dips lose grip, crests gain.
+const LOAD_SPREAD := 1.36
 
 ## Lines solved lately (track layout -> RacingLine), oldest first.
 static var _cache := {}
@@ -100,12 +108,14 @@ static func corridor_at(t: TrackData, distance: float) -> Vector2:
 
 ## The corridor at sample `i`.
 static func limits(t: TrackData, i: int) -> Vector2:
-	return Vector2(_limit(i, t.half_l, t.curb_l), -_limit(i, t.half_r, t.curb_r))
+	return Vector2(_limit(t, i, 1.0), -_limit(t, i, -1.0))
 
 
-## How far a car's centre may go toward one edge at sample `i`.
-static func _limit(i: int, half: PackedFloat32Array, curb: PackedByteArray) -> float:
-	return half[i] - EDGE_MARGIN + (CURB_USE if curb[i] else 0.0)
+## How far a car's centre may go toward the edge on `side` at sample `i`.
+static func _limit(t: TrackData, i: int, side: float) -> float:
+	var left := side > 0.0
+	var wall := int((t.barrier_l if left else t.barrier_r)[i]) > TrackFormat.BARRIER_AUTO and (t.runoff_l_m if left else t.runoff_r_m)[i] < WALL_NEAR_M
+	return (t.half_l if left else t.half_r)[i] - EDGE_MARGIN - (WALL_MARGIN if wall else 0.0) + (CURB_USE if (t.curb_l if left else t.curb_r)[i] else 0.0)
 
 
 ## Speeds along the line for `platform` using `grip` (0-1] of what the profile counts on.
@@ -126,7 +136,8 @@ func speed_profile(platform: Dictionary, grip := 1.0) -> PackedFloat32Array:
 	var driven := front if drive == "fwd" else (1.0 - front if drive == "rwd" else 1.0)
 	var brake_cap := max_braking(platform, mu) / mu # share of the grip the brake balance allows
 	if not flat:
-		_profiles[key] = _profile_3d(mu, downforce, drag, power, driven, brake_cap)
+		var sensitivity := float(platform.tires.get("load_sensitivity", 0.08)) * LOAD_SPREAD
+		_profiles[key] = _profile_3d(mu, downforce, drag, power, driven, brake_cap, sensitivity)
 		return _profiles[key]
 
 	# Corner limits: v² |κ| <= mu (g + downforce v²).
@@ -169,17 +180,23 @@ func speed_profile(platform: Dictionary, grip := 1.0) -> PackedFloat32Array:
 
 ## The profile on a track with banking, slopes or crests: banking into a turn lets it be taken
 ## faster, a crest unloads the tires, a climb slows the car and helps it brake.
-func _profile_3d(mu: float, downforce: float, drag: float, power: float, driven: float, brake_cap: float) -> PackedFloat32Array:
+func _profile_3d(mu: float, downforce: float, drag: float, power: float, driven: float, brake_cap: float, sensitivity := 0.0) -> PackedFloat32Array:
 	var n := points.size()
 	var v := PackedFloat32Array()
 	v.resize(n)
+	# The grip at a load of `normal` (m/s² pressing the car into the road).
+	var mu_at := func(normal: float) -> float: return mu * maxf(1.0 - sensitivity * (normal / GRAVITY - 1.0), 0.5)
 	for i in n:
 		var k := absf(curvature[i])
 		var c := cos(bank_in[i])
 		var s := sin(bank_in[i])
-		var denom := k * (c - mu * s) - mu * downforce
-		var num := GRAVITY * (mu * c + s)
-		v[i] = MAX_SPEED if denom <= 1e-6 or num <= 0.0 else minf(sqrt(num / denom), MAX_SPEED)
+		v[i] = MAX_SPEED
+		var m := mu
+		for pass_i in 3: # the corner's load sets the grip, which sets the speed
+			var denom := k * (c - m * s) - m * downforce
+			var num := GRAVITY * (m * c + s)
+			v[i] = MAX_SPEED if denom <= 1e-6 or num <= 0.0 else minf(sqrt(num / denom), MAX_SPEED)
+			m = mu_at.call(GRAVITY * c + v[i] * v[i] * k * s)
 		if crest[i] > 1e-5: # over a crest, slow enough that the tires keep some load
 			v[i] = minf(v[i], sqrt(GRAVITY * cos(atan(grade[i])) * CREST_LOAD / crest[i]))
 	var slowest := 0
@@ -187,8 +204,9 @@ func _profile_3d(mu: float, downforce: float, drag: float, power: float, driven:
 		if v[i] < v[slowest]:
 			slowest = i
 	var grip := func(i: int, u: float) -> Vector2: # (total grip, share of it the corner uses)
-		var normal := maxf(GRAVITY * cos(atan(grade[i])) - u * u * crest[i], GRAVITY * 0.2)
-		var total := mu * (normal + downforce * u * u)
+		# Banking into the turn presses the car into the road (and takes some of the weight off it).
+		var normal := maxf(GRAVITY * cos(atan(grade[i])) * cos(bank_in[i]) + u * u * absf(curvature[i]) * sin(bank_in[i]) - u * u * crest[i], GRAVITY * 0.2)
+		var total: float = mu_at.call(normal) * (normal + downforce * u * u)
 		var lateral := maxf(u * u * absf(curvature[i]) * cos(bank_in[i]) - GRAVITY * sin(bank_in[i]), 0.0)
 		return Vector2(total, clampf(lateral / maxf(total, 1e-3), 0.0, 1.0))
 	for pass_i in 2:
@@ -269,8 +287,8 @@ func _solve() -> void:
 		var banked := i < track.bank.size() and track.bank[i] != 0.0
 		lefts[i] = left if banked else left.normalized()
 		to_left[i] = 1.0 / maxf(left.length_squared(), 1e-6) if banked else 1.0
-		limit_l[i] = _limit(i, track.half_l, track.curb_l)
-		limit_r[i] = _limit(i, track.half_r, track.curb_r)
+		limit_l[i] = _limit(track, i, 1.0)
+		limit_r[i] = _limit(track, i, -1.0)
 	offsets.resize(n)
 	offsets.fill(0.0)
 	# The editor's pins: fixed offsets the line bends through, inside the road. A kart track's
@@ -326,7 +344,9 @@ func _solve() -> void:
 	_slopes(track)
 
 
-## Banking into each turn, grade and crests along the centreline (all zero on a flat track).
+## Banking into each turn, and the grade and crests along the line (all zero on a flat track).
+## The line's own heights: on banking it runs higher or lower than the centreline, whose height
+## rises and falls with the banking.
 func _slopes(track: TrackData) -> void:
 	var n := points.size()
 	bank_in.resize(n)
@@ -334,9 +354,9 @@ func _slopes(track: TrackData) -> void:
 	crest.resize(n)
 	flat = true
 	for i in n:
-		var a := track.samples[(i - 2 + n) % n]
-		var b := track.samples[i]
-		var c := track.samples[(i + 2) % n]
+		var a := points[(i - 2 + n) % n]
+		var b := points[i]
+		var c := points[(i + 2) % n]
 		var run_ab := maxf(_flat(b - a).length(), 0.1)
 		var run_bc := maxf(_flat(c - b).length(), 0.1)
 		var g_ab := (b.y - a.y) / run_ab

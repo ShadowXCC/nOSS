@@ -54,7 +54,7 @@ The keyboard and controller work round a crosshair in the middle of the view. Ed
 
 ### Road splines
 
-- Catmull-Rom control points. Widths and banking blend across a segment (smoothstep); the other settings hold for the segment that starts at the point.
+- Catmull-Rom control points. Widths and aprons blend across a segment (smoothstep); banking follows a smooth curve through the points (level where it levels off, as a smoothstep, and steady through a steady change, so a long banked transition doesn't twist in steps, D206); the other settings hold for the segment that starts at the point.
 - **Road mesh:** extruded along the spline with banked frames: the left vector is horizontal, rolled by the banking (D93). UVs are in metres, so retro textures tile cleanly. Lines: edges, lanes, both or none.
 - **Curbs:** automatic on the inside and outside of corners above a curvature threshold, or on or off per side.
 - **Barriers per side:** auto, none, tyres, armco, concrete, fence, sound wall, or a SAFER wall (an oval's: 1.2 m of white wall with a 3.8 m chain-link catch fence and posts on top), at the run-off edge.
@@ -99,7 +99,8 @@ The checks add: piece off the road, pieces overlapping, a loop round a corner or
 - **Rolling start** distance, the start **gantry**, and how far the AI drives carefully on lap 1 (auto, or set).
 - **AI racing line:**
   - Solved automatically by **minimum curvature** inside the road (wide entry, apex, wide exit).
-  - Speeds from the class's grip, power, braking and downforce, and the track's banking, grade and crests: banking into a turn lets it go faster, a crest takes load off the tires (the AI lifts so it keeps 75% of the car's weight on them), climbs slow the car (D93).
+  - Speeds from the class's grip, power, braking and downforce, and the track's banking, grade and crests: banking into a turn lets it go faster, a crest takes load off the tires (the AI lifts so it keeps 75% of the car's weight on them), climbs slow the car (D93). The grade and crests are the line's own (on banking it runs above or below the centreline); banking presses the car into the road, and loaded tires grip a little less (D206).
+  - A wall within 2 m of the edge (an oval's) keeps the line 0.6 m further in.
   - **Pins:** drag the line sideways to pin it there; it bends through the pin and stays inside the road. Pins don't change the layout (records stay, D97).
   - "AI lap" shows the reference car's lap on the line (Track GT).
 - **Sky** (M9, D153): the track's own time of day (a fixed sun, or Dawn … Night) and weather (Clear … Snow, or Changing), stored in its `environment` block. Events that keep "Track's" get them; an event can pick another.
@@ -274,3 +275,4 @@ Generates an **editable** nOSS track from real places.
   - `tools/fetch_eifel_gp.py` fetches OSM relation 38567 and EU-DEM heights once, into `tools/data/eifel_gp.json`.
   - `tools/make_eifel_gp.gd` turns that into an editable track.
   - Its steps can seed EDT-09: join the circuit's ways into a loop, project, smooth out the mapping jitter, place points closer in corners, and lower the DEM under terrain's 555 m ceiling.
+- **Second:** **Piedmont Speedway** (D206), the Charlotte Motor Speedway quad-oval, by `tools/fetch_piedmont.py` (its five oval ways, its pit road and every raceway round it with node ids, from Overpass; USGS NED heights from OpenTopoData) and `tools/make_piedmont_speedway.gd`. The helpers both generators share are in `tools/track_gen_util.gd`. New steps: move a map line that runs along the inside out to where the track measures its length, bank from the line's curvature, level the venue at the infield's grade with a berm outside the wall, and lay a pit road from the map's.

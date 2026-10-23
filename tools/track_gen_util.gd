@@ -204,10 +204,10 @@ static func apply(d: TrackDraft, changes: Dictionary) -> void:
 		d.set_attr(PackedInt32Array(by_key[slot][2]), by_key[slot][0], by_key[slot][1])
 
 
-## A grandstand `length` long on `side` (+1 left) at `m`, behind the barrier, facing the road,
+## A grandstand `length` long on `side` (+1 left) at `m`, `extra` m behind the barrier, facing the road,
 ## with a crowd at its foot; none if it would come near another part of the road or a prop.
-static func stand(d: TrackDraft, t: TrackData, m: float, side: float, length: float, free: Callable, keep_long: Callable) -> void:
-	var front := behind(t, m, side, 6.0)
+static func stand(d: TrackDraft, t: TrackData, m: float, side: float, length: float, free: Callable, keep_long: Callable, extra := 6.0) -> void:
+	var front := behind(t, m, side, extra)
 	var x := t.transform_at(m)
 	var fwd := Vector2(x.basis.z.x, x.basis.z.z).normalized()
 	var away := Vector2(x.basis.x.x, x.basis.x.z).normalized() * side

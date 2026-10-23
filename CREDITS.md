@@ -34,6 +34,8 @@ Part of the game:
 | [Atkinson Hyperlegible](https://github.com/googlefonts/atkinson-hyperlegible) 1.006 (Regular, Bold): the "Clear" font option | Braille Institute of America | SIL OFL 1.1 | `content/fonts/atkinson_hyperlegible/` |
 | The Eifel GP's layout: the Nürburgring GP circuit's centreline and pit lane ([OpenStreetMap](https://www.openstreetmap.org/relation/38567) relation 38567) | © OpenStreetMap contributors | ODbL 1.0 | `content/tracks/eifel_gp/`, `tools/data/eifel_gp.json` |
 | The Eifel GP's ground: EU-DEM v1.1, 25 m (via [OpenTopoData](https://www.opentopodata.org/)) | Copernicus Land Monitoring Service, European Union | Free use with attribution: "Produced using Copernicus data and information funded by the European Union" | `content/tracks/eifel_gp/terrain/`, `tools/data/eifel_gp.json` |
+| Piedmont Speedway's layout: the Charlotte Motor Speedway oval, its pit road and the raceways round it ([OpenStreetMap](https://www.openstreetmap.org/way/396483278) ways 396483278, 116034341, 402168709, 1052107104, 402168711 and others) | © OpenStreetMap contributors | ODbL 1.0 | `content/tracks/piedmont_speedway/`, `tools/data/piedmont.json` |
+| Piedmont Speedway's ground: USGS 3DEP / National Elevation Dataset, 1/3 arc-second (via [OpenTopoData](https://www.opentopodata.org/), dataset ned10m) | U.S. Geological Survey | Public domain | `content/tracks/piedmont_speedway/terrain/`, `tools/data/piedmont.json` |
 
 Used for testing only; not part of the game.
 

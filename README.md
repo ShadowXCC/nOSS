@@ -101,6 +101,7 @@ tools/endless_determinism.sh       # the Linux and Windows builds make the same 
 tools/net_check.py --event endless --clients 3 --late 40   # an endless convoy online (--seed; --exported: the exported builds, Windows under Wine)
 tools/godot.sh --headless res://tools/make_kart_tracks.tscn   # rebuild the kart tracks (--only=<id>); make_kart_fixture.tscn: the test fixtures
 tools/godot.sh --headless res://tools/make_eifel_gp.tscn   # rebuild the Eifel GP from tools/data/eifel_gp.json (python3 -I tools/fetch_eifel_gp.py fetches it again)
+tools/godot.sh --headless res://tools/make_piedmont_speedway.tscn   # rebuild Piedmont Speedway from tools/data/piedmont.json (python3 -I tools/fetch_piedmont.py fetches it again)
 tools/traffic_determinism.sh       # the Linux and Windows builds step the same traffic (Windows under Wine)
 tools/traffic_bench.sh             # physics cost of full, lite and kinematic cars
 tools/godot.sh --headless -s res://tools/make_kenney_circuit.gd   # the Track Fitting test circuit (needs the Kenney Racing Kit, see the script)

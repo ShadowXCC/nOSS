@@ -523,7 +523,11 @@ func _sample(road: Dictionary, ground_height: Callable) -> void:
 		var u := smoothstep(0.0, 1.0, along[k])
 		half_l[k] = lerpf(float(a.width_l), float(b.width_l), u)
 		half_r[k] = lerpf(float(a.width_r), float(b.width_r), u)
-		bank[k] = deg_to_rad(lerpf(float(a.bank_deg), float(b.bank_deg), u))
+		# Banking follows a smooth curve through the points, as the heights do: blended per segment
+		# it would twist the road in steps, rippling the surface off the centreline.
+		var bank_prev := float((seg_attr[(s - 1 + n) % n] as Dictionary).bank_deg)
+		var bank_next := float((seg_attr[(s + 2) % n] as Dictionary).bank_deg)
+		bank[k] = deg_to_rad(_curve(bank_prev, float(a.bank_deg), float(b.bank_deg), bank_next, along[k]))
 		apron_l[k] = lerpf(float(a.apron_l_m), float(b.apron_l_m), u)
 		apron_r[k] = lerpf(float(a.apron_r_m), float(b.apron_r_m), u)
 		apron_l_bank[k] = deg_to_rad(lerpf(float(a.apron_l_deg), float(b.apron_l_deg), u))
@@ -652,6 +656,22 @@ func _find_curbs(seg_attr: Array) -> void:
 ## Extra width at `distance` that still counts as track: the curb, where there is one.
 func curb_at(distance: float) -> float:
 	return CURB_WIDTH if curbs[index_at(distance)] else 0.0
+
+
+## A smooth curve through values (a monotone cubic), `u` (0-1) between `p1` and `p2`: level
+## where the values level off or turn back (a smoothstep, as segments blend), steady through a
+## steady change, never past its neighbours. Equal middle values give exactly that value.
+static func _curve(p0: float, p1: float, p2: float, p3: float, u: float) -> float:
+	if p1 == p2:
+		return p1
+	var d0 := p1 - p0
+	var d1 := p2 - p1
+	var d2 := p3 - p2
+	var m1 := 0.0 if d0 * d1 <= 0.0 else signf(d1) * minf(absf(d0 + d1) / 2.0, 3.0 * minf(absf(d0), absf(d1)))
+	var m2 := 0.0 if d1 * d2 <= 0.0 else signf(d1) * minf(absf(d1 + d2) / 2.0, 3.0 * minf(absf(d1), absf(d2)))
+	var u2 := u * u
+	var u3 := u2 * u
+	return (2.0 * u3 - 3.0 * u2 + 1.0) * p1 + (u3 - 2.0 * u2 + u) * m1 + (3.0 * u2 - 2.0 * u3) * p2 + (u3 - u2) * m2
 
 
 ## Centripetal Catmull-Rom: no cusps or loops between unevenly spaced points.

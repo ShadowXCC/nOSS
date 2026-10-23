@@ -308,10 +308,10 @@ func _props() -> void:
 		var lo := INF
 		var hi := -INF
 		var at := -1
-		var steps := Vector2i(ceili(extent.x * 2.0 / PROP_STEP_M), ceili(extent.y * 2.0 / PROP_STEP_M))
+		var steps := Vector2i(ceili(extent.size.x / PROP_STEP_M), ceili(extent.size.y / PROP_STEP_M))
 		for sx in steps.x + 1:
 			for sz in steps.y + 1:
-				var local := Vector3(-extent.x + sx * extent.x * 2.0 / maxi(steps.x, 1), 0.0, -extent.y + sz * extent.y * 2.0 / maxi(steps.y, 1))
+				var local := Vector3(extent.position.x + sx * extent.size.x / maxi(steps.x, 1), 0.0, extent.position.y + sz * extent.size.y / maxi(steps.y, 1))
 				var hit := _on_road(pos + basis * local, not item.get("ground", false))
 				if hit.is_empty():
 					continue
@@ -353,8 +353,9 @@ func _on_road(pos: Vector3, use_y: bool) -> Dictionary:
 	return {}
 
 
-## Half the solid parts' size across (x) and along (z), scaled.
-static func _footprint(id: String, size: Array, scale: float) -> Vector2:
+## Where the solid parts stand, across (x) and along (z), scaled: a grandstand reaches back from
+## its front, not either way.
+static func _footprint(id: String, size: Array, scale: float) -> Rect2:
 	var box := AABB()
 	var first := true
 	for part: Dictionary in PropLibrary.parts(id, Vector3(size[0], size[1], size[2]) if size.size() == 3 else Vector3.ZERO):
@@ -363,7 +364,7 @@ static func _footprint(id: String, size: Array, scale: float) -> Vector2:
 		for v in (part.batch as MeshBatch).verts:
 			box = AABB(v, Vector3.ZERO) if first else box.expand(v)
 			first = false
-	return Vector2(maxf(absf(box.position.x), absf(box.end.x)), maxf(absf(box.position.z), absf(box.end.z))) * scale
+	return Rect2(box.position.x * scale, box.position.z * scale, box.size.x * scale, box.size.z * scale)
 
 
 ## A highway's ramps build, aren't too tight or steep, keep off the road and each other, and

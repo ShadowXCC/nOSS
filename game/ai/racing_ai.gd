@@ -21,6 +21,8 @@ const START_HOLD_M := 200.0
 const CAUTION_GRIP := 0.93
 ## Lateral speed of the planned offset, m/s.
 const OFFSET_RATE := 2.5
+## Body slip past this catches a slide (steering toward where the car is going), degrees.
+const CATCH_SLIP_DEG := 2.0
 ## Skill 0 -> 100.
 const GRIP := Vector2(0.78, 0.95)
 const GAP_TIME := Vector2(1.1, 0.55)
@@ -197,9 +199,13 @@ func _pursue(vehicle: Vehicle, target: Vector3, v: float) -> float:
 	var steer := -atan(wheelbase * kappa) / max_steer
 	var local_v := vehicle.global_basis.inverse() * vehicle.linear_velocity
 	if v > 6.0:
+		# Only the slide past CATCH_SLIP: a car held at its limit through a long corner (an oval's)
+		# runs a couple of degrees of slip all the way round, and steering against all of it ran
+		# the car wide.
 		var slip := atan2(local_v.x, absf(local_v.z)) # + = sliding left
-		if absf(slip) > deg_to_rad(2.0):
-			steer += clampf(-slip * 0.8 / max_steer, -0.5, 0.5)
+		var past := absf(slip) - deg_to_rad(CATCH_SLIP_DEG)
+		if past > 0.0:
+			steer += clampf(-signf(slip) * past * 0.8 / max_steer, -0.5, 0.5)
 	return clampf(steer, -1.0, 1.0)
 
 
@@ -449,8 +455,7 @@ func _recover(out: Dictionary, delta: float) -> bool:
 	var v := absf(racer.speed)
 	var upright := vehicle.global_basis.y.y > 0.3
 	var heading := vehicle.global_basis.z.dot(racer.track.tangents[maxi(racer.track_index, 0)])
-	var off := absf(racer.lateral) > racer.track.half_width(racer.distance, racer.lateral) + racer.track.apron(racer.track_index, racer.lateral) + 4.0 \
-		and not racer.in_pit
+	var off := absf(racer.lateral) > racer.track.half_width(racer.distance, racer.lateral) + racer.track.apron(racer.track_index, racer.lateral) + 4.0
 	var backwards := heading < -0.2 and v > 3.0
 	if not upright or off or backwards:
 		_trouble_time += delta

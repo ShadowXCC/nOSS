@@ -366,9 +366,16 @@ TEST_CASE("terrain: an apron's bed leaves the banking for its own slope; none ch
 	g.conform(all, apron, 12.0, 0.0);
 	double edge_x = 6.0 * std::cos(0.4); // across the map
 	double edge_y = 4.0 - 6.0 * std::sin(0.4);
-	CHECK(g.height_at(0.0, -(edge_x + 1.0)) == doctest::Approx(edge_y).epsilon(0.02));
-	CHECK(g.height_at(0.0, -(edge_x + 6.0)) == doctest::Approx(edge_y).epsilon(0.02));
+	double bend = 0.25 * std::tan(0.4); // cut deeper for the bend at the edge (1 m cells)
+	CHECK(g.height_at(0.0, -(edge_x + 1.0)) == doctest::Approx(edge_y - bend).epsilon(0.02));
+	CHECK(g.height_at(0.0, -(edge_x + 6.0)) == doctest::Approx(edge_y - bend).epsilon(0.02));
 	CHECK(plain.height_at(0.0, -(edge_x + 6.0)) < edge_y - 2.0);
 	// The right side, with no apron, is as it was.
 	CHECK(g.height_at(0.0, 4.0) == doctest::Approx(plain.height_at(0.0, 4.0)));
+	// Across the bend, between the grid's samples, the ground never comes up through the road or
+	// the apron.
+	for (double z = -edge_x - 3.0; z <= -edge_x + 3.0; z += 0.05) {
+		double surface = z < -edge_x ? edge_y : 4.0 + z * std::tan(0.4); // left is -z, down to the left
+		CHECK(g.height_at(0.0, z) <= surface + 1e-6);
+	}
 }

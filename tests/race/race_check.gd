@@ -125,13 +125,13 @@ func _tick() -> void:
 		if r.waiting and not was_waiting.get(r, false):
 			resets[r] += 1
 			if opts.has("verbose"):
-				print("  reset %.1f s: %s at %.0f m" % [time, r.display_name, r.track.from_start(r.distance)])
+				print("  reset %.1f s: %s at %.0f m (lateral %.1f m%s)" % [time, r.display_name, r.track.from_start(r.distance), r.lateral, ", in the pits" if r.in_pit else ""])
 		was_waiting[r] = r.waiting
 		# Stuck: not moving (and not waiting to rejoin) before finishing.
 		if absf(r.speed) < 1.0 and not r.waiting and not finish_time.has(r) and time > 8.0:
 			stuck[r] = stuck.get(r, 0.0) + dt
 			if stuck[r] > STUCK_S and stuck[r] - dt <= STUCK_S:
-				stuck_events.append("%s at %.0f m, %.1f s" % [r.display_name, r.track.from_start(r.distance), time])
+				stuck_events.append("%s at %.0f m (lateral %.1f m%s), %.1f s" % [r.display_name, r.track.from_start(r.distance), r.lateral, ", in the pits" if r.in_pit else "", time])
 		else:
 			stuck[r] = 0.0
 		# Laps: crossings after the first one; the finish is race control's.
