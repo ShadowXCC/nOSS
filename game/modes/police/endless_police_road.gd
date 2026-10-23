@@ -11,6 +11,14 @@ extends PoliceRoad
 const CHASE_UNITS := 6
 ## Pulled over this long.
 const PULLED_OVER_S := 4.0
+## A unit waiting ahead (D201) parks on the verge where a trap's patrol would, searching this far
+## on, at least this far inside the road built so far; not on a bridge, by a rail on the players'
+## side or in a bend sharper than PARK_BENDY within PARK_SAMPLES either way, and clear of traps.
+const AHEAD_SEARCH_M := 500.0
+const AHEAD_END_M := 200.0
+const PARK_SAMPLES := 10
+const PARK_BENDY := 1.0 / 300.0
+const TRAP_CLEAR_M := 40.0
 
 var traffic: EndlessTraffic
 var road_lanes: EndlessLanes
@@ -87,6 +95,32 @@ func shoulder_xform(way_dir: int, d: float) -> Transform3D:
 	if dir == EndlessLanes.DOWN:
 		xf.basis = xf.basis.rotated(xf.basis.y, PI)
 	return xf
+
+
+## On the verge of the players' way about `m` on from `p` (they all drive UP), facing their way.
+func ahead_spot(p: Racer, m: float) -> Dictionary:
+	var road := _road()
+	var side := road_lanes.side_sign(EndlessLanes.UP)
+	var rails: PackedByteArray = road.barrier_l if side > 0.0 else road.barrier_r
+	var d := p.distance + m
+	while d <= p.distance + m + AHEAD_SEARCH_M and d < road.end_m() - AHEAD_END_M:
+		if _parkable(road, rails, d):
+			return { "xform": road.transform_at(d, side * (road.half_width(d, side) + EndlessTraps.PATROL_OUT_M)), "at_m": d }
+		d += 20.0
+	return {}
+
+
+func _parkable(road: RoadWindow, rails: PackedByteArray, d: float) -> bool:
+	var i := road.index_of(d)
+	if i < PARK_SAMPLES or i + PARK_SAMPLES >= road.samples.size():
+		return false
+	for j in range(i - PARK_SAMPLES, i + PARK_SAMPLES + 1):
+		if road.lifted[j] or rails[j] != 0 or absf(road.curvature[j]) > PARK_BENDY:
+			return false
+	for trap: Dictionary in session.endless_world.traps.values():
+		if absf(float(trap.at_m) - d) < TRAP_CLEAR_M:
+			return false
+	return true
 
 
 ## Across the road where the lane is (each unit square across it).

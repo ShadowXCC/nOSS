@@ -3,7 +3,8 @@ extends GdUnitTestSuite
 ## the players' way's lane, right or left; busted is pulled over, held, then on your way; players
 ## on one screen each have their own heat; a trap's parked patrol joins the chase where it was;
 ## patrols turn up in the traffic; traffic moves over for a siren; roadblocks close the right lanes
-## for two lanes and four; spike strips only from heat 3.
+## for two lanes and four; spike strips only from heat 3; from heat 2 a unit waits on the verge
+## ahead (D201).
 
 
 func before() -> void:
@@ -85,7 +86,7 @@ func test_busted_is_pulled_over_then_on_your_way() -> void:
 	p.vehicle.reset_to(at)
 	p.vehicle.throttle = 0.0
 	p.vehicle.handbrake = 1.0 # stopped (on a hill, maybe)
-	var u := pc.units[pc.units.size() - 1]
+	var u := pc.units[pc.units.size() - 1 - pc.road.ahead_units()] # a chase unit
 	u.deploy(Transform3D(at.basis, at.origin - at.basis.z * 4.6), Vector3.ZERO)
 	u.ai.mode = PoliceAI.Mode.PARKED
 	await _ticks(int(120 * (Heat.BUST_S + 0.5)))
@@ -113,9 +114,9 @@ func test_each_player_on_a_screen_has_their_own_heat() -> void:
 	await _ticks(6)
 	assert_int(pc.heat_of(a).level()).is_equal(3)
 	assert_int(pc.heat_of(b).level()).is_equal(0)
-	assert_int(pc.units.filter(func(u: PoliceRacer) -> bool: return u.ai.target == a).size()).is_equal(3)
+	assert_int(pc.chasers(a).size()).is_equal(3)
 	assert_int(pc.units.filter(func(u: PoliceRacer) -> bool: return u.ai.target == b).size()).is_equal(0)
-	assert_int(pc.units.size()).is_equal(EndlessPoliceRoad.CHASE_UNITS)
+	assert_int(pc.units.size()).is_equal(EndlessPoliceRoad.CHASE_UNITS + PoliceControl.AHEAD_UNITS)
 	assert_object(a.hud.get_node_or_null(^"HeatPanel")).is_not_null()
 	s.queue_free()
 	await get_tree().process_frame
@@ -279,5 +280,38 @@ func test_spike_strips_only_from_heat_three() -> void:
 	var span := Vector2(strip.lat_from, strip.lat_to)
 	assert_float(span.x).is_less(0.0) # driving on the right: across the right of the road
 	assert_float(span.y).is_equal(0.0)
+	s.queue_free()
+	await get_tree().process_frame
+
+
+## From heat 2 a unit waits on the verge of the players' way out of sight ahead (D201), light bar
+## on, siren off, facing their way.
+func test_heat_two_puts_a_unit_on_the_verge_ahead() -> void:
+	var s := await _session()
+	var pc := s.police
+	var p := s.players[0]
+	pc.heat_of(p).points = Heat.LEVELS[1] # level 2
+	await _ticks(2)
+	# A chaser right behind (seen: units only go ahead while the chase is on).
+	var c: PoliceRacer = pc.chasers(p)[0]
+	var behind := pc.road.lane_xform(1, 0, p.distance - 60.0)
+	c.deploy(behind, behind.basis.z * absf(p.vehicle.speed()))
+	var waiting: Array = []
+	for i in 120 * 3:
+		await get_tree().physics_frame
+		waiting = pc.units.filter(func(u: PoliceRacer) -> bool: return pc._ahead_units.has(u) and u.ai.target == p and u.ai.mode == PoliceAI.Mode.READY)
+		if not waiting.is_empty():
+			break
+	assert_int(waiting.size()).is_equal(1)
+	var u: PoliceRacer = waiting[0]
+	await _ticks(2)
+	assert_bool(u.vehicle.light_bar).is_true()
+	assert_bool(u.vehicle.siren).is_false()
+	var at := float(pc._waits[u][0])
+	assert_float(at - p.distance).is_greater(PoliceControl.AHEAD_MIN_M - 100.0)
+	var proj := s.track.project(u.vehicle.global_position)
+	assert_float(absf(float(proj.lateral))).is_greater(s.track.half_width(at, signf(float(proj.lateral))))
+	assert_float(signf(float(proj.lateral))).is_equal(-1.0) # driving on the right
+	assert_float(u.vehicle.global_basis.z.dot(s.track.tangents[int(proj.index)])).is_greater(0.9)
 	s.queue_free()
 	await get_tree().process_frame

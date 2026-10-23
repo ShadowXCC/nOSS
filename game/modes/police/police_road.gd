@@ -44,6 +44,17 @@ func chase_units() -> int:
 	return PoliceControl.CHASE_UNITS
 
 
+## The most units waiting ahead of players at once (on top of the chasers, D201).
+func ahead_units() -> int:
+	return PoliceControl.AHEAD_UNITS
+
+
+## Where a unit waits for `p` about `m` metres on along their way, on the side of the road facing
+## their way (D201): {xform, at_m}, or {} if nowhere here now.
+func ahead_spot(_p: Racer, _m: float) -> Dictionary:
+	return {}
+
+
 ## Lanes each way.
 func lanes() -> int:
 	return 1

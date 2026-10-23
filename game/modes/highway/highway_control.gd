@@ -143,16 +143,21 @@ func _taken(d: float, dir: int) -> bool:
 func shoulder_spot(dir: int, d: float) -> Transform3D:
 	var shoulder := float(layout.settings.shoulder_out_m)
 	var lat := -dir * (layout.inner + layout.lanes * layout.lane_m + shoulder / 2.0)
-	# Not in a ramp's mouth (the shoulder is part of the taper there) or on a trap's unit: a little
-	# further on.
-	for step in 40:
-		if not _taken(d, dir):
-			break
-		d = fposmod(d + dir * 10.0, layout.main.length)
+	d = clear_shoulder(dir, d)
 	var t := layout.main.transform_at(d, lat)
 	if dir < 0:
 		t.basis = Basis(-t.basis.x, t.basis.y, -t.basis.z)
 	return t
+
+
+## Main-road distance `d` on direction `dir`'s outer shoulder, or a little further on if that's in
+## a ramp's mouth (the shoulder is part of the taper there) or on a trap's unit.
+func clear_shoulder(dir: int, d: float) -> float:
+	for step in 40:
+		if not _taken(d, dir):
+			break
+		d = fposmod(d + dir * 10.0, layout.main.length)
+	return d
 
 
 ## A reset (the player's, or after falling off): at rest on the shoulder of the carriageway it

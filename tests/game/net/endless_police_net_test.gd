@@ -30,7 +30,7 @@ func test_police_ids_name_their_game_and_meet_nothing_else() -> void:
 	for id: int in [1, 150, NetProtocol.FIRST_AI_ID, NetProtocol.FIRST_POLICE_ID, NetProtocol.FIRST_TRAFFIC_ID,
 			EndlessTraffic.car_id_of(EndlessTraffic.slot_of(Vector2i(3, 999999))), NetProtocol.FIRST_TRAFFIC_ID + EndlessTraffic.TRAFFIC_IDS - 1]:
 		assert_bool(NetProtocol.is_endless_police(id)).is_false()
-	assert_int(EndlessPoliceRoad.CHASE_UNITS).is_less_equal(NetProtocol.POLICE_PER_GAME)
+	assert_int(EndlessPoliceRoad.CHASE_UNITS + PoliceControl.AHEAD_UNITS).is_less_equal(NetProtocol.POLICE_PER_GAME)
 
 
 ## A hosted endless session (not run): the host's player, and a guest's game on peer 2.

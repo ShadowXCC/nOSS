@@ -19,6 +19,8 @@ static func make(s: TrackSession) -> HighwayPoliceRoad:
 	var r := HighwayPoliceRoad.new()
 	r.session = s
 	r.layout = s.track.highway
+	r.layout.bend_room(1) # made now, not mid-chase
+	r.layout.bend_room(-1)
 	return r
 
 
@@ -81,6 +83,16 @@ func shoulder_xform(way_dir: int, d: float) -> Transform3D:
 	if way_dir < 0:
 		at.basis = Basis(-at.basis.x, at.basis.y, -at.basis.z)
 	return at
+
+
+## On the outer shoulder of `p`'s carriageway about `m` on, clear of ramp mouths and traps (where
+## a player starts or is reset). Nowhere while `p` is on a ramp: where they're headed isn't known.
+func ahead_spot(p: Racer, m: float) -> Dictionary:
+	var at: Dictionary = session.highway_field.at(p) if session.highway_field else {}
+	if session.highway == null or int(at.get("road", -1)) >= 0:
+		return {}
+	var d: float = session.highway.clear_shoulder(p.direction, along(p, m))
+	return { "xform": session.highway.shoulder_spot(p.direction, d), "at_m": d }
 
 
 ## Across the carriageway as it lies (the units don't turn round for the way they face).

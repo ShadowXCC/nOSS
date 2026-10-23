@@ -5,10 +5,11 @@ extends Node
 ## players). A unit waits at each speed trap, parked on the shoulder, watching. Each player has
 ## heat (Heat) from what any unit sees; the level (PoliceTuning) says how many units come after
 ## them, sent in from behind out of their sight, how hard they drive, and when the lanes ahead
-## close bar one, with two units parked across them. Busted: what the road says (a highway takes
-## the unbanked score and puts the car on the shoulder). Evaded: the units head off and go back to
-## the pool. Every change reaches its player as a caption (and narration) and on their HUD's heat
-## meter.
+## close bar one, with two units parked across them. From heat 2 more wait on the side of the road
+## ahead of them, light bars on, and pull out as they come (D201). Busted: what the road says (a
+## highway takes the unbanked score and puts the car on the shoulder). Evaded: the units head off
+## and go back to the pool. Every change reaches its player as a caption (and narration) and on
+## their HUD's heat meter.
 
 ## Units a game may have out at once (the trap units come on top).
 const CHASE_UNITS := 5
@@ -33,6 +34,24 @@ const LOOK_EVERY := 2
 const SPIKES_FROM_M := 300.0
 const SPIKES_TO_M := 450.0
 const SPIKES_STRAIGHT_M := 90.0
+## Units waiting ahead (D201): this many a game, on top of the chasers, for players at the levels
+## that call for them (PoliceTuning "ahead"); parked at least AHEAD_MIN_M on and AHEAD_WAIT_M
+## further than they'd pull out, a second one AHEAD_STAGGER_M beyond the first.
+const AHEAD_UNITS := 4
+const AHEAD_MIN_M := 700.0
+const AHEAD_WAIT_M := 400.0
+const AHEAD_STAGGER_M := 500.0
+## One pulls out to be going PoliceTuning.LAUNCH_SHARE of the player's speed as they reach it,
+## reckoning on this acceleration from rest (dry; less on a wet road), never later than this short
+## of them.
+const LAUNCH_ACCEL := 6.0
+const LAUNCH_MIN_M := 40.0
+## Left this far behind (out of sight) it goes ahead again; this far off either way it's lost.
+const AHEAD_RECYCLE_M := 450.0
+const AHEAD_LOST_M := 1500.0
+## Kept this far from roadblocks, spike strips and other units; tried again after this long (s).
+const AHEAD_CLEAR_M := 80.0
+const AHEAD_AGAIN_S := 1.0
 
 var session: TrackSession
 var road: PoliceRoad
@@ -48,6 +67,9 @@ var evades := 0
 var roadblocks := 0
 var spikes_laid := 0
 var patrols_converted := 0
+## Units put ahead to wait, and ones that pulled out.
+var aheads := 0
+var launches := 0
 ## The spike strips down now.
 var strips: Array[SpikeStrip] = []
 
@@ -62,6 +84,8 @@ var _told := {} # NetRacer -> [level, evading] last sent to its game
 var _seen := {} # Racer -> seen by a unit when last looked
 var _ticks := 0
 var _next_spikes := {} # Racer -> when the next strip may go down (the police's clock)
+var _waits := {} # PoliceRacer -> [at_m, way]: waiting ahead
+var _next_ahead := {} # Racer -> when one may go ahead again after nowhere was clear (the police's clock)
 
 
 func _ready() -> void:
@@ -71,7 +95,8 @@ func _ready() -> void:
 
 func _make_units() -> void:
 	var traps: Array = road.traps()
-	for i in traps.size() + road.chase_units():
+	var chase := road.chase_units()
+	for i in traps.size() + chase + road.ahead_units():
 		var u := PoliceRacer.new()
 		u.configure(i)
 		u.police_class = police_class
@@ -84,6 +109,8 @@ func _make_units() -> void:
 		units.append(u)
 		if i < traps.size():
 			_trap_units[u] = i
+		elif i >= traps.size() + chase:
+			_ahead_units[u] = true
 
 
 ## Who has heat (the road says).
@@ -118,6 +145,7 @@ func _physics_process(delta: float) -> void:
 		_watch(p, delta, (i + _ticks) % LOOK_EVERY == 0)
 	_dispatch()
 	_roadblocks()
+	_ahead()
 	_spikes()
 	road.move_over(units.filter(func(u: PoliceRacer) -> bool: return not u.waiting and u.vehicle and u.vehicle.siren))
 
@@ -239,16 +267,20 @@ func camera_snap(r: Racer, trap: Dictionary, speed: float) -> void:
 
 func _end_chase(p: Racer) -> void:
 	_next_spikes.erase(p)
+	_next_ahead.erase(p)
 	for u in units:
 		if u.ai and u.ai.target == p:
 			u.ai.target = null
-			u.ai.mode = PoliceAI.Mode.PARKED if _trap_units.has(u) else PoliceAI.Mode.RETURN
+			# Waiting ahead, it stays parked, lights off (it goes back once everyone's far).
+			var parks: bool = _trap_units.has(u) or u.ai.mode == PoliceAI.Mode.READY
+			u.ai.mode = PoliceAI.Mode.PARKED if parks else PoliceAI.Mode.RETURN
+			_waits.erase(u)
 	_open_roadblock(p)
 
 
 ## Each player with heat has as many units after them as their level calls for (the trap units
 ## that saw them join first), driving to that level; units nobody's after go back once everyone's
-## far.
+## far. (The ones waiting ahead are on top: _ahead.)
 func _dispatch() -> void:
 	for key: Variant in heat.keys():
 		if not is_instance_valid(key):
@@ -259,7 +291,7 @@ func _dispatch() -> void:
 		if h.level() == 0 or p.vehicle == null:
 			continue
 		var level := h.level()
-		var chasing := units.filter(func(u: PoliceRacer) -> bool: return u.ai and u.ai.target == p)
+		var chasing := chasers(p)
 		while chasing.size() < int(PoliceTuning.at(level).units):
 			var u := _free_unit(p)
 			if u == null:
@@ -272,9 +304,12 @@ func _dispatch() -> void:
 			u.ai.level = level
 			u.ai.role = PoliceTuning.role(level, i)
 			u.ai.side = 1.0 if i % 2 == 0 else -1.0
+	var blocking := []
+	for b: Dictionary in _blocks.values():
+		blocking.append_array(b.units)
 	for u in units:
-		if u.waiting or u.vehicle == null or _trap_units.has(u) or (u.ai and u.ai.target):
-			continue
+		if u.waiting or u.vehicle == null or _trap_units.has(u) or (u.ai and u.ai.target) or u in blocking:
+			continue # (a roadblock's units stay till it opens: it's out ahead, far from everyone)
 		var far := players().all(func(p: Racer) -> bool: return p.vehicle == null or p.vehicle.global_position.distance_to(u.vehicle.global_position) > STAND_DOWN_M)
 		if far:
 			u.stand_down()
@@ -345,6 +380,113 @@ func _roadblocks() -> void:
 		p.notify("Roadblock ahead", 3.0)
 
 
+## Units waiting ahead of each player chased at a level that calls for them (D201): parked on the
+## side of the road out of sight ahead, light bars on; each pulls out as the player comes, timed to
+## be going LAUNCH_SHARE of their speed as they reach it, and gives chase. One left far behind goes
+## ahead again, so at two one waits while the other chases. Nothing new goes ahead while the
+## player's getting away (their evade clock running).
+func _ahead() -> void:
+	for key: Variant in heat.keys():
+		if not is_instance_valid(key):
+			continue
+		var p := key as Racer
+		var h: Heat = heat[p]
+		if p.vehicle == null or h.level() == 0:
+			continue
+		var level := h.level()
+		var v := absf(p.vehicle.speed())
+		var c := p.vehicle.road_conditions()
+		var grip := VehicleSim.surface_grip(VehicleSim.SURFACE_ASPHALT, c.x, c.y)
+		var ready := 0
+		var chasing := 0
+		var idle: Array[PoliceRacer] = []
+		for u: PoliceRacer in _ahead_units:
+			if u.waiting or u.ai == null or u.ai.target != p:
+				continue
+			u.ai.level = level
+			if u.ai.mode == PoliceAI.Mode.READY:
+				var w: Array = _waits.get(u, [p.distance, 0])
+				var to_come := -road.past(p, float(w[0]))
+				if int(w[1]) != road.way(p) or to_come > AHEAD_LOST_M or to_come < -AHEAD_RECYCLE_M:
+					_waits.erase(u)
+					u.stand_down() # turned round, or gone by without it
+				elif to_come <= launch_gap(v, grip):
+					_waits.erase(u)
+					u.ai.mode = PoliceAI.Mode.PURSUE
+					launches += 1
+					chasing += 1
+				else:
+					ready += 1
+			else:
+				var behind := road.past(p, u.distance)
+				if u.ai.mode != PoliceAI.Mode.PURSUE or behind > AHEAD_RECYCLE_M or behind < -AHEAD_LOST_M:
+					idle.append(u)
+				else:
+					chasing += 1
+		var want := int(PoliceTuning.at(level).ahead)
+		if h.evading() > 0.0 or _clock < float(_next_ahead.get(p, -INF)):
+			continue
+		while ready + chasing < want:
+			var u: PoliceRacer = idle.pop_back() if not idle.is_empty() else _ahead_pool_unit()
+			if u == null:
+				break
+			if not _wait_ahead(u, p, ahead_m(v) + ready * AHEAD_STAGGER_M):
+				_next_ahead[p] = _clock + AHEAD_AGAIN_S
+				break
+			ready += 1
+
+
+## How far short of a unit waiting ahead a player going `v` m/s is when it pulls out: from rest at
+## LAUNCH_ACCEL (times the road's `grip`), it's going LAUNCH_SHARE of their speed as they reach it.
+static func launch_gap(v: float, grip := 1.0) -> float:
+	var reach := PoliceTuning.LAUNCH_SHARE * v
+	return maxf(reach / (LAUNCH_ACCEL * grip) * (v - reach / 2.0), LAUNCH_MIN_M)
+
+
+## How far ahead of a player going `v` m/s a unit waits: out of sight, and far enough on to pull
+## out in time.
+static func ahead_m(v: float) -> float:
+	return maxf(AHEAD_MIN_M, launch_gap(v) + AHEAD_WAIT_M)
+
+
+## Unit `u` parked about `m` on along `p`'s way, waiting for them (it's out of sight both where it
+## was and where it goes); false if there's nowhere clear.
+func _wait_ahead(u: PoliceRacer, p: Racer, m: float) -> bool:
+	for i in 6:
+		var spot := road.ahead_spot(p, m + i * 60.0)
+		if spot.is_empty():
+			return false
+		if not _clear_to_wait(u, spot):
+			continue
+		u.deploy(spot.xform, Vector3.ZERO)
+		u.ai.ahead = true
+		u.ai.target = p
+		u.ai.level = heat_of(p).level()
+		u.ai.role = "block"
+		u.ai.mode = PoliceAI.Mode.READY
+		_waits[u] = [float(spot.at_m), road.way(p)]
+		aheads += 1
+		p.notify("Police ahead", 2.5)
+		return true
+	return false
+
+
+## Whether a spot ({xform, at_m}) is clear of roadblocks, spike strips and other units for `u`.
+func _clear_to_wait(u: PoliceRacer, spot: Dictionary) -> bool:
+	var at_m := float(spot.at_m)
+	for b: Dictionary in _blocks.values():
+		if absf(road.delta_m(at_m, float(b.at_m))) < ROADBLOCK_LENGTH_M + AHEAD_CLEAR_M:
+			return false
+	for strip in strips:
+		if absf(road.delta_m(at_m, strip.at_m)) < AHEAD_CLEAR_M:
+			return false
+	var origin := (spot.xform as Transform3D).origin
+	for o in units:
+		if o != u and not o.waiting and o.vehicle and o.vehicle.global_position.distance_to(origin) < AHEAD_CLEAR_M:
+			return false
+	return true
+
+
 ## From the level that calls for them, now and then a spike strip on a straight ahead of each
 ## player chased, half a lane left open; each comes up once they're well past it.
 func _spikes() -> void:
@@ -410,7 +552,14 @@ func add_remote_strip(at_m: float, lat_from: float, lat_to: float) -> SpikeStrip
 
 func _pool_unit() -> PoliceRacer:
 	for u in units:
-		if not _trap_units.has(u) and u.waiting and u.vehicle:
+		if not _trap_units.has(u) and not _ahead_units.has(u) and u.waiting and u.vehicle:
+			return u
+	return null
+
+
+func _ahead_pool_unit() -> PoliceRacer:
+	for u: PoliceRacer in _ahead_units:
+		if u.waiting and u.vehicle:
 			return u
 	return null
 
