@@ -54,3 +54,43 @@ func test_braking_is_limited_by_the_brake_balance() -> void:
 	var front := gt.duplicate(true)
 	front.brakes.bias_front = 0.7
 	assert_float(RacingLine.max_braking(front, mu)).is_greater(balanced)
+
+
+## A stadium oval turning left: 400 m straights, 150 m radius ends, every height given.
+static func _oval(defaults: Dictionary) -> TrackData:
+	var points := []
+	for end in [1.0, -1.0]: # the top straight and right end, then the bottom and left
+		for x in [-200.0, -100.0, 0.0, 100.0, 200.0]:
+			points.append({ "p": [x * end, 0.0, 150.0 * end] })
+		for deg in [30.0, 60.0, 90.0, 120.0, 150.0]:
+			var a := deg_to_rad(deg)
+			points.append({ "p": [(200.0 + 150.0 * sin(a)) * end, 0.0, 150.0 * cos(a) * end] })
+	var d := TrackFormat.blank("oval", "Oval")
+	d.road.points = points
+	d.road.defaults.merge({ "height": "set", "curb_l": "off", "curb_r": "off" }, true)
+	d.road.defaults.merge(defaults, true)
+	return TrackData.from_dict(d)
+
+
+## On banking, a move along the road is a shorter move across the map (cos(bank)). The line on a
+## 24° oval must be the line a flat oval of the same plan-view width gets.
+func test_banked_line_matches_the_flat_line_seen_from_above() -> void:
+	var bank := deg_to_rad(24.0)
+	var half := 8.0
+	var flat_half := (half - RacingLine.EDGE_MARGIN) * cos(bank) + RacingLine.EDGE_MARGIN
+	var banked := _oval({ "width_l": half, "width_r": half, "bank_deg": -24.0 })
+	var flat := _oval({ "width_l": flat_half, "width_r": flat_half })
+	var mean := 0.0
+	for c in banked.curvature:
+		mean += c
+	assert_float(mean).is_greater(0.0) # turning left
+	var a := RacingLine.solve(banked)
+	var b := RacingLine.solve(flat)
+	assert_bool(a.flat).is_false()
+	var worst := 0.0
+	for i in banked.samples.size():
+		var pa := Vector2(a.points[i].x, a.points[i].z)
+		var pb := Vector2(b.points[i].x, b.points[i].z)
+		worst = maxf(worst, pa.distance_to(pb))
+		assert_float(absf(a.offsets[i])).is_less_equal(half - RacingLine.EDGE_MARGIN + 0.001)
+	assert_float(worst).is_less(0.02)

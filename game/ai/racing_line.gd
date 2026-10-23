@@ -253,15 +253,22 @@ func _solve() -> void:
 	var n := track.samples.size()
 	var base := PackedVector2Array()
 	var lefts := PackedVector2Array()
+	var to_left := PackedFloat32Array()
 	var limit_l := PackedFloat32Array()
 	var limit_r := PackedFloat32Array()
 	base.resize(n)
 	lefts.resize(n)
+	to_left.resize(n)
 	limit_l.resize(n)
 	limit_r.resize(n)
 	for i in n:
 		base[i] = Vector2(track.samples[i].x, track.samples[i].z)
-		lefts[i] = Vector2(track.lefts[i].x, track.lefts[i].z).normalized()
+		# A banked sample's left, seen from above, is shorter (cos(bank)): an offset along the
+		# road moves the line less across the map. Flat samples keep the unit left exactly.
+		var left := Vector2(track.lefts[i].x, track.lefts[i].z)
+		var banked := i < track.bank.size() and track.bank[i] != 0.0
+		lefts[i] = left if banked else left.normalized()
+		to_left[i] = 1.0 / maxf(left.length_squared(), 1e-6) if banked else 1.0
 		limit_l[i] = _limit(i, track.half_l, track.curb_l)
 		limit_r[i] = _limit(i, track.half_r, track.curb_r)
 	offsets.resize(n)
@@ -283,7 +290,7 @@ func _solve() -> void:
 				if k not in ring:
 					ring.append(k)
 			ring.sort()
-		_relax(ring, level[1], base, lefts, limit_l, limit_r, pins)
+		_relax(ring, level[1], base, lefts, to_left, limit_l, limit_r, pins)
 		_fill_between(ring)
 
 	points.resize(n)
@@ -342,7 +349,8 @@ func _slopes(track: TrackData) -> void:
 
 
 ## Gauss-Seidel on the line's squared second differences, each point kept inside its limits.
-func _relax(ring: PackedInt32Array, passes: int, base: PackedVector2Array, lefts: PackedVector2Array, limit_l: PackedFloat32Array, limit_r: PackedFloat32Array, pins := {}) -> void:
+## `to_left` turns a move across the map into an offset along the road (1 where it's flat).
+func _relax(ring: PackedInt32Array, passes: int, base: PackedVector2Array, lefts: PackedVector2Array, to_left: PackedFloat32Array, limit_l: PackedFloat32Array, limit_r: PackedFloat32Array, pins := {}) -> void:
 	var m := ring.size()
 	var p := PackedVector2Array()
 	p.resize(m)
@@ -355,7 +363,7 @@ func _relax(ring: PackedInt32Array, passes: int, base: PackedVector2Array, lefts
 			if pins.has(k):
 				continue
 			var target := (4.0 * (p[(a - 1 + m) % m] + p[(a + 1) % m]) - p[(a - 2 + m) % m] - p[(a + 2) % m]) / 6.0
-			var o := clampf((target - base[k]).dot(lefts[k]), -limit_r[k], limit_l[k])
+			var o := clampf((target - base[k]).dot(lefts[k]) * to_left[k], -limit_r[k], limit_l[k])
 			p[a] = base[k] + lefts[k] * o
 			offsets[k] = o
 
