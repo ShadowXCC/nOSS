@@ -605,6 +605,8 @@ def main(argv=None):
         fails.append("%.1f KB/s down, over %g" % (worst_down, MAX_DOWN_KB))
     if highway:  # knocks with traffic happen offline too; a pile-up of players' cars says sync is off
         contacts = [c for c in contacts if c["a"] < 1000 and c["b"] < 1000]
+    if args.police:  # police units (ids 300 up, D115) boxing a car in is the chase, not sync (D201)
+        contacts = [c for c in contacts if not 300 <= c["a"] < 1000 and not 300 <= c["b"] < 1000]
     # Karts bump far more than cars (kart_check's rule: 4); in an arena they meet head on: what a
     # battle is, and on a shrinking platform shoving each other is the whole of a sumo match.
     piles = [] if args.event in ("battle", "sumo") else pileups(contacts, KART_PILEUP_CARS if karts else PILEUP_CARS)
