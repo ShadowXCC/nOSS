@@ -67,3 +67,22 @@ func test_place_move_scatter_and_erase() -> void:
 	assert_int(d.scatter_of("tree_pine").size()).is_equal(0)
 	e.queue_free()
 	await get_tree().process_frame
+
+
+## Every prop the game makes (for a generator's track too: a light tower, D205) is offered in the
+## Props tool under its kind, and places and builds from there.
+func test_every_prop_is_offered_in_the_editor() -> void:
+	for id: String in PropLibrary.TYPES:
+		var t: Dictionary = PropLibrary.TYPES[id]
+		if t.get("hidden", false):
+			continue
+		assert_array(PropLibrary.CATEGORIES).override_failure_message(id).contains([t.category])
+		var offered := PropLibrary.list(String(t.category)).map(func(e: Array) -> String: return e[0])
+		assert_array(offered).override_failure_message(id).contains([id])
+	assert_array(PropLibrary.list("trackside").map(func(e: Array) -> String: return e[0])).contains(["light_tower"])
+	var d := TrackDraft.blank("Props", Vector2i(1, 1))
+	d.add_prop({ "prop": "light_tower", "p": [10.0, 0.0, 10.0], "yaw_deg": 0.0, "scale": 1.0, "ground": true })
+	var root := Node3D.new()
+	PropBuilder.new(d.track(), d.terrain).build(root, true)
+	assert_int(root.find_children("*", "MeshInstance3D", true, false).size()).is_greater(0)
+	root.free()
