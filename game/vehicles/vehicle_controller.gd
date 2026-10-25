@@ -127,9 +127,11 @@ func _physics_process(delta: float) -> void:
 	elif racer and racer.pace_limit > 0.0 and speed > racer.pace_limit:
 		vehicle.throttle = 0.0
 	elif racer and racer.pit_hold:
-		# In the box for service (D210): held on the brakes.
+		# In the box for service (D210): held on the handbrake (the brake held at a standstill
+		# selects reverse, and backed the car out of its box).
 		vehicle.throttle = 0.0
-		vehicle.brake = 1.0
+		vehicle.brake = 0.0
+		vehicle.handbrake = 1.0
 	elif racer and racer.pit_limit > 0.0 and speed > racer.pit_limit:
 		# The pit lane's limiter: no more power, and the brakes if it's well over.
 		vehicle.throttle = 0.0

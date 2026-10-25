@@ -13,6 +13,8 @@ const PILEUP_CARS := 3
 const PILEUP_S := 3.0
 const PILEUP_M := 30.0
 const STUCK_S := 5.0
+## In pit road a car may wait its turn (behind one being serviced, for a gap to pull out).
+const PIT_STUCK_S := 30.0
 const LAP_TIMEOUT_S := 150.0
 
 var opts := { "cars": "12", "laps": "5", "seed": "1", "skill": "60-100", "bad": "", "platform": "official.track.gt" }
@@ -147,7 +149,8 @@ func _tick() -> void:
 		# Stuck: not moving (and not waiting to rejoin) before finishing.
 		if absf(r.speed) < 1.0 and not r.waiting and not r.pit_hold and not finish_time.has(r) and time > 8.0:
 			stuck[r] = stuck.get(r, 0.0) + dt
-			if stuck[r] > STUCK_S and stuck[r] - dt <= STUCK_S:
+			var limit := PIT_STUCK_S if r.in_pit else STUCK_S
+			if stuck[r] > limit and stuck[r] - dt <= limit:
 				stuck_events.append("%s at %.0f m (lateral %.1f m%s), %.1f s" % [r.display_name, r.track.from_start(r.distance), r.lateral, ", in the pits" if r.in_pit else "", time])
 		else:
 			stuck[r] = 0.0

@@ -285,10 +285,16 @@ func _pit_drive(vehicle: Vehicle, v: float, out: Dictionary) -> void:
 	var stopping := racer.pit_plan and pits != null and pits.services() and String(pits.stop_of(racer).state) in ["track", "lane"]
 	var box := pits.box_m(racer) if pits else -1.0
 	var look := clampf(4.0 + 0.3 * v, 6.0, 22.0)
-	# The fast half of the lane, into the box half only past the box before its own.
+	# The fast half of the lane, into the box half only past the box before its own (and past the
+	# car in it, if there is one).
 	var lane := -pit.side * pit.width / 4.0
 	if stopping and box - d < pit.box_m + 4.0:
-		lane = pit.side * pit.width / 4.0
+		var before := box - pit.box_m
+		var taken := false
+		for other: Racer in racer.session.racers:
+			taken = taken or (other != racer and other.in_pit and absf(other.pit_distance - before) < pit.box_m / 2.0 and absf(other.speed) < 3.0)
+		if not taken or d > before + CAR_LENGTH + 0.5:
+			lane = pit.side * pit.width / 4.0
 	var just_out := pits != null and String(pits.stop_of(racer).state) == "leaving" and absf(box - d) < pit.box_m
 	var at := d + look
 	var target: Vector3
@@ -321,9 +327,16 @@ func _pit_drive(vehicle: Vehicle, v: float, out: Dictionary) -> void:
 			continue
 		var rel := other.vehicle.global_position - vehicle.global_position
 		# A car ahead in our path, on the way in (a pack pits together) or in this half of the lane
-		# (one held in its box too): keep room behind it.
-		var ahead := rel.dot(vehicle.global_basis.z)
-		if ahead > 0.0 and rel.length() < PIT_GAP_M + v and absf(rel.dot(vehicle.global_basis.x)) < CAR_WIDTH:
+		# (one held in its box too): keep room behind it. In the lane "ahead" is along the lane, one
+		# order for everyone in it (by heading, two cars angled at each other could each wait for
+		# the other).
+		var both_in := other.in_pit and racer.in_pit
+		var ahead := other.pit_distance - d if both_in else rel.dot(vehicle.global_basis.z)
+		# In the lane, in our path: where we are across it, or where we're going (a car moving into
+		# the box half sees the one stopped there).
+		var in_path := absf(other.pit_lateral - racer.pit_lateral) < CAR_WIDTH + 0.3 or absf(other.pit_lateral - lane) < CAR_WIDTH + 0.3 \
+			if both_in else absf(rel.dot(vehicle.global_basis.x)) < CAR_WIDTH
+		if ahead > 0.0 and rel.length() < PIT_GAP_M + v and in_path:
 			_speed_cap = INF
 			_follow(other, ahead - CAR_LENGTH, v, PIT_GAP_S)
 			want = minf(want, _speed_cap)

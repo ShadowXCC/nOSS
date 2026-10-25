@@ -10,12 +10,12 @@
     "terrain/meta.json": "sha256:8b138c903d89eb3841a3507d6361237d02a9c32600ed6fdfc131e91825e7891a",
     "terrain/splat_0.png": "sha256:5a7088178a0b29a5b7df6a76009cbd0cbd5d4ea4093938a8be441ef980af76e0",
     "terrain/splat_1.png": "sha256:d5a37e605b31462a25e92d10e630f2c628627d2f2ffaeccea6c1acbd2abe8b01",
-    "track.json": "sha256:ca4d9ee20c6d883ed6e828792a7cfcc0cb9502b54ee83920c7e98cfc0e981aae"
+    "track.json": "sha256:aef0da42baa1c9ce4937e213299c912b6fb8fc9b297462ecf81b7f3134e0c60f"
   },
   "game_min_version": "0.12.0",
   "id": "piedmont_speedway",
   "kind": "road",
-  "layout": "sha256:8b38edd3277802101a76fc440a6082a8d83dfd09f62e6eb98b5ec527f0059427",
+  "layout": "sha256:9cc5313100cf8258915a922270b978d31999651efc68a4b38b0cb238523a6dbb",
   "length_m": 2441.9,
   "license": "ODbL-1.0",
   "name": "Piedmont Speedway",

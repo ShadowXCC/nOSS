@@ -100,9 +100,11 @@ var dnf := false
 ## All four wheels are past the road and curbs.
 var out_of_bounds := false
 ## In a circuit's pit lane (D203): on track, clear of track limits and the flags; its laps still
-## count along the main road. Where it is along the lane (m), and the lane's nearest sample.
+## count along the main road. Where it is along the lane and across it (m, + = left), and the
+## lane's nearest sample.
 var in_pit := false
 var pit_distance := 0.0
+var pit_lateral := 0.0
 var pit_index := -1
 ## Pit stops (D210, PitControl): the lane's speed limit while it holds here (m/s; 0: none),
 ## held in the box for service, and (the AI) pitting this lap.
@@ -370,6 +372,7 @@ func _update_pit(com: Vector3) -> void:
 	var on := pit.project(com, pit_index)
 	pit_index = int(on.index)
 	pit_distance = float(on.distance)
+	pit_lateral = float(on.lateral)
 	in_pit = pit.contains(com, distance, on)
 
 

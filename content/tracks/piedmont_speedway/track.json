@@ -9,7 +9,7 @@
   "id": "piedmont_speedway",
   "name": "Piedmont Speedway",
   "pit": {
-    "box_m": 12.0,
+    "box_m": 16.0,
     "boxes": 20,
     "from_m": 842.7,
     "limit_m": 40.0,

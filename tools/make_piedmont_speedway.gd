@@ -69,7 +69,7 @@ const PIT_HALF_M := 6.0
 const PIT_CLEAR_M := 3.0
 const PIT_TAPER_M := 120.0
 const PIT_SPEED_KMH := 72.0
-const PIT_BOX_M := 12.0
+const PIT_BOX_M := 16.0
 ## The start line: the dogleg's apex on the map (x, z). Three sectors, a grid of 20 side by side,
 ## rolling from GRID_ROLL_M further back (the grid stays on the frontstretch).
 const START := Vector2(-250.0, -44.0)

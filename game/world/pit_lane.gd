@@ -54,7 +54,9 @@ var gore_head := 0
 var gore_tail := 0
 ## Problems building it ("" if none).
 var error := ""
-var _main: TrackData
+## The main road's length (not the road itself: it holds this lane, and the two would keep each
+## other alive).
+var _main_length := 0.0
 ## Per main sample: 1 where its barrier on `side` opens onto the lane (the mouths).
 var _gap := PackedByteArray()
 
@@ -64,7 +66,7 @@ static func build(main: TrackData, data: Dictionary, ground: Callable) -> PitLan
 	var p := PitLane.new()
 	var d: Dictionary = DEFAULTS.duplicate(true)
 	d.merge(data, true)
-	p._main = main
+	p._main_length = main.length
 	p.side = 1.0 if d.side == "left" else -1.0
 	p.entry_m = fposmod(float(d.get("from_m", 0.0)), main.length)
 	p.exit_m = fposmod(float(d.get("to_m", 0.0)), main.length)
@@ -89,7 +91,7 @@ func gap(k: int, on_side: float) -> bool:
 
 ## The main road's distance `d` is along the stretch the lane runs beside.
 func beside(d: float) -> bool:
-	return fposmod(d - entry_m, _main.length) <= fposmod(exit_m - entry_m, _main.length)
+	return fposmod(d - entry_m, _main_length) <= fposmod(exit_m - entry_m, _main_length)
 
 
 ## Where `pos` is on the lane: {index, distance, lateral, point} (TrackData.project).
@@ -183,12 +185,12 @@ func _build(main: TrackData, d: Dictionary, ground: Callable) -> void:
 	# The gores: where the lane has pulled away from the road, and where it comes back.
 	gore_head = m - 1
 	for i in range(head_count, m):
-		if _clear_of_road(i):
+		if _clear_of_road(main, i):
 			gore_head = i
 			break
 	gore_tail = 0
 	for i in range(tail_start - 1, -1, -1):
-		if _clear_of_road(i):
+		if _clear_of_road(main, i):
 			gore_tail = i
 			break
 	if gore_tail < gore_head:
@@ -231,14 +233,14 @@ func _attached(main: TrackData, k: int, w: float, pts: PackedVector3Array, fwds:
 	halves.append(w / 2.0)
 
 
-## True if strip sample `i`'s inner edge is GORE_M clear of the road's paved edge.
-func _clear_of_road(i: int) -> bool:
+## True if strip sample `i`'s inner edge is GORE_M clear of `main`'s paved edge.
+func _clear_of_road(main: TrackData, i: int) -> bool:
 	var c := track.samples[i]
-	var proj := _main.project(c)
+	var proj := main.project(c)
 	var k := int(proj.index)
-	if absf(c.y - _main.samples[k].y) > TrackData.LIFTED_M:
+	if absf(c.y - main.samples[k].y) > TrackData.LIFTED_M:
 		return true
-	return absf(float(proj.lateral)) - track.half_l[i] - _main.edge_at(float(proj.distance), float(proj.lateral)) >= GORE_M
+	return absf(float(proj.lateral)) - track.half_l[i] - main.edge_at(float(proj.distance), float(proj.lateral)) >= GORE_M
 
 
 func _mark(k_from: int, k_to: int) -> void:
