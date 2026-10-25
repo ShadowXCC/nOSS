@@ -4,16 +4,31 @@ extends Control
 ## a screen reader never reads the ones under it. When the top one goes, the one under comes back
 ## with the focus where it was. Anything with a `closed` signal (a MenuPage, the old menus) is
 ## taken off when it emits it.
+##
+## Godot 4.7 doesn't tell screen readers when a control is hidden or shown, so each change here
+## asks for an accessibility update too (set_shown()); a hidden node's whole subtree then goes.
+## The base is taken out of the tree instead: an update on one of the main menu's hidden parts
+## (its version label) took every screen after it off as well, once a player's card was up.
 
 ## The last page went: `base` is back.
 signal emptied
 
-## Shown while no page is up (the main menu's logo and buttons), hidden under the first page.
+## Shown while no page is up (the main menu's logo and buttons), out of the tree under the first
+## page.
 var base: Array[CanvasItem] = []
 
 ## {page, refocus: Callable, focus: instance id of what had the focus when a page went over it}
 var _entries: Array[Dictionary] = []
 var _base_focus := 0
+var _base_places: Array = [] # [node, parent, index] of the base while it's out
+
+
+func _notification(what: int) -> void:
+	# Gone with pages up (a session started from one): the base goes too.
+	if what == NOTIFICATION_PREDELETE:
+		for place: Array in _base_places:
+			if is_instance_valid(place[0]) and not (place[0] as Node).is_inside_tree():
+				(place[0] as Node).free()
 
 
 func _init() -> void:
@@ -31,13 +46,16 @@ func push(page: Control, refocus := Callable()) -> Control:
 	var id := focus.get_instance_id() if focus else 0
 	if _entries.is_empty():
 		_base_focus = id
-		for c in base:
-			if is_instance_valid(c):
-				c.visible = false
+		for c in base: # every place first: each removal moves the ones after it
+			if is_instance_valid(c) and c.get_parent():
+				_base_places.append([c, c.get_parent(), c.get_index()])
+		_base_places.sort_custom(func(a: Array, b: Array) -> bool: return int(a[2]) < int(b[2]))
+		for place: Array in _base_places:
+			(place[1] as Node).remove_child(place[0])
 	else:
 		var below: Dictionary = _entries[-1]
 		below.focus = id
-		(below.page as Control).visible = false
+		set_shown(below.page, false)
 	_entries.append({ "page": page, "refocus": refocus, "focus": 0 })
 	if page.has_signal(&"closed"):
 		page.connect(&"closed", close.bind(page))
@@ -92,17 +110,26 @@ func index_of(page: Control) -> int:
 	return -1
 
 
+## Shows or hides `c`, for screen readers too.
+static func set_shown(c: CanvasItem, on: bool) -> void:
+	c.visible = on
+	c.queue_accessibility_update()
+
+
 func _show_top() -> void:
 	if _entries.is_empty():
-		for c in base:
-			if is_instance_valid(c):
-				c.visible = true
+		for place: Array in _base_places:
+			var parent := place[1] as Node
+			if is_instance_valid(place[0]) and is_instance_valid(parent):
+				parent.add_child(place[0])
+				parent.move_child(place[0], mini(int(place[2]), parent.get_child_count() - 1))
+		_base_places.clear()
 		_restore(_base_focus, null)
 		emptied.emit()
 		return
 	var e: Dictionary = _entries[-1]
 	var page: Control = e.page
-	page.visible = true
+	set_shown(page, true)
 	if (e.refocus as Callable).is_valid():
 		(e.refocus as Callable).call()
 	else:

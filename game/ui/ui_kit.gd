@@ -466,13 +466,13 @@ static func open_sub(host: Control, menu: Control, on_back := Callable()) -> voi
 	var hidden: Array[CanvasItem] = []
 	for child in host.get_children():
 		if child is CanvasItem and child.visible:
-			child.visible = false
+			MenuStack.set_shown(child, false)
 			hidden.append(child)
 	menu.closed.connect(func() -> void:
 		menu.queue_free()
 		for c in hidden:
 			if is_instance_valid(c):
-				c.visible = true
+				MenuStack.set_shown(c, true)
 		if on_back.is_valid():
 			on_back.call())
 	host.add_child(menu)

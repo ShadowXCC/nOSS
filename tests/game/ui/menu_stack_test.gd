@@ -45,15 +45,17 @@ func _focused() -> String:
 
 func test_only_the_top_page_shows_and_focus_comes_back() -> void:
 	var stack := MenuStack.new()
+	var holder := Control.new()
+	add_child(holder)
 	var base := Button.new()
 	base.text = "Base"
-	add_child(base)
-	add_child(stack)
+	holder.add_child(base)
+	holder.add_child(stack)
 	stack.base.append(base)
 	base.grab_focus()
 	var first := stack.push(_page("First", ["A", "B", "C"])) as MenuPage
 	await _frames()
-	assert_bool(base.visible).is_false()
+	assert_bool(base.is_inside_tree()).is_false()
 	assert_str(_focused()).is_equal("A")
 	(first.body.get_child(2) as Button).grab_focus() # on C
 	var second := stack.push(_page("Second", ["X"])) as MenuPage
@@ -77,10 +79,15 @@ func test_only_the_top_page_shows_and_focus_comes_back() -> void:
 	await _frames()
 	assert_int(stack.depth()).is_equal(0)
 	assert_int(emptied[0]).is_equal(1)
-	assert_bool(base.visible).is_true()
+	assert_bool(base.is_inside_tree()).is_true()
+	assert_int(base.get_index()).is_equal(0)
 	assert_str(_focused()).is_equal("Base")
-	stack.free()
-	base.free()
+	# Freed with a page up (a session started from one), the base goes with it.
+	stack.push(_page("Again", ["Z"]))
+	await _frames()
+	holder.free()
+	await _frames()
+	assert_bool(is_instance_valid(base)).is_false()
 
 
 ## Closing a page under others takes those off too; an old menu's own refocus is used.
@@ -117,7 +124,7 @@ func test_the_main_menu_runs_its_screens_on_the_stack() -> void:
 	await _frames(4)
 	assert_int(stack.depth()).is_equal(1)
 	for part in ["Logo", "TaglineLabel", "Menu", "VersionLabel"]:
-		assert_bool((title.get_node(part) as CanvasItem).visible).override_failure_message(part + " shows under a page").is_false()
+		assert_object(title.get_node_or_null(part)).override_failure_message(part + " is still there under a page").is_null()
 	var solo := stack.top()
 	assert_str(solo.name).is_equal("SoloMenu")
 	await _key(KEY_DOWN) # Race
@@ -135,7 +142,9 @@ func test_the_main_menu_runs_its_screens_on_the_stack() -> void:
 	await _key(KEY_ESCAPE)
 	await _frames(4)
 	assert_int(stack.depth()).is_equal(0)
-	assert_bool((title.get_node("Menu") as CanvasItem).visible).is_true()
+	for part in ["Logo", "TaglineLabel", "Menu", "VersionLabel"]:
+		assert_object(title.get_node_or_null(part)).override_failure_message(part + " didn't come back").is_not_null()
+	assert_int(title.get_node("Menu").get_index()).is_less(stack.get_index()) # under the pages again
 	assert_str(_focused()).is_equal("Local Drive")
 	# Settings, then back: the focus is on Settings again.
 	(title.find_child("SettingsButton", true, false) as Button).grab_focus()
