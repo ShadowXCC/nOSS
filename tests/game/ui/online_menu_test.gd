@@ -65,9 +65,9 @@ func _assert_named(root: Node) -> void:
 func test_host_a_game_and_leave_by_keys() -> void:
 	var runner := scene_runner(TITLE_SCENE)
 	await _frames(4)
-	assert_str(_focused(runner)).is_equal("Solo Drive")
+	assert_str(_focused(runner)).is_equal("Local Drive")
 	await _key(KEY_DOWN)
-	assert_str(_focused(runner)).is_equal("Online")
+	assert_str(_focused(runner)).is_equal("Drive Online")
 	await _key(KEY_ENTER)
 	await _frames(4)
 	var online: OnlineMenu = _find(runner.scene(), "OnlineMenu")

@@ -108,7 +108,7 @@ Kart races and battles run on servers (protocol 5): the server rules on boxes, i
 
 High-speed driving through traffic on a multi-lane highway that closes into a loop, with on and off ramps. The first map, the **Lumen Ring** (8.3 km, D121), is made with the track editor; open-ended highways and a generator come with Endless (M9).
 
-**Start:** title → Solo Drive → Highway → the track → what to do (mode, traffic Off/75/150/250/400, police, which way round: clockwise, anticlockwise or both ways in turn; the run for Runs) → the class (Street or Super) → players. Players start in single file on the hard shoulder behind the lap line. Online, the host picks "Highway cruise" in the host menu.
+**Start:** main menu → Local Drive → Highway → the track → what to do (mode, traffic Off/75/150/250/400, police, which way round: clockwise, anticlockwise or both ways in turn; the run for Runs) → the class (Street or Super) → players. Players start in single file on the hard shoulder behind the lap line. Online, the host picks "Highway cruise" in the host menu.
 
 ### Traffic
 
@@ -174,7 +174,7 @@ A highway that closes on itself, like a city ring expressway. The world feels li
 
 A calm, never-ending drive, like Slow Roads.
 
-**Start:** title → Solo Drive → Endless → the road (a road code, or New road), the biome it starts in, lanes (2 or 4), the side traffic drives on (Right or Left), traffic (Light, Normal, Heavy or Off), garage cars in the traffic, oncoming traffic, speed traps, police, what happens when players on this PC drift apart, and the sky (Morning, 30×, Changing by default) → the class (Cruiser or Sport) → players. The last setup is remembered. Online, the host picks "Endless road" in the host menu.
+**Start:** main menu → Local Drive → Endless → the road (a road code, or New road), the biome it starts in, lanes (2 or 4), the side traffic drives on (Right or Left), traffic (Light, Normal, Heavy or Off), garage cars in the traffic, oncoming traffic, speed traps, police, what happens when players on this PC drift apart, and the sky (Morning, 30×, Changing by default) → the class (Cruiser or Sport) → players. The last setup is remembered. Online, the host picks "Endless road" in the host menu.
 
 - **The road (D152):** a road made 2 m at a time from the seed, in integers only, so every machine makes the same road.
   - **Lanes (D190):** one or two each way, driven on the right or the left. The edges are solid white; one each way has a dashed centre line, two each way a double solid one and dashed lane lines. The centre line is yellow driving on the right and white on the left. Lanes and side don't change the road code: the road is the same, only its lanes differ.
@@ -202,7 +202,7 @@ A calm, never-ending drive, like Slow Roads.
 
 *Mini Games. D162–D166.*
 
-Shove everyone else off a floating platform. It plays on **generated platforms**, not a track: the arena is built from the match's own settings, so there is nothing to pick, nothing to download and nothing of it on the wire. From the title: **Solo Drive → Mini Games → Sumo Wrestling**.
+Shove everyone else off a floating platform. It plays on **generated platforms**, not a track: the arena is built from the match's own settings, so there is nothing to pick, nothing to download and nothing of it on the wire. From the main menu: **Local Drive → Mini Games → Sumo Wrestling**.
 
 - **The arena (D162, D184):** 1 to 5 discs stacked on one centre inside a rock pit, with lava or acid at the bottom. The top one is 24 m across the radius, each one below is wider (36, 48, 60, 72 m) and 18 m further down, so a car knocked off lands on the next rather than sailing past it (D163). The platforms have a sloped rim that catches a car landing on the edge; the rim is not floor to drive on. The pool sits 5 m under the lowest platform and the pit wall stands 45 m out, which is what puts the goo in view past the rim rather than hidden behind it — and the band of it widens as the platform shrinks, so it closes in on the eye as well as underfoot.
 - **The shrink:** the top platform starts shrinking when the lights go out; a lower one only once a car has actually landed on it, so the tiers below stay full size until they are needed. A platform takes **Short (60 s), Normal (90 s) or Long (150 s)** to go, and shrinks one of three ways:
@@ -228,7 +228,7 @@ Shove everyone else off a floating platform. It plays on **generated platforms**
 
 *Mini Games. D168–D179.*
 
-Two cars, two lanes, one straight line. It plays on a **generated strip**, not a track: the strip is built from the match's own settings, so there is nothing to pick, nothing to download and nothing of it on the wire. From the title: **Solo Drive → Mini Games → Drag Strip**.
+Two cars, two lanes, one straight line. It plays on a **generated strip**, not a track: the strip is built from the match's own settings, so there is nothing to pick, nothing to download and nothing of it on the wire. From the main menu: **Local Drive → Mini Games → Drag Strip**.
 
 - **The strip (D168):** two 5 m lanes 8 m apart, with a painted centreline down the gap between them, a water box and the staging lanes behind the line, and past the finish a **shutdown as long again as the strip** (250–700 m) ending in **sand** for anyone who never got on the brakes. Lengths: **1/8 mile (201 m), 1/4 mile (402 m) or 1/2 mile (805 m)** — named in miles or in metres, whichever the player's units are set to.
 - **A pass, in order:**

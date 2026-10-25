@@ -64,31 +64,31 @@ horizontal_scroll_mode = 0
 [node name="List" type="VBoxContainer" parent="Menu/Buttons"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 8
+theme_override_constants/separation = 24
 
-[node name="SoloDriveButton" type="Button" parent="Menu/Buttons/List"]
+[node name="LocalDriveButton" type="Button" parent="Menu/Buttons/List"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(320, 64)
+custom_minimum_size = Vector2(480, 96)
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_font_sizes/font_size = 26
-text = "Solo Drive"
+theme_override_font_sizes/font_size = 40
+text = "Local Drive"
 
 [node name="SettingsButton" type="Button" parent="Menu/Buttons/List"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(320, 64)
+custom_minimum_size = Vector2(480, 96)
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 40
 text = "Settings"
 
-[node name="QuitButton" type="Button" parent="Menu/Buttons/List"]
+[node name="ExitButton" type="Button" parent="Menu/Buttons/List"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(320, 64)
+custom_minimum_size = Vector2(480, 96)
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_font_sizes/font_size = 26
-text = "Quit"
+theme_override_font_sizes/font_size = 40
+text = "Exit Game"
 
 [node name="VersionLabel" type="Label" parent="."]
 unique_name_in_owner = true

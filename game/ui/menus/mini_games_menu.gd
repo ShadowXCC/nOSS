@@ -1,8 +1,8 @@
 class_name MiniGamesMenu
 extends Control
-## Mini Games (Changes.md): the short matches that aren't races or kart races, under one Solo
+## Mini Games (Changes.md): the short matches that aren't races or kart races, under one Local
 ## Drive entry. Picking one hides this menu; backing out of that game's first screen shows it
-## again on the same entry (`focus`), as Solo Drive itself does.
+## again on the same entry (`focus`), as Local Drive itself does.
 
 ## `game`: "sumo" or "drag".
 signal chosen(game: String)

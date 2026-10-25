@@ -92,6 +92,11 @@ const TITLE := "res://game/ui/title/title_screen.tscn"
 ## A race or time trial was asked for (tests listen with hold_events on, so no scene changes).
 signal event_requested(event: RaceEvent, platform_id: String)
 var hold_events := false
+## A screen change was asked for: `scene` is the new screen ("TitleScreen" with no node). Tests
+## turn hold_scenes on to see where a button leads without leaving the test (the node is freed
+## after the signal).
+signal scene_requested(name: String, scene: Node)
+var hold_scenes := false
 
 ## Options also read before "--" (noss_server --config server.json); those that take a value.
 const ENGINE_ARGS := ["server", "config", "port", "instance"]
@@ -104,6 +109,8 @@ var headless := false
 var dedicated := false
 ## The Fitting Bay's draft, kept while the player test-drives it.
 var bay_draft: Variant = null
+## Where the Fitting Bay was opened from: "garage" sends its Exit back there (docs/UI_FLOW.md §8).
+var bay_from := ""
 ## The track editor's draft (TrackDraft), kept while the player test-drives it.
 var track_draft: Variant = null
 ## A kart cup in progress (CupRun), kept between its races; null otherwise.
@@ -515,13 +522,18 @@ func _on_net_cut_off(reason: String) -> void:
 		go_title()
 
 
-func open_garage() -> void:
+## The garage, with the car at `select` (a package path) picked if it's there.
+func open_garage(select := "") -> void:
 	get_tree().paused = false
-	_switch(Garage.new())
+	var garage := Garage.new()
+	garage.start_car = select
+	_switch(garage)
 
 
-func open_fitting_bay(import_path := "", step := "") -> void:
+## `from`: "garage" when the Garage opened it (its Exit goes back there), else empty.
+func open_fitting_bay(import_path := "", step := "", from := "") -> void:
 	get_tree().paused = false
+	bay_from = from
 	var bay := FittingBay.new()
 	bay.start_step = step
 	if not _dev_import_used:
@@ -590,12 +602,19 @@ func open_dev_editor() -> void:
 ## Changes the running scene once this frame's input and signals are done: a menu button that
 ## starts something mustn't pull its own screen out from under the press it's handling.
 func _switch(scene: Node) -> void:
+	if hold_scenes:
+		scene_requested.emit(scene.get_script().get_global_name() if scene.get_script() else scene.get_class(), scene)
+		scene.free()
+		return
 	get_tree().change_scene_to_node.call_deferred(scene)
 
 
 func go_title() -> void:
 	cup = null # leaving a cup ends it
 	get_tree().paused = false
+	if hold_scenes:
+		scene_requested.emit("TitleScreen", null)
+		return
 	get_tree().change_scene_to_file.call_deferred(TITLE)
 
 

@@ -2,9 +2,9 @@ extends Control
 ## Title screen.
 
 @onready var _version_label: Label = %VersionLabel
-@onready var _drive_button: Button = %SoloDriveButton
+@onready var _drive_button: Button = %LocalDriveButton
 @onready var _settings_button: Button = %SettingsButton
-@onready var _quit_button: Button = %QuitButton
+@onready var _exit_button: Button = %ExitButton
 @onready var _buttons: ScrollContainer = %Buttons
 
 var _classes: ClassPicker
@@ -32,17 +32,13 @@ func _ready() -> void:
 	Settings.changed.connect(_apply_text_scale)
 	Players.slots_changed.connect(_apply_text_scale)
 	_version_label.text = "v%s" % ProjectSettings.get_setting("application/config/version")
-	_drive_button.accessibility_description = "Free drive, races, time trials, highway, kart and endless"
+	# docs/UI_FLOW.md §3: Local Drive, Drive Online, Garage, Track Editor, Settings, Exit Game.
+	_drive_button.accessibility_description = "Races, time trials, endless, highway, mini games and free drive on this PC"
 	_drive_button.pressed.connect(_open_solo)
+	_settings_button.accessibility_description = "Display, sound, splitscreen and players"
 	_settings_button.pressed.connect(_open_settings)
-	_quit_button.pressed.connect(get_tree().quit)
-	var bay_button := Button.new()
-	bay_button.name = "FittingBayButton"
-	bay_button.text = "Fitting Bay"
-	bay_button.accessibility_description = "Import your own car"
-	bay_button.custom_minimum_size = _drive_button.custom_minimum_size
-	bay_button.pressed.connect(func() -> void: Game.open_fitting_bay())
-	_drive_button.add_sibling(bay_button)
+	_exit_button.accessibility_description = "Close nOSS"
+	_exit_button.pressed.connect(get_tree().quit)
 	var editor_button := Button.new()
 	editor_button.name = "TrackEditorButton"
 	editor_button.text = "Track Editor"
@@ -53,13 +49,13 @@ func _ready() -> void:
 	var garage_button := Button.new()
 	garage_button.name = "GarageButton"
 	garage_button.text = "Garage"
-	garage_button.accessibility_description = "Your cars"
+	garage_button.accessibility_description = "Your cars and the Fitting Bay"
 	garage_button.custom_minimum_size = _drive_button.custom_minimum_size
 	garage_button.pressed.connect(func() -> void: Game.open_garage())
 	_drive_button.add_sibling(garage_button)
 	var online_button := Button.new()
-	online_button.name = "OnlineButton"
-	online_button.text = "Online"
+	online_button.name = "DriveOnlineButton"
+	online_button.text = "Drive Online"
 	online_button.accessibility_description = "Host or join a game over the network"
 	online_button.custom_minimum_size = _drive_button.custom_minimum_size
 	online_button.pressed.connect(_open_online)
@@ -125,7 +121,7 @@ func _ready() -> void:
 		_online._join(String(Game.dev.connect), String(Game.dev.get("password", "")))
 
 
-## Solo Drive: the drive modes on this machine (SoloMenu). Shown again on `focus` (a mode) when
+## Local Drive: the drive modes on this machine (SoloMenu). Shown again on `focus` (a mode) when
 ## that mode's first screen is backed out of.
 func _open_solo(focus := "") -> void:
 	if is_instance_valid(_solo):
@@ -153,7 +149,7 @@ func _on_solo_chosen(mode: String) -> void:
 		_: _open_classes(mode)
 
 
-## Back out of a mode's first screen: Solo Drive, on that mode.
+## Back out of a mode's first screen: Local Drive, on that mode.
 func _back_to_solo() -> void:
 	_open_solo(_mode)
 
@@ -417,7 +413,7 @@ func _open_online() -> void:
 	_online.entered_lobby.connect(_open_lobby)
 	_online.closed.connect(func() -> void:
 		_online.queue_free()
-		_drive_button.get_parent().get_node(^"OnlineButton").grab_focus())
+		_drive_button.get_parent().get_node(^"DriveOnlineButton").grab_focus())
 	add_child(_online)
 
 

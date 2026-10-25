@@ -38,6 +38,8 @@ var _drive_button: Button
 var _save_button: Button
 var _dialog: FileDialog
 var _busy := false
+## The car last saved to the garage from here, for the Garage to pick on the way back.
+var _saved_path := ""
 ## Import progress: the bar, what the worker is reporting into, and the Import step's buttons
 ## (greyed while a file is coming in).
 var _progress: VBoxContainer
@@ -110,7 +112,7 @@ func _ready() -> void:
 	var actions := HBoxContainer.new()
 	_drive_button = UiKit.button("Save and drive", _save_and_drive, "Save the car to the garage and drive it")
 	_save_button = UiKit.button("Save", _save, "Save the car to the garage")
-	var exit := UiKit.button("Exit", _exit, "Leave the Fitting Bay")
+	var exit := UiKit.button("Exit", _exit, "Back to the Garage" if Game.bay_from == "garage" else "Back to the main menu")
 	for b in [_drive_button, _save_button, exit]:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		actions.add_child(b)
@@ -775,6 +777,7 @@ func _pack(then_drive: bool) -> void:
 		return
 	print("Fitting Bay: saved %s in %d ms, %d s after opening" % [result.path, Time.get_ticks_msec() - t0, (Time.get_ticks_msec() - _t_open) / 1000])
 	_set_status("Saved" if not result.unchanged else "No changes")
+	_saved_path = result.path
 	draft.delete_draft() # the garage has it now; edits make a new draft
 	if then_drive:
 		_leave()
@@ -793,11 +796,16 @@ func _test_drive() -> void:
 	Game.start_free_drive(draft.draft_dir(), platform_id, true)
 
 
+## Back where the bay was opened from: the Garage (on the car being fitted), else the main menu.
 func _exit() -> void:
+	var car: String = _saved_path if _saved_path else draft.edit_path if draft else ""
 	_leave()
 	_discard_draft()
 	closed.emit()
-	Game.go_title()
+	if Game.bay_from == "garage":
+		Game.open_garage(car)
+	else:
+		Game.go_title()
 
 
 ## Takes the preview's car out before the scene goes, so the draft's model isn't freed.

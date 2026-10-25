@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Screen-reader check (ACC-03; M4 acceptance: boot -> race -> results with a screen reader).
 
-Runs the game with accessibility on and walks title -> Solo Drive -> Race -> class -> event ->
-Players -> a 1-lap race -> results -> title, then Online -> Host -> the lobby -> Leave (M5), then
-Solo Drive -> Highway -> a highway -> its menu -> the class -> Players and back out (M7), then
-Solo Drive -> Kart -> a race, a battle and the cup builder -> the class -> Players and back out
-(M8), then Solo Drive -> Endless -> its menu -> the class -> Players and back out (M9), then the
+Runs the game with accessibility on and walks title -> Local Drive -> Race -> class -> event ->
+Players -> a 1-lap race -> results -> title, then Drive Online -> Host -> the lobby -> Leave (M5), then
+Local Drive -> Highway -> a highway -> its menu -> the class -> Players and back out (M7), then
+Local Drive -> Kart -> a race, a battle and the cup builder -> the class -> Players and back out
+(M8), then Local Drive -> Endless -> its menu -> the class -> Players and back out (M9), then the
 track editor: every
 tool, a new oval, its race setup and checks, a new highway loop and its ramps, the Stunts tool on
 a kart circuit and an arena, and out (M6-M8);
@@ -254,15 +254,15 @@ def step(label, name, role="button", prefix=False, timeout=20.0, last=False):
 def highway_menus():
     """Title -> Highway -> a highway -> its menu -> its class -> Players, and back out (M7)."""
     log("Highway menus")
-    ok = step("Title (highway)", "Solo Drive")
-    ok = ok and step("Solo Drive (highway)", "Highway")
+    ok = step("Title (highway)", "Local Drive")
+    ok = ok and step("Local Drive (highway)", "Highway")
     ok = ok and step("Highway: tracks", "Lumen Ring", prefix=True)
     ok = ok and step("Highway: menu", "Next")
     ok = ok and step("Highway: class", "Highway Street", prefix=True)
     # Back out a screen at a time, each one known by something only it has.
     for label, anchor in (("Highway: players", "Ready"), ("Highway: class again", "Highway Street"),
                           ("Highway: menu again", "Next"), ("Highway: tracks again", "Lumen Ring"),
-                          ("Solo Drive (after highway)", "Kart")):
+                          ("Local Drive (after highway)", "Kart")):
         ok = ok and back_from(label, anchor)
     return ok
 
@@ -270,8 +270,8 @@ def highway_menus():
 def kart_menus():
     """Title -> Kart -> a race -> Players and back; a battle's; a cup's builder (M8)."""
     log("Kart menus")
-    ok = step("Title (kart)", "Solo Drive")
-    ok = ok and step("Solo Drive (kart)", "Kart")
+    ok = step("Title (kart)", "Local Drive")
+    ok = ok and step("Local Drive (kart)", "Kart")
     ok = ok and step("Kart: race", "Next")
     ok = ok and back_from("Kart: players", "Ready")  # each card picks its class (D149)
     ok = ok and step("Kart: to battle", "Play: Race")
@@ -281,48 +281,48 @@ def kart_menus():
     ok = ok and step("Kart: cup", "New cup")
     ok = ok and back_from("Kart: cup builder", "Save")
     ok = ok and back_from("Kart: menu", "Play: Cup")
-    ok = ok and back_from("Solo Drive (after kart)", "Highway")
+    ok = ok and back_from("Local Drive (after kart)", "Highway")
     return ok
 
 
 def endless_menus():
-    """Title -> Solo Drive -> Endless -> its menu -> the class -> Players, and back out (M9)."""
+    """Title -> Local Drive -> Endless -> its menu -> the class -> Players, and back out (M9)."""
     log("Endless menus")
-    ok = step("Title (endless)", "Solo Drive")
-    ok = ok and step("Solo Drive (endless)", "Endless")
+    ok = step("Title (endless)", "Local Drive")
+    ok = ok and step("Local Drive (endless)", "Endless")
     ok = ok and step("Endless: menu", "Next")
     ok = ok and step("Endless: class", "Endless Cruiser", prefix=True)
     for label, anchor in (("Endless: players", "Ready"), ("Endless: class again", "Endless Cruiser"),
-                          ("Endless: menu again", "Next"), ("Solo Drive (after endless)", "Endless")):
+                          ("Endless: menu again", "Next"), ("Local Drive (after endless)", "Endless")):
         ok = ok and back_from(label, anchor)
     return ok
 
 
 def sumo_menus():
-    """Title -> Solo Drive -> Mini Games -> Sumo Wrestling -> its menu -> Players, and back out.
+    """Title -> Local Drive -> Mini Games -> Sumo Wrestling -> its menu -> Players, and back out.
     There is no class or track to pick: the mode has one class and makes its own arena (D162)."""
     log("Mini Games and sumo menus")
-    ok = step("Title (sumo)", "Solo Drive")
-    ok = ok and step("Solo Drive (sumo)", "Mini Games")
+    ok = step("Title (sumo)", "Local Drive")
+    ok = ok and step("Local Drive (sumo)", "Mini Games")
     ok = ok and step("Mini Games", "Sumo Wrestling")
     ok = ok and step("Sumo: menu", "Next")
     for label, anchor in (("Sumo: players", "Ready"), ("Sumo: menu again", "Next"),
-                          ("Mini Games again", "Sumo Wrestling"), ("Solo Drive (after sumo)", "Mini Games")):
+                          ("Mini Games again", "Sumo Wrestling"), ("Local Drive (after sumo)", "Mini Games")):
         ok = ok and back_from(label, anchor)
     return ok
 
 
 def drag_menus():
-    """Title -> Solo Drive -> Mini Games -> Drag Strip -> its menu -> Players, and back out.
+    """Title -> Local Drive -> Mini Games -> Drag Strip -> its menu -> Players, and back out.
     There is no class or track to pick on their own screens: the class is one of the menu's own
     rows and the strip is made from the settings (D168)."""
     log("Mini Games and drag menus")
-    ok = step("Title (drag)", "Solo Drive")
-    ok = ok and step("Solo Drive (drag)", "Mini Games")
+    ok = step("Title (drag)", "Local Drive")
+    ok = ok and step("Local Drive (drag)", "Mini Games")
     ok = ok and step("Mini Games (drag)", "Drag Strip")
     ok = ok and step("Drag: menu", "Next")
     for label, anchor in (("Drag: players", "Ready"), ("Drag: menu again", "Next"),
-                          ("Mini Games again (drag)", "Drag Strip"), ("Solo Drive (after drag)", "Mini Games")):
+                          ("Mini Games again (drag)", "Drag Strip"), ("Local Drive (after drag)", "Mini Games")):
         ok = ok and back_from(label, anchor)
     return ok
 
@@ -411,7 +411,7 @@ def editor_walk():
     step("Editor: leave", "Exit")
     if find("Don't save", "button", timeout=3.0) is not None:
         step("Unsaved prompt", "Don't save")
-    if find("Solo Drive", "button", timeout=20.0) is None:
+    if find("Local Drive", "button", timeout=20.0) is None:
         problems.append("Out of the editor: no title")
 
 
@@ -425,29 +425,29 @@ def main():
                 editor_walk()
             raise SystemExit(report())
         if "--highway-only" in sys.argv:
-            if find("Solo Drive", "button", timeout=60.0) is not None:
+            if find("Local Drive", "button", timeout=60.0) is not None:
                 highway_menus()
             stop_game(game)  # before the second run starts
             return finish()
         if "--kart-only" in sys.argv:
-            if find("Solo Drive", "button", timeout=60.0) is not None:
+            if find("Local Drive", "button", timeout=60.0) is not None:
                 kart_menus()
             raise SystemExit(report())
         if "--endless-only" in sys.argv:
-            if find("Solo Drive", "button", timeout=60.0) is not None:
+            if find("Local Drive", "button", timeout=60.0) is not None:
                 endless_menus()
             raise SystemExit(report())
         if "--sumo-only" in sys.argv:
-            if find("Solo Drive", "button", timeout=60.0) is not None:
+            if find("Local Drive", "button", timeout=60.0) is not None:
                 sumo_menus()
             raise SystemExit(report())
         if "--drag-only" in sys.argv:
-            if find("Solo Drive", "button", timeout=60.0) is not None:
+            if find("Local Drive", "button", timeout=60.0) is not None:
                 drag_menus()
             raise SystemExit(report())
         log("Title")
-        ok = step("Title", "Solo Drive")
-        ok = ok and step("Solo Drive", "Race")
+        ok = step("Title", "Local Drive")
+        ok = ok and step("Local Drive", "Race")
         ok = ok and step("Class", "Track GT", prefix=True)
         ok = ok and step("Event", "Next")
         ok = ok and step("Players", "Ready", timeout=30.0)
@@ -460,40 +460,41 @@ def main():
                 rows = [n for n in walk(app()) if (n.get_name() or "").startswith("P") and ", " in (n.get_name() or "") and showing(n)]
                 log(f"  {len(rows)} result rows, e.g. '{row.get_name()}'")
                 step("Results", "Title")
-                if find("Solo Drive", "button", timeout=20.0) is None:
-                    problems.append("Back at the title: no Solo Drive button")
+                if find("Local Drive", "button", timeout=20.0) is None:
+                    problems.append("Back at the title: no Local Drive button")
                 else:
-                    log("Online")
-                    ok = step("Title again", "Online")
-                    ok = ok and step("Online", "Host")
-                    ok = ok and find("LAN discovery", None, timeout=20.0) is not None  # the Host menu is up
+                    log("Drive Online")
+                    ok = step("Title again", "Drive Online")
+                    ok = ok and step("Drive Online", "Host")
+                    # The Host menu is up: its rows scroll (LAN discovery is below the fold, so not
+                    # showing), Start hosting doesn't. step() reports it if it never comes.
                     ok = ok and step("Host", "Start hosting")
                     if ok and find("Leave", "button", timeout=20.0) is not None:
                         find("Player 1", "button", timeout=10.0, prefix=True)  # the list arrives a tick later
                         step("Lobby", "Leave")
-                        step("Online again", "Back")
+                        step("Drive Online again", "Back")
                     elif ok:
                         problems.append("Lobby: no Leave button")
-                if find("Solo Drive", "button", timeout=20.0) is not None:
+                if find("Local Drive", "button", timeout=20.0) is not None:
                     highway_menus()
                 else:
-                    problems.append("Back at the title: no Solo Drive button")
-                if find("Solo Drive", "button", timeout=20.0) is not None:
+                    problems.append("Back at the title: no Local Drive button")
+                if find("Local Drive", "button", timeout=20.0) is not None:
                     kart_menus()
                 else:
-                    problems.append("Back at the title: no Solo Drive button")
-                if find("Solo Drive", "button", timeout=20.0) is not None:
+                    problems.append("Back at the title: no Local Drive button")
+                if find("Local Drive", "button", timeout=20.0) is not None:
                     endless_menus()
                 else:
-                    problems.append("Back at the title: no Solo Drive button")
-                if find("Solo Drive", "button", timeout=20.0) is not None:
+                    problems.append("Back at the title: no Local Drive button")
+                if find("Local Drive", "button", timeout=20.0) is not None:
                     sumo_menus()
                 else:
-                    problems.append("Back at the title: no Solo Drive button")
-                if find("Solo Drive", "button", timeout=20.0) is not None:
+                    problems.append("Back at the title: no Local Drive button")
+                if find("Local Drive", "button", timeout=20.0) is not None:
                     drag_menus()
                 else:
-                    problems.append("Back at the title: no Solo Drive button")
+                    problems.append("Back at the title: no Local Drive button")
                 if find("Track Editor", "button", timeout=20.0) is not None:
                     editor_walk()
                 else:

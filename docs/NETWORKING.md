@@ -10,7 +10,7 @@ Online play is self-hosted. There are no accounts and no central servers. Requir
 
 | Server kind | How |
 |---|---|
-| **Listen server** (MP-01) | Online → Host. The host plays while serving. |
+| **Listen server** (MP-01) | Drive Online → Host. The host plays while serving. |
 | **Dedicated server** (MP-02) | The same project exported as a Linux headless build (`noss_server`), run from a config file on any machine or VPS (§9) |
 
 Both run identical server code (`NetServer` for connections, `NetHost` for the lobby, chat and rotation). A true mesh (no host) was ruled out because kart items, police and traffic need a single authority.
@@ -34,7 +34,7 @@ Both run identical server code (`NetServer` for connections, `NetHost` for the l
 
 ## 3. Finding and joining games
 
-- **Direct:** Online → Address (`host`, `host:port` or `[ipv6]:port`). Hosts get automatic **UPnP** port mapping (Godot `UPNP`, on a thread, leased for 2 hours and renewed hourly, removed when hosting stops). If it fails: "Port closed. Forward UDP 47800." The host's lobby shows the addresses to share, IPv6 included.
+- **Direct:** Drive Online → Address (`host`, `host:port` or `[ipv6]:port`). Hosts get automatic **UPnP** port mapping (Godot `UPNP`, on a thread, leased for 2 hours and renewed hourly, removed when hosting stops). If it fails: "Port closed. Forward UDP 47800." The host's lobby shows the addresses to share, IPv6 included.
 - **LAN discovery** (D83): each server answers on its game port + 1. Clients broadcast a query to ports 47801–47816 (to 255.255.255.255 and each /24 network) and also ask 127.0.0.1, so two servers or two games on one PC all show up. The list shows name, players, class, track and whether there's a password.
 - **Later (MP-08):** an optional, self-hostable **nOSS Lobby** service for server lists, invite codes and NAT punch-through. It's never required.
 

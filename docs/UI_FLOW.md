@@ -109,6 +109,10 @@ Built in P2 (`game/ui/page/`) and P3 (tabs).
 | A tabbed page | tab prev/next "Tabs" |
 | The Racing page | tab prev/next "Race / Time Trial" |
 
+- **Test hooks:** `Game.hold_events` with `event_requested` (an event is reported, not started),
+  `Game.hold_scenes` with `scene_requested` (a screen change is reported, not made: where Exit or
+  Back leads; P1), `PlayersMenu.countdown_s` and `NetHost.countdown_s` (tests set them near 0).
+
 ## 5. Local Drive
 
 ### 5.1 The flow

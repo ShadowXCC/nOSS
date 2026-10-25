@@ -1688,7 +1688,7 @@ func _open_pause(p: SessionPlayer) -> void:
 			return [item[0], func() -> void:
 				_resume(p)
 				item[1].call(), item[2]])
-	menu.back_to_bay.connect(func() -> void: Game.open_fitting_bay())
+	menu.back_to_bay.connect(func() -> void: Game.open_fitting_bay("", "", Game.bay_from))
 	menu.back_to_editor.connect(func() -> void: Game.return_to_editor())
 	p.show_overlay(menu, not is_online())
 

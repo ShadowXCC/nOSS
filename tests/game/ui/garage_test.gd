@@ -108,8 +108,8 @@ func test_export_writes_a_file_that_loads() -> void:
 
 
 ## Keyboard and controller (Changes.md): confirm on a car goes to its actions, left/right step
-## through the enabled ones, back returns to the car; down from the last row reaches Back.
-## Paint's Save and Cancel stay on screen.
+## through the enabled ones, back returns to the car; down from the last row reaches the Fitting
+## Bay, Downloads and Back. Paint's Save and Cancel stay on screen.
 func test_keys_reach_the_actions_and_paint_fits() -> void:
 	var root := get_tree().root
 	var old_size := root.size
@@ -131,9 +131,14 @@ func test_keys_reach_the_actions_and_paint_fits() -> void:
 	assert_object(_focused()).is_same(g._cards[0])
 	g._cards[-1].grab_focus()
 	await _push("ui_down")
+	assert_object(_focused()).is_same(g._bay_button)
+	await _push("ui_down")
 	assert_object(_focused()).is_same(g._downloads_button)
 	await _push("ui_down")
 	assert_object(_focused()).is_same(g._back_button)
+	await _push("ui_up")
+	await _push("ui_up")
+	assert_object(_focused()).is_same(g._bay_button)
 	# Paint on the copy: Save is on screen.
 	var at := g._cars.find_custom(func(c: Dictionary) -> bool: return c.path == copy.path)
 	g._cards[at].grab_focus()
@@ -194,3 +199,65 @@ func test_the_car_grid_scrolls_to_follow_the_focus() -> void:
 	g.queue_free()
 	await get_tree().process_frame
 	root.size = old_size
+
+
+## The Fitting Bay opens from the Garage now (docs/UI_FLOW.md §8), not the main menu: its button
+## sits under the grid, and the bay is told it came from the Garage.
+func test_the_fitting_bay_opens_from_the_garage() -> void:
+	var asked: Array[String] = []
+	var on_scene := func(scene_name: String, _scene: Node) -> void: asked.append(scene_name)
+	Game.scene_requested.connect(on_scene)
+	Game.hold_scenes = true
+	var g := Garage.new()
+	add_child(g)
+	for i in 4:
+		await get_tree().process_frame
+	assert_str(g._bay_button.text).is_equal("Fitting Bay")
+	assert_str(g._bay_button.accessibility_description).is_equal("Import and fit your own car")
+	assert_str(g._back_button.accessibility_description).is_equal("Back to the main menu")
+	g._bay_button.grab_focus()
+	await _push("ui_accept")
+	assert_array(asked).contains_exactly(["FittingBay"])
+	assert_str(Game.bay_from).is_equal("garage")
+	Game.hold_scenes = false
+	Game.scene_requested.disconnect(on_scene)
+	Game.bay_from = ""
+	g._preview.clear()
+	for i in 8:
+		await get_tree().process_frame
+	g.queue_free()
+	await get_tree().process_frame
+
+
+## Exit and Back go back where the bay came from: the Garage (on the car being fitted) when it
+## opened the bay, else the main menu as before.
+func test_the_bay_goes_back_where_it_came_from() -> void:
+	var asked: Array[String] = []
+	var picked: Array[String] = []
+	var on_scene := func(scene_name: String, scene: Node) -> void:
+		asked.append(scene_name)
+		if scene is Garage:
+			picked.append((scene as Garage).start_car)
+	Game.scene_requested.connect(on_scene)
+	Game.hold_scenes = true
+	DirAccess.make_dir_recursive_absolute("user://tests/writer")
+	for from in ["garage", ""]:
+		Game.open_fitting_bay("", "", from)
+		var bay := FittingBay.new()
+		bay.draft = FittingDraft.from_import(ModelImport.import_file("res://tests/fixtures/models/kenney/kart-oobi.glb"))
+		bay.draft.edit_path = "user://tests/writer/bay_back.noss"
+		add_child(bay)
+		await get_tree().process_frame
+		if from == "garage": # the Exit button
+			var exit: Button = bay.find_children("*", "Button", true, false).filter(func(b: Button) -> bool: return b.text == "Exit")[0]
+			assert_str(exit.accessibility_description).is_equal("Back to the Garage")
+			exit.pressed.emit()
+		else: # Back
+			await _push("ui_cancel")
+		bay.queue_free()
+		await get_tree().process_frame
+	assert_array(asked).contains_exactly(["FittingBay", "Garage", "FittingBay", "TitleScreen"])
+	assert_array(picked).contains_exactly(["user://tests/writer/bay_back.noss"])
+	Game.hold_scenes = false
+	Game.scene_requested.disconnect(on_scene)
+	Game.bay_from = ""

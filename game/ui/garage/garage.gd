@@ -18,7 +18,10 @@ var _status: Label
 var _loading := ""
 var _overlay: Control
 var _back_button: Button
+var _bay_button: Button
 var _downloads_button: Button
+## The car to pick when the garage opens (back from the Fitting Bay); empty: the first.
+var start_car := ""
 ## The selected car's enabled action buttons; the one that opened the overlay gets focus back.
 var _actions: Array[Button] = []
 var _last_action: Button
@@ -54,9 +57,13 @@ func _ready() -> void:
 	_grid.add_theme_constant_override("h_separation", 16)
 	_grid.add_theme_constant_override("v_separation", 16)
 	scroll.add_child(_grid)
+	_bay_button = UiKit.button("Fitting Bay", func() -> void:
+		_preview.clear()
+		Game.open_fitting_bay("", "", "garage"), "Import and fit your own car")
+	list.add_child(_bay_button)
 	_downloads_button = UiKit.button("Downloads", _open_downloads, "Keep a car a host sent you")
 	list.add_child(_downloads_button)
-	_back_button = UiKit.button("Back", _back, "Back to the title screen")
+	_back_button = UiKit.button("Back", _back, "Back to the main menu")
 	list.add_child(_back_button)
 
 	var right := VBoxContainer.new()
@@ -73,7 +80,7 @@ func _ready() -> void:
 	_status = UiKit.label("", 22)
 	_status.accessibility_live = AccessibilityServer.AccessibilityLiveMode.LIVE_POLITE
 	right.add_child(_status)
-	_reload()
+	_reload(start_car)
 
 
 func _reload(select_path := "") -> void:
@@ -108,21 +115,24 @@ func _reload(select_path := "") -> void:
 		_select(select)
 
 
-## Arrow keys and pads move around the grid; down from the last row goes to Back. Confirm on a
-## car goes to its actions, and back from there returns to the car.
+## Arrow keys and pads move around the grid; down from the last row goes to the buttons under it
+## (Fitting Bay, Downloads, Back). Confirm on a car goes to its actions, and back from there
+## returns to the car.
 func _link_grid_focus() -> void:
 	for i in _cards.size():
 		var c := _cards[i]
 		var left := _cards[i - 1] if i % COLUMNS > 0 else c
 		var right := _cards[i + 1] if i % COLUMNS < COLUMNS - 1 and i + 1 < _cards.size() else c
 		var up := _cards[i - COLUMNS] if i >= COLUMNS else c
-		var down: Control = _cards[i + COLUMNS] if i + COLUMNS < _cards.size() else _downloads_button
+		var down: Control = _cards[i + COLUMNS] if i + COLUMNS < _cards.size() else _bay_button
 		c.focus_neighbor_left = c.get_path_to(left)
 		c.focus_neighbor_right = c.get_path_to(right)
 		c.focus_neighbor_top = c.get_path_to(up)
 		c.focus_neighbor_bottom = c.get_path_to(down)
 	if not _cards.is_empty():
-		_downloads_button.focus_neighbor_top = _downloads_button.get_path_to(_cards[-1])
+		_bay_button.focus_neighbor_top = _bay_button.get_path_to(_cards[-1])
+		_bay_button.focus_neighbor_bottom = _bay_button.get_path_to(_downloads_button)
+		_downloads_button.focus_neighbor_top = _downloads_button.get_path_to(_bay_button)
 		_downloads_button.focus_neighbor_bottom = _downloads_button.get_path_to(_back_button)
 		_back_button.focus_neighbor_top = _back_button.get_path_to(_downloads_button)
 		_back_button.focus_neighbor_bottom = _back_button.get_path_to(_cards[0])
@@ -232,7 +242,7 @@ func _edit(step: String) -> void:
 		pkg.free_scenes()
 		Game.bay_draft = draft
 		_preview.clear()
-		Game.open_fitting_bay("", step if step else "Import"))
+		Game.open_fitting_bay("", step if step else "Import", "garage"))
 
 
 func _paint() -> void:

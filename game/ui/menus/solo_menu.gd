@@ -1,7 +1,7 @@
 class_name SoloMenu
 extends Control
-## Solo Drive (Changes.md): the ways to drive on this machine, alone or in splitscreen, under one
-## title entry. Picking one hides this menu; backing out of that mode's first screen shows it
+## Local Drive (Changes.md, docs/UI_FLOW.md §5): the ways to drive on this machine, alone or in
+## splitscreen, under one main menu entry. Picking one hides this menu; backing out of that mode's first screen shows it
 ## again on the same entry (`focus`).
 
 ## `mode`: "free", "race", "time_trial", "highway", "kart", "endless" or "mini_games".
@@ -25,7 +25,7 @@ func _ready() -> void:
 	theme = UiKit.theme_for(self)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	var list := UiKit.panel(self, "Solo Drive", 560)
+	var list := UiKit.panel(self, "Local Drive", 560)
 	for m: Array in MODES:
 		var b := UiKit.button(m[1], func() -> void: chosen.emit(String(m[0])), m[2])
 		b.set_meta(&"mode", m[0])

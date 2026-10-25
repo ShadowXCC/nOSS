@@ -1,6 +1,6 @@
 extends GdUnitTestSuite
 ## Boot to race with only the keyboard, and with only a controller (M4 acceptance; the screen
-## reader part is tools/a11y_check.py): title -> Solo Drive -> Race -> class -> event -> Players -> Ready,
+## reader part is tools/a11y_check.py): main menu -> Local Drive -> Race -> class -> event -> Players -> Ready,
 ## by menu directions and confirm alone. Results by keys and buttons are checked too.
 
 const TITLE_SCENE := "res://game/ui/title/title_screen.tscn"
@@ -74,7 +74,7 @@ func _focused(runner: GdUnitSceneRunner) -> String:
 ## Goes from the title to a started race with `down`, `up` and `confirm` (keys or buttons).
 func _walk(runner: GdUnitSceneRunner, down: Callable, up: Callable, confirm: Callable) -> void:
 	await _frames(4)
-	assert_str(_focused(runner)).is_equal("Solo Drive")
+	assert_str(_focused(runner)).is_equal("Local Drive")
 	await confirm.call()
 	await _frames(4)
 	assert_str(_focused(runner)).is_equal("Free Drive")
@@ -161,7 +161,7 @@ func test_results_by_keys_and_buttons() -> void:
 func test_keyboard_only_boot_to_a_highway() -> void:
 	var runner := scene_runner(TITLE_SCENE)
 	await _frames(4)
-	await _key(KEY_ENTER) # Solo Drive
+	await _key(KEY_ENTER) # Local Drive
 	await _frames(4)
 	await _key(KEY_DOWN)
 	await _key(KEY_DOWN)
@@ -224,7 +224,7 @@ func test_keyboard_only_boot_to_a_highway() -> void:
 func test_keyboard_back_out_of_the_highway_menus() -> void:
 	var runner := scene_runner(TITLE_SCENE)
 	await _frames(4)
-	await _key(KEY_ENTER) # Solo Drive
+	await _key(KEY_ENTER) # Local Drive
 	await _frames(4)
 	await _key(KEY_DOWN)
 	await _key(KEY_DOWN)
@@ -263,10 +263,10 @@ func test_keyboard_back_out_of_the_highway_menus() -> void:
 	assert_str(_focused(runner)).starts_with("Lumen Ring")
 	await _key(KEY_ESCAPE)
 	await _frames(4)
-	assert_str(_focused(runner)).is_equal("Highway") # back on Solo Drive's entry
+	assert_str(_focused(runner)).is_equal("Highway") # back on Local Drive's entry
 	await _key(KEY_ESCAPE)
 	await _frames(4)
-	assert_str(_focused(runner)).is_equal("Solo Drive")
+	assert_str(_focused(runner)).is_equal("Local Drive")
 
 
 ## Free Drive by keys alone (Changes.md: it had no setup): title -> Free Drive -> class -> the
@@ -275,7 +275,7 @@ func test_keyboard_only_boot_to_free_drive_with_ai() -> void:
 	Settings.profile.erase("last_free")
 	var runner := scene_runner(TITLE_SCENE)
 	await _frames(4)
-	assert_str(_focused(runner)).is_equal("Solo Drive")
+	assert_str(_focused(runner)).is_equal("Local Drive")
 	await _key(KEY_ENTER)
 	await _frames(4)
 	assert_str(_focused(runner)).is_equal("Free Drive")

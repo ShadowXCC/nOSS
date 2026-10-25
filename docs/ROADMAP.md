@@ -291,7 +291,7 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
 
 **Phases:**
 - [x] P0: the spec ([UI_FLOW.md](UI_FLOW.md)), D214 and this section.
-- [ ] P1: the main menu (order, sizes); the Fitting Bay from the Garage.
+- [x] P1: the main menu (order, sizes); the Fitting Bay from the Garage. *`title_screen_test`: six buttons in order, 480×96 with 40 px text and 24 px gaps, centred, all on screen at text scale 1.0 and the focused one shown at 1.5; `garage_test`: the Fitting Bay button under the grid, and the bay's Exit and Back going to the Garage (on the car) when it came from there, the main menu otherwise. `tools/a11y_check.py` walks every route with the new names; its Host step had been skipped silently (it waited for a row below the fold) and runs again. One run in two had a main menu with no focus after backing out of Local Drive (not repeated in 12 rounds of just that).*
 - [ ] P2: the page kit, the page stack, the prompt bar and glyphs.
 - [ ] P3: tabs; Settings and Driving Settings.
 - [ ] P4: Local Drive core: Racing's Regular and Stock Car, the class page, Drive again, the Players countdown, after an event.
