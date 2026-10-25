@@ -88,8 +88,13 @@ static func create(profile_id: String, saved: Variant = null) -> PlayerProfile:
 	p.data = merged(saved)
 	# A new profile starts with Reduce flashing if the OS asks for less animation.
 	if not saved is Dictionary or not saved.has("reduce_flashing"):
-		p.data.reduce_flashing = DisplayServer.get_name() != "headless" and DisplayServer.accessibility_should_reduce_animation()
+		p.data.reduce_flashing = os_reduces_motion()
 	return p
+
+
+## The OS asks for less animation (a new profile's Reduce flashing).
+static func os_reduces_motion() -> bool:
+	return DisplayServer.get_name() != "headless" and DisplayServer.accessibility_should_reduce_animation()
 
 
 ## Reads user://profiles/<id>.json, or defaults if there's none.
@@ -137,6 +142,23 @@ func set_value(key: String, value: Variant) -> void:
 
 func set_assist(assist: String, value: Variant) -> void:
 	data.assists[assist] = value
+	save()
+
+
+## `keys` back to a new profile's values, deep copies of DEFAULTS (Driving Settings' "Reset to
+## defaults"), and saved. A key is a top-level one ("assists") or a nested one ("input.toggles").
+func reset_keys(keys: Array) -> void:
+	for key: String in keys:
+		var path := key.split(".")
+		var from: Dictionary = DEFAULTS
+		var to: Dictionary = data
+		for i in path.size() - 1:
+			from = from[path[i]]
+			to = to[path[i]]
+		var v: Variant = from[path[-1]]
+		to[path[-1]] = v.duplicate(true) if v is Dictionary or v is Array else v
+		if key == "reduce_flashing":
+			to.reduce_flashing = os_reduces_motion()
 	save()
 
 

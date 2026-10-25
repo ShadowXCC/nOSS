@@ -189,6 +189,16 @@
       {
         "button": "dpad_left"
       }
+    ],
+    "menu_tab_prev": [
+      {
+        "button": "left_shoulder"
+      }
+    ],
+    "menu_tab_next": [
+      {
+        "button": "right_shoulder"
+      }
     ]
   }
 }

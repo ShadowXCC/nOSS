@@ -71,6 +71,11 @@ func test_left_hand_pads_confirm_shows_lb() -> void:
 	assert_array(Glyphs.inputs("confirm", "playstation", sony).map(func(i: Dictionary) -> String: return i.id)).is_equal(["l1"])
 	var standard := _slot(["pad:test#%d" % SONY_PAD], "pad_standard")
 	assert_array(Glyphs.inputs("confirm", "playstation", standard).map(func(i: Dictionary) -> String: return i.id)).is_equal(["cross"])
+	# Tabs (§10.1): the left-hand pad has only Next tab, on L3; the standard one LB and RB.
+	assert_array(Glyphs.inputs("tabs", "xbox", slot).map(func(i: Dictionary) -> String: return i.id)).is_equal(["l3"])
+	assert_array(Glyphs.inputs("tabs", "playstation", standard).map(func(i: Dictionary) -> String: return i.id)).is_equal(["l1", "r1"])
+	var right_keys := _slot(["kb:right"], "pad_standard")
+	assert_array(Glyphs.inputs("tabs", "keyboard", right_keys).map(func(i: Dictionary) -> String: return i.id)).is_equal(["comma", "period"])
 
 
 ## A player with the keyboard and a pad: the prompts follow whichever fired their last menu action.

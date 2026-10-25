@@ -145,6 +145,16 @@
       {
         "key": "0"
       }
+    ],
+    "menu_tab_prev": [
+      {
+        "key": "Comma"
+      }
+    ],
+    "menu_tab_next": [
+      {
+        "key": "Period"
+      }
     ]
   }
 }

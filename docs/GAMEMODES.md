@@ -86,7 +86,7 @@ Original names and effects. Each racer holds one item, and triple items count as
 
 - **Item odds** depend on race position (stronger items further back), in `data/items/odds.json`. This is the only catch-up: no grip or speed rubber-banding (AI-05).
 - A hit spins a kart out for 1.2 s. Karts behind another within 30 m get its slipstream.
-- **Item assist** (Player settings): the game uses your item when it pays, as the AI would.
+- **Item assist** (Driving Settings): the game uses your item when it pays, as the AI would.
 
 ### Battle
 

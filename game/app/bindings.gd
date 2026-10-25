@@ -53,6 +53,8 @@ const ACTIONS := {
 	"menu_right": { "name": "Menu right", "repeat": true },
 	"menu_confirm": { "name": "Menu confirm" },
 	"menu_cancel": { "name": "Menu back" },
+	"menu_tab_prev": { "name": "Previous tab" },
+	"menu_tab_next": { "name": "Next tab" },
 }
 const DRIVING := ["steer_left", "steer_right", "throttle", "brake", "handbrake", "clutch", "shift_up", "shift_down",
 	"gear_r", "gear_n", "gear_1", "gear_2", "gear_3", "gear_4", "gear_5", "gear_6", "gear_7",
@@ -79,14 +81,15 @@ const DRAG := ["boost"]
 const DRAG_SHARES := { "boost": ["handbrake", "use_item", "throw_back", "drift"] }
 ## H-shifter gates (docs/INPUT.md §5): action -> gear (-1 reverse, 0 neutral).
 const GEARS := { "gear_r": -1, "gear_n": 0, "gear_1": 1, "gear_2": 2, "gear_3": 3, "gear_4": 4, "gear_5": 5, "gear_6": 6, "gear_7": 7 }
-const MENU := ["menu_up", "menu_down", "menu_left", "menu_right", "menu_confirm", "menu_cancel"]
+const MENU := ["menu_up", "menu_down", "menu_left", "menu_right", "menu_confirm", "menu_cancel", "menu_tab_prev", "menu_tab_next"]
 ## Hold actions that can be toggles instead (docs/ACCESSIBILITY.md §5.1).
 const HOLD := ["throttle", "brake", "handbrake", "look_back", "drift", "throw_back", "ram"]
-## What a player's menu gets, as InputEventAction: navigation, plus pause and change car,
-## which close the menus they open.
+## What a player's menu gets, as InputEventAction: navigation and tabs (docs/UI_FLOW.md §10.1),
+## plus pause and change car, which close the menus they open.
 const MENU_EVENTS := {
 	"menu_up": "ui_up", "menu_down": "ui_down", "menu_left": "ui_left", "menu_right": "ui_right",
-	"menu_confirm": "ui_accept", "menu_cancel": "ui_cancel", "pause": "pause", "hotswap_menu": "hotswap_menu",
+	"menu_confirm": "ui_accept", "menu_cancel": "ui_cancel", "menu_tab_prev": "ui_tab_prev",
+	"menu_tab_next": "ui_tab_next", "pause": "pause", "hotswap_menu": "hotswap_menu",
 }
 const DEFAULT_PRESET := { "keyboard": "kb_full", "gamepad": "pad_standard", "sim": "sim_generic" }
 
@@ -129,12 +132,22 @@ static func apply() -> void:
 			InputMap.add_action(action, 0.2)
 	# Shared menus (title, results) by controller too: Godot's defaults have no confirm or back
 	# button for pads (docs/ACCESSIBILITY.md §5.1: directions, confirm and cancel are enough).
-	for pair: Array in [["ui_accept", JOY_BUTTON_A], ["ui_cancel", JOY_BUTTON_B]]:
+	# Tabs (docs/UI_FLOW.md §10.1): Q and E, LB and RB on any pad.
+	for action: String in ["ui_tab_prev", "ui_tab_next"]:
+		if not InputMap.has_action(action):
+			InputMap.add_action(action)
+	for pair: Array in [["ui_accept", JOY_BUTTON_A], ["ui_cancel", JOY_BUTTON_B],
+			["ui_tab_prev", JOY_BUTTON_LEFT_SHOULDER], ["ui_tab_next", JOY_BUTTON_RIGHT_SHOULDER]]:
 		var e := InputEventJoypadButton.new()
 		e.device = -1
 		e.button_index = pair[1]
 		if not InputMap.action_has_event(pair[0], e):
 			InputMap.action_add_event(pair[0], e)
+	for pair: Array in [["ui_tab_prev", KEY_Q], ["ui_tab_next", KEY_E]]:
+		var k := InputEventKey.new()
+		k.physical_keycode = pair[1]
+		if not InputMap.action_has_event(pair[0], k):
+			InputMap.action_add_event(pair[0], k)
 
 
 ## A preset by id, refs normalized: {id, name, device, bindings: {action: [ref]}, match, wheel}.

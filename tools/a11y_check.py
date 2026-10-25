@@ -27,6 +27,7 @@ display. Writes no settings or profiles (--no-save).
     tools/a11y_check.py --endless-only # just the endless menus
     tools/a11y_check.py --sumo-only    # just the Mini Games submenu and the sumo menu
     tools/a11y_check.py --drag-only    # just the Mini Games submenu and the drag menu
+    tools/a11y_check.py --settings-only  # just Settings and Driving Settings, every tab
 """
 import os
 import subprocess
@@ -171,6 +172,10 @@ def _check_screen(label, settle):
     if a is None:
         problems.append(f"{label}: the game isn't on the accessibility bus")
         return
+    try:
+        a.clear_cache()  # states are cached: the focus may have moved since the wait above
+    except Exception:
+        pass
     focused = None
     unnamed = []
     seen_names = []
@@ -199,6 +204,10 @@ def _check_screen(label, settle):
                 except Exception:
                     continue  # its panel is being freed (a tool rebuilding): not really there
                 unnamed.append(f"{role} in '{where}'")
+    if focused is None:  # the focus moved while the screen was read (a tab switching): once more, fresh
+        n = focused_now()
+        if n is not None and showing(n):
+            focused = n
     if focused is None and os.environ.get("NOSS_A11Y_DEBUG"):
         for n in walk(a):
             st = states(n)
@@ -325,6 +334,27 @@ def drag_menus():
     for label, anchor in (("Drag: players", "Ready"), ("Drag: menu again", "Next"),
                           ("Mini Games again (drag)", "Drag Strip"), ("Local Drive (after drag)", "Mini Games")):
         ok = ok and back_from(label, anchor)
+    return ok
+
+
+def settings_menus():
+    """Main menu -> Settings -> every tab -> Players -> Driving Settings -> every tab, and back out
+    (UI overhaul P3, docs/UI_FLOW.md §9). The tabs are toggle buttons; each tab's screen is checked
+    as the next one is pressed."""
+    log("Settings")
+    ok = step("Main menu (settings)", "Settings")
+    ok = ok and hidden("Settings", "Local Drive")
+    for tab in ("Sound", "Splitscreen", "General", "Players"):  # Display is open first
+        ok = ok and step(f"Settings: to {tab}", tab, role="toggle button")
+    ok = ok and step("Settings: Players", "Driving Settings")
+    ok = ok and hidden("Driving Settings", "Profiles")
+    for tab in ("Comfort", "Vision & Hearing", "HUD & Display", "Controls", "Assists"):
+        ok = ok and step(f"Driving Settings: to {tab}", tab, role="toggle button")
+    ok = ok and back_from("Driving Settings: Assists", "Auto gearbox")
+    ok = ok and back_from("Settings: Players again", "Profiles")
+    if ok and find("Local Drive", "button", timeout=20.0) is None:
+        problems.append("Out of Settings: no main menu")
+        return False
     return ok
 
 
@@ -457,6 +487,10 @@ def main():
             if find("Local Drive", "button", timeout=60.0) is not None:
                 drag_menus()
             raise SystemExit(report())
+        if "--settings-only" in sys.argv:
+            if find("Local Drive", "button", timeout=60.0) is not None:
+                settings_menus()
+            raise SystemExit(report())
         log("Title")
         ok = step("Title", "Local Drive")
         ok = ok and hidden("Local Drive", "Drive Online")
@@ -509,6 +543,10 @@ def main():
                     drag_menus()
                 else:
                     problems.append("Back at the title: no Local Drive button")
+                if find("Local Drive", "button", timeout=20.0) is not None:
+                    settings_menus()
+                else:
+                    problems.append("Back at the title: no Local Drive button")
                 if find("Track Editor", "button", timeout=20.0) is not None:
                     editor_walk()
                 else:
@@ -519,7 +557,7 @@ def main():
 
 
 def finish():
-    if not any(f in sys.argv for f in ("--editor-only", "--kart-only", "--endless-only", "--sumo-only", "--drag-only")):
+    if not any(f in sys.argv for f in ("--editor-only", "--kart-only", "--endless-only", "--sumo-only", "--drag-only", "--settings-only")):
         highway_pause_walk()
     return report()
 

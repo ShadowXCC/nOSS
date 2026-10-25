@@ -57,7 +57,7 @@
         "gear_r", "gear_n", "gear_1", "gear_2", "gear_3", "gear_4", "gear_5", "gear_6", "gear_7",
         "camera_next", "look_back", "look_left", "look_right", "look_up", "look_down", "reset_car", "hotswap_menu", "pause", "editor_back", "horn", "lights",
         "drift", "use_item", "throw_back", "ram", "boost", "autodrive", "pit_fuel", "pit_tyres",
-        "menu_up", "menu_down", "menu_left", "menu_right", "menu_confirm", "menu_cancel"
+        "menu_up", "menu_down", "menu_left", "menu_right", "menu_confirm", "menu_cancel", "menu_tab_prev", "menu_tab_next"
       ]
     },
     "axis_index": { "type": "integer", "minimum": 0, "maximum": 15 },

@@ -16,7 +16,7 @@ Each local player has their own set of actions:
 | Car | `horn`, `lights`, `reset_car`, `hotswap_menu` |
 | Kart | `use_item`, `throw_back` (hold), `drift` (hold) (M8, D135) |
 | Mini games | `ram` (sumo: the shove, D164), `boost` (drag: the bottle, D173) |
-| UI | `pause`, `chat`, `scoreboard`, `confirm`, `cancel`, `editor_back` (a test drive back to the track editor, M6), `autodrive` (endless: the car drives itself, and back, M9) |
+| UI | `pause`, `chat`, `scoreboard`, `confirm`, `cancel`, `menu_tab_prev`, `menu_tab_next` (tabs on a page, [UI_FLOW.md](UI_FLOW.md) §10.1), `editor_back` (a test drive back to the track editor, M6), `autodrive` (endless: the car drives itself, and back, M9) |
 
 **Defaults** come from presets (§7); every action, menus included, can be rebound per player on every device.
 
@@ -40,9 +40,10 @@ Each local player has their own set of actions:
 | Autodrive (M9) | O | — | — | — (the pause menu) |
 | Pit fuel, pit tires (D210) | F, T | 1, 2 | 9, 0 | D-pad right, left |
 | Menu confirm, back | Enter or Space, Esc or Backspace | Space or F, Esc or G | Enter, Backspace | A, B |
+| Menu tabs: previous, next | Q, E | Q, E | `,`, `.` | LB, RB |
 | Frame rate | F3 (any keyboard) | | | — |
 
-One-handed controller layouts (`pad_left_hand`, `pad_right_hand`) put driving on one half of the pad; reset, change car and back to editor are then in the pause menu, and the horn, lights and free look are unbound (D119). Pit fuel and pit tires (`pit_fuel`, `pit_tyres`, D210) step the next stop's service on (fuel: Full, Finish, Half, No fuel; tires: 4, 2, none); the pad's D-pad right and left are free in Track mode. Every preset also has them in the pause menu ("Pit fuel", "Pit tires"), which is where the one-handed pads have them.
+One-handed controller layouts (`pad_left_hand`, `pad_right_hand`) put driving on one half of the pad; reset, change car and back to editor are then in the pause menu, and the horn, lights and free look are unbound (D119). Menu tabs: the left hand has Next tab on L3 and no Previous tab (left and right on the tab row do that), so its confirm is LB alone; the right hand has R3 and RB. In menus the tab keys don't shift: menus don't drive. Pit fuel and pit tires (`pit_fuel`, `pit_tyres`, D210) step the next stop's service on (fuel: Full, Finish, Half, No fuel; tires: 4, 2, none); the pad's D-pad right and left are free in Track mode. Every preset also has them in the pause menu ("Pit fuel", "Pit tires"), which is where the one-handed pads have them.
 
 **Free look:** at full deflection a chase camera orbits up to 120° round the car (up to 10° lower, 25° higher), and the hood, bumper and cockpit views turn up to 100° to the side and 30° up or down. The stick uses the player's stick deadzone, straight. It works with Look back. Keyboards have it unbound; any keys can be bound to it. No two driving actions share an input on any preset (a test checks it), except the kart actions: they share with what kart sessions ignore (handbrake, the shifts, and look back for throw back), so the Kart row above reuses those keys. One-handed pads: drift L3, use item D-pad up, throw back D-pad left (left hand); R3, Y and B (right hand). The wheel preset binds none; bind them yourself. In a kart session the handbrake and shifts do nothing (the karts' gearbox is automatic). A sumo match's **Ram** (D164) shares in the same way: it sits on the shift-up input, since a sumo match has no gearbox to use it. A drag pass's **Boost** (D173) cannot go there — the shifts are its whole game — so it takes the **handbrake** instead, which a pass has no use for either (the hold on the line is the mode's, not the driver's). The same input **skips** a pass of bots while a driver waits their turn (D178), and the **Camera** button cycles what they watch it on (D176); neither does anything to a car that is running.
 
@@ -93,14 +94,14 @@ The **track editor** has its own controls for its view (mouse, keyboard or contr
 ### Controller (INP-02)
 - **Sticks:** inner and outer deadzone, linearity curve, speed-sensitive steering reduction, steering smoothing.
 - **Triggers:** throttle and brake, with their own deadzones and curves.
-- **Rumble** (Godot `start_joy_vibration`): tire slip, ABS, curbs, collisions. Strength per player (Settings → Controller rumble), M4.
+- **Rumble** (Godot `start_joy_vibration`): tire slip, ABS, curbs, collisions. Strength per player (Driving Settings → Controls → Controller rumble), M4.
 - **Shared menus** (title, results) take the D-pad or stick, A to confirm and B to go back (D77).
 
 ## 5. Wheels, pedals, shifters
 
 *Requirements: INP-03, INP-04.*
 
-- **Calibration wizard:** wheel center and full lock. Pedal min and max, inverted pedals, combined-axis pedals. Handbrake axis or button. *M1: Settings → Wheel setup picks the device and detects each axis by moving it (steering from centre to full lock, pedals fully pressed). Rest and full positions are stored, so inverted pedals just work. Saved per player by device GUID. M3: detection looks at all of the player's wheels and pedals, so pedals on their own USB device work; each axis remembers its device.*
+- **Calibration wizard:** wheel center and full lock. Pedal min and max, inverted pedals, combined-axis pedals. Handbrake axis or button. *M1: Wheel setup (Driving Settings → Controls) picks the device and detects each axis by moving it (steering from centre to full lock, pedals fully pressed). Rest and full positions are stored, so inverted pedals just work. Saved per player by device GUID. M3: detection looks at all of the player's wheels and pedals, so pedals on their own USB device work; each axis remembers its device.*
 - **Rotation range:**
   - Set the wheel's hardware range in settings.
   - The game applies a **soft lock** that matches the platform's `steering.wheel_rotation_deg` ([PHYSICS.md §11](PHYSICS.md#11-force-feedback)).
@@ -162,7 +163,7 @@ All of these are in the player's Wheel setup (M4). Effects are mixed natively at
   - Wheels: Logitech G29/G920/G923; Thrustmaster T150/T248/T300/TX; Fanatec CSL DD / GT DD Pro; Moza R5/R9/R12; Simagic; Simucube; Cammus.
   - Controllers: Xbox, PlayStation, Switch Pro, Steam Deck.
   - None are shipped yet: their axis layouts need checking on hardware.
-- **Full rebinding** of every action on every device (NFR-08): Settings → Buttons and keys. Pick the device, then the action, then press the new input on that device. Overrides are saved per preset, and per device for wheels and pedals. On a shared keyboard the other side's keys can't be taken.
+- **Full rebinding** of every action on every device (NFR-08): Driving Settings → Controls → Buttons and keys. Pick the device, then the action, then press the new input on that device. Overrides are saved per preset, and per device for wheels and pedals. On a shared keyboard the other side's keys can't be taken.
 
 ## 8. Assists (summary)
 

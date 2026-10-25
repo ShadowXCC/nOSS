@@ -151,6 +151,16 @@
       {
         "key": "2"
       }
+    ],
+    "menu_tab_prev": [
+      {
+        "key": "Q"
+      }
+    ],
+    "menu_tab_next": [
+      {
+        "key": "E"
+      }
     ]
   }
 }

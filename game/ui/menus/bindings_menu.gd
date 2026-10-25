@@ -1,11 +1,10 @@
 class_name BindingsMenu
-extends Control
+extends MenuPage
 ## Rebinding for one player (INP-06, docs/INPUT.md §7): every action on each of their devices,
 ## menus included. Pick an action, then press the new key or button on that device within a
 ## few seconds. Saved in the profile per preset (or per wheel/pedal device); the preset gives
-## the rest. On a shared keyboard, the other player's keys can't be taken.
-
-signal closed
+## the rest. On a shared keyboard, the other player's keys can't be taken. A page (docs/UI_FLOW.md
+## §9.2) opened from Driving Settings' Controls tab.
 
 const CAPTURE_S := 5.0
 
@@ -15,17 +14,17 @@ var slot: PlayerSlot
 
 var _devices_input: PlayerInput
 var _device := 0
-var _rows: Array = []
 var _status: Label
 var _capturing := ""
 var _capture_time := 0.0
 var _focus_index := 0
+var _target: Viewport # where the player's menu input went before a capture
 
 
 func _ready() -> void:
-	theme = UiKit.theme_for(self)
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	process_mode = Node.PROCESS_MODE_ALWAYS
+	title = "Buttons and keys"
+	if crumbs.is_empty():
+		crumbs = ["Driving Settings", "Buttons and keys"]
 	if slot:
 		_devices_input = slot.input
 		profile = slot.profile
@@ -38,74 +37,57 @@ func _ready() -> void:
 				e.zone = "full"
 			_devices_input.devices.append(e)
 		_devices_input.rebuild()
-	_build()
+	super._ready()
 
 
 func _build() -> void:
-	# Freed after this frame: the button that asked for the rebuild may still be signalling.
-	for c in get_children():
-		remove_child(c)
-		c.queue_free()
-	_rows.clear()
-	var list := UiKit.panel(self, "Buttons and keys", 980)
 	if _devices_input.devices.is_empty():
-		list.add_child(UiKit.label("No device"))
-		var back0 := UiKit.button("Back", func() -> void: closed.emit())
-		list.add_child(back0)
-		UiKit.chain_focus([back0])
+		add_text("No device")
 		return
 	_device = clampi(_device, 0, _devices_input.devices.size() - 1)
 	var items := []
 	for i in _devices_input.devices.size():
 		var dev: Dictionary = _devices_input.devices[i]
 		items.append([i, _device_name(dev)])
-	_rows.append(UiKit.spinner("Device", items, _device, func(i: int) -> void:
+	add_row(UiKit.spinner("Device", items, _device, func(i: int) -> void:
 		_device = i
 		_focus_index = 0
-		_build.call_deferred()))
-	list.add_child(_rows[0])
-
-	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0, 560)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.follow_focus = true
-	list.add_child(scroll)
-	var rows := VBoxContainer.new()
-	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(rows)
+		_rebuild.call_deferred()))
 	var d: Dictionary = _devices_input.devices[_device]
 	var map := _map(d)
 	var kind: String = d.kind
 	for action: String in Bindings.DRIVING + Bindings.MENU:
 		if action == Bindings.KART[0]:
-			rows.add_child(UiKit.label("Kart", 24)) # its actions share inputs kart ignores (D135)
+			add_heading("Kart") # its actions share inputs kart ignores (D135)
 		if action == Bindings.SUMO[0]:
-			rows.add_child(UiKit.label("Sumo", 24)) # a sumo match has no items, so Ram may share that
+			add_heading("Sumo") # a sumo match has no items, so Ram may share that
 		if action == Bindings.DRAG[0]:
-			rows.add_child(UiKit.label("Drag", 24)) # a drag pass has no items or ram, so Boost may share those
+			add_heading("Drag") # a drag pass has no items or ram, so Boost may share those
+		if action == Bindings.MENU[0]:
+			add_heading("Menus")
 		var refs: Array = map.get(action, [])
 		var label := Bindings.refs_label(refs, kind)
 		var dupes := _also(map, action)
 		var b := UiKit.button("%s     %s%s" % [Bindings.ACTIONS[action].name, label, ("   (also %s)" % dupes) if dupes else ""],
 			_start_capture.bind(action), "Press, then press the new key or button")
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		b.accessibility_name = "%s: %s" % [Bindings.ACTIONS[action].name, label]
-		rows.add_child(b)
-		_rows.append(b)
-	_status = UiKit.label("Wheel and pedal axes: Wheel setup" if kind == "sim" else "", 24)
-	_status.accessibility_live = AccessibilityServer.AccessibilityLiveMode.LIVE_POLITE
-	list.add_child(_status)
-	var reset := UiKit.button("Reset this device", func() -> void:
+		add_row(b)
+	if _status == null: # under the rows, always in view
+		_status = UiKit.label("")
+		_status.accessibility_live = AccessibilityServer.AccessibilityLiveMode.LIVE_POLITE
+		add_footer(_status)
+	_status.text = "Wheel and pedal axes: Wheel setup" if kind == "sim" else ""
+	add_row(UiKit.button("Reset this device", func() -> void:
 		profile.data.input.bindings.erase(_key(d))
-		_save())
-	list.add_child(reset)
-	_rows.append(reset)
-	var back := UiKit.button("Back", func() -> void: closed.emit())
-	list.add_child(back)
-	_rows.append(back)
-	UiKit.chain_focus(_rows)
-	if _focus_index > 0 and _focus_index < _rows.size():
-		(_rows[_focus_index] as Control).grab_focus.call_deferred()
+		_save(), "Its buttons and keys back to the layout's"))
+
+
+## The rows again (another device, a new binding), the focus back on the row it was on.
+func _rebuild() -> void:
+	rebuild_rows(_build, func() -> Control:
+		return UiKit._focus_target(_rows[_focus_index]) if _focus_index > 0 and _focus_index < _rows.size() else null)
 
 
 func _device_name(d: Dictionary) -> String:
@@ -141,6 +123,7 @@ func _start_capture(action: String) -> void:
 	_focus_index = _rows.find(UiKit.focus_owner(self))
 	_devices_input.capture_start()
 	if slot:
+		_target = slot.menu_target
 		slot.menu_target = null # the press is the binding, not navigation
 	get_viewport().gui_release_focus()
 	_status.text = "Press the new input for %s" % String(Bindings.ACTIONS[action].name).to_lower()
@@ -170,7 +153,7 @@ func _end_capture() -> void:
 	_capturing = ""
 	_devices_input.settle() # the key just pressed isn't also a menu press
 	if slot:
-		slot.menu_target = get_viewport()
+		slot.menu_target = _target
 	if _focus_index >= 0 and _focus_index < _rows.size():
 		(_rows[_focus_index] as Control).grab_focus()
 
@@ -180,7 +163,7 @@ func _save() -> void:
 	Players.refresh_all()
 	if slot == null:
 		_devices_input.rebuild()
-	_build()
+	_rebuild()
 
 
 func _input(event: InputEvent) -> void:
@@ -189,6 +172,5 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _capturing.is_empty() and event.is_action_pressed("ui_cancel"):
-		get_viewport().set_input_as_handled()
-		closed.emit()
+	if _capturing.is_empty():
+		super._unhandled_input(event)

@@ -50,7 +50,7 @@ func _build() -> void:
 	var rows := VBoxContainer.new()
 	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(rows)
-	var intro := UiKit.label("Set up how you play. Combine as many as you like; everything is in Settings later.", 26)
+	var intro := UiKit.label("Set up how you play. Combine as many as you like; everything is in Driving Settings later.", 26)
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	rows.add_child(intro)
 
@@ -78,7 +78,7 @@ func _build() -> void:
 	_add(rows, UiKit.check("Reduce flashing", bool(profile.data.reduce_flashing), func(on: bool) -> void:
 		profile.set_value("reduce_flashing", on), "Photosensitivity: at most 3 flashes a second"))
 
-	var more := UiKit.button("More settings", _open_settings, "Every option, one by one")
+	var more := UiKit.button("Driving Settings", _open_settings, "Every option, one by one")
 	var finish := UiKit.button("Done", _finish)
 	list.add_child(more)
 	list.add_child(finish)
@@ -144,6 +144,7 @@ func _open_settings() -> void:
 	var menu := PlayerSettingsMenu.new()
 	menu.profile = profile
 	menu.slot = slot
+	menu.crumbs = ["Accessibility", "Driving Settings"]
 	UiKit.open_sub(self, menu, func() -> void: _build())
 
 

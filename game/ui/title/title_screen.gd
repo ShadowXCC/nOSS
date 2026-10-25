@@ -90,6 +90,9 @@ func _ready() -> void:
 			_open_solo()
 			_open_players(String(Settings.profile.get("last_platform", "official.track.gt")))
 		"settings": _open_settings()
+		"driving-settings":
+			_open_settings()
+			(_stack.top() as SettingsMenu)._open_player()
 		"online": _open_online()
 		"tracks":
 			_open_solo()

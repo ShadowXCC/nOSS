@@ -178,6 +178,70 @@ func add_row(c: Control) -> Control:
 	return c
 
 
+## The rows again (another tab, another device): `build` adds them, the focus goes to what `pick`
+## returns (null: the first row), and only then do the old ones go, so the focus never drops on
+## the way (a screen reader would find nothing focused). Freed after this frame: the control that
+## asked for it may still be sending its signal.
+func rebuild_rows(build: Callable, pick := Callable()) -> void:
+	# A new body beside the old one, so the new rows keep their names.
+	var old := body
+	old.name = &"OldBody"
+	body = VBoxContainer.new()
+	body.name = &"Body"
+	old.add_sibling(body)
+	_rows.clear()
+	build.call()
+	chain(false)
+	var target: Control = pick.call() if pick.is_valid() else null
+	if target:
+		target.grab_focus()
+	else:
+		focus_first()
+	old.get_parent().remove_child(old)
+	old.queue_free()
+
+
+## A group's heading in the body, in the accent colour ("Access assists").
+func add_heading(text: String) -> Label:
+	var l := UiKit.label(text, 30)
+	l.add_theme_color_override(&"font_color", UiKit.ACCENT)
+	body.add_child(l)
+	return l
+
+
+## Puts `c` under the title, above the body (a TabRow).
+func add_header(c: Control) -> void:
+	_title_label.add_sibling(c)
+
+
+## Puts `c` under the body, above the prompt bar (a help line).
+func add_footer(c: Control) -> void:
+	prompt_bar.add_sibling(c)
+	prompt_bar.get_parent().move_child(c, prompt_bar.get_index())
+
+
+## Opens `page` over this one: on the MenuStack this is on, or else in its place (UiKit.open_sub:
+## in a player's view, the pause menu). Either way the focus comes back where it was when it
+## closes, then `on_back` is called.
+func open_over(page: Control, on_back := Callable()) -> void:
+	var stack := get_parent() as MenuStack
+	if stack:
+		stack.push(page)
+		if on_back.is_valid():
+			page.connect(&"closed", on_back)
+		return
+	var focus := UiKit.focus_owner(self)
+	var id := focus.get_instance_id() if focus else 0
+	UiKit.open_sub(self, page, func() -> void:
+		var c := instance_from_id(id) as Control if id else null
+		if c and c.is_inside_tree() and c.is_visible_in_tree():
+			c.grab_focus()
+		else:
+			focus_first()
+		if on_back.is_valid():
+			on_back.call())
+
+
 ## A line of text in the body (muted unless `strong`).
 func add_text(text: String, strong := false) -> Label:
 	var l := Label.new()
@@ -232,7 +296,11 @@ func scroll() -> ScrollContainer:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel") and is_visible_in_tree():
+	# Not while a page opened over this one in its place (open_over()) has it, nor mid-typing.
+	if event.is_action_pressed("ui_cancel") and _scroll.is_visible_in_tree():
+		var focus := UiKit.focus_owner(self)
+		if focus is LineEdit and (focus as LineEdit).is_editing():
+			return
 		get_viewport().set_input_as_handled()
 		closed.emit()
 
@@ -254,6 +322,12 @@ func _fit() -> void:
 func _on_focus_changed(c: Control) -> void:
 	if c and _scroll and _scroll.is_ancestor_of(c):
 		_queue_reveal(c)
+	_focused(c)
+
+
+## The focus moved (anywhere in this page's viewport). Pages that follow it override this.
+func _focused(_c: Control) -> void:
+	pass
 
 
 ## Scrolls to `c` at the start of the next frame, once this one's layout is done: a row focused

@@ -127,15 +127,17 @@
     "menu_confirm": [
       {
         "button": "left_shoulder"
-      },
-      {
-        "button": "left_stick"
       }
     ],
     "menu_cancel": [
       {
         "axis": "trigger_left",
         "dir": 1
+      }
+    ],
+    "menu_tab_next": [
+      {
+        "button": "left_stick"
       }
     ]
   }

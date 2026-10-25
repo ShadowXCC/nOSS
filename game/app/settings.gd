@@ -74,6 +74,13 @@ var profile := {}
 var settings_path := "user://settings.cfg"
 
 var _profiles := {} # id -> PlayerProfile, so two users of one id share it
+var _defaults := {} # MACHINE key -> its value before settings.cfg is read
+
+
+func _init() -> void:
+	for key: String in MACHINE:
+		var v: Variant = get(key)
+		_defaults[key] = v.duplicate(true) if v is Dictionary else v
 
 
 func _ready() -> void:
@@ -115,6 +122,16 @@ func last_event() -> RaceEvent:
 	e.kind = "race"
 	Game.apply_dev_event(e)
 	return e
+
+
+## Machine settings back to their defaults, applied and saved (Settings' "Reset to defaults").
+func reset_keys(keys: Array) -> void:
+	for key: String in keys:
+		if _defaults.has(key):
+			var v: Variant = _defaults[key]
+			set(key, v.duplicate(true) if v is Dictionary else v)
+	apply_display()
+	save()
 
 
 func set_last_event(e: RaceEvent) -> void:

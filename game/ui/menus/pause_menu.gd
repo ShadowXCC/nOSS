@@ -120,6 +120,7 @@ func _open_settings() -> void:
 	var menu := PlayerSettingsMenu.new()
 	menu.slot = slot
 	menu.allowed_assists = allowed_assists
+	menu.crumbs = ["Pause", "Driving Settings"]
 	UiKit.open_sub(self, menu, _ready_focus)
 
 

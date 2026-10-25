@@ -121,6 +121,16 @@
       {
         "button": "b"
       }
+    ],
+    "menu_tab_prev": [
+      {
+        "button": "right_stick"
+      }
+    ],
+    "menu_tab_next": [
+      {
+        "button": "right_shoulder"
+      }
     ]
   }
 }

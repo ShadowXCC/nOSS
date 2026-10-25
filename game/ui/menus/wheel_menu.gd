@@ -1,10 +1,9 @@
 class_name WheelMenu
-extends Control
+extends MenuPage
 ## Wheel setup for one player (docs/INPUT.md §5-6): pick the device, set its rotation range,
 ## detect the steering and pedal axes by moving them (on any of the player's sim devices, so
-## separate pedals work), tune force feedback and test it. Saved in the player's profile.
-
-signal closed
+## separate pedals work), tune force feedback and test it. Saved in the player's profile. A page
+## (docs/UI_FLOW.md §9.2) opened from Driving Settings' Controls tab; its rows scroll.
 
 ## Whose wheel; default P1.
 var slot: PlayerSlot
@@ -13,7 +12,6 @@ const ROTATIONS := [270, 360, 540, 720, 900, 1080]
 const DETECT_S := 4.0
 
 var _cfg := {}
-var _rows: Array = []
 var _status: Label
 var _live: Label
 var _device_option: OptionButton
@@ -26,15 +24,18 @@ var _extreme := PackedFloat32Array()
 
 
 func _ready() -> void:
-	theme = UiKit.theme_for(self)
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	process_mode = Node.PROCESS_MODE_ALWAYS
+	title = "Wheel setup"
+	if crumbs.is_empty():
+		crumbs = ["Driving Settings", "Wheel setup"]
 	if slot == null:
 		slot = Players.primary_slot()
 	_cfg = slot.input.wheel.config.duplicate(true)
-	var list := UiKit.panel(self, "Wheel", 980)
+	super._ready()
+
+
+func _build() -> void:
 	if not Devices.native_ok:
-		list.add_child(UiKit.label("Wheel support off: SDL3 not found"))
+		add_text("Wheel support off: SDL3 not found")
 	_devices = _sim_devices()
 
 	var row := HBoxContainer.new()
@@ -52,47 +53,39 @@ func _ready() -> void:
 			_device_option.select(i + 1)
 	_device_option.item_selected.connect(_on_device)
 	row.add_child(_device_option)
-	_add(list, row)
+	add_row(row)
 
-	_add(list, UiKit.option("Rotation", ROTATIONS.map(func(r: int) -> Array: return [float(r), "%d°" % r]), float(_cfg.rotation_deg),
+	add_row(UiKit.option("Rotation", ROTATIONS.map(func(r: int) -> Array: return [float(r), "%d°" % r]), float(_cfg.rotation_deg),
 		func(v: float) -> void: _set_value("rotation_deg", v)))
 	for item: Array in [["steer", "Detect steering"], ["throttle", "Detect throttle"], ["brake", "Detect brake"], ["clutch", "Detect clutch"], ["handbrake", "Detect handbrake"]]:
 		var which: String = item[0]
-		_add(list, UiKit.button(item[1], func() -> void: _start_detect(which), "Move it fully, then let go"))
-	_add(list, UiKit.check("Invert steering", _cfg.get("steer", {}).get("invert", false), func(on: bool) -> void:
+		add_row(UiKit.button(item[1], func() -> void: _start_detect(which), "Move it fully, then let go"))
+	add_row(UiKit.check("Invert steering", _cfg.get("steer", {}).get("invert", false), func(on: bool) -> void:
 		if _cfg.get("steer") is Dictionary:
 			_cfg.steer.invert = on
 			_save()))
 	var c := func(key: String) -> float: return float(_cfg.get(key, WheelInput.DEFAULTS[key]))
-	_add(list, UiKit.slider("FFB strength", c.call("ffb_gain"), func(v: float) -> void: _set_value("ffb_gain", v)))
-	_add(list, UiKit.number("Wheel torque", c.call("ffb_max_torque_nm"), 2, 25, 0.5, "%.1f Nm", func(v: float) -> void: _set_value("ffb_max_torque_nm", v),
+	add_row(UiKit.slider("FFB strength", c.call("ffb_gain"), func(v: float) -> void: _set_value("ffb_gain", v)))
+	add_row(UiKit.number("Wheel torque", c.call("ffb_max_torque_nm"), 2, 25, 0.5, "%.1f Nm", func(v: float) -> void: _set_value("ffb_max_torque_nm", v),
 		"Your wheel's strongest force: about 2 for gear wheels, 3 to 4 belt, 8 and up direct drive"))
 	for item: Array in [["ffb_road", "Road", "Surface texture"], ["ffb_curb", "Curbs", "Rumble over curbs"], ["ffb_slip", "Slip", "Buzz while the front slides"],
 			["ffb_jolt", "Collisions", "A kick on contact"], ["ffb_engine", "Engine", "Engine vibration"], ["ffb_spring", "Centering", "Pulls to the middle when slow"]]:
 		var key: String = item[0]
-		_add(list, UiKit.slider(item[1], c.call(key), func(v: float) -> void: _set_value(key, v), item[2]))
-	_add(list, UiKit.slider("Damping", c.call("ffb_damper"), func(v: float) -> void: _set_value("ffb_damper", v), "Weight"))
-	_add(list, UiKit.slider("Friction", c.call("ffb_friction") / 0.3, func(v: float) -> void: _set_value("ffb_friction", v * 0.3)))
-	_add(list, UiKit.slider("Smoothing", 1.0 - c.call("ffb_smoothing"), func(v: float) -> void: _set_value("ffb_smoothing", clampf(1.0 - v, 0.05, 1.0)), "Filters noise on direct-drive wheels"))
-	_add(list, UiKit.slider("Min force", c.call("ffb_min") / 0.3, func(v: float) -> void: _set_value("ffb_min", v * 0.3), "Overcomes the dead spot on gear and belt wheels"))
-	_add(list, UiKit.check("Invert FFB", bool(_cfg.get("ffb_invert", false)), func(on: bool) -> void: _set_value("ffb_invert", on)))
-	_add(list, UiKit.button("Test FFB", func() -> void:
+		add_row(UiKit.slider(item[1], c.call(key), func(v: float) -> void: _set_value(key, v), item[2]))
+	add_row(UiKit.slider("Damping", c.call("ffb_damper"), func(v: float) -> void: _set_value("ffb_damper", v), "Weight"))
+	add_row(UiKit.slider("Friction", c.call("ffb_friction") / 0.3, func(v: float) -> void: _set_value("ffb_friction", v * 0.3)))
+	add_row(UiKit.slider("Smoothing", 1.0 - c.call("ffb_smoothing"), func(v: float) -> void: _set_value("ffb_smoothing", clampf(1.0 - v, 0.05, 1.0)), "Filters noise on direct-drive wheels"))
+	add_row(UiKit.slider("Min force", c.call("ffb_min") / 0.3, func(v: float) -> void: _set_value("ffb_min", v * 0.3), "Overcomes the dead spot on gear and belt wheels"))
+	add_row(UiKit.check("Invert FFB", bool(_cfg.get("ffb_invert", false)), func(on: bool) -> void: _set_value("ffb_invert", on)))
+	add_row(UiKit.button("Test FFB", func() -> void:
 		if slot.input.wheel.device_id >= 0:
 			NossInput.ffb_test(slot.input.wheel.device_id), "Pulls left, right, then curbs and a jolt"))
+	# Under the rows, always in view: what detection wants, and the live readings.
 	_status = UiKit.label("")
 	_status.accessibility_live = AccessibilityServer.AccessibilityLiveMode.LIVE_POLITE
-	list.add_child(_status)
+	add_footer(_status)
 	_live = UiKit.label("", 24)
-	list.add_child(_live)
-	var back := UiKit.button("Back", func() -> void: closed.emit())
-	list.add_child(back)
-	_rows.append(back)
-	UiKit.chain_focus(_rows)
-
-
-func _add(parent: Control, control: Control) -> void:
-	parent.add_child(control)
-	_rows.append(control)
+	add_footer(_live)
 
 
 func _set_value(key: String, value: Variant) -> void:
@@ -189,6 +182,5 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _detecting.is_empty() and event.is_action_pressed("ui_cancel"):
-		get_viewport().set_input_as_handled()
-		closed.emit()
+	if _detecting.is_empty():
+		super._unhandled_input(event)

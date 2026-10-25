@@ -208,6 +208,7 @@ func open_settings(slot: PlayerSlot, access := false) -> void:
 	else:
 		var settings := PlayerSettingsMenu.new()
 		settings.slot = slot
+		settings.crumbs = ["Players", "Driving Settings"]
 		menu = settings
 	var back := func() -> void:
 		menu.queue_free()
@@ -215,7 +216,7 @@ func open_settings(slot: PlayerSlot, access := false) -> void:
 		v.reference = _card_ref()
 		card.visible = true
 		_refresh()
-		card.focus_row("Access" if access else "Settings")
+		card.focus_row("Access" if access else "Driving Settings")
 	if access:
 		menu.done.connect(back)
 	else:
@@ -315,7 +316,7 @@ class PlayerCard:
 			Players.adding = slot
 			_status.text = "Press a button on it", "Wheel, pedals or a second controller"))
 		_add(list, UiKit.button("Access", func() -> void: menu.open_settings(slot, true), "Accessibility presets for this player"))
-		_add(list, UiKit.button("Settings", func() -> void: menu.open_settings(slot), "Controls, assists, HUD"))
+		_add(list, UiKit.button("Driving Settings", func() -> void: menu.open_settings(slot), "Assists, comfort, HUD and controls"))
 		if menu.online:
 			_add(list, UiKit.button("Done", func() -> void: menu.closed.emit(), "Back to Online"))
 		else:

@@ -28,6 +28,29 @@ func test_presets_load_with_names_resolved() -> void:
 			assert_bool(Bindings.preset(id).bindings.has(action)).override_failure_message("%s: %s" % [id, action]).is_true()
 
 
+## No two menu actions share an input on any preset (a press would do two things). The left-hand
+## pad's L3 is Next tab, so its confirm is LB alone (docs/UI_FLOW.md §10.1).
+func test_menu_actions_share_no_inputs() -> void:
+	for id in ["kb_full", "kb_left", "kb_right", "pad_standard", "pad_left_hand", "pad_right_hand", "sim_generic"]:
+		var b: Dictionary = Bindings.preset(id).bindings
+		var seen := {}
+		for action: String in Bindings.MENU:
+			for r: Dictionary in b.get(action, []):
+				var key := JSON.stringify(r)
+				assert_bool(seen.has(key)).override_failure_message("%s: %s and %s share %s" % [id, seen.get(key, ""), action, key]).is_false()
+				seen[key] = action
+	var left: Dictionary = Bindings.preset("pad_left_hand").bindings
+	assert_array(left.menu_confirm).is_equal([{ "button": JOY_BUTTON_LEFT_SHOULDER }])
+	assert_array(left.menu_tab_next).is_equal([{ "button": JOY_BUTTON_LEFT_STICK }])
+	assert_bool(left.has("menu_tab_prev")).is_false()
+	# The others: LB and RB, R3 and RB, Q and E, comma and period.
+	assert_array(Bindings.preset("pad_standard").bindings.menu_tab_prev).is_equal([{ "button": JOY_BUTTON_LEFT_SHOULDER }])
+	assert_array(Bindings.preset("pad_right_hand").bindings.menu_tab_prev).is_equal([{ "button": JOY_BUTTON_RIGHT_STICK }])
+	assert_array(Bindings.preset("kb_full").bindings.menu_tab_next).is_equal([{ "key": KEY_E }])
+	assert_array(Bindings.preset("kb_right").bindings.menu_tab_prev).is_equal([{ "key": KEY_COMMA }])
+	assert_bool(Bindings.preset("sim_generic").bindings.has("menu_tab_next")).is_false()
+
+
 func test_keyboard_sides_share_no_keys() -> void:
 	var left := Bindings.keys_of("kb_left")
 	for k: int in Bindings.keys_of("kb_right"):

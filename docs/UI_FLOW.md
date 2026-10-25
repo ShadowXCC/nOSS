@@ -94,9 +94,13 @@ Built in P2 (`game/ui/page/`) and P3 (tabs).
   `ConfirmMenu`). Its title is the question; its buttons are given (e.g. "Keep" and "Reset").
 - **`TabRow`:** a row of tabs (toggle buttons). `ui_tab_prev` and `ui_tab_next` switch tabs from
   anywhere on the page, only while its page is on top and not while a text field is being typed
-  in. Left and right on the tab row switch too.
+  in, wrapping at the ends. Left and right on the tab row switch too. Switched from a row, the
+  focus goes to the new tab's first row; from the tab row it stays on the row (the new tab). Up
+  from a tab's first row reaches the tab row. The row scrolls sideways when the tabs don't fit.
 - **`TabbedPage`:** a `MenuPage` with a `TabRow`, a help line at the bottom, and a "Reset to
-  defaults" button at the end of each tab that has settings (§9).
+  defaults" button at the end of each tab that has settings (§9). It builds one tab's rows at a
+  time; a page opens another over itself with `open_over()` (on its `MenuStack`, or in its place in
+  a player's view and the pause menu).
 - **`TrackPane`:** the right pane on a settings page: the track's map (as the track picker draws
   it), its name, its length in the player's units ("2.44 km", "1.52 mi"), and a line of what it
   is ("Oval · Real-world", "Kart", "Highway").
@@ -399,7 +403,7 @@ laps, and the results come at the end.
 Both are `TabbedPage`s. LB/RB (Q/E on the keyboard) switch tabs from anywhere on the page; up and
 down move within the tab. The scroll follows the focus, on a controller too and inside players'
 views. The help line at the bottom shows the focused control's description, without "Left and
-right to change".
+right to change" or "Enter to type" (the prompt bar shows those).
 
 ### 9.1 Settings
 
@@ -407,24 +411,33 @@ Title "Settings", breadcrumb "Settings" (in a session: "Pause › Settings").
 
 | Tab | Rows |
 |---|---|
-| "Display" | "Graphics", "Fullscreen" |
+| "Display" | "Graphics" ("Detail and smoothing. Low runs fastest"), "Fullscreen" |
 | "Sound" | "Volume", "Own engine", "Other engines", "Tires and wind", "Effects", "Ambience", "Music", "Menus", "Spotter voice", "Narration", "Mono" |
-| "Splitscreen" | "2 players", "3 players", "Sound from", "Auto resolution" |
-| "General" | "Units", "Discord status", "Clear downloads" |
+| "Splitscreen" | "2 players", "3 players", "Sound from", "Auto resolution" ("Lowers each view's detail to hold the frame rate") |
+| "General" | "Units" ("Speeds and distances"), "Discord status", "Clear downloads" ("Cars and tracks from online games") |
 | "Players" | "Driving Settings" ("<name>: assists, comfort, HUD and controls"), "Profiles" ("Rename, add or delete players") |
 
+- "Graphics" and "Units" are spinners (they were drop-down lists), like every other choice.
 - The Players tab is hidden during a session.
-- **"Clear downloads"** shows the size ("Clear downloads (12.3 MB)", from
-  `ContentStore.size_bytes()`), asks first, then calls `ContentStore.clear()`. It is off while
-  online ("Not while online").
-- Each tab but Players ends with "Reset to defaults". It asks first: a `ConfirmPage` titled "Reset
-  Sound?" (the tab's name) with "Keep" (focused) and "Reset".
+- **"Clear downloads"** shows the size ("Clear downloads (12.3 MB)", "0 MB" when empty, "1.20 GB"
+  past a gigabyte; from `ContentStore.size_bytes()`), asks first, then calls
+  `ContentStore.clear()`. It is off while online ("Not while online"). The question: title "Clear
+  downloads?", the line "12.3 MB of cars and tracks from online games. They download again when
+  needed.", "Keep" ("Leave them", focused) and "Clear" ("Delete them now").
+- Each tab but Players ends with "Reset to defaults" ("Sound settings back to their defaults"). It
+  asks first: a `ConfirmPage` titled "Reset Sound?" (the tab's name), breadcrumb "Settings › Reset
+  Sound", with "Keep" ("Leave them as they are", focused) and "Reset". After either, the focus is
+  back on "Reset to defaults".
 
 ### 9.2 Driving Settings
 
 Title "Driving Settings · <name>" ("Driving Settings · Ana"). Opened from Settings, the Players
 screen's cards, the Profiles page, the pause menu and first boot, which all call it "Driving
-Settings" (today: "Player settings", "Settings", "More settings").
+Settings" (until P3: "Player settings", "Settings", "More settings"). Its breadcrumb says where
+it came from: "Settings › Driving Settings", "Players › Driving Settings", "Settings › Profiles ›
+Driving Settings", "Pause › Driving Settings", "Accessibility › Driving Settings". The card's
+button reads "Driving Settings" ("Assists, comfort, HUD and controls"); the Settings tab's says
+whose ("Ana: assists, comfort, HUD and controls").
 
 | Tab | Rows |
 |---|---|
@@ -439,7 +452,12 @@ Settings" (today: "Player settings", "Settings", "More settings").
   On Controls it also resets custom buttons and keys, and its page says so: "Custom buttons and
   keys go too. Wheel setup stays." Wheel calibration is kept.
 - A rebuild (a row that comes or goes) rebuilds only the current tab.
-- "Buttons and keys", "Wheel setup" and "Profiles" are pages (the wheel's gains a scroll area).
+- "Buttons and keys", "Wheel setup" and "Profiles" are pages (the wheel's gains a scroll area),
+  titled so, their breadcrumbs ending "› Buttons and keys" and so on. Buttons and keys lists the
+  menu actions under a "Menus" heading, "Previous tab" and "Next tab" among them; its status line
+  and the wheel's ("Turn the wheel from centre to full lock", the live readings) sit under the
+  rows, always in view. Each profile on the Profiles page has "Name", "Driving Settings" ("Driving
+  Settings of Ana") and "Delete".
 
 ## 10. Input
 
