@@ -91,3 +91,28 @@ func test_wrong_way_detected() -> void:
 		pos -= 20.0 * DT
 		_timer.update(pos, DT, 20.0)
 	assert_bool(_timer.wrong_way).is_true()
+
+
+func test_back_over_the_line_and_forward_again_is_no_lap() -> void:
+	var pos := _drive(990.0, 20.0, 50.0) # lap 1, 10 m past the line
+	assert_int(_timer.lap).is_equal(1)
+	# Back over the line (a car turning into its pit box beside it, or reversing) and on again.
+	for i in 30:
+		pos = fposmod(pos - 1.0, 1000.0)
+		_timer.update(pos, DT, 2.0)
+	assert_float(pos).is_greater(900.0)
+	pos = _drive(pos, 40.0, 10.0)
+	assert_int(_timer.lap).is_equal(1)
+	assert_int(_events.filter(func(e: Array) -> bool: return e[0] == "lap").size()).is_equal(0)
+	# The next real crossing is lap 2.
+	pos = _drive(pos, 1000.0, 50.0)
+	assert_int(_timer.lap).is_equal(2)
+
+
+func test_a_reset_back_over_the_line_owes_the_crossing() -> void:
+	var pos := _drive(990.0, 20.0, 50.0) # lap 1, 10 m past the line
+	_timer.teleported(995.0) # reset to the last good spot, just before the line
+	pos = _drive(995.0, 20.0, 50.0)
+	assert_int(_timer.lap).is_equal(1)
+	pos = _drive(pos, 1000.0, 50.0)
+	assert_int(_timer.lap).is_equal(2)

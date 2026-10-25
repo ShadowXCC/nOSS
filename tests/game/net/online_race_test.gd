@@ -20,9 +20,12 @@ func _frames(n := 3) -> void:
 
 func test_events_from_servers_are_checked() -> void:
 	var e := RaceEvent.from_dict({ "kind": "race", "start": "sideways", "grid": "x", "track_limits": "none", "ai_cars": "?",
-		"practice_min": 9999, "race_min": -5, "race_laps": 500 })
+		"practice_min": 9999, "race_min": -5, "race_laps": 500, "draft": "maybe", "fuel_x": 99, "tyre_x": -7 })
 	assert_str(e.kind).is_equal("race")
-	assert_str(e.start).is_equal("standing")
+	assert_str(e.start).is_equal("track") # the track's (D207)
+	assert_str(e.draft).is_equal("track")
+	assert_int(e.fuel_x).is_equal(RaceEvent.WEAR_X_MAX)
+	assert_int(e.tyre_x).is_equal(-1)
 	assert_str(e.grid).is_equal("qualifying")
 	assert_str(e.track_limits).is_equal("lenient")
 	assert_str(e.ai_cars).is_equal("garage")

@@ -8,7 +8,8 @@ extends Node
 ## the line's target speed. A few times a second it plans around the other cars, which it reads
 ## from the RaceField: keep a gap, pass on a side with room, hold its line side by side, defend
 ## once per straight, let lapping cars by, and brake hard if a crash is close. It reverses out
-## or resets when stuck.
+## or resets when stuck. In a pack (D213: drafting on a track that suggests it) it runs in the
+## line's grooves instead: close in the draft, runs into a free groove, blocks.
 
 const CAR_LENGTH := 4.6
 const CAR_WIDTH := 2.0
@@ -27,15 +28,42 @@ const OFFSET_RATE := 2.5
 const AHEAD_S := 0.6
 ## Body slip past this catches a slide (steering toward where the car is going), degrees.
 const CATCH_SLIP_DEG := 2.0
+## Pure pursuit steers by the geometry alone; loaded in a long fast corner the tires need more lock
+## than that (their slip angles), so it would settle wide of its line. Above TRIM_SPEED (m/s), in
+## a corner (the line's curvature past TRIM_CURVATURE), it trims the curvature it asks for by how
+## far the car's own (its yaw rate over its speed) falls short: TRIM_GAIN a second, up to
+## TRIM_MAX (1/m), held while it slides, fading at TRIM_LEAK a second.
+const TRIM_SPEED := 15.0
+const TRIM_CURVATURE := 0.002
+const TRIM_GAIN := 1.0
+const TRIM_LEAK := 0.5
+const TRIM_MAX := 0.015
 ## Pit road (D210): a car pitting slows on its line from this far before the entry (braking for
 ## the limit line at PIT_BRAKE, never past the line's own pace) and eases down to the paved edge
-## over the last PIT_DROP_M; brakes for its box at PIT_BOX_BRAKE (m/s²); keeps PIT_GAP_M (plus a
-## metre a m/s) behind a car ahead in the lane.
+## over the last PIT_DROP_M; brakes for its box at PIT_BOX_BRAKE (m/s²); looks PIT_GAP_M (plus a
+## metre a m/s) ahead for a car in its path.
 const PIT_APPROACH_M := 450.0
 const PIT_DROP_M := 160.0
 const PIT_BRAKE := 3.5
 const PIT_BOX_BRAKE := 3.5
 const PIT_GAP_M := 14.0
+## ...and follows a car ahead in its path this far back, s (a pack pits together).
+const PIT_GAP_S := 0.5
+## Pack racing (D213): following gap in the draft by skill (0 -> 100), s. With a free groove beside
+## the car ahead in its groove, a car closes up to RUN_GAP_S behind it in the draft, then pulls out
+## into that groove carrying the speed (a run): when it's held up there, or closing RUN_SPEED (m/s)
+## or more. It gives the run up if it hasn't gained for RUN_DEAD_S before getting alongside, and
+## sets up the next no sooner than RUN_RETRY_S (a few seconds more by chance). A run on a car
+## within BLOCK_RANGE_M behind is blocked (by a car as likely to as it's skilled), once a while.
+const PACK_GAP_S := Vector2(0.35, 0.2)
+const RUN_GAP_S := 0.06
+## Closing up for a run: this much faster than the car ahead a metre of gap still to close, 1/s.
+const RUN_CLOSE := 0.4
+const RUN_SPEED := 0.5
+const RUN_DEAD_S := 1.5
+const RUN_RETRY_S := Vector2(3.0, 8.0)
+const BLOCK_RANGE_M := 20.0
+const BLOCK_COOLDOWN_S := 5.0
 ## Skill 0 -> 100.
 const GRIP := Vector2(0.78, 0.95)
 const GAP_TIME := Vector2(1.1, 0.55)
@@ -49,8 +77,11 @@ var skill := 80.0
 var as_guide := false
 ## Planned offset from the racing line, m (+ = left). Moves toward the plan at OFFSET_RATE.
 var offset := 0.0
-## What the planner decided last ("line", "follow", "pass", "side", "defend", "yield", "start").
+## What the planner decided last ("line", "follow", "pass", "side", "defend", "yield", "start";
+## in a pack "groove", "draft", "run", "back", "block").
 var intent := "line"
+## Racing in a pack (D213): the event's pack racing (the track suggests it, drafting is on).
+var pack := false
 
 var _line: RacingLine
 var _profile := PackedFloat32Array()
@@ -60,13 +91,25 @@ var _caution_profile := PackedFloat32Array()
 var _ceiling := PackedFloat32Array()
 ## Driving pit road last tick (so the line's offset is picked up again after).
 var _was_pitting := false
+## In pit road, held at a stop by another car last tick (a queue, a gap to pull out into): waiting,
+## not stuck.
+var _pit_waiting := false
 ## The line's offset from the centre last tick, m.
 var _line_was := 0.0
+## Pack racing: the grooves (RacingLine.grooves()), the one the car is in (its _line), the car
+## it's making a run on, how long the run has been losing ground, when it may block again.
+var _grooves: Array = []
+var _groove := 0
+var _run: Racer
+var _run_dead := 0.0
+var _run_wait := 0.0
+var _block_wait := 0.0
 ## Deceleration at full brake pedal, m/s² (before the tires' limit).
 var _brake_full := 14.0
 ## What emergency braking counts on, m/s² (the brake balance's limit, with margin).
 var _emergency_decel := 9.0
 var _want := 0.0 # planned offset from the line
+var _kappa_trim := 0.0 # curvature added to pure pursuit's, 1/m
 var _speed_cap := INF
 var _emergency := false
 var _plan_time := 0.0
@@ -95,6 +138,13 @@ func _ready() -> void:
 	_plan_time = _rng.randf() / PLAN_HZ # spread planning over ticks
 	_noise_phase = Vector2(_rng.randf() * TAU, _rng.randf() * TAU)
 	_line = RacingLine.for_track(racer.track)
+	var event: RaceEvent = racer.session.get("event") if racer.session else null
+	pack = event != null and event.pack and racer.session.get("draft") != null
+	if pack:
+		_grooves = _line.grooves()
+		_groove = _nearest_groove(racer, racer.lateral)
+		_line = _grooves[_groove]
+		_run_wait = _rng.randf() * RUN_RETRY_S.y
 	_make_profiles()
 	var p := racer.vehicle.platform
 	_brake_full = float(p.brakes.max_torque_nm) / float(p.geometry.wheel_radius_m.ref) / float(p.mass.kg)
@@ -186,6 +236,7 @@ func controls(delta: float) -> Dictionary:
 	if _was_pitting:
 		# Back on the road: the line from where the car is.
 		_was_pitting = false
+		_pit_waiting = false
 		offset = racer.lateral - _line.offset_at(racer.distance)
 		_want = offset
 	_covered += v * delta
@@ -264,17 +315,22 @@ func _pit_drive(vehicle: Vehicle, v: float, out: Dictionary) -> void:
 	if stopping and box >= 0.0:
 		var to_box := box - d
 		want = minf(want, 0.0 if to_box < 1.0 else sqrt(2.0 * PIT_BOX_BRAKE * to_box))
+	var free_want := want
 	for other: Racer in racer.session.racers:
-		if other == racer or not other.in_pit or other.vehicle == null:
+		if other == racer or other.vehicle == null:
 			continue
 		var rel := other.vehicle.global_position - vehicle.global_position
-		var ahead := other.pit_distance - d
-		# A car ahead in this half of the lane (one held in its box too): keep room behind it.
-		if ahead > 0.0 and ahead < PIT_GAP_M + v and rel.length() < PIT_GAP_M + v and absf(rel.dot(vehicle.global_basis.x)) < CAR_WIDTH:
-			want = minf(want, maxf(other.speed, 0.0) * clampf((ahead - CAR_LENGTH) / PIT_GAP_M, 0.0, 1.0))
+		# A car ahead in our path, on the way in (a pack pits together) or in this half of the lane
+		# (one held in its box too): keep room behind it.
+		var ahead := rel.dot(vehicle.global_basis.z)
+		if ahead > 0.0 and rel.length() < PIT_GAP_M + v and absf(rel.dot(vehicle.global_basis.x)) < CAR_WIDTH:
+			_speed_cap = INF
+			_follow(other, ahead - CAR_LENGTH, v, PIT_GAP_S)
+			want = minf(want, _speed_cap)
 		# Out of the box: not across a car coming up the fast half.
-		if just_out and not other.pit_hold and ahead < 0.0 and ahead > -PIT_GAP_M * 1.5 and other.speed > 3.0:
+		if just_out and other.in_pit and not other.pit_hold and other.pit_distance < d and other.pit_distance > d - PIT_GAP_M * 1.5 and other.speed > 3.0:
 			want = 0.0
+	_pit_waiting = want < 1.0 and free_want >= 1.0
 	var error := want - v
 	if error < -0.3:
 		out.brake = clampf(-error * 0.3, 0.0, 1.0)
@@ -283,8 +339,11 @@ func _pit_drive(vehicle: Vehicle, v: float, out: Dictionary) -> void:
 		out.throttle = clampf(0.4 + error * 0.4, 0.0, 1.0)
 		out.brake = 0.0
 	if want <= 0.0 and v < 2.0:
-		out.brake = 1.0
+		# Waiting (its box, a queue, a gap): on the handbrake, as _hold() does; the brake held at a
+		# standstill selects reverse, and it backed into the car behind.
+		out.brake = 0.0
 		out.throttle = 0.0
+		out.handbrake = 1.0
 
 
 ## Waits on the handbrake: holding the brake at a standstill would select reverse with the
@@ -322,8 +381,14 @@ func _pursue(vehicle: Vehicle, target: Vector3, v: float) -> float:
 	var kappa := 2.0 * local.x / dist2 # + = left
 	var wheelbase := float(vehicle.platform.geometry.wheelbase_m.ref)
 	var max_steer := deg_to_rad(float(vehicle.platform.steering.max_road_angle_deg))
-	var steer := -atan(wheelbase * kappa) / max_steer
 	var local_v := vehicle.global_basis.inverse() * vehicle.linear_velocity
+	var dt := get_physics_process_delta_time()
+	_kappa_trim *= 1.0 - TRIM_LEAK * dt
+	if v > TRIM_SPEED and absf(_line.curvature_at(racer.distance)) > TRIM_CURVATURE \
+			and absf(rad_to_deg(atan2(local_v.x, absf(local_v.z)))) < CATCH_SLIP_DEG + 1.0:
+		var turning := vehicle.global_basis.y.dot(vehicle.angular_velocity) / v
+		_kappa_trim = clampf(_kappa_trim + (kappa - turning) * TRIM_GAIN * dt, -TRIM_MAX, TRIM_MAX)
+	var steer := -atan(wheelbase * (kappa + _kappa_trim)) / max_steer
 	if v > 6.0:
 		# Only the slide past CATCH_SLIP: a car held at its limit through a long corner (an oval's)
 		# runs a couple of degrees of slip all the way round, and steering against all of it ran
@@ -399,7 +464,9 @@ func _plan() -> void:
 	# Where we'd be without traffic: the line, with a little wander, or the grid column at the start.
 	var noise := lerpf(LINE_NOISE.x, LINE_NOISE.y, s) * sin(racer.distance / 97.0 + _noise_phase.x) * sin(racer.distance / 41.0 + _noise_phase.y)
 	var want_lat := line_here + noise
-	if _covered < START_HOLD_M:
+	if pack:
+		want_lat = line_here
+	elif _covered < START_HOLD_M:
 		want_lat = _start_lateral
 		intent = "start"
 	var me_lat := racer.lateral
@@ -410,38 +477,12 @@ func _plan() -> void:
 	var braking_soon := _line.speed_at(_profile, racer.distance + 40.0 + v * 0.5) < v - 6.0
 	var inside := signf(_upcoming_turn())
 
-	# 1. The car ahead in our path: pass it if there's room, otherwise follow it.
-	var lead: Dictionary = {}
-	for c: Dictionary in cars:
-		var other: Racer = c.racer
-		if c.gap <= 0.0 or _ignore(other):
-			continue
-		if c.gap - CAR_LENGTH > 0.5 and absf(c.lateral - want_lat) < CAR_WIDTH + SIDE_GAP and absf(c.lateral - me_lat) < CAR_WIDTH + SIDE_GAP + absf(want_lat - me_lat):
-			lead = c
-			break
-	if _passing and not is_instance_valid(_passing):
-		_passing = null
-	if not lead.is_empty():
-		var other: Racer = lead.racer
-		var bumper: float = lead.gap - CAR_LENGTH
-		var their_v := maxf(other.speed, 0.0)
-		var my_pace := _line.speed_at(_profile, other.distance)
-		var faster := their_v < my_pace - 1.0 or v > their_v + 1.0
-		var side := 0.0
-		if faster and not formation and bumper < 35.0 and (not braking_soon or bumper < 2.0 or _passing == other):
-			side = _pass_side(other, cars, inside, me_lat)
-		if side != 0.0:
-			want_lat = other.lateral + side * (CAR_WIDTH + SIDE_GAP + 0.2)
-			_passing = other
-			intent = "pass"
-			# Still in their lane: keep the gap until we're out of it.
-			if absf(other.lateral - me_lat) < CAR_WIDTH + 0.4:
-				_follow(other, bumper, v, gap_time * 0.6)
-		else:
-			_follow(other, bumper, v, gap_time)
-			intent = "follow"
+	# 1. The car ahead in our path: pass it if there's room, otherwise follow it; in a pack, the
+	# grooves' way (D213).
+	if pack:
+		want_lat = _plan_pack(cars, v, s, formation)
 	else:
-		_passing = null
+		want_lat = _plan_lead(cars, v, want_lat, me_lat, gap_time, formation, braking_soon, inside)
 
 	# 2. Cars alongside, or about to be in another lane: each keeps to its own side of the
 	# midpoint between them, half the room each, so two cars moving at once can't meet.
@@ -459,11 +500,12 @@ func _plan() -> void:
 		var other_lane := absf(other.lateral - me_lat) > CAR_WIDTH * 0.75 and along < CAR_LENGTH + 3.0 + v * 0.15
 		if not overlap and not other_lane:
 			continue
+		# (Further apart than that, the room from where it is: the midpoint would follow us away.)
 		var mid := (me_lat + other.lateral) / 2.0
 		if other.lateral >= me_lat:
-			hi = minf(hi, mid - room / 2.0)
+			hi = minf(hi, maxf(mid - room / 2.0, other.lateral - room))
 		else:
-			lo = maxf(lo, mid + room / 2.0)
+			lo = maxf(lo, minf(mid + room / 2.0, other.lateral + room))
 		if c.gap > 0.0:
 			squeeze_ahead = other
 	if lo > hi:
@@ -475,10 +517,11 @@ func _plan() -> void:
 		want_lat = clampf(want_lat, lo, hi)
 		intent = "side"
 
-	# 3. Cars behind: let lapping cars by; defend once per straight.
+	# 3. Cars behind: let lapping cars by; defend once per straight (in a pack, blocking runs is
+	# the grooves' part).
 	if absf(_line.curvature_at(racer.distance)) > 0.006:
 		_defended = false
-	for c: Dictionary in cars:
+	for c: Dictionary in ([] as Array[Dictionary]) if pack else cars:
 		var other: Racer = c.racer
 		if c.gap >= 0.0 or _ignore(other):
 			continue
@@ -511,7 +554,194 @@ func _plan() -> void:
 
 	if lo <= hi:
 		want_lat = clampf(want_lat, lo, hi)
-	_want = clampf(want_lat, corridor.y, corridor.x) - line_here
+	_want = clampf(want_lat, corridor.y, corridor.x) - _line.offset_at(racer.distance) # a pack's groove may have changed
+
+
+## Puts the car in groove `g` (where pack racing has it), or on the line it's on, from where it is
+## now at full speed (a test placing it, a rejoin).
+func resync(g := -1) -> void:
+	if pack and g >= 0 and g < _grooves.size():
+		_groove = g
+		_line = _grooves[g]
+		_make_profiles()
+	_run = null
+	_run_wait = 0.0
+	_covered = START_HOLD_M
+	offset = racer.lateral - _line.offset_at(racer.distance)
+	_line_was = _line.offset_at(racer.distance)
+	_want = offset
+
+
+## The groove nearest `lateral` at `r`'s place.
+func _nearest_groove(r: Racer, lateral: float) -> int:
+	var best := 0
+	for g in _grooves.size():
+		if absf((_grooves[g] as RacingLine).offset_at(r.distance) - lateral) < absf((_grooves[best] as RacingLine).offset_at(r.distance) - lateral):
+			best = g
+	return best
+
+
+## Into groove `g`: the car keeps its place across the road and moves over at OFFSET_RATE.
+func _to_groove(g: int) -> void:
+	if g == _groove or g < 0 or g >= _grooves.size():
+		return
+	var lat := _line.offset_at(racer.distance) + offset
+	_groove = g
+	_line = _grooves[g]
+	_make_profiles()
+	offset = lat - _line.offset_at(racer.distance)
+	_line_was = _line.offset_at(racer.distance)
+
+
+## The groove `r` is in: an AI's in a pack its own, anyone else's (one pitting too) the nearest.
+func _groove_of(r: Racer) -> int:
+	var ai := r.driver as RacingAI
+	return ai._groove if ai and ai.pack and ai._grooves.size() == _grooves.size() and not r.pit_plan else _nearest_groove(r, r.lateral)
+
+
+## A few seconds before setting up the next run.
+func _retry() -> float:
+	return _rng.randf_range(RUN_RETRY_S.x, RUN_RETRY_S.y)
+
+
+## True if `r` is in groove `g` where it is: within half a groove of its middle, or with `room`
+## (a car's width and a little, for whether a groove is free) anywhere in it.
+func _in_groove(r: Racer, g: int, room := RacingLine.GROOVE_M / 2.0) -> bool:
+	return absf(r.lateral - (_grooves[g] as RacingLine).offset_at(r.distance)) < room
+
+
+## True if groove `g` is free of cars from `behind` m behind to `ahead` m ahead (but `but`).
+func _groove_free(g: int, cars: Array[Dictionary], behind: float, ahead: float, but: Racer = null) -> bool:
+	if g < 0 or g >= _grooves.size():
+		return false
+	for c: Dictionary in cars:
+		var r: Racer = c.racer
+		if r == but or _ignore(r):
+			continue
+		if c.gap > -behind and c.gap < ahead and _in_groove(r, g, CAR_WIDTH + 0.3):
+			return false
+	return true
+
+
+## Step 1 in a pack (D213). The car ahead in our groove: follow it close in the draft, or close up
+## and make a run into a free groove beside it (the middle one first), back out if the run dies
+## before we're alongside. A run on us from behind: move over in front of it (blocking) if
+## that groove is free beside us. Returns where to be across the road: our groove.
+func _plan_pack(cars: Array[Dictionary], v: float, s: float, formation: bool) -> float:
+	var dt := 1.0 / PLAN_HZ
+	_block_wait = maxf(_block_wait - dt, 0.0)
+	_run_wait = maxf(_run_wait - dt, 0.0)
+	intent = "groove"
+	if _run and (not is_instance_valid(_run) or _ignore(_run)):
+		_run = null
+	if _run and _in_groove(_run, _groove):
+		_run = null # it moved in front of us (a block): not round it again while it's moving
+		_run_wait = _retry()
+	if _run:
+		var gap := field_gap(_run)
+		if gap < -CAR_LENGTH - 1.0:
+			_run = null # past it
+			_run_wait = _retry()
+		else:
+			intent = "run"
+			# Not gaining on it, and not alongside yet: the run's dying.
+			_run_dead = _run_dead + dt if v < maxf(_run.speed, 0.0) + 0.1 and gap > CAR_LENGTH * 0.5 else 0.0
+			var back := _nearest_groove(_run, _run.lateral)
+			if _run_dead > RUN_DEAD_S and _groove_free(back, cars, CAR_LENGTH + 6.0, gap - 1.0, _run):
+				_to_groove(back) # back in behind it
+				_run = null
+				_run_wait = _retry()
+				intent = "back"
+	if not _run:
+		var lead: Dictionary = {}
+		for c: Dictionary in cars:
+			if c.gap > 0.0 and not _ignore(c.racer) and (_groove_of(c.racer) == _groove or _in_groove(c.racer, _groove, CAR_WIDTH)):
+				lead = c
+				break
+		if not lead.is_empty():
+			var other: Racer = lead.racer
+			var bumper: float = lead.gap - CAR_LENGTH
+			var closing := v - maxf(other.speed, 0.0)
+			# A free groove beside it (the middle one first): close up in its draft for a run.
+			var side := -1
+			if not formation and _run_wait <= 0.0:
+				var middle := _grooves.size() / 2
+				var sides := [_groove - 1, _groove + 1]
+				sides.sort_custom(func(a: int, b: int) -> bool: return absf(a - middle) < absf(b - middle))
+				for g: int in sides:
+					if _groove_free(g, cars, CAR_LENGTH + 6.0, lead.gap + CAR_LENGTH + 15.0, other):
+						side = g
+						break
+			var gap_s := RUN_GAP_S if side >= 0 else lerpf(PACK_GAP_S.x, PACK_GAP_S.y, s)
+			_follow(other, bumper, v, gap_s)
+			if side >= 0: # closing up in its draft: faster than a safe follow would
+				_speed_cap = maxf(_speed_cap, maxf(other.speed, 0.0) + clampf((bumper - 2.0 - v * gap_s) * RUN_CLOSE, 0.0, 4.0))
+			# Close behind it and held up (or still closing): pull out.
+			var held := _speed_cap < maxf(v, _line.speed_at(_profile, racer.distance)) + 0.5
+			if side >= 0 and bumper < 2.0 + v * RUN_GAP_S + 4.0 and (closing > RUN_SPEED or held):
+				_to_groove(side)
+				_run = other
+				_run_dead = 0.0
+				_speed_cap = INF # out of its way now
+				intent = "run"
+			else:
+				intent = "draft"
+	# A run on us from behind, in a groove beside ours: into it, in front of them.
+	if not _run and not formation and _block_wait <= 0.0:
+		for c: Dictionary in cars:
+			var other: Racer = c.racer
+			var behind: float = -c.gap - CAR_LENGTH
+			if c.gap >= 0.0 or _ignore(other) or behind < 8.0 or behind > BLOCK_RANGE_M or other.speed < v + RUN_SPEED:
+				continue
+			for g: int in [_groove - 1, _groove + 1]:
+				if g >= 0 and g < _grooves.size() and _in_groove(other, g) and not _in_groove(other, _groove) \
+						and _groove_free(g, cars, 0.0, CAR_LENGTH + 8.0, other):
+					_block_wait = BLOCK_COOLDOWN_S
+					if _rng.randf() < s:
+						_to_groove(g)
+						intent = "block"
+					break
+			if intent == "block" or _block_wait > 0.0:
+				break
+	return _line.offset_at(racer.distance)
+
+
+## Step 1 of the plan: the car ahead in our path. Passes it on a side with room, or follows it.
+## Returns where to be across the road.
+func _plan_lead(cars: Array[Dictionary], v: float, want_lat: float, me_lat: float, gap_time: float, formation: bool, braking_soon: bool,
+		inside: float) -> float:
+	var lead: Dictionary = {}
+	for c: Dictionary in cars:
+		var other: Racer = c.racer
+		if c.gap <= 0.0 or _ignore(other):
+			continue
+		if c.gap - CAR_LENGTH > 0.5 and absf(c.lateral - want_lat) < CAR_WIDTH + SIDE_GAP and absf(c.lateral - me_lat) < CAR_WIDTH + SIDE_GAP + absf(want_lat - me_lat):
+			lead = c
+			break
+	if _passing and not is_instance_valid(_passing):
+		_passing = null
+	if not lead.is_empty():
+		var other: Racer = lead.racer
+		var bumper: float = lead.gap - CAR_LENGTH
+		var their_v := maxf(other.speed, 0.0)
+		var my_pace := _line.speed_at(_profile, other.distance)
+		var faster := their_v < my_pace - 1.0 or v > their_v + 1.0
+		var side := 0.0
+		if faster and not formation and bumper < 35.0 and (not braking_soon or bumper < 2.0 or _passing == other):
+			side = _pass_side(other, cars, inside, me_lat)
+		if side != 0.0:
+			want_lat = other.lateral + side * (CAR_WIDTH + SIDE_GAP + 0.2)
+			_passing = other
+			intent = "pass"
+			# Still in their lane: keep the gap until we're out of it.
+			if absf(other.lateral - me_lat) < CAR_WIDTH + 0.4:
+				_follow(other, bumper, v, gap_time * 0.6)
+		else:
+			_follow(other, bumper, v, gap_time)
+			intent = "follow"
+	else:
+		_passing = null
+	return want_lat
 
 
 ## Speed limit to stay behind `other` with a safe gap (time gap plus what the speed difference
@@ -592,7 +822,7 @@ func _recover(out: Dictionary, delta: float) -> bool:
 		_trouble_time += delta
 	else:
 		_trouble_time = maxf(_trouble_time - delta * 2.0, 0.0)
-	if v < 1.0 and not racer.held and not racer.pit_hold and (_speed_cap > 1.0 or stuck_behind or racer.in_pit):
+	if v < 1.0 and not racer.held and not racer.pit_hold and (_speed_cap > 1.0 or stuck_behind or (racer.in_pit and not _pit_waiting)):
 		_stuck_time += delta
 	else:
 		_stuck_time = 0.0

@@ -17,6 +17,12 @@ const WALL_NEAR_M := 2.0
 const WALL_MARGIN := 0.6
 ## corridor_ahead() looks this often, m.
 const AHEAD_STEP_M := 4.0
+## Pack racing (D213): grooves this far apart, centre to centre (a car and some room), and how many
+## either side of the middle one. The outer ones keep GROOVE_EDGE_M inside the line's corridor: a
+## car runs a metre or so off its groove at speed, and there they'd run along the wall.
+const GROOVE_M := 3.8
+const GROOVES_EACH_SIDE := 1
+const GROOVE_EDGE_M := 1.0
 ## Relaxation passes per level (sample step): coarse levels shape the line, fine ones polish it.
 const LEVELS := [[16, 2500], [4, 700], [1, 150]]
 const GRAVITY := 9.81
@@ -36,7 +42,10 @@ const CREST_LOAD := 0.75
 ## Tires lose grip as they're loaded (their load sensitivity), the outside ones most: across an
 ## axle cornering at its limit that's about LOAD_SPREAD times the sensitivity per g of load. Only
 ## the change from 1 g counts (GRIP_SHARE has the rest): banking and dips lose grip, crests gain.
+## Past 1 g it's HEAVY_SPREAD times that again: held at its limit on Piedmont's banking (near 2 g)
+## a Stock Car gets far less than a straight line of the loss says (D213).
 const LOAD_SPREAD := 1.36
+const HEAVY_SPREAD := 2.5
 
 ## Lines solved lately (track layout -> RacingLine), oldest first.
 static var _cache := {}
@@ -57,6 +66,7 @@ var grade := PackedFloat32Array()
 var crest := PackedFloat32Array()
 var flat := true
 var _profiles := {} # key -> PackedFloat32Array of speeds per sample
+var _grooves := [] # grooves(), made on first use
 
 
 ## The line for `track`, solved once per layout and kept (the last few).
@@ -79,6 +89,32 @@ static func solve(t: TrackData) -> RacingLine:
 
 static func clear_cache() -> void:
 	_cache.clear()
+
+
+## Pack racing's grooves (D213): lanes GROOVE_M apart, rightmost first. The middle one is a line
+## solved in a corridor narrowed by the others' room, so they fit either side of it all the way
+## round, GROOVE_EDGE_M clear of its edges (where the road is too narrow for them all they meet in
+## its middle). Each is a line of its own, with its own speeds. Made once.
+func grooves() -> Array:
+	if _grooves.is_empty():
+		var room := GROOVE_M * GROOVES_EACH_SIDE + GROOVE_EDGE_M
+		var middle := RacingLine.new()
+		middle.track = track
+		middle._solve(room)
+		for k in range(-GROOVES_EACH_SIDE, GROOVES_EACH_SIDE + 1):
+			_grooves.append(middle if k == 0 else middle._shifted(k * GROOVE_M))
+	return _grooves
+
+
+## This line moved `by` m to the left all the way round.
+func _shifted(by: float) -> RacingLine:
+	var line := RacingLine.new()
+	line.track = track
+	line.offsets = offsets.duplicate()
+	for i in line.offsets.size():
+		line.offsets[i] += by
+	line._finish()
+	return line
 
 
 ## Lateral offset of the line at an along-track distance.
@@ -202,7 +238,9 @@ func _profile_3d(mu: float, downforce: float, drag: float, power: float, driven:
 	var v := PackedFloat32Array()
 	v.resize(n)
 	# The grip at a load of `normal` (m/s² pressing the car into the road).
-	var mu_at := func(normal: float) -> float: return mu * maxf(1.0 - sensitivity * (normal / GRAVITY - 1.0), 0.5)
+	var mu_at := func(normal: float) -> float:
+		var over := normal / GRAVITY - 1.0
+		return mu * maxf(1.0 - sensitivity * over * (HEAVY_SPREAD if over > 0.0 else 1.0), 0.5)
 	for i in n:
 		var k := absf(curvature[i])
 		var c := cos(bank_in[i])
@@ -290,7 +328,8 @@ func lap_time(profile: PackedFloat32Array) -> float:
 # --- solving ------------------------------------------------------------------------------
 
 
-func _solve() -> void:
+## The line, `narrow` m in from the corridor each side (the middle where that leaves none).
+func _solve(narrow := 0.0) -> void:
 	var n := track.samples.size()
 	var base := PackedVector2Array()
 	var lefts := PackedVector2Array()
@@ -310,8 +349,11 @@ func _solve() -> void:
 		var banked := i < track.bank.size() and track.bank[i] != 0.0
 		lefts[i] = left if banked else left.normalized()
 		to_left[i] = 1.0 / maxf(left.length_squared(), 1e-6) if banked else 1.0
-		limit_l[i] = _limit(track, i, 1.0)
-		limit_r[i] = _limit(track, i, -1.0)
+		limit_l[i] = _limit(track, i, 1.0) - narrow
+		limit_r[i] = _limit(track, i, -1.0) - narrow
+		if limit_l[i] + limit_r[i] < 0.0:
+			limit_l[i] = (limit_l[i] - limit_r[i]) / 2.0
+			limit_r[i] = -limit_l[i]
 	offsets.resize(n)
 	offsets.fill(0.0)
 	# The editor's pins: fixed offsets the line bends through, inside the road. A kart track's
@@ -333,7 +375,12 @@ func _solve() -> void:
 			ring.sort()
 		_relax(ring, level[1], base, lefts, to_left, limit_l, limit_r, pins)
 		_fill_between(ring)
+	_finish()
 
+
+## Points, steps, curvature and slopes from the offsets.
+func _finish() -> void:
+	var n := offsets.size()
 	points.resize(n)
 	steps.resize(n)
 	curvature.resize(n)

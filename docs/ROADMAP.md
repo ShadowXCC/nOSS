@@ -255,6 +255,29 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
 
 **Notes:** spike strips are offline only on highways, where the server runs the police and can't flatten a tyre on a car another game drives. Traps come about every 5 km on average; the cliffs and bends of some biomes make them rarer there.
 
+## Piedmont: an oval and pack racing
+
+*A NASCAR oval in the base game, and what racing on it needs (D202-D213).*
+
+- **Piedmont Speedway** (D206): the Charlotte Motor Speedway quad-oval under another name, 2.442 km, banked 24° in the turns and 5° on the straights, run counter-clockwise at night under the lights, on real USGS ground. Its road has an **apron** and a **SAFER wall** with a catch fence (D202), and its real **pit road** (D203).
+- **Piedmont Road Course** (D211): the infield "Roval", 3.730 km, its banking the oval's own. Each track shows the other's roads as **scenery roads** (D212), fitted to the course where they meet it.
+- **Stock Car** class for Track mode (D204): about 500 kW, 1550 kg, fuel and tires that wear.
+- **Floodlit nights** and a light tower prop (D205).
+- **Track-suggested rules** (D207): start, drafting, fuel use, tire wear and pack racing, each "Track's" by default in the race menu.
+- **Drafting** (D208), **fuel and tire wear** (D209), **pit stops** with a limiter, a service and a panel per player (D210).
+- **Pack racing** for the AI (D213): grooves, runs, blocks, side by side.
+
+**Acceptance:**
+- [x] The tracks come again the same from their generators and pass the checks. *`piedmont_speedway_test`, `piedmont_road_course_test`: layout hashes, no validator errors, lengths, direction, banking, corners, pit road, rules, scenery roads off the course's paving and the props off theirs.*
+- [x] Stock Cars race the oval clean on the line. *`race_check --track=piedmont_speedway --platform=official.track.stock_car --cars=6 --laps=3 --draft=off` on two seeds: no resets, laps 35.1-35.6 s, the slowest car's best within 0.8 s.*
+- [x] The Road Course races clean from rolling and standing starts. *8 Stock Cars, 2 laps, three seeds each: no pile-ups, laps 104-107 s.*
+- [x] A pack of 16 races 10 laps with drafting, fuel and tires at 10× and a stop each. *`race_check --track=piedmont_speedway --platform=official.track.stock_car --cars=16 --laps=10 --draft --fuel=10 --tyres=10` on three seeds: no pile-ups, a reset at most, every car one stop, 234-309 places changed, 338-418 s of cars side by side (summed over pairs), best laps 36.6-36.8 s.*
+- [x] A follower in the draft makes a run and passes; two cars hold side by side. *`pack_racing_test`.*
+- [x] Pit stops: the limiter, the service, every player's panel, an AI stop. *`pit_control_test`.*
+- [x] Other tracks and karts race as before. *Eifel GP, Proving Ground and the Road Course pass with lap times within 0.3 s of before; kart races on Gearworks as before.*
+
+**Notes:** Getting the AI to hold a line on 24° banking took three fixes that change it everywhere: its speeds now count on less grip past 1 g of load (the oval's turns run near 2 g, and the cars had been sliding 6-8 m up the banking at the old speeds), pure pursuit trims its steering by the yaw it falls short of, and a car side by side no longer gets pushed away by the midpoint between it and the other. A lap that crossed the line backwards (a car turning into a pit box beside the line) used to count again when it crossed forwards. Still to do by hand (the owner): the night, the SAFER wall, the fence, pit road and the panel in a window, and split screen.
+
 ## M10+: Backlog (order to be decided)
 
 | Item | IDs |
@@ -270,7 +293,7 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
 | `modern` style profile | AV-02 |
 | Real-world OSM + DEM import | EDT-09 |
 | Self-hostable lobby / server list | MP-08 |
-| Pit stops, tire wear, fuel | — |
+| Pit stop repairs (pit stops, tire wear and fuel are done: D209, D210) | — |
 | Players as police | — |
 | Flatpak, itch.io, Steam | — |
 | Localization | NFR-07 |

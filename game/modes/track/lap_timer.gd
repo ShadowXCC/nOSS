@@ -2,7 +2,8 @@ class_name LapTimer
 extends RefCounted
 ## Lap timing for track modes (docs/GAMEMODES.md §1, MODE-01): the start/finish line, three
 ## sectors and invisible checkpoints every ~100 m. A lap counts only if every checkpoint is
-## passed in order. Fed with along-track positions once per physics tick.
+## passed in order. Fed with along-track positions once per physics tick. Back over the line, the
+## next crossing only makes up for it (no lap).
 
 signal lap_started(lap: int)
 signal lap_completed(time: float, valid: bool, best: bool)
@@ -34,6 +35,7 @@ var _sector := 0
 var _sector_start := 0.0
 var _best_splits := PackedFloat32Array() # cumulative split times of the best lap
 var _backwards_time := 0.0
+var _back_over := 0 # crossings of the line backwards not yet made up
 var _trace := PackedFloat32Array() # lap time at each TRACE_M mark of this lap
 var _best_trace := PackedFloat32Array() # the same for the best lap
 var _reference := PackedFloat32Array() # a ghost's, in the same form
@@ -77,6 +79,8 @@ func update(pos: float, dt: float, speed: float) -> void:
 		invalidate("Shortcut") # the nearest track point jumped: cut across or teleported
 	elif delta > 0.0:
 		_forward(_prev, delta, dt)
+	elif _prev + delta < 0.0 and lap > 0:
+		_back_over += 1 # backwards over the line (a car reversing, or turning into a box beside it)
 	_prev = pos
 
 
@@ -87,8 +91,16 @@ func invalidate(reason: String) -> void:
 		invalidated.emit(reason)
 
 
-## Re-syncs after a teleport without crossing anything in between.
+## Re-syncs after a teleport without crossing anything in between. Put back behind the line it
+## has just crossed (a reset to the last spot on the road), it owes that crossing.
 func teleported(pos: float) -> void:
+	var delta := pos - _prev
+	if delta > track_length / 2.0:
+		delta -= track_length
+	elif delta < -track_length / 2.0:
+		delta += track_length
+	if _prev >= 0.0 and lap > 0 and delta < 0.0 and _prev + delta < 0.0:
+		_back_over += 1
 	_prev = pos
 
 
@@ -157,7 +169,9 @@ func _forward(from: float, distance: float, dt: float) -> void:
 			_close_sector(at.call(end))
 
 	# Start/finish line.
-	if to >= track_length:
+	if to >= track_length and _back_over > 0:
+		_back_over -= 1
+	elif to >= track_length:
 		var crossed := at.call(track_length) as float
 		if lap > 0:
 			if _next_checkpoint < _checkpoint_count:

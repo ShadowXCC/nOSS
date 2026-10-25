@@ -28,6 +28,9 @@ var laps_done := {} # racer -> laps
 var lap_times := {} # racer -> [s]
 var order: Array = []
 var overtakes := 0
+## Seconds two cars spent side by side (overlapping along the road, in different lanes), summed
+## over pairs.
+var side_s := 0.0
 var started := false
 var ticks := 0
 var reported := false
@@ -162,6 +165,12 @@ func _tick() -> void:
 				if before > i:
 					overtakes += before - i
 		order = now
+		for i in now.size():
+			for j in range(i + 1, now.size()):
+				var a: Racer = now[i]
+				var b: Racer = now[j]
+				if not a.finished and not b.finished and absf(session.field.gap(a, b)) < RacingAI.CAR_LENGTH and absf(a.lateral - b.lateral) > RacingAI.CAR_WIDTH * 0.75:
+					side_s += dt * 30.0
 	if session.race.phase == RaceControl.Phase.DONE or time > LAP_TIMEOUT_S * laps + 60.0:
 		_report()
 
@@ -203,7 +212,7 @@ func _report() -> void:
 			best = minf(best, t)
 		if times.size() > 1:
 			worst = maxf(worst, times.slice(1).min())
-	print("Time %.0f s, contacts %d, resets %d, overtakes %d, best lap %.2f s, slowest car's best %.2f s" % [time, contacts.size(), total_resets, overtakes, best, worst])
+	print("Time %.0f s, contacts %d, resets %d, overtakes %d, side by side %.0f s, best lap %.2f s, slowest car's best %.2f s" % [time, contacts.size(), total_resets, overtakes, side_s, best, worst])
 	var finishers := finish_time.keys()
 	finishers.sort_custom(func(a: Racer, b: Racer) -> bool: return finish_time[a] < finish_time[b])
 	for i in finishers.size():

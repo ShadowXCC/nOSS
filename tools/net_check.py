@@ -14,6 +14,7 @@ and exits 0 (PASS) or 1 (FAIL).
   tools/net_check.py --clients 3 --rtt 150 --jitter 10 --loss 1     # through a bad link
   tools/net_check.py --fresh --ai 15 --rate 50mbit --rtt 20         # a fresh client fetches every car
   tools/net_check.py --track my.nosstrack --fresh --ai 3 --laps 1   # ...and the server's own track
+  tools/net_check.py --event race --track piedmont_speedway --class official.track.stock_car --clients 2 --ai 6 --laps 8 --fuel 10 --tyres 10   # drafting, wear, stops
   tools/net_check.py --event highway --clients 12 --quad 1 --traffic 150   # M7: highway traffic
   tools/net_check.py --event highway --clients 2 --dirs opposite --speed-factor 1.6 --duration 600   # M7 acceptance 3
   tools/net_check.py --event kart --clients 4 --ai 4 --track gearworks --laps 3 --rtt 150 --jitter 10 --loss 1   # M8
@@ -159,6 +160,10 @@ def main(argv=None):
                         "LAN list, on the standard port 47800 unless --port is given")
     p.add_argument("--desync", action="store_true", help="highway: the first bot's traffic goes out of step once (it must resync)")
     p.add_argument("--laps", type=int, default=3)
+    p.add_argument("--start", choices=["standing", "rolling", "track"], default="standing", help="race: the start (track: what the track suggests)")
+    p.add_argument("--draft", choices=["track", "off", "on"], default="track", help="race: drafting (D208)")
+    p.add_argument("--fuel", type=int, default=-1, help="race: fuel use, times the class's (0 off; -1 the track's, D209)")
+    p.add_argument("--tyres", type=int, default=-1, help="race: tire wear, times the class's (0 off; -1 the track's)")
     p.add_argument("--seed", type=int, default=7, help="endless: the road's seed")
     p.add_argument("--late", type=float, default=0.0, help="endless: the last bot joins this many seconds after the others")
     p.add_argument("--ai", type=int, default=0, help="AI cars the server adds (races)")
@@ -223,8 +228,10 @@ def main(argv=None):
         event.update({"battle_rule": args.rule, "battle_min": args.minutes, "ai_count": args.ai, "ai_cars": "builtin"})
     if args.event in ["race", "kart"]:
         event.update({"practice_min": 5 if args.fresh else 0, "qualifying_min": 0, "race_laps": args.laps,
-                      "ai_count": args.ai, "grid": "random", "start": "standing",
+                      "ai_count": args.ai, "grid": "random", "start": args.start,
                       "ai_cars": "garage" if args.fresh else "builtin"})
+        if args.event == "race":
+            event.update({"draft": args.draft, "fuel_x": args.fuel, "tyre_x": args.tyres})
     config = {
         "schema": "noss.server/1", "name": "net_check", "port": args.port, "max_players": 16, "lan": bool(args.open),
         "rotation": [{"track": track, "class": args.klass, "event": event}],

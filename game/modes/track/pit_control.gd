@@ -12,6 +12,10 @@ extends Node
 const FUEL := ["full", "finish", "half", "none"]
 const FUEL_WORDS := { "full": "Full", "finish": "Finish", "half": "Half", "none": "No fuel" }
 const TIRES := [4, 2, 0]
+## "Finish": fuel for the laps to go and FINISH_LAPS more, at the last lap's use and FINISH_MARGIN
+## over it (a lap in a draft uses less than one out of it).
+const FINISH_LAPS := 0.6
+const FINISH_MARGIN := 1.1
 ## Litres a second into the tank; tire changes, s; and the stop itself (in, jack, out), s.
 const FUEL_RATE := 6.0
 const TIRES_4_S := 11.0
@@ -104,7 +108,7 @@ func litres(r: Racer, request: Dictionary) -> float:
 			var to_go := laps_to_go(r)
 			if not is_finite(to_go) or w.lap_fuel <= 0.0:
 				return room
-			return clampf((to_go + 0.6) * w.lap_fuel - w.fuel_l, 0.0, room)
+			return clampf((to_go + FINISH_LAPS) * w.lap_fuel * FINISH_MARGIN - w.fuel_l, 0.0, room)
 	return 0.0
 
 

@@ -13,6 +13,8 @@ const LOW_LAPS := 2.0
 ## A car reset dry gets a splash: this many laps' fuel (or SPLASH_L before a lap's measured).
 const SPLASH_LAPS := 1.5
 const SPLASH_L := 8.0
+## Racing laps lap_fuel looks back over.
+const LAP_USES := 3
 
 var tank_l := 70.0
 var fuel_l := 70.0
@@ -22,8 +24,9 @@ var l_per_j := 0.0
 var wear := PackedFloat32Array()
 var life_j := 0.0
 var worn_grip := 0.85
-## Fuel used over the last racing lap, litres (0: no lap measured yet).
+## Fuel a racing lap uses, litres: the most of the last LAP_USES (0: no lap measured yet).
 var lap_fuel := 0.0
+var _lap_uses := PackedFloat32Array()
 var _lap := -1
 var _fuel_at_lap := 0.0
 var _refilled := false
@@ -102,9 +105,13 @@ func lap_started(lap: int) -> void:
 		return
 	if _lap >= 1 and lap == _lap + 1 and _fuel_at_lap > fuel_l and not _refilled:
 		# A slow lap (through the pits, behind a crash) burns less: it isn't a racing lap's measure.
+		# Of the last few that are, the hungriest (a lap in a draft, or held up, burns less too).
 		var used := _fuel_at_lap - fuel_l
 		if lap_fuel <= 0.0 or used > lap_fuel * 0.75:
-			lap_fuel = used
+			_lap_uses.append(used)
+			if _lap_uses.size() > LAP_USES:
+				_lap_uses.remove_at(0)
+			lap_fuel = Array(_lap_uses).max()
 	_refilled = false
 	_lap = lap
 	_fuel_at_lap = fuel_l
