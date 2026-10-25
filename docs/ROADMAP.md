@@ -280,6 +280,29 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
 
 **Notes:** Getting the AI to hold a line on 24° banking took three fixes that change it everywhere: its speeds now count on less grip past 1 g of load (the oval's turns run near 2 g, and the cars had been sliding 6-8 m up the banking at the old speeds), pure pursuit trims its steering by the yaw it falls short of, and a car side by side no longer gets pushed away by the midpoint between it and the other. A lap that crossed the line backwards (a car turning into a pit box beside the line) used to count again when it crossed forwards. Still to do by hand (the owner): the night, the SAFER wall, the fence, pit road and the panel in a window, and split screen.
 
+## UI overhaul
+
+*One predictable flow for every event, local or online, on full-screen pages (D214, superseding D160). The spec, with the exact text, the sizes and a table per event type, is [UI_FLOW.md](UI_FLOW.md); each phase runs in its own session and reads it first.*
+
+- **Main menu:** Local Drive, Drive Online, Garage, Track Editor, Settings, Exit Game, bigger and spaced out. The Fitting Bay moves into the Garage.
+- **Local Drive:** event type → settings → class (only if needed) → players, with a breadcrumb, a step row and a prompt bar on every page. Racing is Regular, Stock Car, Kart and Custom, each with a time trial (splitscreen, ghosted); Mini Games are Sumo Wrestling, Drag Strip and Kart Battle; Drive again repeats the last event.
+- **Drive Online:** Host or Join (LAN, direct with favourites and recent servers, official later); a lobby with a roster, chat and local players joining there; a playlist; a 3-second countdown.
+- **Settings and Driving Settings** in tabs that work with a controller.
+
+**Phases:**
+- [x] P0: the spec ([UI_FLOW.md](UI_FLOW.md)), D214 and this section.
+- [ ] P1: the main menu (order, sizes); the Fitting Bay from the Garage.
+- [ ] P2: the page kit, the page stack, the prompt bar and glyphs.
+- [ ] P3: tabs; Settings and Driving Settings.
+- [ ] P4: Local Drive core: Racing's Regular and Stock Car, the class page, Drive again, the Players countdown, after an event.
+- [ ] P5: the other local types (Kart, Custom, Endless, Highway, Mini Games, Free Drive); the old menus go.
+- [ ] P6: time trials, every variant, splitscreen.
+- [ ] P7: Garage and Fitting Bay.
+- [ ] P8: Drive Online: landing, Host, Join, Password.
+- [ ] P9: the lobby, protocol 13.
+- [ ] P10: new online events (time trials, highway runs, kart cups), protocol 14.
+- [ ] P11: the docs and accessibility sweep.
+
 ## M10+: Backlog (order to be decided)
 
 | Item | IDs |

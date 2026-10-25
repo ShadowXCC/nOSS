@@ -160,6 +160,7 @@ Local multiplayer: `--players=<n>` (extra players driven by the line follower), 
 | [Input](docs/INPUT.md) | Devices, joining, wheels, FFB |
 | [Art & audio](docs/ART_AUDIO.md) | Style profiles, cameras, UI, engine sound |
 | [Accessibility](docs/ACCESSIBILITY.md) | Vision, hearing, motion, motor and input, pacing |
+| [UI flow](docs/UI_FLOW.md) | Menus, pages and how players move through them |
 | [Roadmap](docs/ROADMAP.md) | Milestones and acceptance criteria |
 | [Decisions](docs/DECISIONS.md) | Decision log, risks, open questions |
 
