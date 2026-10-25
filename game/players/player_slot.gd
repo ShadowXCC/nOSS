@@ -65,6 +65,19 @@ func refresh(all: Array[Dictionary]) -> void:
 	input.rebuild()
 
 
+## The glyphs for this player's prompts (docs/UI_FLOW.md §10.2): the family of the device that
+## fired their last menu action ("keyboard", "xbox", "playstation"), or "sim" for a wheel's, which
+## shows its buttons' names instead.
+func glyph_family() -> String:
+	var d := input.menu_device()
+	match String(d.get("kind", "keyboard")):
+		"gamepad":
+			return Devices.family_of_joy(int(d.id))
+		"sim":
+			return "sim"
+	return "keyboard"
+
+
 ## "Keyboard (left), Xbox One" style summary of what this player drives with.
 func devices_text() -> String:
 	var names := PackedStringArray()

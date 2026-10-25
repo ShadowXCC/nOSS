@@ -135,8 +135,10 @@ func _restart_pressed() -> void:
 	if not confirm_restart:
 		restart.emit()
 		return
-	var menu := ConfirmMenu.new()
+	var menu := ConfirmPage.new()
 	menu.title = "%s?" % restart_text
+	menu.crumbs = ["Pause", restart_text]
+	menu.no_hint = "Back to the pause menu"
 	menu.yes_text = restart_text
 	menu.yes_hint = "Start this session again"
 	menu.confirmed.connect(func() -> void: restart.emit())
@@ -199,36 +201,5 @@ class ChatMenu:
 
 	func _unhandled_input(e: InputEvent) -> void:
 		if e.is_action_pressed("ui_cancel"):
-			get_viewport().set_input_as_handled()
-			closed.emit()
-
-
-## A second press before something that cannot be taken back. The safe answer is the focused one.
-class ConfirmMenu:
-	extends Control
-
-	signal closed
-	signal confirmed
-
-	var title := ""
-	var yes_text := "Yes"
-	var yes_hint := ""
-	var no_text := "Keep going"
-
-
-	func _ready() -> void:
-		theme = UiKit.theme_for(self)
-		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		process_mode = Node.PROCESS_MODE_ALWAYS
-		var list := UiKit.panel(self, title, 620)
-		var no := UiKit.button(no_text, func() -> void: closed.emit(), "Back to the pause menu")
-		var yes := UiKit.button(yes_text, func() -> void: confirmed.emit(), yes_hint)
-		list.add_child(no)
-		list.add_child(yes)
-		UiKit.chain_focus([no, yes])
-
-
-	func _unhandled_input(event: InputEvent) -> void:
-		if event.is_action_pressed("ui_cancel"):
 			get_viewport().set_input_as_handled()
 			closed.emit()

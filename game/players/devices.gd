@@ -8,8 +8,16 @@ extends Node
 ## "kb", "pad:<guid>#<n>", "sim:<guid>#<n>" (n tells identical devices apart).
 
 signal devices_changed
+## The main window's prompts change family (docs/UI_FLOW.md §10.2).
+signal family_changed(family: String)
+
+## Sony's USB vendor id: its pads get PlayStation glyphs.
+const SONY := 0x054C
 
 var native_ok := false
+## The glyph family of the last input in the main window: "keyboard" (a key or the mouse),
+## "xbox" or "playstation" (a pad's, family_of_joy()).
+var last_family := "keyboard"
 ## Extra devices for tests (fake gamepads fed with Input.parse_input_event).
 var test_devices: Array[Dictionary] = []:
 	set(devices):
@@ -40,6 +48,42 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	if native_ok:
 		NossInput.stop()
+
+
+func _input(event: InputEvent) -> void:
+	var family := last_family
+	if event is InputEventKey or event is InputEventMouseButton:
+		family = "keyboard"
+	elif event is InputEventMouseMotion and (event as InputEventMouseMotion).relative.length() > 8.0:
+		family = "keyboard"
+	elif event is InputEventJoypadButton:
+		family = family_of_joy(event.device)
+	elif event is InputEventJoypadMotion and absf((event as InputEventJoypadMotion).axis_value) > 0.5:
+		family = family_of_joy(event.device)
+	if family != last_family:
+		last_family = family
+		family_changed.emit(family)
+
+
+## A gamepad's glyph family, from its USB vendor and name (family_of()).
+func family_of_joy(device: int) -> String:
+	for d: Dictionary in test_devices:
+		if d.get("kind") == "gamepad" and int(d.get("id", -1)) == device:
+			return family_of(int(d.get("vendor", -1)), String(d.get("name", "")))
+	if device not in Input.get_connected_joypads(): # a test's made-up pad
+		return family_of(-1, "")
+	var info := Input.get_joy_info(device)
+	return family_of(int(info.get("vendor_id", -1)), Input.get_joy_name(device))
+
+
+## PlayStation glyphs for Sony pads (the vendor, or "PS", "DualShock" or "DualSense" in the
+## name), Xbox glyphs for every other pad, Switch pads included.
+static func family_of(vendor: int, joy_name: String) -> String:
+	var n := joy_name.to_lower()
+	if vendor == SONY or "dualshock" in n or "dualsense" in n:
+		return "playstation"
+	var ps := RegEx.create_from_string("(^|[^a-z])ps([^a-z]|$)")
+	return "playstation" if ps.search(n) else "xbox"
 
 
 func _physics_process(_delta: float) -> void:

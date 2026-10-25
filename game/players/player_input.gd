@@ -46,6 +46,7 @@ var _edges := {} # action -> became pressed at the last poll
 var _menu_time := {} # action -> seconds held (INF: held before the menu opened)
 var _capture := {}
 var _axis_rest := {} # "device:axis" -> value when the capture started
+var _menu_device := {} # {kind, device}: what fired the last menu action
 
 
 ## Re-reads bindings and calibration; call after devices or the profile's input change.
@@ -171,6 +172,7 @@ func poll_menu(delta: float) -> Array[String]:
 		if not _menu_time.has(action):
 			_menu_time[action] = 0.0
 			out.append(action)
+			_menu_device = _firing(action)
 			continue
 		var t0: float = _menu_time[action]
 		if is_inf(t0) or not Bindings.ACTIONS[action].get("repeat", false):
@@ -180,6 +182,37 @@ func poll_menu(delta: float) -> Array[String]:
 		if t1 >= delay and (t0 < delay or floori((t1 - delay) / period) > floori((t0 - delay) / period)):
 			out.append(action)
 	return out
+
+
+## The device that fired this player's last menu action (their first until one has): their
+## prompts show its buttons (docs/UI_FLOW.md §10.2).
+func menu_device() -> Dictionary:
+	for d: Dictionary in devices:
+		if d.kind == _menu_device.get("kind") and int(d.get("id", -1)) == int(_menu_device.get("device", -2)):
+			return d
+	return devices[0] if not devices.is_empty() else {}
+
+
+## The inputs bound to `action` on menu_device(), as refs: what its prompt shows.
+func menu_refs(action: String) -> Array[Dictionary]:
+	var d := menu_device()
+	var out: Array[Dictionary] = []
+	for b: Dictionary in _refs.get(action, []):
+		if b.kind == d.get("kind") and int(b.device) == int(d.get("id", -1)):
+			out.append(b.ref)
+	return out
+
+
+## Which of this player's devices is pressing `action` hardest: {kind, device}.
+func _firing(action: String) -> Dictionary:
+	var best := PRESS
+	var out := {}
+	for b: Dictionary in _refs.get(action, []):
+		var v := _read(b, action)
+		if v > best:
+			best = v
+			out = { "kind": b.kind, "device": b.device }
+	return out if not out.is_empty() else _menu_device
 
 
 ## Starts watching this player's devices for a new press (rebinding).

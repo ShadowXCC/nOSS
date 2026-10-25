@@ -2,7 +2,8 @@
 """Screen-reader check (ACC-03; M4 acceptance: boot -> race -> results with a screen reader).
 
 Runs the game with accessibility on and walks title -> Local Drive -> Race -> class -> event ->
-Players -> a 1-lap race -> results -> title, then Drive Online -> Host -> the lobby -> Leave (M5), then
+Players -> a 1-lap race -> results -> title (on the way, the screen under the top one isn't
+showing: UI overhaul P2's page stack), then Drive Online -> Host -> the lobby -> Leave (M5), then
 Local Drive -> Highway -> a highway -> its menu -> the class -> Players and back out (M7), then
 Local Drive -> Kart -> a race, a battle and the cup builder -> the class -> Players and back out
 (M8), then Local Drive -> Endless -> its menu -> the class -> Players and back out (M9), then the
@@ -98,7 +99,7 @@ def showing(node):
 
 def find(name, role=None, timeout=20.0, prefix=False, last=False):
     """The first showing element with this accessible name (or name prefix); the last one with
-    `last` (the newest screen's: Godot shows a menu hidden behind the next one as still on screen)."""
+    `last` (the newest screen's, should one under it still show)."""
     end = time.time() + timeout
     while time.time() < end:
         a = app()
@@ -327,6 +328,17 @@ def drag_menus():
     return ok
 
 
+def hidden(label, name):
+    """Only the top page shows (docs/UI_FLOW.md §4): `name`, a button of the screen under it,
+    isn't showing, so a screen reader can't reach it."""
+    time.sleep(1.0)  # the new page is up a frame after the press
+    if find(name, "button", timeout=2.0) is not None:
+        problems.append(f"{label}: '{name}' from the screen under it is still showing")
+        return False
+    log(f"  '{name}' is hidden under it")
+    return True
+
+
 def back_from(label, anchor):
     """Waits for the screen with `anchor` (a name prefix), checks it, and presses its Back."""
     if find(anchor, "button", timeout=30.0, prefix=True) is None:
@@ -447,7 +459,9 @@ def main():
             raise SystemExit(report())
         log("Title")
         ok = step("Title", "Local Drive")
+        ok = ok and hidden("Local Drive", "Drive Online")
         ok = ok and step("Local Drive", "Race")
+        ok = ok and hidden("Class", "Mini Games")
         ok = ok and step("Class", "Track GT", prefix=True)
         ok = ok and step("Event", "Next")
         ok = ok and step("Players", "Ready", timeout=30.0)

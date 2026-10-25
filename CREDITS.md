@@ -31,6 +31,7 @@ Part of the game:
 
 | Asset | Author | License | Where |
 |---|---|---|---|
+| [Input Prompts](https://kenney.nl/assets/input-prompts) 1.5 (only the keyboard, Xbox and PlayStation glyphs the menus use) | Kenney | CC0 1.0 | `content/ui/prompts/` |
 | [Atkinson Hyperlegible](https://github.com/googlefonts/atkinson-hyperlegible) 1.006 (Regular, Bold): the "Clear" font option | Braille Institute of America | SIL OFL 1.1 | `content/fonts/atkinson_hyperlegible/` |
 | The Eifel GP's layout: the Nürburgring GP circuit's centreline and pit lane ([OpenStreetMap](https://www.openstreetmap.org/relation/38567) relation 38567) | © OpenStreetMap contributors | ODbL 1.0 | `content/tracks/eifel_gp/`, `tools/data/eifel_gp.json` |
 | The Eifel GP's ground: EU-DEM v1.1, 25 m (via [OpenTopoData](https://www.opentopodata.org/)) | Copernicus Land Monitoring Service, European Union | Free use with attribution: "Produced using Copernicus data and information funded by the European Union" | `content/tracks/eifel_gp/terrain/`, `tools/data/eifel_gp.json` |

@@ -8,12 +8,18 @@ const ACCENT := Color("#E8B71A")
 const PANEL := Color(0.07, 0.07, 0.09, 0.97)
 const BUTTON := Color(0.16, 0.16, 0.19)
 const FONT_SIZE := 30
+## Pages (docs/UI_FLOW.md §2): bigger text and rows than the old panels, the same colours.
+const PAGE_FONT_SIZE := 34
+const ROW_HEIGHT := 72
+const MUTED := Color(0.62, 0.62, 0.68)
+const BACKGROUND := Color(0.07, 0.07, 0.09)
 
 ## Font choices (docs/ACCESSIBILITY.md §2): "retro" is the game's look, "clear" a plain
 ## high-legibility font.
 const FONTS := { "clear": "res://content/fonts/atkinson_hyperlegible/AtkinsonHyperlegible-Regular.ttf" }
 
 static var _themes := {}
+static var _page_themes := {}
 
 
 ## The menu theme in P1's font (shared menus follow P1).
@@ -24,11 +30,36 @@ static func theme() -> Theme:
 ## The theme for a control: in a player's view, that player's font; elsewhere P1's. Themes
 ## don't reach into a view's viewport, so menus there set it themselves.
 static func theme_for(node: Node) -> Theme:
+	return theme_with(_font_for(node))
+
+
+## The page theme for a control (docs/UI_FLOW.md §2), by the same rule as theme_for(): the menu
+## theme with 34 px text, and the label types "PageTitle" (56 px) and "PageCrumb" (26 px, muted).
+static func page_theme_for(node: Node) -> Theme:
+	var font_id := _font_for(node)
+	if not FONTS.has(font_id):
+		font_id = "retro"
+	if _page_themes.has(font_id):
+		return _page_themes[font_id]
+	var t := _base_theme()
+	if FONTS.has(font_id):
+		t.default_font = load(FONTS[font_id])
+	t.default_font_size = PAGE_FONT_SIZE
+	t.set_type_variation(&"PageTitle", &"Label")
+	t.set_font_size(&"font_size", &"PageTitle", 56)
+	t.set_type_variation(&"PageCrumb", &"Label")
+	t.set_font_size(&"font_size", &"PageCrumb", 26)
+	t.set_color(&"font_color", &"PageCrumb", MUTED)
+	_page_themes[font_id] = t
+	return t
+
+
+static func _font_for(node: Node) -> String:
 	var vp := node.get_viewport() if node.is_inside_tree() else null
 	var view := vp.get_parent() as PlayerView if vp else null
 	if view and view.slot:
-		return theme_with(String(view.slot.profile.data.get("font", "retro")))
-	return theme()
+		return String(view.slot.profile.data.get("font", "retro"))
+	return String(Settings.primary.data.get("font", "retro")) if Settings.primary else "retro"
 
 
 static func theme_with(font_id: String) -> Theme:
@@ -274,6 +305,7 @@ static func spinner(text: String, items: Array, value: Variant, on_changed: Call
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(0, 64)
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.set_meta(&"spinner", true) # left and right change it (PromptBar says so)
 	var row := HBoxContainer.new()
 	row.name = "Row"
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE

@@ -88,7 +88,8 @@ Built in P2 (`game/ui/page/`) and P3 (tabs).
   `gui_focus_changed`), so scrolling follows the focus inside a `PlayerView` too, where
   `follow_focus` doesn't.
 - **`MenuStack`:** push and pop. Only the top page is visible. Popping gives the focus back to the
-  control that had it.
+  control that had it. Until P4 and P5 replace them, the old menus run on the main menu's stack too,
+  each refocusing itself as before (P2).
 - **`ConfirmPage`:** a question with the safe answer focused first (promoted from the pause menu's
   `ConfirmMenu`). Its title is the question; its buttons are given (e.g. "Keep" and "Reset").
 - **`TabRow`:** a row of tabs (toggle buttons). `ui_tab_prev` and `ui_tab_next` switch tabs from
@@ -466,8 +467,8 @@ menus Q and E don't shift (menus don't drive).
 
 - Three families: "keyboard", "xbox" and "playstation". The glyphs are Kenney *Input Prompts*
   (CC0), only the ones the game uses, in `content/ui/prompts/<family>/<id>.png`, credited in
-  CREDITS.md and LICENSE-ASSETS.md (the CC0 exception to CC-BY-SA). P2 downloads them and records
-  the version.
+  CREDITS.md and LICENSE-ASSETS.md (the CC0 exception to CC-BY-SA). Version 1.5, downloaded in P2.
+  An Xbox pad's L3 and R3 are its "LS" and "RS" glyphs.
 - **A pad's family:** PlayStation for Sony pads (USB vendor 0x054C, or a name with "PS",
   "DualShock" or "DualSense", any case). Xbox for every other pad, Switch pads included.
   `Devices.family_of_joy(device)`.
