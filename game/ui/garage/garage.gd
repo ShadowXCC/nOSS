@@ -193,16 +193,21 @@ func _select(i: int) -> void:
 	# Load the car for the turntable.
 	_preview.clear()
 	_loading = car.path
-	PackageLoader.load_async(car.path, func(pkg: VehiclePackage) -> void:
-		if not is_inside_tree() or _loading != pkg.path:
-			pkg.free_scenes()
-			return
-		if not pkg.ok():
-			_status.text = "Car failed to load"
-			return
-		_preview.show_package(pkg, _platform_for(m.family))
-		if car.thumbnail == null:
-			_render_thumbnail(i))
+	# A method, not a lambda: a lambda's freed owner isn't always seen before the call, and the
+	# garage may be gone by the time the car is in.
+	PackageLoader.load_async(car.path, _on_car_loaded.bind(car, i))
+
+
+func _on_car_loaded(pkg: VehiclePackage, car: Dictionary, i: int) -> void:
+	if not is_inside_tree() or _loading != pkg.path:
+		pkg.free_scenes()
+		return
+	if not pkg.ok():
+		_status.text = "Car failed to load"
+		return
+	_preview.show_package(pkg, _platform_for(String(car.manifest.family)))
+	if car.thumbnail == null:
+		_render_thumbnail(i)
 
 
 ## A car without a thumbnail gets one from the turntable view.
@@ -233,16 +238,19 @@ func _drive() -> void:
 func _edit(step: String) -> void:
 	var path: String = _cars[_selected].path
 	_status.text = "Loading"
-	PackageLoader.load_async(path, func(pkg: VehiclePackage) -> void:
-		if not pkg.ok():
-			_status.text = "Car failed to load"
-			pkg.free_scenes()
-			return
-		var draft := FittingDraft.from_package(pkg)
+	PackageLoader.load_async(path, _on_edit_loaded.bind(step))
+
+
+func _on_edit_loaded(pkg: VehiclePackage, step: String) -> void:
+	if not pkg.ok():
+		_status.text = "Car failed to load"
 		pkg.free_scenes()
-		Game.bay_draft = draft
-		_preview.clear()
-		Game.open_fitting_bay("", step if step else "Import", "garage"))
+		return
+	var draft := FittingDraft.from_package(pkg)
+	pkg.free_scenes()
+	Game.bay_draft = draft
+	_preview.clear()
+	Game.open_fitting_bay("", step if step else "Import", "garage")
 
 
 func _paint() -> void:
