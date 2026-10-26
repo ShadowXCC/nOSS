@@ -426,18 +426,33 @@ laps, and the results come at the end.
 
 ## 8. Garage and Fitting Bay
 
-- The Garage's **"Downloads" becomes "Fitting Bay"** ("Import and fit your own car"), and a **"+
-  New car"** card comes first in the grid (accessible name "New car", description "Import a model
-  in the Fitting Bay"). Both open the bay. Until P7, P1 adds a "Fitting Bay" button beside
-  Downloads.
-- **Filter tabs** over the grid: "My cars | Built-in".
+- The Garage's **"Downloads" becomes "Fitting Bay"** ("Import and fit your own car"), and a **"New
+  car"** card comes first in the grid, a big "+" its picture (description "Import a model in the
+  Fitting Bay"). Both open the bay. The "+" is a picture, not text: Godot 4.7.2 reads a button whose
+  name and text differ as both ("New car: + New car").
+- **Filter tabs** over the grid: "My cars | Built-in" (a `TabRow`: LB/RB or Q/E from the grid, left
+  and right on the row). The Garage opens on My cars, or on Built-in when the player has no cars of
+  their own; back from the bay, on the tab of the car it was on. Each tab comes back to the car last
+  picked on it, and a copy of a built-in car lands on My cars. Up from the grid's top row reaches
+  the tabs; down from its last row, "Fitting Bay", "Back", then round to the tabs.
+- The Garage keeps its own layout (the grid on the left, the turntable on the right): no breadcrumb
+  or prompt bar yet.
 - The bay stays its own screen. When it was opened from the Garage (`Game.open_fitting_bay(...,
   from)` sets `Game.bay_from`), **"Exit" and Back return to the Garage** ("Back to the Garage"),
   and a test drive's "Back to Fitting Bay" keeps that. Opened any other way, they go to the main
   menu as today. The Garage's "Edit" and "Sound" open the bay from the Garage too.
-- **Downloads move into the bay's Import step** as a "From online games" list. Each car there has
-  "Save to garage", "Export…" and "Open in bay" (`FittingDraft.from_package`).
-- Downloaded tracks stay in the Track Editor's File menu (`DownloadsMenu`).
+- **Downloads move into the bay's Import step** as a "From online games" list, under the import
+  folder's files. Each car there ("Skyline R34 · by Kaz · 14 MB") has "Save to garage" ("Keep
+  Skyline R34 in your garage"), "Export…" ("Write Skyline R34 out as a .noss file") and "Open in
+  bay" ("Fit Skyline R34 before saving it", `FittingDraft.from_package`).
+  - Save to garage asks when the garage has that car already: "Skyline R34 is already in your
+    garage.", "Replace my copy", "Keep both" and "Cancel". Exit then goes to the Garage on the car
+    just saved.
+  - Open in bay works as a `.noss` import does: the cache is never written to, and saving makes a
+    garage car (asking first when the garage has it).
+  - A part-finished download is listed ("still downloading") with its buttons off. With none: "None
+    yet. Cars from games you join land here."
+- Downloaded tracks stay in the Track Editor's File menu (`DownloadsMenu`, now tracks only).
 
 ## 9. Settings and Driving Settings
 
@@ -574,7 +589,7 @@ AT-SPI. Each phase updates its routes:
 | P4 | The main route: Local Drive → Racing → Regular → Settings ("Next") → "Track GT" → Players ("Ready") → the race → results ("Main menu"), then `--racing-only`'s route. New `--racing-only`: Stock Car (no Class step) → Players and back, the Time Trial switch → Regular → the class and back. The kart route goes through Racing. |
 | P5 | Rewrite `--highway-only`, `--kart-only`, `--endless-only`, `--sumo-only` and `--drag-only` for the pages; `--racing-only` adds Custom; new `--free-only`. |
 | P6 | `--racing-only` adds the time trials' Players step: Regular's (after the class) and Kart's. |
-| P7 | New `--garage-only`: Garage → Fitting Bay → the Import step ("From online games") → Exit → the Garage → Back. |
+| P7 | New `--garage-only`: Garage → "Built-in" and "My cars" → Fitting Bay → the Import step ("From online games") → Exit → the Garage → Back. |
 | P8 | The online route: Drive Online → Host → "Next" → Racing → Regular → Settings → Class → the lobby → "Leave"; Join → each tab → Back. |
 | P9 | The lobby: the "This PC" card's buttons, "Change event", "Playlist", "Leave". |
 | P11 | The final routes and the docstring. |
