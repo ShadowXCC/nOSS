@@ -156,7 +156,6 @@ Title "Local Drive", breadcrumb "Local Drive".
 - **Drive again** shows only when there is a last event and its track and class still exist. It
   repeats the last type, settings and class, and goes straight to the Players page; Back from
   there comes to that event's Settings page (Next focused), then the Racing page, then Local Drive.
-  A time trial before P6 has no Players page: it starts the drive.
 - Focus starts on the first button (Drive again when it's there).
 
 ### 5.3 Racing page
@@ -175,7 +174,8 @@ page, and left/right on the switch itself. The descriptions follow the switch:
 
 "NASCAR" is a trademark: the type is "Stock Car" everywhere in the game.
 
-Kart's time trial comes with P6: until then its button is off, its description "Coming soon".
+Every type has its time trial (P6), with the race's Players step: splitscreen, each player with
+their own ghost (§5.10).
 
 ### 5.4 Mini Games page
 
@@ -198,7 +198,7 @@ Under the rows, in the action bar: "Back" and "Next". Next is off until the even
 race needs a track, a battle an arena, a cup every one of its tracks. A line under the rows says what
 a row has to say ("Not a road code"). Next's description says what comes next:
 "Pick the class", "The players: each picks a car", "The players: each picks a car and a class",
-"Start driving" (a time trial with no Class step, before P6), or, when hosting with no Class step,
+or, when hosting with no Class step,
 Next reads "Start hosting" ("Start the server and open the lobby").
 
 The rows of each type are in §6.1. Rows keep today's names and values unless §6.1 says otherwise.
@@ -214,8 +214,7 @@ Title "Choose class", breadcrumb ending "› Class".
 - On the right, P1's last car on a turntable, fitted to the highlighted class. A car that can't
   fit the class (`Fitting.compatible`) shows the class's default car (`GameModes.default_car`).
   The fit waits about 150 ms after the focus stops moving.
-- Confirm on a class goes on: to Players, to the lobby when hosting (it hosts), or straight to
-  the drive for a time trial before P6.
+- Confirm on a class goes on: to Players, or to the lobby when hosting (it hosts).
 - At the bottom: "Back".
 - **The Garage's Drive** (P5) uses it too, without an event: breadcrumb "Garage › Class", every class
   that takes the Garage's car (any mode's), that car on the turntable, and Back ("Back to the
@@ -254,18 +253,37 @@ The card's "Settings" button becomes "Driving Settings".
   class and cup). The main menu's `_ready` rebuilds the page stack from it when the player chose
   "Event menu".
 
+### 5.10 Time trials
+
+Built in P6.
+
+- Every Racing type has one: Regular, Stock Car, Kart and Custom. The steps are the race's, Players
+  included. Up to four players drive at once in splitscreen, and players can drop in and out
+  mid-drive as in any local session.
+- The cars are ghosted to each other (`RaceEvent.time_trial()` has no collisions): no contact, and
+  no drafting or slipstream off another player.
+- Each player has their own lane (`TimeTrial.Lane`): their laps recorded, their best saved per
+  profile in `user://ghosts/<track>/<class>/best_<profile>.json`, their own ghost and their own live
+  delta. P1 still reads the `best.json` from before until they beat it.
+- Each ghost shows only in its player's view: the lanes' ghosts sit on visual layers 2-5, one
+  each, and each player's camera hides the others'.
+- The pause menu's "Ghost" row lists "Your best", the folder's other ghosts (the other players'
+  bests among them: "Ana 1:23.456") and "Off". Its "Leaderboard" is the player's class's.
+- **Kart:** each player picks their class on their card, and their ghosts are kept under that
+  class. The kart rules run (the tow drone, drifts and boosts) with no items.
+
 ## 6. Types
 
 | Type | Name (title) | Crumbs to Settings | Steps (local) | Tracks | Class | Memory (old keys) | Start | Online | Phase |
 |---|---|---|---|---|---|---|---|---|---|
 | Regular | "Regular race" | Local Drive › Racing › Regular | Event · Settings · Class · Players | every circuit | Track-mode classes | `racing/regular` (`Settings.race_event`, `last_track`, `last_platform`) | `start_event` | P8 | P4 |
-| Regular TT | "Regular time trial" | Local Drive › Racing › Regular Time Trial | Event · Settings · Class (· Players from P6) | every circuit | Track-mode classes | `racing/regular/tt` (`last_track`, `last_platform`) | `start_event(RaceEvent.time_trial())` | P10 | P4, P6 |
+| Regular TT | "Regular time trial" | Local Drive › Racing › Regular Time Trial | Event · Settings · Class · Players | every circuit | Track-mode classes | `racing/regular/tt` (`last_track`, `last_platform`) | `start_event(RaceEvent.time_trial())` | P10 | P4, P6 |
 | Stock Car | "Stock Car race" | Local Drive › Racing › Stock Car | Event · Settings · Players | circuits tagged `oval` | fixed: `official.track.stock_car` | `racing/stock_car` (`Settings.race_event`) | `start_event` | P8 | P4 |
-| Stock Car TT | "Stock Car time trial" | Local Drive › Racing › Stock Car Time Trial | Event · Settings (· Players from P6) | circuits tagged `oval` | fixed | `racing/stock_car/tt` | `start_event(RaceEvent.time_trial())` | P10 | P4, P6 |
+| Stock Car TT | "Stock Car time trial" | Local Drive › Racing › Stock Car Time Trial | Event · Settings · Players | circuits tagged `oval` | fixed | `racing/stock_car/tt` | `start_event(RaceEvent.time_trial())` | P10 | P4, P6 |
 | Kart | "Kart race" or "Kart cup" | Local Drive › Racing › Kart | Event · Settings · Players | every circuit, kart-tagged first | each player's card | `racing/kart` (`last_kart`, `last_kart_platform`) | `start_event`; `start_cup_race` | race P8, cups P10 | P5 |
 | Kart TT | "Kart time trial" | Local Drive › Racing › Kart Time Trial | Event · Settings · Players | every circuit, kart-tagged first | each player's card | `racing/kart/tt` | `start_event(RaceEvent.time_trial())` | P10 | P5, P6 |
 | Custom | "Custom race" | Local Drive › Racing › Custom | Event · Settings · Class · Players | every circuit | any class of any mode | `racing/custom` (`Settings.race_event`) | `start_event` | P8 | P5 |
-| Custom TT | "Custom time trial" | Local Drive › Racing › Custom Time Trial | Event · Settings · Class (· Players from P6) | every circuit | any class of any mode | `racing/custom/tt` | `start_event(RaceEvent.time_trial())` | P10 | P5, P6 |
+| Custom TT | "Custom time trial" | Local Drive › Racing › Custom Time Trial | Event · Settings · Class · Players | every circuit | any class of any mode | `racing/custom/tt` | `start_event(RaceEvent.time_trial())` | P10 | P5, P6 |
 | Endless | "Endless" | Local Drive › Endless | Event · Settings · Class · Players | none (a road code) | Cruiser, Sport | `endless` (`last_endless`) | `start_event` | P8 | P5 |
 | Highway | "Highway" | Local Drive › Highway | Event · Settings · Class · Players | highways | Street, Super | `highway` (`last_highway`, `last_track`) | `start_event` | Cruise P8; Score attack, Run, Loop P10 | P5 |
 | Sumo Wrestling | "Sumo Wrestling" | Local Drive › Mini Games › Sumo Wrestling | Event · Settings · Players | none (made from the settings) | fixed: `official.sumo.standard` | `mini/sumo` (`last_sumo`) | `start_event` | P8 | P5 |
@@ -555,7 +573,7 @@ AT-SPI. Each phase updates its routes:
 | P3 | New `--settings-only`: Settings → every tab → Players → Driving Settings → every tab, and back. |
 | P4 | The main route: Local Drive → Racing → Regular → Settings ("Next") → "Track GT" → Players ("Ready") → the race → results ("Main menu"), then `--racing-only`'s route. New `--racing-only`: Stock Car (no Class step) → Players and back, the Time Trial switch → Regular → the class and back. The kart route goes through Racing. |
 | P5 | Rewrite `--highway-only`, `--kart-only`, `--endless-only`, `--sumo-only` and `--drag-only` for the pages; `--racing-only` adds Custom; new `--free-only`. |
-| P6 | `--racing-only` adds a time trial's Players step. |
+| P6 | `--racing-only` adds the time trials' Players step: Regular's (after the class) and Kart's. |
 | P7 | New `--garage-only`: Garage → Fitting Bay → the Import step ("From online games") → Exit → the Garage → Back. |
 | P8 | The online route: Drive Online → Host → "Next" → Racing → Regular → Settings → Class → the lobby → "Leave"; Join → each tab → Back. |
 | P9 | The lobby: the "This PC" card's buttons, "Change event", "Playlist", "Leave". |

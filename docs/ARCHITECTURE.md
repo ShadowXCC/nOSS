@@ -239,7 +239,7 @@ user://
 ├─ tracks/<name>.nosstrack     player tracks; .autosave/<id>/ (drafts, a note beside each)
 ├─ platforms/                  custom and downloaded platforms
 ├─ setups/<platform>/<track>.json
-├─ ghosts/<track>/<platform>/   best.json and ghosts from friends
+├─ ghosts/<track>/<platform>/   best_<profile>.json per player (P1's older best.json), ghosts from friends
 ├─ leaderboards/<track>.json    local boards: time-trial laps, highway scores, runs and loop laps;
 │                              server/ (a server's own boards of what it measured, M7)
 ├─ replays/
