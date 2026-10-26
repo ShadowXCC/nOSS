@@ -1,15 +1,13 @@
 class_name DownloadsMenu
 extends Control
-## What a host sent you (docs/NETWORKING.md §7): the cars and tracks sitting in the content
-## cache, to keep in the garage or your tracks, or to write out as a file. The cache is thrown
-## away from time to time, so anything worth keeping has to be saved out of it.
+## The tracks a host sent you (docs/NETWORKING.md §7), sitting in the content cache: to keep in
+## your tracks or write out as a file. The cache is thrown away from time to time, so anything
+## worth keeping has to be saved out of it. The track editor opens it; cars from online games are
+## in the Fitting Bay's Import step.
 
 signal closed
-## The file a download landed in, once it's in the garage or the track library.
+## The file a download landed in, once it's in the track library.
 signal saved(path)
-
-## "cars" or "tracks".
-var kind := "cars"
 
 var _status: Label
 ## The "already here" question, over the list.
@@ -22,8 +20,7 @@ func _ready() -> void:
 
 
 func _build() -> void:
-	var cars := kind == "cars"
-	var panel := UiKit.panel(self, "Downloaded cars" if cars else "Downloaded tracks", 900)
+	var panel := UiKit.panel(self, "Downloaded tracks", 900)
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(0, 520)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -34,9 +31,9 @@ func _build() -> void:
 	scroll.add_child(rows)
 
 	var controls := []
-	var entries := ContentImport.list(kind)
+	var entries := ContentImport.list("tracks")
 	if entries.is_empty():
-		rows.add_child(UiKit.label("Nothing downloaded yet. Cars and tracks land here when you join a host.", 24))
+		rows.add_child(UiKit.label("Nothing downloaded yet. Tracks land here when you join a host.", 24))
 	for e: Dictionary in entries:
 		var row := HBoxContainer.new()
 		var name_label := UiKit.label(ContentImport.label(e), 24)
@@ -44,7 +41,7 @@ func _build() -> void:
 		name_label.clip_text = true
 		row.add_child(name_label)
 		for b: Button in [
-			UiKit.button("Save to garage" if cars else "Save to my tracks", _save.bind(e), "Keep it as your own"),
+			UiKit.button("Save to my tracks", _save.bind(e), "Keep it as your own"),
 			UiKit.button("Export…", _export.bind(e), "Write it out as a file"),
 		]:
 			b.custom_minimum_size = Vector2(0, 52)
@@ -68,7 +65,7 @@ func _build() -> void:
 
 func _save(e: Dictionary) -> void:
 	var id := String((e.manifest as Dictionary).get("id", ""))
-	var owned := GarageFiles.with_id(id) if kind == "cars" else ContentImport.owned_track(id)
+	var owned := ContentImport.owned_track(id)
 	if owned.is_empty():
 		_write(e, false)
 	else:
@@ -104,7 +101,7 @@ func _close_ask() -> void:
 
 
 func _write(e: Dictionary, as_copy: bool) -> void:
-	var result := ContentImport.save_car(String(e.dir), as_copy) if kind == "cars" else ContentImport.save_track(String(e.dir), as_copy)
+	var result := ContentImport.save_track(String(e.dir), as_copy)
 	if not result.ok:
 		_say(String(result.error))
 		return
@@ -114,8 +111,8 @@ func _write(e: Dictionary, as_copy: bool) -> void:
 
 func _export(e: Dictionary) -> void:
 	var name := String((e.manifest as Dictionary).get("name", "download"))
-	UiKit.save_dialog(self, "Export " + name, ".noss" if kind == "cars" else ".nosstrack", name, func(dest: String) -> void:
-		var result := ContentImport.export_package(kind, String(e.dir), dest)
+	UiKit.save_dialog(self, "Export " + name, ".nosstrack", name, func(dest: String) -> void:
+		var result := ContentImport.export_package("tracks", String(e.dir), dest)
 		_say("Exported to " + dest.get_file() if result.ok else String(result.error)))
 
 

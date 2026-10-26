@@ -615,7 +615,18 @@ func _switch(scene: Node) -> void:
 		scene_requested.emit(scene.get_script().get_global_name() if scene.get_script() else scene.get_class(), scene)
 		scene.free()
 		return
-	get_tree().change_scene_to_node.call_deferred(scene)
+	_change_scene.call_deferred(scene)
+
+
+## The new scene goes in here, not through change_scene_to_node(): a screen built inside Godot's
+## own scene change (4.7.2) leaves the first control of a row under a scroll (the Garage's first
+## tab and card, a Fitting Bay row's first button) out of the screen-reader tree (ARCHITECTURE.md
+## §1). Nothing reads current_scene from a new scene's _ready.
+func _change_scene(scene: Node) -> void:
+	var tree := get_tree()
+	tree.unload_current_scene()
+	tree.root.add_child(scene)
+	tree.current_scene = scene
 
 
 ## The results' "Event menu": the main menu, opened on that event's Settings page.

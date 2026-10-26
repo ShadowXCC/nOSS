@@ -309,7 +309,6 @@ func save() -> void:
 func _open_downloads() -> void:
 	_close_overlay()
 	var menu := DownloadsMenu.new()
-	menu.kind = "tracks"
 	menu.saved.connect(func(path: String) -> void: say("Saved " + path.get_file()))
 	menu.closed.connect(_close_overlay)
 	_overlay = menu

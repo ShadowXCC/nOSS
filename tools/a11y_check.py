@@ -10,7 +10,8 @@ type's pages (UI overhaul P5): Highway -> its Settings page -> the class -> Play
 (M7); Racing -> Kart -> a race, a cup and the cup builder, then Mini Games -> Kart Battle ->
 Players and back out (M8); Endless -> the class -> Players (M9); Mini Games -> Sumo Wrestling and
 Drag Strip (its class) -> Players; Free Drive -> the class -> Players, each backed out of, then
-Settings and Driving Settings, every tab (P3), then the track editor: every
+Settings and Driving Settings, every tab (P3), then the Garage: its tabs, the Fitting Bay's Import
+step with its "From online games" list, and back through the Garage (P7), then the track editor: every
 tool, a new oval, its race setup and checks, a new highway loop and its ramps, the Stunts tool on
 a kart circuit and an arena, and out (M6-M8);
 then, in a second run, a highway session's pause menu (opened with --pause-at: keys can't be
@@ -33,6 +34,7 @@ display. Writes no settings or profiles (--no-save).
     tools/a11y_check.py --free-only    # just Free Drive's pages
     tools/a11y_check.py --settings-only  # just Settings and Driving Settings, every tab
     tools/a11y_check.py --racing-only  # just Racing: Stock Car, the time trials, Custom
+    tools/a11y_check.py --garage-only  # just the Garage and the Fitting Bay's Import step
 """
 import os
 import subprocess
@@ -430,6 +432,37 @@ def settings_menus():
     return ok
 
 
+def garage_menus():
+    """Main menu -> Garage -> its tabs (Built-in, My cars) -> Fitting Bay -> the Import step's
+    "From online games" list -> Exit -> the Garage again -> Back (UI overhaul P7,
+    docs/UI_FLOW.md §8)."""
+    log("Garage")
+    ok = step("Main menu (garage)", "Garage")
+    ok = ok and step("Garage: to Built-in", "Built-in", role="toggle button")
+    if ok and find("nOSS Box", "button", timeout=20.0) is None:  # the tab has switched
+        problems.append("Garage: Built-in shows no 'nOSS Box'")
+        ok = False
+    ok = ok and step("Garage: to My cars", "My cars", role="toggle button")
+    end = time.time() + 20.0
+    while ok and find("nOSS Box", "button", timeout=0.5) is not None:  # until the tab has switched
+        if time.time() > end:
+            problems.append("Garage: My cars still shows 'nOSS Box'")
+            ok = False
+    ok = ok and step("Garage", "Fitting Bay")
+    if ok and find("From online games", timeout=20.0) is None:
+        problems.append("Fitting Bay: no 'From online games' list")
+        ok = False
+    ok = ok and step("Fitting Bay: Import", "Exit")
+    if ok and find("New car", "button", timeout=20.0) is None:  # Exit goes back to the Garage
+        problems.append("Out of the Fitting Bay: no Garage")
+        ok = False
+    ok = ok and step("Garage again", "Back")
+    if ok and find("Local Drive", "button", timeout=20.0) is None:
+        problems.append("Out of the Garage: no main menu")
+        return False
+    return ok
+
+
 def hidden(label, name):
     """Only the top page shows (docs/UI_FLOW.md §4): `name`, a button of the screen under it,
     isn't showing, so a screen reader can't reach it."""
@@ -571,6 +604,10 @@ def main():
             if find("Local Drive", "button", timeout=60.0) is not None:
                 racing_menus()
             raise SystemExit(report())
+        if "--garage-only" in sys.argv:
+            if find("Local Drive", "button", timeout=60.0) is not None:
+                garage_menus()
+            raise SystemExit(report())
         log("Title")
         ok = step("Title", "Local Drive")
         ok = ok and hidden("Local Drive", "Drive Online")
@@ -634,6 +671,10 @@ def main():
                     settings_menus()
                 else:
                     problems.append("Back at the title: no Local Drive button")
+                if find("Local Drive", "button", timeout=20.0) is not None:
+                    garage_menus()
+                else:
+                    problems.append("Back at the title: no Local Drive button")
                 if find("Track Editor", "button", timeout=20.0) is not None:
                     editor_walk()
                 else:
@@ -645,7 +686,7 @@ def main():
 
 def finish():
     if not any(f in sys.argv for f in ("--editor-only", "--kart-only", "--endless-only", "--sumo-only", "--drag-only", "--free-only",
-                                       "--settings-only", "--racing-only")):
+                                       "--settings-only", "--racing-only", "--garage-only")):
         highway_pause_walk()
     return report()
 

@@ -109,7 +109,8 @@ func test_export_writes_a_file_that_loads() -> void:
 
 ## Keyboard and controller (Changes.md): confirm on a car goes to its actions, left/right step
 ## through the enabled ones, back returns to the car; down from the last row reaches the Fitting
-## Bay, Downloads and Back. Paint's Save and Cancel stay on screen.
+## Bay and Back, then round to the tabs and the New car card. Paint's Save and Cancel stay on
+## screen.
 func test_keys_reach_the_actions_and_paint_fits() -> void:
 	var root := get_tree().root
 	var old_size := root.size
@@ -117,6 +118,7 @@ func test_keys_reach_the_actions_and_paint_fits() -> void:
 	var copy := GarageFiles.copy_car("res://content/cars/noss_box")
 	_made.append(copy.path)
 	var g := Garage.new()
+	g.start_car = "res://content/cars/noss_box" # the built-in cars: small, quick on the turntable
 	add_child(g)
 	for i in 4:
 		await get_tree().process_frame
@@ -133,15 +135,19 @@ func test_keys_reach_the_actions_and_paint_fits() -> void:
 	await _push("ui_down")
 	assert_object(_focused()).is_same(g._bay_button)
 	await _push("ui_down")
-	assert_object(_focused()).is_same(g._downloads_button)
+	assert_object(_focused()).is_same(g._back_button)
 	await _push("ui_down")
+	assert_object(_focused()).is_same(g._tabs.button())
+	await _push("ui_down")
+	assert_object(_focused()).is_same(g._new_card)
+	await _push("ui_up")
+	await _push("ui_up")
 	assert_object(_focused()).is_same(g._back_button)
 	await _push("ui_up")
-	await _push("ui_up")
 	assert_object(_focused()).is_same(g._bay_button)
-	# Paint on the copy: Save is on screen.
-	var at := g._cars.find_custom(func(c: Dictionary) -> bool: return c.path == copy.path)
-	g._cards[at].grab_focus()
+	# Paint on the copy (on My cars): Save is on screen.
+	g._reload(copy.path)
+	await get_tree().process_frame
 	await _push("ui_accept")
 	g._paint()
 	for i in 3:
@@ -161,10 +167,10 @@ func test_keys_reach_the_actions_and_paint_fits() -> void:
 func test_the_car_grid_scrolls_to_follow_the_focus() -> void:
 	var root := get_tree().root
 	var old_size := root.size
-	root.size = Vector2i(1280, 520) # short enough that two rows of cars cannot all be shown
-	for i in Garage.COLUMNS: # the built-in cars plus these make more than one row
-		_made.append(String(GarageFiles.copy_car("res://content/cars/noss_box").path))
+	root.size = Vector2i(1280, 520)
+	root.content_scale_factor = 1.5 # menu text at 1.5: the canvas is 720 high, room for one row of cars
 	var g := Garage.new()
+	g.start_car = "res://content/cars/noss_box" # Built-in: the New car card and three cars, two rows
 	add_child(g)
 	for i in 4:
 		await get_tree().process_frame
@@ -172,7 +178,7 @@ func test_the_car_grid_scrolls_to_follow_the_focus() -> void:
 	# The fix: Godot only brings the focused control into view when this is on.
 	assert_bool(scroll.follow_focus).is_true()
 	assert_int(scroll.horizontal_scroll_mode).is_equal(ScrollContainer.SCROLL_MODE_DISABLED)
-	assert_int(g._cards.size()).override_failure_message("one row of cars would never scroll").is_greater(Garage.COLUMNS)
+	assert_int(g._grid.get_child_count()).override_failure_message("one row of cars would never scroll").is_greater(Garage.COLUMNS)
 
 	g._cards[0].grab_focus()
 	for i in 3:
@@ -199,25 +205,40 @@ func test_the_car_grid_scrolls_to_follow_the_focus() -> void:
 	g.queue_free()
 	await get_tree().process_frame
 	root.size = old_size
+	root.content_scale_factor = 1.0
 
 
 ## The Fitting Bay opens from the Garage now (docs/UI_FLOW.md §8), not the main menu: its button
-## sits under the grid, and the bay is told it came from the Garage.
+## sits under the grid where Downloads was, the "+ New car" card leads the grid, and the bay is
+## told it came from the Garage.
 func test_the_fitting_bay_opens_from_the_garage() -> void:
 	var asked: Array[String] = []
 	var on_scene := func(scene_name: String, _scene: Node) -> void: asked.append(scene_name)
 	Game.scene_requested.connect(on_scene)
 	Game.hold_scenes = true
 	var g := Garage.new()
+	g.start_car = "res://content/cars/noss_box"
 	add_child(g)
 	for i in 4:
 		await get_tree().process_frame
 	assert_str(g._bay_button.text).is_equal("Fitting Bay")
 	assert_str(g._bay_button.accessibility_description).is_equal("Import and fit your own car")
 	assert_str(g._back_button.accessibility_description).is_equal("Back to the main menu")
+	var texts := g.find_children("*", "Button", true, false).map(func(b: Button) -> String: return b.text)
+	assert_array(texts).not_contains(["Downloads"])
 	g._bay_button.grab_focus()
 	await _push("ui_accept")
 	assert_array(asked).contains_exactly(["FittingBay"])
+	assert_str(Game.bay_from).is_equal("garage")
+	Game.bay_from = ""
+	assert_object(g._grid.get_child(0)).is_same(g._new_card)
+	assert_str(g._new_card.text).is_equal("New car")
+	assert_str(g._new_card.accessibility_name).is_equal("New car") # the "+" is its picture
+	assert_object(g._new_card.icon).is_not_null()
+	assert_str(g._new_card.accessibility_description).is_equal("Import a model in the Fitting Bay")
+	g._new_card.grab_focus()
+	await _push("ui_accept")
+	assert_array(asked).contains_exactly(["FittingBay", "FittingBay"])
 	assert_str(Game.bay_from).is_equal("garage")
 	Game.hold_scenes = false
 	Game.scene_requested.disconnect(on_scene)
@@ -261,3 +282,87 @@ func test_the_bay_goes_back_where_it_came_from() -> void:
 	Game.hold_scenes = false
 	Game.scene_requested.disconnect(on_scene)
 	Game.bay_from = ""
+
+
+## "My cars | Built-in" over the grid (docs/UI_FLOW.md §8): each tab shows only its cars, after the
+## New car card. Next tab works from the grid (the focus going to the tab's car), left and right on
+## the tab row too (the focus staying there), but not while a question is up. Each tab comes back
+## to the car last picked on it. A built-in car copied lands on My cars, picked.
+func test_the_tabs_split_my_cars_from_the_built_in_ones() -> void:
+	var root := get_tree().root
+	var old_size := root.size
+	root.size = Vector2i(1280, 720)
+	var copy := GarageFiles.copy_car("res://content/cars/noss_box")
+	_made.append(copy.path)
+	var g := Garage.new()
+	g.start_car = copy.path
+	add_child(g)
+	for i in 4:
+		await get_tree().process_frame
+	assert_array(Array(g._tabs.tabs)).contains_exactly(["My cars", "Built-in"])
+	assert_int(g._tabs.current).is_equal(Garage.MY_CARS)
+	assert_bool(g._cars.all(func(c: Dictionary) -> bool: return not c.official)).is_true()
+	assert_bool(g._cars.any(func(c: Dictionary) -> bool: return c.path == copy.path)).is_true()
+	assert_int(g._cards.size()).is_equal(g._cars.size())
+
+	assert_object(_focused()).is_same(g._cards[g._selected])
+	await _push("ui_tab_next")
+	assert_int(g._tabs.current).is_equal(Garage.BUILT_IN)
+	assert_bool(g._cars.all(func(c: Dictionary) -> bool: return c.official)).is_true()
+	assert_bool(g._cars.any(func(c: Dictionary) -> bool: return c.path == "res://content/cars/noss_box")).is_true()
+	assert_object(g._grid.get_child(0)).is_same(g._new_card)
+	assert_object(_focused()).is_same(g._cards[0])
+	await _push("ui_up") # the top row leads up to the tabs
+	assert_object(_focused()).is_same(g._tabs.button())
+	await _push("ui_left")
+	assert_int(g._tabs.current).is_equal(Garage.MY_CARS)
+	assert_object(_focused()).is_same(g._tabs.button(Garage.MY_CARS))
+	assert_str(String(g._cars[g._selected].path)).is_equal(copy.path) # where it was
+	await _push("ui_down")
+	assert_object(_focused()).is_same(g._new_card)
+
+	# A question over the grid keeps the tabs where they are.
+	g._cards[g._cars.find_custom(func(c: Dictionary) -> bool: return c.path == copy.path)].grab_focus()
+	await get_tree().process_frame
+	g._delete()
+	await _push("ui_tab_next")
+	assert_int(g._tabs.current).is_equal(Garage.MY_CARS)
+	g._close_overlay()
+	await get_tree().process_frame
+	await _push("ui_tab_next")
+	assert_int(g._tabs.current).is_equal(Garage.BUILT_IN)
+
+	# Duplicate a built-in car: the copy is picked on My cars.
+	assert_str(String(g._cars[g._selected].path)).is_equal("res://content/cars/noss_box")
+	g._duplicate()
+	var made := String(g._cars[g._selected].path)
+	_made.append(made)
+	assert_int(g._tabs.current).is_equal(Garage.MY_CARS)
+	assert_str(made).starts_with(PackageLoader.GARAGE_DIR)
+	assert_str(made).is_not_equal(copy.path)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_object(_focused()).is_same(g._cards[g._selected])
+
+	g._preview.clear()
+	for i in 8:
+		await get_tree().process_frame
+	g.queue_free()
+	await get_tree().process_frame
+	root.size = old_size
+
+
+## Back from the bay on a built-in car (a test drive of one): the Garage opens on Built-in, on it.
+func test_the_garage_opens_on_the_tab_of_its_car() -> void:
+	var g := Garage.new()
+	g.start_car = "res://content/cars/noss_box"
+	add_child(g)
+	for i in 4:
+		await get_tree().process_frame
+	assert_int(g._tabs.current).is_equal(Garage.BUILT_IN)
+	assert_str(String(g._cars[g._selected].path)).is_equal("res://content/cars/noss_box")
+	g._preview.clear()
+	for i in 8:
+		await get_tree().process_frame
+	g.queue_free()
+	await get_tree().process_frame

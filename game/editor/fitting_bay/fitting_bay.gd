@@ -3,7 +3,8 @@ extends Control
 ## The Fitting Bay (docs/VEHICLE_PACKAGE.md §7, PKG-02…04, PKG-07): turns a GLB, glTF or FBX
 ## into a .noss. Import works out the wheels, orientation, scale and the rest on its own, so
 ## "Save and drive" works straight away; the other steps adjust what it found. The draft is
-## kept in user://fitting/ and survives test drives.
+## kept in user://fitting/ and survives test drives. The Import step also lists the cars that
+## came from online games (docs/NETWORKING.md §7), to keep, export or fit.
 
 signal closed
 
@@ -45,9 +46,11 @@ var _saved_path := ""
 var _progress: VBoxContainer
 var _progress_src: ModelImport.Progress
 var _import_buttons: Array[Button] = []
-## The "already in your garage" question, and what to undo if it's dismissed.
+## The "already in your garage" question, what to undo if it's dismissed, and the control to
+## give the focus back to.
 var _overlay: Control
 var _overlay_cancel := Callable()
+var _overlay_focus: Control
 var _t_open := 0
 var _engine: EngineSound
 var _rev_time := 0.0
@@ -204,6 +207,7 @@ func _step_import() -> Array:
 			_import_buttons.append(UiKit.button(f, _import.bind(IMPORT_DIR + f), "Import " + f))
 			out.append(_import_buttons[-1])
 		out.append(UiKit.button("Open import folder", func() -> void: OS.shell_open(ProjectSettings.globalize_path(IMPORT_DIR))))
+		out.append_array(_downloads())
 		return out
 	out.append(UiKit.text_field("Name", draft.car_name, func(t: String) -> void: draft.car_name = t.strip_edges() if t.strip_edges() else "New car"))
 	out.append(UiKit.text_field("Author", draft.author, func(t: String) -> void: draft.author = t.strip_edges() if t.strip_edges() else "Unknown", 64))
@@ -216,6 +220,33 @@ func _step_import() -> Array:
 	out.append(UiKit.button("Import another model", func() -> void:
 		_discard_draft()
 		_show_step("Import"), "Start over with another file"))
+	return out
+
+
+## "From online games": the cars sitting in the content cache, each to save to the garage, export
+## or open here. A part-finished download is listed, but can't be used yet.
+func _downloads() -> Array:
+	var out: Array = [UiKit.label("From online games", 30)]
+	var entries := ContentImport.list("cars")
+	if entries.is_empty():
+		out.append(_text("None yet. Cars from games you join land here."))
+	for e: Dictionary in entries:
+		var car_name := _download_name(e)
+		out.append(_text(ContentImport.label(e)))
+		var row := HFlowContainer.new()
+		for b: Button in [
+			UiKit.button("Save to garage", _save_download.bind(e), "Keep %s in your garage" % car_name),
+			UiKit.button("Export…", _export_download.bind(e), "Write %s out as a .noss file" % car_name),
+			UiKit.button("Open in bay", _open_download.bind(e), "Fit %s before saving it" % car_name),
+		]:
+			b.custom_minimum_size = Vector2(0, 52)
+			if e.complete:
+				_import_buttons.append(b)
+			else:
+				b.disabled = true
+				b.focus_mode = Control.FOCUS_NONE
+			row.add_child(b)
+		out.append(row)
 	return out
 
 
@@ -646,14 +677,16 @@ func _import(path: String) -> void:
 			_save_and_drive(), PackageLoader.DEFAULT_LIMITS, ModelImport.TIMEOUT_S, _progress_src)
 
 
-## Brings in a .noss (PKG-04): its model, fit, paint and sound as they were packed. The loader
-## checks the zip, its limits and every file's hash first, so a file from anywhere is safe to
-## open. If the garage already holds that car, the player says what to do with it.
-func _import_package(path: String) -> void:
+## Brings in a .noss (PKG-04), or a downloaded car (`shown` its name): its model, fit, paint and
+## sound as they were packed. The loader checks the zip, its limits and every file's hash first,
+## so a file from anywhere is safe to open. If the garage already holds that car, the player says
+## what to do with it.
+func _import_package(path: String, shown := "") -> void:
+	shown = shown if shown else path.get_file()
 	_busy = true
-	_set_status("Opening " + path.get_file())
+	_set_status("Opening " + shown)
 	_show_progress(true)
-	UiKit.set_progress(_progress, 0.3, "Reading " + path.get_file())
+	UiKit.set_progress(_progress, 0.3, "Reading " + shown)
 	_update_actions()
 	PackageLoader.load_async(path, func(pkg: VehiclePackage) -> void:
 		if not is_inside_tree():
@@ -675,9 +708,9 @@ func _import_package(path: String) -> void:
 		_show_progress(false)
 		var owned := GarageFiles.with_id(brought.id)
 		if owned.is_empty():
-			_take_draft(brought, "Imported " + path.get_file())
+			_take_draft(brought, "Imported " + shown)
 		else:
-			_ask_about_copy(brought, owned, path))
+			_ask_about_copy(brought, owned, shown))
 
 
 func _import_failed(path: String, error: String) -> void:
@@ -702,7 +735,7 @@ func _take_draft(brought: FittingDraft, status: String) -> void:
 
 
 ## An imported .noss the garage already has: overwrite that car, or keep both.
-func _ask_about_copy(brought: FittingDraft, owned: String, path: String) -> void:
+func _ask_about_copy(brought: FittingDraft, owned: String, shown: String) -> void:
 	var menu := Control.new()
 	menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var list := UiKit.panel(menu, "%s is already in your garage." % brought.car_name, 760)
@@ -717,7 +750,7 @@ func _ask_about_copy(brought: FittingDraft, owned: String, path: String) -> void
 			_close_overlay()
 			brought.id = PackageWriter.new_uuid()
 			brought.car_name = (brought.car_name + " copy").left(96)
-			_take_draft(brought, "Imported " + path.get_file() + " as a copy"), "Keeps the car you already have"),
+			_take_draft(brought, "Imported " + shown + " as a copy"), "Keeps the car you already have"),
 		UiKit.button("Cancel", _close_overlay, "Leave the garage as it is"),
 	]
 	for b: Button in choices:
@@ -729,8 +762,59 @@ func _ask_about_copy(brought: FittingDraft, owned: String, path: String) -> void
 	UiKit.chain_focus(choices)
 
 
+## A downloaded car opened to fit, as a .noss would be: the garage decides where it lands.
+func _open_download(e: Dictionary) -> void:
+	if not _busy:
+		_import_package(String(e.dir), _download_name(e))
+
+
+## Keeps a downloaded car in the garage; when it's there already, writes over it or keeps both.
+func _save_download(e: Dictionary) -> void:
+	var owned := GarageFiles.with_id(String((e.manifest as Dictionary).get("id", "")))
+	if owned.is_empty():
+		_write_download(e, false)
+		return
+	var menu := Control.new()
+	menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var list := UiKit.panel(menu, "%s is already in your garage." % _download_name(e), 760)
+	var choices := [
+		UiKit.button("Replace my copy", func() -> void:
+			_close_overlay()
+			_write_download(e, false), "Writes over it and counts up its version"),
+		UiKit.button("Keep both", func() -> void:
+			_close_overlay()
+			_write_download(e, true), "Saves it beside the one you have"),
+		UiKit.button("Cancel", _close_overlay, "Leave the garage as it is"),
+	]
+	for b: Button in choices:
+		list.add_child(b)
+	_show_overlay(menu)
+	UiKit.chain_focus(choices)
+
+
+func _write_download(e: Dictionary, as_copy: bool) -> void:
+	var result := ContentImport.save_car(String(e.dir), as_copy)
+	if not result.ok:
+		_set_status(String(result.error))
+		return
+	_saved_path = String(result.path) # Exit picks it in the Garage
+	_set_status("Saved as " + _saved_path.get_file())
+
+
+func _export_download(e: Dictionary) -> void:
+	var car_name := _download_name(e)
+	UiKit.save_dialog(self, "Export " + car_name, ".noss", car_name, func(dest: String) -> void:
+		var result := ContentImport.export_package("cars", String(e.dir), dest)
+		_set_status("Exported to " + dest.get_file() if result.ok else String(result.error)))
+
+
+static func _download_name(e: Dictionary) -> String:
+	return String((e.manifest as Dictionary).get("name", "Unnamed"))
+
+
 func _show_overlay(control: Control) -> void:
 	_close_overlay()
+	_overlay_focus = UiKit.focus_owner(self)
 	_overlay = control
 	add_child(control)
 
@@ -739,6 +823,9 @@ func _close_overlay() -> void:
 	if is_instance_valid(_overlay):
 		_overlay.queue_free()
 	_overlay = null
+	if is_instance_valid(_overlay_focus) and _overlay_focus.is_inside_tree():
+		UiKit.focus_later(_overlay_focus)
+	_overlay_focus = null
 	var cancel := _overlay_cancel
 	_overlay_cancel = Callable()
 	if cancel.is_valid():
@@ -1060,8 +1147,15 @@ static func _text(text: String) -> Label:
 	return l
 
 
+## The controls to chain: no labels, and each button of a row of them.
 static func _focusable(controls: Array) -> Array:
-	return controls.filter(func(c: Control) -> bool: return not c is Label)
+	var out := []
+	for c: Control in controls:
+		if c is FlowContainer:
+			out.append_array(c.get_children())
+		elif not c is Label:
+			out.append(c)
+	return out
 
 
 func _unhandled_input(event: InputEvent) -> void:
