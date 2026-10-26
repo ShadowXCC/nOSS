@@ -1,7 +1,8 @@
 extends GdUnitTestSuite
-## Boot to race with only the keyboard, and with only a controller (M4 acceptance; the screen
-## reader part is tools/a11y_check.py): main menu -> Local Drive -> Race -> class -> event -> Players -> Ready,
-## by menu directions and confirm alone. Results by keys and buttons are checked too.
+## The menus still on their old screens, by keys alone: Highway and Free Drive from the main menu
+## to Ready, and back out of Highway a screen at a time; and the results by keys and buttons.
+## Racing's walks (boot to race with only the keyboard and with only a controller, the M4
+## acceptance) are in local_drive_test.gd.
 
 const TITLE_SCENE := "res://game/ui/title/title_screen.tscn"
 const PAD_ID := 7
@@ -11,6 +12,7 @@ var _requested: Array = []
 
 func before() -> void:
 	Settings.use_folder("user://tests/menu_flow")
+	PlayersMenu.countdown_s = 0.0 # everyone Ready starts at once
 	Game.hold_events = true
 	Game.event_requested.connect(_on_event)
 
@@ -20,6 +22,7 @@ func after() -> void:
 	Game.hold_events = false
 	Players.clear()
 	Devices.test_devices = []
+	PlayersMenu.countdown_s = 3.0
 	Settings.use_folder("user://")
 
 
@@ -28,6 +31,7 @@ func before_test() -> void:
 	_requested.clear()
 	Settings.profile.last_platform = "official.track.gt" # the class lists focus the last one used
 	Settings.profile.last_highway = {} # the highway menu starts from its defaults
+	Settings.profile.last_drive = {} # no Drive again: Racing comes first on Local Drive
 
 
 func _on_event(e: RaceEvent, platform_id: String) -> void:
@@ -71,61 +75,11 @@ func _focused(runner: GdUnitSceneRunner) -> String:
 	return String(c.accessibility_name) if c else "<none>"
 
 
-## Goes from the title to a started race with `down`, `up` and `confirm` (keys or buttons).
-func _walk(runner: GdUnitSceneRunner, down: Callable, up: Callable, confirm: Callable) -> void:
-	await _frames(4)
-	assert_str(_focused(runner)).is_equal("Local Drive")
-	await confirm.call()
-	await _frames(4)
-	assert_str(_focused(runner)).is_equal("Free Drive")
-	await down.call()
-	assert_str(_focused(runner)).is_equal("Race")
-	await confirm.call()
-	await _frames(4)
-	assert_str(_focused(runner)).starts_with("Track GT")
-	await confirm.call()
-	await _frames(4)
-	assert_str(_focused(runner)).starts_with("Track")
-	await up.call() # wraps to Back
-	await up.call()
-	assert_str(_focused(runner)).is_equal("Next")
-	await confirm.call()
-	await _frames(4)
-	var players: PlayersMenu = runner.find_child("*", true, false) if false else _find(runner.scene(), "PlayersMenu")
-	assert_object(players).is_not_null()
-	await confirm.call() # joins
-	await _frames(6)
-	assert_int(Players.count()).is_equal(1)
-	# The card: Up from the first row wraps to Leave, then Ready.
-	var v := Players.slots[0].menu_target
-	assert_object(v).is_not_null()
-	await up.call()
-	await up.call()
-	var c := Players.focus_of(v)
-	assert_str(UiKit.text_of(c as Button)).starts_with("Ready")
-	await confirm.call()
-	await _frames(4)
-	assert_int(_requested.size()).is_equal(1)
-	assert_str((_requested[0][0] as RaceEvent).kind).is_equal("race")
-	assert_str(String(_requested[0][1])).is_equal("official.track.gt")
-
-
 func _find(root: Node, cls: String) -> Node:
 	for n in root.find_children("*", "", true, false):
 		if n.get_script() and n.get_script().get_global_name() == cls:
 			return n
 	return null
-
-
-func test_keyboard_only_boot_to_race() -> void:
-	var runner := scene_runner(TITLE_SCENE)
-	await _walk(runner, _key.bind(KEY_DOWN), _key.bind(KEY_UP), _key.bind(KEY_ENTER))
-
-
-func test_controller_only_boot_to_race() -> void:
-	Devices.test_devices = [{ "kind": "gamepad", "key": "pad:test#%d" % PAD_ID, "name": "Test pad", "id": PAD_ID, "guid": "test%d" % PAD_ID, "preset": "pad_standard" }]
-	var runner := scene_runner(TITLE_SCENE)
-	await _walk(runner, _button.bind(JOY_BUTTON_DPAD_DOWN), _button.bind(JOY_BUTTON_DPAD_UP), _button.bind(JOY_BUTTON_A))
 
 
 func test_results_by_keys_and_buttons() -> void:
@@ -149,7 +103,7 @@ func test_results_by_keys_and_buttons() -> void:
 				await _key(code as Key)
 		if input[0] is int and input[0] < 100:
 			Devices.test_devices = []
-		await tap.call(input[1]) # Restart -> Title
+		await tap.call(input[1]) # Restart -> Main menu
 		await tap.call(input[2])
 		assert_bool(quit[0]).is_true()
 		menu.queue_free()
@@ -164,8 +118,7 @@ func test_keyboard_only_boot_to_a_highway() -> void:
 	await _key(KEY_ENTER) # Local Drive
 	await _frames(4)
 	await _key(KEY_DOWN)
-	await _key(KEY_DOWN)
-	await _key(KEY_DOWN) # Race, Time Trial, Highway
+	await _key(KEY_DOWN) # Endless, Highway
 	assert_str(_focused(runner)).is_equal("Highway")
 	await _key(KEY_ENTER)
 	await _frames(4)
@@ -227,8 +180,7 @@ func test_keyboard_back_out_of_the_highway_menus() -> void:
 	await _key(KEY_ENTER) # Local Drive
 	await _frames(4)
 	await _key(KEY_DOWN)
-	await _key(KEY_DOWN)
-	await _key(KEY_DOWN) # Race, Time Trial, Highway
+	await _key(KEY_DOWN) # Endless, Highway
 	await _key(KEY_ENTER)
 	await _frames(4)
 	await _key(KEY_ENTER) # the Lumen Ring
@@ -278,6 +230,9 @@ func test_keyboard_only_boot_to_free_drive_with_ai() -> void:
 	assert_str(_focused(runner)).is_equal("Local Drive")
 	await _key(KEY_ENTER)
 	await _frames(4)
+	assert_str(_focused(runner)).is_equal("Racing")
+	await _key(KEY_UP) # wraps to Back
+	await _key(KEY_UP)
 	assert_str(_focused(runner)).is_equal("Free Drive")
 	await _key(KEY_ENTER)
 	await _frames(4)

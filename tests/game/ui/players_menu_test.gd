@@ -1,6 +1,6 @@
 extends GdUnitTestSuite
 ## The Players screen (LOC-04, docs/INPUT.md §3): each card has its own focus, driven only by its
-## player; when everyone is ready the drive starts.
+## player; when everyone is ready a countdown runs (docs/UI_FLOW.md §5.7), then the drive starts.
 
 const PAD := 7
 const PAD2 := 8
@@ -39,12 +39,69 @@ func test_each_card_has_its_own_focus_and_ready_starts() -> void:
 	assert_str(_focus(v2)).starts_with("Profile")
 	var started := [false]
 	menu.started.connect(func() -> void: started[0] = true)
+	PlayersMenu.countdown_s = 0.0
 	p1.ready = true
 	menu._check_start()
 	assert_bool(started[0]).is_false()
 	p2.ready = true
 	menu._check_start()
 	assert_bool(started[0]).is_true()
+	PlayersMenu.countdown_s = 3.0
+	menu.queue_free()
+	await get_tree().process_frame
+
+
+## Everyone ready: "Starting in 3" in the hint line, counting down, then the start. Un-readying
+## or a player joining stops it (the hint says how to join again); a player leaving starts it
+## again from the top for the rest.
+func test_countdown_and_cancelling_it() -> void:
+	Players.clear()
+	Devices.test_devices = [_pad(PAD), _pad(PAD2)]
+	var menu := PlayersMenu.new()
+	menu.platform_id = "official.track.gt"
+	add_child(menu)
+	var hint: Label = menu.find_child("Hint", true, false)
+	var join_text := hint.text
+	assert_str(join_text).starts_with("Press any button to join.")
+	var started := [0]
+	menu.started.connect(func() -> void: started[0] += 1)
+	var p1 := Players.join(_pad(PAD))
+	await get_tree().process_frame
+	# Ready on the card.
+	p1.ready = true
+	menu._check_start()
+	assert_bool(menu.counting_down()).is_true()
+	assert_str(hint.text).is_equal("Starting in 3")
+	assert_int(started[0]).is_zero()
+	await get_tree().create_timer(1.2).timeout
+	assert_str(hint.text).is_equal("Starting in 2")
+	# Un-ready: stopped.
+	Players.push_action(p1.menu_target, "ui_cancel") # back on a ready card un-readies
+	await get_tree().process_frame
+	assert_bool(p1.ready).is_false()
+	assert_bool(menu.counting_down()).is_false()
+	assert_str(hint.text).is_equal(join_text)
+	# Ready again, then a second player joins: stopped.
+	p1.ready = true
+	menu._check_start()
+	assert_bool(menu.counting_down()).is_true()
+	var p2 := Players.join(_pad(PAD2))
+	await get_tree().process_frame
+	assert_bool(menu.counting_down()).is_false()
+	assert_str(hint.text).is_equal(join_text)
+	# Both ready, then P2 leaves: P1 counts down again from the top, and starts.
+	p2.ready = true
+	menu._check_start()
+	PlayersMenu.countdown_s = 0.3
+	Players.leave(p2)
+	await get_tree().process_frame
+	assert_bool(menu.counting_down()).is_true()
+	assert_str(hint.text).is_equal("Starting in 1")
+	await get_tree().create_timer(0.5).timeout
+	assert_int(started[0]).is_equal(1)
+	assert_bool(menu.counting_down()).is_false()
+	assert_str(hint.text).is_equal(join_text)
+	PlayersMenu.countdown_s = 3.0
 	menu.queue_free()
 	await get_tree().process_frame
 

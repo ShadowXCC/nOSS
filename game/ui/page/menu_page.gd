@@ -36,6 +36,9 @@ var back_text := "Back"
 var back_hint := ""
 ## Prompt entries besides Select and Back: [what, label] (PromptBar).
 var prompts: Array = []
+## The first row takes the focus as the page opens. Off for pages stacked under another in one go
+## (Drive again, back from an event), whose focus is set by hand.
+var autofocus := true
 
 ## The rows go here.
 var body: VBoxContainer
@@ -129,7 +132,7 @@ func _ready() -> void:
 		back_button.name = "Back"
 		back_button.custom_minimum_size.y = UiKit.ROW_HEIGHT
 		rows.add_child(back_button)
-	chain()
+	chain(autofocus)
 	resized.connect(_fit)
 	_scroll.resized.connect(_fit)
 	_fit.call_deferred()

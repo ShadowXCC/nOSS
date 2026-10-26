@@ -3,6 +3,14 @@ extends GdUnitTestSuite
 const TITLE_SCENE := "res://game/ui/title/title_screen.tscn"
 
 
+func before() -> void:
+	Settings.use_folder("user://tests/title_screen")
+
+
+func after() -> void:
+	Settings.use_folder("user://")
+
+
 ## The bottle is the title (D198): screen readers hear its name.
 func test_logo_reads_noss() -> void:
 	var runner := scene_runner(TITLE_SCENE)
@@ -49,25 +57,25 @@ func test_local_drive_button_has_focus() -> void:
 	assert_bool(drive.has_focus()).is_true()
 
 
-## Local Drive (Changes.md) holds the drive modes: each named and in the focus order, and Back
-## (or cancel) comes back to Local Drive on the main menu.
-func test_local_drive_lists_the_modes() -> void:
+## Local Drive (docs/UI_FLOW.md §5.2) is a page of the event types: each named and described, in
+## the focus order, and Back (or cancel) comes back to Local Drive on the main menu.
+func test_local_drive_lists_the_types() -> void:
+	Settings.profile.last_drive = {} # no Drive again
 	var runner := scene_runner(TITLE_SCENE)
 	await runner.simulate_frames(2)
 	var drive: Button = runner.find_child("LocalDriveButton")
 	drive.pressed.emit()
 	await runner.simulate_frames(3)
-	var solo: SoloMenu = runner.find_child("SoloMenu")
-	assert_object(solo).is_not_null()
-	var title: Label = solo.find_children("*", "Label", true, false)[0]
-	assert_str(title.text).is_equal("Local Drive")
+	var page: LocalDrivePage = runner.find_child("LocalDrive")
+	assert_object(page).is_not_null()
+	assert_str(page.title).is_equal("Local Drive")
 	var names: Array = []
-	for b: Button in solo.find_children("*", "Button", true, false):
-		assert_str(String(b.accessibility_name)).is_not_empty()
+	for b: Button in page.body.get_children() + [page.back_button]:
+		assert_str(String(b.accessibility_description)).is_not_empty()
 		names.append(String(b.accessibility_name))
-	assert_array(names).contains_exactly(["Free Drive", "Race", "Time Trial", "Highway", "Kart", "Endless", "Mini Games", "Back"])
-	assert_str(String(solo.get_viewport().gui_get_focus_owner().accessibility_name)).is_equal("Free Drive")
-	solo.closed.emit()
+	assert_array(names).contains_exactly(["Racing", "Endless", "Highway", "Mini Games", "Free Drive", "Back"])
+	assert_str(String(page.get_viewport().gui_get_focus_owner().accessibility_name)).is_equal("Racing")
+	page.closed.emit()
 	await runner.simulate_frames(3)
 	assert_bool(drive.has_focus()).is_true()
 

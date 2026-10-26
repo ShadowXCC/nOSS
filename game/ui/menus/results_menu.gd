@@ -9,6 +9,8 @@ extends Control
 signal continued
 signal restarted
 signal quit_to_title
+## Local: back to this event's Settings page (docs/UI_FLOW.md §5.9).
+signal to_event_menu
 ## Online host: back to the lobby.
 signal to_lobby
 
@@ -21,6 +23,8 @@ var has_next := false
 var next_name := ""
 ## "local", "host" (online: also Lobby) or "client" (online: the host decides; only Leave).
 var mode := "local"
+## Local, started from the event pages: "Event menu" goes back to them.
+var event_menu := false
 
 var _rows: Array = []
 
@@ -69,7 +73,9 @@ func _ready() -> void:
 	if mode == "host":
 		controls.append(UiKit.button("Lobby", func() -> void: to_lobby.emit(), "Everyone back to the lobby"))
 	if mode == "local":
-		controls.append(UiKit.button("Title", func() -> void: quit_to_title.emit(), "Back to the title screen"))
+		if event_menu:
+			controls.append(UiKit.button("Event menu", func() -> void: to_event_menu.emit(), "Back to this event's settings"))
+		controls.append(UiKit.button("Main menu", func() -> void: quit_to_title.emit(), "Back to the main menu"))
 	else:
 		controls.append(UiKit.button("Leave", func() -> void: quit_to_title.emit(), "Leave the game" if mode == "client" else "Close the server"))
 	for c: Button in controls:

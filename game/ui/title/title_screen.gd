@@ -10,11 +10,10 @@ extends Control
 ## Every screen opened from here, one over another (docs/UI_FLOW.md §4). The logo and buttons
 ## hide while one is up.
 var _stack := MenuStack.new()
-var _solo: SoloMenu
+var _solo: LocalDrivePage
 var _online: OnlineMenu
 var _lobby: LobbyMenu
-## What the class picker leads to: "free", "race", "time_trial", "highway", "kart" or
-## "mini_games".
+## What the old class picker leads to: "free", "race" (Custom) or "time_trial" (Custom's).
 var _mode := "free"
 
 
@@ -76,7 +75,13 @@ func _ready() -> void:
 		_stack.push(first)
 		return
 	match Game.dev.get("menu", ""): # dev: open a menu directly
-		"solo": _open_solo()
+		"local", "solo": _open_solo()
+		"racing": _open_solo().open_racing()
+		"regular", "stock-car", "time-trial", "class", "players":
+			var menu := String(Game.dev.menu)
+			var flow := EventFlow.racing("stock_car" if menu == "stock-car" else "regular", menu == "time-trial")
+			flow.recall()
+			_open_solo(false).open_flow(flow, menu if menu in ["class", "players"] else "settings")
 		"classes":
 			_open_solo()
 			_open_classes("free")
@@ -86,9 +91,6 @@ func _ready() -> void:
 		"free":
 			_open_solo()
 			_open_free(String(Settings.profile.get("last_platform", "official.track.gt")))
-		"players":
-			_open_solo()
-			_open_players(String(Settings.profile.get("last_platform", "official.track.gt")))
 		"settings": _open_settings()
 		"driving-settings":
 			_open_settings()
@@ -120,7 +122,10 @@ func _ready() -> void:
 		"online-players":
 			_open_online()
 			_online._open_players()
-	if Net.online(): # back from an online session: its lobby
+	if Game.reopen_flow: # the results' "Event menu": that event's Settings page, Next focused
+		Game.reopen_flow = false
+		_open_solo(false).open_flow(EventFlow.from_dict(Game.flow_return))
+	elif Net.online(): # back from an online session: its lobby
 		_open_online()
 		_open_lobby()
 	elif Game.net_status: # cut off from a server: why
@@ -141,27 +146,32 @@ func _ready() -> void:
 		_online._join(String(Game.dev.connect), String(Game.dev.get("password", "")))
 
 
-## Local Drive: the drive modes on this machine (SoloMenu). Back on it from a mode's first screen,
-## the focus is on that mode.
-func _open_solo() -> void:
-	_solo = SoloMenu.new()
-	_solo.name = "SoloMenu"
+## Local Drive: the event types on this machine (LocalDrivePage, docs/UI_FLOW.md §5). Not
+## `autofocus` when pages go over it straight away (Drive again, back from an event).
+func _open_solo(autofocus := true) -> LocalDrivePage:
+	_solo = LocalDrivePage.new()
+	_solo.name = "LocalDrive"
+	_solo.autofocus = autofocus
 	_solo.chosen.connect(_on_solo_chosen)
-	_stack.push(_solo, func() -> void: _solo.focus(_mode))
+	_stack.push(_solo)
+	return _solo
 
 
-func _on_solo_chosen(mode: String) -> void:
-	match mode:
+## The types still on their old menus (until UI P5).
+func _on_solo_chosen(what: String) -> void:
+	match what:
 		"highway": _open_highway()
 		"kart": _open_kart()
 		"endless": _open_endless()
 		"mini_games": _open_mini_games()
-		_: _open_classes(mode)
+		"free": _open_classes("free")
+		"custom": _open_classes("race")
+		"custom_tt": _open_classes("time_trial")
 
 
 ## Free Drive: class first (how it drives), then its setup (track, AI, rules), then the players,
-## who each pick a car (how it looks). Race: class, then the event (track included), then the players. Time Trial:
-## class, then the track, then P1 drives.
+## who each pick a car (how it looks). Custom (the old Race menu): class, then the event (track
+## included), then the players. Custom's time trial: class, then the track, then P1 drives.
 func _open_classes(mode: String) -> void:
 	_mode = mode
 	var classes := ClassPicker.new()
@@ -201,7 +211,6 @@ func _open_tracks(then: Callable, always := false) -> void:
 
 ## Highway (M7): the highway first, then what to do on it (HighwayMenu), the class, the players.
 func _open_highway() -> void:
-	_mode = "highway"
 	var tracks := TrackPicker.new()
 	tracks.type = "highway"
 	tracks.picked.connect(_open_highway_menu)
@@ -225,7 +234,6 @@ func _open_highway_menu(track: String) -> void:
 ## Kart (M8): race, battle or cup and its setup (KartMenu), then the players, who each pick their
 ## kart's class on their card (D149).
 func _open_kart() -> void:
-	_mode = "kart"
 	var menu := KartMenu.new()
 	menu.name = "KartMenu"
 	menu.picked.connect(func(kind: String, e: RaceEvent, track: String, cup: String) -> void:
@@ -239,7 +247,6 @@ func _open_kart() -> void:
 
 ## Endless (M9): the road and its setup (EndlessMenu), the class, the players.
 func _open_endless() -> void:
-	_mode = "endless"
 	var menu := EndlessMenu.new()
 	menu.name = "EndlessMenu"
 	menu.picked.connect(func(e: RaceEvent) -> void:
@@ -256,7 +263,6 @@ func _open_endless() -> void:
 ## Mini Games (Changes.md): the short matches that aren't races. Picking one opens its own
 ## screen; backing out of that shows this list again, and backing out of this shows Local Drive.
 func _open_mini_games() -> void:
-	_mode = "mini_games"
 	var mini := MiniGamesMenu.new()
 	mini.name = "MiniGamesMenu"
 	mini.chosen.connect(func(game: String) -> void:

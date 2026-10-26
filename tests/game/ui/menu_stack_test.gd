@@ -126,19 +126,19 @@ func test_the_main_menu_runs_its_screens_on_the_stack() -> void:
 	for part in ["Logo", "TaglineLabel", "Menu", "VersionLabel"]:
 		assert_object(title.get_node_or_null(part)).override_failure_message(part + " is still there under a page").is_null()
 	var solo := stack.top()
-	assert_str(solo.name).is_equal("SoloMenu")
-	await _key(KEY_DOWN) # Race
+	assert_bool(solo is LocalDrivePage).is_true()
+	await _key(KEY_DOWN) # Endless (an old menu, on the stack too)
 	await _frames()
 	await _key(KEY_ENTER)
 	await _frames(4)
 	assert_int(stack.depth()).is_equal(2)
 	assert_bool(solo.visible).is_false()
-	assert_bool(stack.top() is ClassPicker).is_true()
+	assert_bool(stack.top() is EndlessMenu).is_true()
 	await _key(KEY_ESCAPE)
 	await _frames(4)
 	assert_int(stack.depth()).is_equal(1)
 	assert_bool(solo.visible).is_true()
-	assert_str(_focused()).is_equal("Race") # Local Drive, on the mode backed out of
+	assert_str(_focused()).is_equal("Endless") # Local Drive, on the type backed out of
 	await _key(KEY_ESCAPE)
 	await _frames(4)
 	assert_int(stack.depth()).is_equal(0)

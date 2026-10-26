@@ -1389,6 +1389,7 @@ func _on_session_ended(kind: String, results: Array) -> void:
 		if is_online():
 			Net.leave()
 		Game.go_title())
+	_offer_event_menu(results_menu)
 	# The main window shows views at their real pixel size; menus are laid out for 1080p.
 	var layer: CanvasLayer = $ResultsLayer
 	var window := get_viewport().get_visible_rect().size
@@ -1398,7 +1399,14 @@ func _on_session_ended(kind: String, results: Array) -> void:
 	layer.add_child(results_menu)
 
 
-## A cup's table after its race; on to the next race, or back to the title after the last.
+## Results of an event started from the event pages offer "Event menu": its Settings page again
+## (docs/UI_FLOW.md §5.9).
+func _offer_event_menu(menu: ResultsMenu) -> void:
+	menu.event_menu = menu.mode == "local" and not Game.flow_return.is_empty() and cup == null
+	menu.to_event_menu.connect(func() -> void: Game.go_event_menu())
+
+
+## A cup's table after its race; on to the next race, or back to the main menu after the last.
 func _open_cup_standings() -> void:
 	var menu := CupStandingsMenu.new()
 	menu.run = cup
@@ -1486,6 +1494,7 @@ func _on_run_done(rows: Array) -> void:
 		_close_results()
 		run.begin())
 	results_menu.quit_to_title.connect(func() -> void: Game.go_title())
+	_offer_event_menu(results_menu)
 	var layer: CanvasLayer = $ResultsLayer
 	var window := get_viewport().get_visible_rect().size
 	var s := window.y / 1080.0 * Players.menu_text_scale()

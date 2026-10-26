@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Screen-reader check (ACC-03; M4 acceptance: boot -> race -> results with a screen reader).
 
-Runs the game with accessibility on and walks title -> Local Drive -> Race -> class -> event ->
-Players -> a 1-lap race -> results -> title (on the way, the screen under the top one isn't
-showing: UI overhaul P2's page stack), then Drive Online -> Host -> the lobby -> Leave (M5), then
-Local Drive -> Highway -> a highway -> its menu -> the class -> Players and back out (M7), then
-Local Drive -> Kart -> a race, a battle and the cup builder -> the class -> Players and back out
-(M8), then Local Drive -> Endless -> its menu -> the class -> Players and back out (M9), then the
-track editor: every
+Runs the game with accessibility on and walks main menu -> Local Drive -> Racing -> Regular ->
+its Settings page -> the class -> Players -> a 1-lap race -> results -> main menu (on the way, the
+screen under the top one isn't showing: UI overhaul P2's page stack), then Racing again: Stock Car
+(no Class step) and the Time Trial switch, and back out (UI overhaul P4), then Drive Online ->
+Host -> the lobby -> Leave (M5), then Local Drive -> Highway -> a highway -> its menu -> the class
+-> Players and back out (M7), then Local Drive -> Racing -> Kart -> a race, a battle and the cup
+builder -> Players and back out (M8), then Local Drive -> Endless -> its menu -> the class ->
+Players and back out (M9), then the track editor: every
 tool, a new oval, its race setup and checks, a new highway loop and its ramps, the Stunts tool on
 a kart circuit and an arena, and out (M6-M8);
 then, in a second run, a highway session's pause menu (opened with --pause-at: keys can't be
@@ -28,6 +29,7 @@ display. Writes no settings or profiles (--no-save).
     tools/a11y_check.py --sumo-only    # just the Mini Games submenu and the sumo menu
     tools/a11y_check.py --drag-only    # just the Mini Games submenu and the drag menu
     tools/a11y_check.py --settings-only  # just Settings and Driving Settings, every tab
+    tools/a11y_check.py --racing-only  # just Racing: Stock Car and the Time Trial switch
 """
 import os
 import subprocess
@@ -272,7 +274,7 @@ def highway_menus():
     # Back out a screen at a time, each one known by something only it has.
     for label, anchor in (("Highway: players", "Ready"), ("Highway: class again", "Highway Street"),
                           ("Highway: menu again", "Next"), ("Highway: tracks again", "Lumen Ring"),
-                          ("Local Drive (after highway)", "Kart")):
+                          ("Local Drive (after highway)", "Racing")):
         ok = ok and back_from(label, anchor)
     return ok
 
@@ -281,7 +283,8 @@ def kart_menus():
     """Title -> Kart -> a race -> Players and back; a battle's; a cup's builder (M8)."""
     log("Kart menus")
     ok = step("Title (kart)", "Local Drive")
-    ok = ok and step("Local Drive (kart)", "Kart")
+    ok = ok and step("Local Drive (kart)", "Racing")
+    ok = ok and step("Racing (kart)", "Kart")
     ok = ok and step("Kart: race", "Next")
     ok = ok and back_from("Kart: players", "Ready")  # each card picks its class (D149)
     ok = ok and step("Kart: to battle", "Play: Race")
@@ -291,7 +294,35 @@ def kart_menus():
     ok = ok and step("Kart: cup", "New cup")
     ok = ok and back_from("Kart: cup builder", "Save")
     ok = ok and back_from("Kart: menu", "Play: Cup")
+    ok = ok and back_from("Racing (after kart)", "Custom")
     ok = ok and back_from("Local Drive (after kart)", "Highway")
+    return ok
+
+
+def racing_menus():
+    """Main menu -> Local Drive -> Racing -> Stock Car -> its Settings page -> Players (no Class
+    step: its class is fixed), and back; then the Time Trial switch -> Regular -> its Settings ->
+    the class, and back out (UI overhaul P4, docs/UI_FLOW.md §5.3)."""
+    log("Racing")
+    ok = step("Main menu (racing)", "Local Drive")
+    ok = ok and step("Local Drive (racing)", "Racing")
+    ok = ok and hidden("Racing", "Mini Games")
+    ok = ok and step("Racing: Stock Car", "Stock Car")
+    ok = ok and hidden("Stock Car: settings", "Custom")
+    ok = ok and step("Stock Car: settings", "Next")
+    ok = ok and back_from("Stock Car: players", "Ready")
+    ok = ok and back_from("Stock Car: settings again", "Laps: ")
+    ok = ok and step("Racing: to Time Trial", "Time Trial", role="toggle button")
+    ok = ok and step("Racing: Regular time trial", "Regular")
+    ok = ok and step("Regular time trial: settings", "Next")
+    ok = ok and back_from("Regular time trial: class", "Track GT")
+    ok = ok and back_from("Regular time trial: settings again", "Next")
+    ok = ok and step("Racing: back to Race", "Race", role="toggle button")
+    ok = ok and back_from("Racing (after time trial)", "Custom")
+    ok = ok and back_from("Local Drive (after racing)", "Highway")
+    if ok and find("Local Drive", "button", timeout=20.0) is None:
+        problems.append("Out of Racing: no main menu")
+        return False
     return ok
 
 
@@ -491,13 +522,19 @@ def main():
             if find("Local Drive", "button", timeout=60.0) is not None:
                 settings_menus()
             raise SystemExit(report())
+        if "--racing-only" in sys.argv:
+            if find("Local Drive", "button", timeout=60.0) is not None:
+                racing_menus()
+            raise SystemExit(report())
         log("Title")
         ok = step("Title", "Local Drive")
         ok = ok and hidden("Local Drive", "Drive Online")
-        ok = ok and step("Local Drive", "Race")
-        ok = ok and hidden("Class", "Mini Games")
+        ok = ok and step("Local Drive", "Racing")
+        ok = ok and hidden("Racing", "Mini Games")
+        ok = ok and step("Racing", "Regular")
+        ok = ok and hidden("Settings", "Stock Car")
+        ok = ok and step("Settings", "Next")
         ok = ok and step("Class", "Track GT", prefix=True)
-        ok = ok and step("Event", "Next")
         ok = ok and step("Players", "Ready", timeout=30.0)
         if ok:
             log("Race (1 lap, autodrive)")
@@ -507,10 +544,11 @@ def main():
             else:
                 rows = [n for n in walk(app()) if (n.get_name() or "").startswith("P") and ", " in (n.get_name() or "") and showing(n)]
                 log(f"  {len(rows)} result rows, e.g. '{row.get_name()}'")
-                step("Results", "Title")
+                step("Results", "Main menu")
                 if find("Local Drive", "button", timeout=20.0) is None:
                     problems.append("Back at the title: no Local Drive button")
                 else:
+                    racing_menus()
                     log("Drive Online")
                     ok = step("Title again", "Drive Online")
                     ok = ok and step("Drive Online", "Host")
@@ -557,7 +595,8 @@ def main():
 
 
 def finish():
-    if not any(f in sys.argv for f in ("--editor-only", "--kart-only", "--endless-only", "--sumo-only", "--drag-only", "--settings-only")):
+    if not any(f in sys.argv for f in ("--editor-only", "--kart-only", "--endless-only", "--sumo-only", "--drag-only", "--settings-only",
+                                       "--racing-only")):
         highway_pause_walk()
     return report()
 

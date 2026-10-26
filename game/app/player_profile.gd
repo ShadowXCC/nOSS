@@ -66,6 +66,11 @@ const DEFAULTS := {
 	## The last highway event set up (RaceEvent.to_dict; HighwayMenu).
 	"last_highway": {},
 	"last_endless": {},
+	## Each event type's last setup, by "type/variant(/tt)" ("racing/regular"): {event, track,
+	## class_id, cup} (EventFlow, docs/UI_FLOW.md §5.8).
+	"event_memory": {},
+	## The last event started from Local Drive, for Drive again (EventFlow.to_dict).
+	"last_drive": {},
 	## The endless road's speed traps (D193): this player's best through each, by road code then
 	## trap: {code: {trap id: m/s}}.
 	"trap_bests": {},

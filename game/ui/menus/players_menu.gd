@@ -2,8 +2,9 @@ class_name PlayersMenu
 extends Control
 ## Players screen (docs/INPUT.md §3, LOC-01…LOC-04): press any button on a device to join, up to
 ## four players. Each player sets up their own card with their own device (profile, car, a kart
-## session's class, keyboard side, monitor, more devices, settings), then Ready. Once everyone is ready the
-## drive starts. Each card is its own small view, so every player has their own focus.
+## session's class, keyboard side, monitor, more devices, settings), then Ready. Once everyone is ready a
+## countdown runs in the hint line (docs/UI_FLOW.md §5.7) and the drive starts; anyone un-readying,
+## joining or leaving stops it. Each card is its own small view, so every player has their own focus.
 
 signal started
 signal closed
@@ -12,6 +13,9 @@ signal closed
 ## (no car), so their text comes out bigger.
 const CARD_REF := Vector2(520, 1000)
 const CARD_REF_ONLINE := Vector2(520, 800)
+
+## Seconds from everyone Ready to the start (tests set it near 0).
+static var countdown_s := 3.0
 
 var platform_id := ""
 ## Before going online (LOC-05): who plays on this machine. Cars are picked in the lobby, and
@@ -26,6 +30,10 @@ var _cards := {} # PlayerSlot -> PlayerView
 var _preview: LayoutPreview
 var _expanded: PlayerView
 var _expand_layer := Control.new()
+var _hint: Label
+var _join_text := ""
+## Seconds left before the start; below 0: not counting down.
+var _countdown := -1.0
 
 
 func _ready() -> void:
@@ -55,10 +63,11 @@ func _ready() -> void:
 	head.add_child(title)
 	if not online:
 		head.add_child(UiKit.label(String(mode.get("name", "Kart")) if not kart_classes.is_empty() else String(_platform.get("name", "")), 34))
-	var hint := UiKit.label(("Press any button to join, then Done." if online else "Press any button to join.")
-		+ " To share the keyboard, set a player's keyboard to one side.", 24)
-	hint.accessibility_live = AccessibilityServer.AccessibilityLiveMode.LIVE_POLITE
-	column.add_child(hint)
+	_join_text = ("Press any button to join, then Done." if online else "Press any button to join.") + " To share the keyboard, set a player's keyboard to one side."
+	_hint = UiKit.label(_join_text, 24)
+	_hint.name = "Hint"
+	_hint.accessibility_live = AccessibilityServer.AccessibilityLiveMode.LIVE_POLITE
+	column.add_child(_hint)
 	var row := HBoxContainer.new()
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	row.add_theme_constant_override("separation", 20)
@@ -123,6 +132,7 @@ func _on_joined(slot: PlayerSlot) -> void:
 
 
 func _on_left(slot: PlayerSlot) -> void:
+	stop_countdown() # the rest, all ready, count again from the top
 	var v: PlayerView = _cards.get(slot)
 	if v:
 		_cards.erase(slot)
@@ -165,12 +175,54 @@ func _refresh() -> void:
 	_check_start()
 
 
+## Everyone ready: the countdown starts (it stops when someone isn't).
 func _check_start() -> void:
-	if Players.count() > 0 and Players.slots.all(func(s: PlayerSlot) -> bool: return s.ready):
-		Players.joining = false
-		for slot in Players.slots:
-			slot.menu_target = null
-		started.emit()
+	if online or Players.count() == 0 or not Players.slots.all(func(s: PlayerSlot) -> bool: return s.ready):
+		stop_countdown()
+		return
+	if _countdown >= 0.0:
+		return
+	_countdown = countdown_s
+	if _countdown <= 0.0:
+		_start()
+	else:
+		_show_countdown()
+
+
+func counting_down() -> bool:
+	return _countdown >= 0.0
+
+
+## The hint back to how to join.
+func stop_countdown() -> void:
+	if _countdown >= 0.0:
+		_countdown = -1.0
+		_hint.text = _join_text
+
+
+func _process(delta: float) -> void:
+	if _countdown < 0.0:
+		return
+	_countdown -= delta
+	if _countdown <= 0.0:
+		_start()
+	else:
+		_show_countdown()
+
+
+func _show_countdown() -> void:
+	var text := "Starting in %d" % ceili(_countdown)
+	if _hint.text != text: # once a second, for the screen reader
+		_hint.text = text
+
+
+func _start() -> void:
+	_countdown = -1.0
+	_hint.text = _join_text
+	Players.joining = false
+	for slot in Players.slots:
+		slot.menu_target = null
+	started.emit()
 
 
 func _card_ref() -> Vector2:
@@ -374,6 +426,7 @@ class PlayerCard:
 		elif slot.ready:
 			slot.ready = false
 			rebuild()
+			menu._check_start()
 		else:
 			Players.leave(slot)
 

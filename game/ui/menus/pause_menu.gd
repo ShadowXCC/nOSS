@@ -98,8 +98,8 @@ func _ready() -> void:
 	_buttons.append_array([
 		UiKit.button("Driving Settings", _open_settings, "Your controls, assists and HUD"),
 		UiKit.button("Game settings", _open_game_settings, "Graphics, sound, splitscreen"),
-		UiKit.button("Leave game" if online else "Quit to title", func() -> void: quit_to_title.emit(),
-			("Close the server" if is_host else "Leave the server") if online else ""),
+		UiKit.button("Leave game" if online else "Quit to main menu", func() -> void: quit_to_title.emit(),
+			("Close the server" if is_host else "Leave the server") if online else "Back to the main menu"),
 	])
 	if bay_return:
 		_buttons.insert(1, UiKit.button("Back to Fitting Bay", func() -> void: back_to_bay.emit()))

@@ -1,5 +1,5 @@
 extends GdUnitTestSuite
-## Kart from the main menu by keys alone (M8, D144, D145): main menu -> Local Drive -> Kart -> a race on a kart track
+## Kart from the main menu by keys alone (M8, D144, D145): main menu -> Local Drive -> Racing -> Kart -> a race on a kart track
 ## (laps, AI, items) -> a kart class -> Players -> Ready; and a battle (an arena, most hits); and a
 ## cup goes to its first race. Every control on the Kart menu and the cup builder is named.
 
@@ -10,6 +10,7 @@ var _requested: Array = []
 
 func before() -> void:
 	Settings.use_folder("user://tests/kart_menu")
+	PlayersMenu.countdown_s = 0.0 # everyone Ready starts at once
 	Game.hold_events = true
 	Game.event_requested.connect(_on_event)
 
@@ -19,12 +20,14 @@ func after() -> void:
 	Game.hold_events = false
 	Game.cup = null
 	Players.clear()
+	PlayersMenu.countdown_s = 3.0
 	Settings.use_folder("user://")
 
 
 func before_test() -> void:
 	Players.clear()
 	_requested.clear()
+	Settings.profile.last_drive = {} # no Drive again: Racing comes first
 	# The last setup is remembered per profile (and profiles load again as players join).
 	Settings.profile.erase("last_kart")
 	for id in Settings.profile_ids():
@@ -83,7 +86,10 @@ func _to_kart_menu(runner: GdUnitSceneRunner) -> KartMenu:
 	await _frames(4)
 	await _key(KEY_ENTER) # Local Drive
 	await _frames(4)
-	for i in 4: # Race, Time Trial, Highway, Kart
+	assert_str(_focused(runner)).is_equal("Racing")
+	await _key(KEY_ENTER)
+	await _frames(4)
+	for i in 2: # Stock Car, Kart
 		await _key(KEY_DOWN)
 	assert_str(_focused(runner)).is_equal("Kart")
 	await _key(KEY_ENTER)

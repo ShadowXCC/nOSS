@@ -27,9 +27,10 @@ extends Node
 ##                        every 30 s and at exit (M7 acceptance runs)
 ##   --fullscreen         fullscreen for this run; --no-vsync: no vsync (measurements)
 ##   --pause-at=<s>       open the last player's pause menu
-##   --menu=<m>           title: open solo, classes, event, free, players, settings, driving-settings, online,
-##                        online-players, tracks, highway, kart, endless, mini-games, sumo or drag
-##                        (--join=<n>: n devices join)
+##   --menu=<m>           main menu: open local (or solo), racing, regular, stock-car, time-trial (Regular's),
+##                        class (Regular's), players (Regular's), classes, event, free, settings,
+##                        driving-settings, online, online-players, tracks, highway, kart, endless, mini-games,
+##                        sumo or drag (--join=<n>: n devices join)
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
 ##   --track=<ref>        the track for --drive, --race and --time-trial: an id, a path or a hash
 ##   --highway            a highway session right away (the first highway, or --track): --sub=cruise|score|run|loop,
@@ -115,6 +116,11 @@ var bay_from := ""
 var track_draft: Variant = null
 ## A kart cup in progress (CupRun), kept between its races; null otherwise.
 var cup: Variant = null
+## The event pages' last start (EventFlow.to_dict(), docs/UI_FLOW.md §5.9): the results' "Event
+## menu" opens its Settings page again. Empty when an event started any other way.
+var flow_return := {}
+## The results' "Event menu" was chosen: the main menu rebuilds the pages from flow_return.
+var reopen_flow := false
 var _time := 0.0
 var _shots_taken := 0
 var _dev_import_used := false
@@ -354,6 +360,7 @@ func open_session(session: TrackSession) -> void:
 ## path; empty: selected_track(). `event`: the Free Drive setup (AI cars, collisions, track
 ## limits); the dev options --ai, --ai-skill and --ai-builtin go over it.
 func start_free_drive(car_path := "", platform_id := "", bay_return := false, solo := true, track := "", event: RaceEvent = null) -> void:
+	flow_return = {}
 	if event:
 		event_requested.emit(event, platform_id)
 		if hold_events:
@@ -380,6 +387,7 @@ func start_free_drive(car_path := "", platform_id := "", bay_return := false, so
 ## A race weekend or time trial with `event`; every joined player takes part (time trial: P1).
 ## `track`: a path; empty: selected_track().
 func start_event(event: RaceEvent, platform_id: String, track := "") -> void:
+	flow_return = {} # EventFlow.start() sets it again after this
 	event_requested.emit(event, platform_id)
 	if hold_events:
 		return
@@ -400,6 +408,8 @@ func start_event(event: RaceEvent, platform_id: String, track := "") -> void:
 
 ## Starts cup `run`'s next race (D145): its track, laps and the same AI field.
 func start_cup_race(run: CupRun) -> void:
+	if cup != run: # a new cup, not its next race
+		flow_return = {}
 	cup = run
 	var e := run.event_for(run.index)
 	event_requested.emit(e, run.platform_id)
@@ -607,6 +617,12 @@ func _switch(scene: Node) -> void:
 		scene.free()
 		return
 	get_tree().change_scene_to_node.call_deferred(scene)
+
+
+## The results' "Event menu": the main menu, opened on that event's Settings page.
+func go_event_menu() -> void:
+	reopen_flow = not flow_return.is_empty()
+	go_title()
 
 
 func go_title() -> void:

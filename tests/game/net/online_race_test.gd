@@ -212,7 +212,7 @@ func test_results_menu_by_role() -> void:
 		var names := menu.find_children("*", "Button", true, false).map(func(b: Button) -> String: return String(b.accessibility_name))
 		match mode:
 			"local":
-				assert_array(names).contains(["Continue: Race", "Restart", "Title"])
+				assert_array(names).contains(["Continue: Race", "Restart", "Main menu"])
 			"host":
 				assert_array(names).contains(["Continue: Race", "Restart", "Lobby", "Leave"])
 			"client":

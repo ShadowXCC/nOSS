@@ -49,7 +49,7 @@ func _ready() -> void:
 		var next_track := TrackLibrary.entry(run.track_for(run.index))
 		controls.append(UiKit.button("Next race: %s" % String(next_track.get("name", "?")), func() -> void: next_race.emit(),
 			"Race %d of %d, %d laps" % [run.index + 1, run.races().size(), int(run.races()[run.index].laps)]))
-	controls.append(UiKit.button("Title", func() -> void: quit_to_title.emit(), "Leave the cup" if not final else "Back to the title screen"))
+	controls.append(UiKit.button("Main menu", func() -> void: quit_to_title.emit(), "Leave the cup" if not final else "Back to the main menu"))
 	for c: Button in controls:
 		c.custom_minimum_size.x = 340
 		buttons.add_child(c)
