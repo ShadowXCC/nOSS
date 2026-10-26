@@ -1,0 +1,3 @@
+{ "schema": "noss.server/1", "rotation": [
+  { "track": "marble_mile", "class": "official.kart.medium", "event": { "kind": "race" }, "cup": { "id": "spark_cup", "name": "Spark Cup", "races": 4 } }
+] }

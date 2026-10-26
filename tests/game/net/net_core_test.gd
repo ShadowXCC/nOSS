@@ -100,7 +100,7 @@ func test_bad_configs_are_refused() -> void:
 	assert_object(ServerConfig.from_dict({ "schema": "noss.server/1", "max_players": 40 }, errors)).is_null()
 	assert_array(errors).is_not_empty()
 	errors.clear()
-	assert_object(ServerConfig.from_dict({ "schema": "noss.server/1", "rotation": [{ "class": "official.track.gt", "event": { "kind": "time_trial" } }] }, errors)).is_null()
+	assert_object(ServerConfig.from_dict({ "schema": "noss.server/1", "rotation": [{ "class": "official.track.gt", "event": { "kind": "drift" } }] }, errors)).is_null()
 	errors.clear()
 	assert_object(ServerConfig.load_file("user://tests/net_core/none.json", errors)).is_null()
 	assert_array(errors).is_not_empty()

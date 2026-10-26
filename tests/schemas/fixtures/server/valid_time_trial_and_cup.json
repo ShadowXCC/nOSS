@@ -1,0 +1,5 @@
+{ "schema": "noss.server/1", "rotation": [
+  { "track": "proving_ground", "class": "official.track.gt", "event": { "kind": "time_trial", "tt_min": 10, "collisions": false }, "name": "Regular time trial" },
+  { "track": "marble_mile", "class": "official.kart.medium", "event": { "kind": "race", "race_laps": 3, "grid": "reverse" }, "name": "Spark Cup, race 2 of 4",
+    "cup": { "id": "spark_cup", "name": "Spark Cup", "race": 1, "races": 4 } }
+] }
