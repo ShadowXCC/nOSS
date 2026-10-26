@@ -1,6 +1,8 @@
 extends GdUnitTestSuite
-## The lobby over real ENet (MP-03, MP-06, MP-07, LOC-05): what everyone sees, cars and ready,
-## chat and its limits, admin commands, local guests, and LAN discovery.
+## The lobby over real ENet (MP-03, MP-06, MP-07, LOC-05; docs/UI_FLOW.md §7.5, §7.6): what
+## everyone sees, cars, devices, assists and pings, ready per player, the countdown and a forced
+## start, the playlist, chat and its limits, admin commands, local players joining and leaving
+## (closing up their local indexes), and LAN discovery.
 
 var port := 0
 var server: NetServer
@@ -24,6 +26,7 @@ func before_test() -> void:
 
 
 func after_test() -> void:
+	NetHost.countdown_s = -1.0
 	for c in clients:
 		c.leave()
 		c.free()
@@ -119,12 +122,12 @@ func test_cars_and_ready() -> void:
 	assert_bool(_pump(func() -> bool: return a.state == NetClient.State.JOINED)).is_true()
 	var me := a.player_ids()[0]
 	a.send(NetProtocol.Msg.PICK, { "player": me, "car": "sha256:" + "a".repeat(64), "car_name": "Box", "family": "car" })
-	a.send(NetProtocol.Msg.READY, { "ready": true })
+	a.send(NetProtocol.Msg.READY, { "player": me, "ready": true })
 	assert_bool(_pump(func() -> bool:
 		var players: Array = _last(box, NetProtocol.Msg.LOBBY).get("players", [])
 		return players.any(func(d: Dictionary) -> bool: return d.id == me and d.car_name == "Box" and d.ready))).is_true()
 	assert_bool(host.all_ready()).is_false() # the host hasn't readied
-	host.handle(1, NetProtocol.Msg.READY, { "ready": true })
+	host.handle(1, NetProtocol.Msg.READY, { "player": server.players_of(1)[0].id, "ready": true })
 	assert_bool(host.all_ready()).is_true()
 	# A car the class can't take is refused; someone else's player can't be changed.
 	a.send(NetProtocol.Msg.PICK, { "player": me, "car": "sha256:" + "b".repeat(64), "car_name": "Kart", "family": "kart" })
@@ -370,3 +373,220 @@ func test_the_start_counts_games_with_their_cars() -> void:
 	host.handle(1, NetProtocol.Msg.SYNCED, { "have": 1, "of": 1 })
 	a.leave()
 	assert_bool(_pump(func() -> bool: return host.sync_state() == Vector2i(1, 1))).is_true()
+
+
+## Ready is per player (docs/UI_FLOW.md §7.5): a PC with two players is ready once both are; a
+## game can't ready someone else's player.
+func test_ready_is_per_player() -> void:
+	_start()
+	var a := _client(["Ann", "Bo"])
+	assert_bool(_pump(func() -> bool: return a.state == NetClient.State.JOINED)).is_true()
+	var ids := a.player_ids()
+	var host_id := server.players_of(1)[0].id
+	host.handle(1, NetProtocol.Msg.READY, { "player": host_id, "ready": true })
+	a.send(NetProtocol.Msg.READY, { "player": ids[0], "ready": true })
+	a.send(NetProtocol.Msg.READY, { "player": host_id, "ready": false }) # not theirs
+	a.send(NetProtocol.Msg.READY, { "ready": true }) # protocol 12's: ignored
+	assert_bool(_pump(func() -> bool: return server.players[ids[0]].ready)).is_true()
+	_pump(func() -> bool: return false, 0.2)
+	assert_bool(server.players[host_id].ready).is_true()
+	assert_bool(server.players[ids[1]].ready).is_false()
+	assert_bool(host.all_ready()).is_false()
+	a.send(NetProtocol.Msg.READY, { "player": ids[1], "ready": true })
+	assert_bool(_pump(func() -> bool: return host.all_ready())).is_true()
+
+
+## A player's device, assists and ping travel in the lobby and come back out of it whole; junk is
+## dropped, and a new name is made unique (but not against the player's own).
+func test_player_info_round_trips() -> void:
+	_start()
+	var a := _client(["Ann"])
+	var box := _inbox(a)
+	assert_bool(_pump(func() -> bool: return a.state == NetClient.State.JOINED)).is_true()
+	var me := a.player_ids()[0]
+	a.send(NetProtocol.Msg.PLAYER_INFO, { "player": me, "device": "playstation", "assists": ["abs", "tcs", "abs", "warp"],
+		"name": "Ann", "color": "00ffff" })
+	assert_bool(_pump(func() -> bool:
+		var players: Array = _last(box, NetProtocol.Msg.LOBBY).get("players", [])
+		return players.any(func(d: Dictionary) -> bool: return d.id == me and d.device == "playstation"))).is_true()
+	var d: Dictionary = (_last(box, NetProtocol.Msg.LOBBY).players as Array).filter(func(x: Dictionary) -> bool: return x.id == me)[0]
+	var p := NetPlayer.from_dict(d)
+	assert_object(p).is_not_null()
+	assert_str(p.name).is_equal("Ann") # its own name isn't taken
+	assert_str(p.device).is_equal("playstation")
+	assert_array(Array(p.assists)).contains_exactly(["abs", "tcs"])
+	assert_str(p.color.to_html(false)).is_equal("00ffff")
+	assert_int(p.ping).is_greater_equal(0)
+	var round_trip := NetPlayer.from_dict(p.to_dict())
+	assert_str(round_trip.device).is_equal("playstation")
+	assert_array(Array(round_trip.assists)).contains_exactly(["abs", "tcs"])
+	assert_int(round_trip.ping).is_equal(p.ping)
+	# The host's name is taken; a device nobody knows is no device.
+	a.send(NetProtocol.Msg.PLAYER_INFO, { "player": me, "device": "toaster", "assists": [], "name": "Host", "color": "00ffff" })
+	assert_bool(_pump(func() -> bool: return server.players[me].name == "Host 2")).is_true()
+	assert_str(server.players[me].device).is_empty()
+	# Not theirs: nothing changes.
+	a.send(NetProtocol.Msg.PLAYER_INFO, { "player": server.players_of(1)[0].id, "device": "wheel", "assists": [] })
+	_pump(func() -> bool: return false, 0.2)
+	assert_str(server.players_of(1)[0].device).is_empty()
+	# The host's own players' ping is 0 (they're on it); everyone's is in the lobby.
+	assert_int(server.players_of(1)[0].ping).is_equal(0)
+	for x: Dictionary in _last(box, NetProtocol.Msg.LOBBY).players:
+		assert_bool(x.has("ping") and x.has("device") and x.has("assists")).is_true()
+
+
+## Everyone ready starts the countdown ("Starting in"); anyone un-readying holds it; ready again,
+## it runs out and the session starts (docs/UI_FLOW.md §7.6). With nobody ready, Force start
+## starts at once.
+func test_countdown_starts_and_holds() -> void:
+	NetHost.countdown_s = 0.6
+	_start()
+	var a := _client(["Ann"])
+	var box := _inbox(a)
+	assert_bool(_pump(func() -> bool: return a.state == NetClient.State.JOINED)).is_true()
+	var me := a.player_ids()[0]
+	var host_id := server.players_of(1)[0].id
+	host.handle(1, NetProtocol.Msg.READY, { "player": host_id, "ready": true })
+	a.send(NetProtocol.Msg.READY, { "player": me, "ready": true })
+	assert_bool(_pump(func() -> bool: return int(_last(box, NetProtocol.Msg.LOBBY).get("starting", 0)) == 1)).is_true()
+	assert_str(host.state).is_equal("lobby")
+	assert_bool(_lines(box).has("Starting in 1")).is_false() # under a second: no line, just the count
+	a.send(NetProtocol.Msg.READY, { "player": me, "ready": false })
+	assert_bool(_pump(func() -> bool: return _lines(box).has("Start held: not everyone's ready"))).is_true()
+	assert_int(host.starting).is_equal(0)
+	_pump(func() -> bool: return false, 0.8)
+	assert_str(host.state).is_equal("lobby")
+	a.send(NetProtocol.Msg.READY, { "player": me, "ready": true })
+	assert_bool(_pump(func() -> bool: return host.state == "session")).is_true()
+	assert_bool(_last(box, NetProtocol.Msg.SESSION).is_empty()).is_false()
+	# Back in the lobby everyone readies again; Force start doesn't wait for them.
+	host.end_session()
+	assert_bool(host.all_ready()).is_false()
+	host.admin(1, "start")
+	assert_str(host.state).is_equal("session")
+
+
+## The countdown's length: the config's (3 s, the dedicated server's too), unless a test sets it;
+## a server waits for min_players.
+func test_countdown_length_and_min_players() -> void:
+	var errors := PackedStringArray()
+	var cfg := ServerConfig.from_dict({ "schema": ServerConfig.SCHEMA, "countdown_s": 5 }, errors)
+	assert_array(Array(errors)).is_empty()
+	assert_float(cfg.countdown_s).is_equal(5.0)
+	assert_float(ServerConfig.from_dict(cfg.to_dict()).countdown_s).is_equal(5.0)
+	assert_object(ServerConfig.from_dict({ "schema": ServerConfig.SCHEMA, "countdown_s": 600 })).is_null()
+	assert_float(ServerConfig.defaults().countdown_s).is_equal(3.0)
+	NetHost.countdown_s = 0.0
+	_start()
+	host.min_players = 2
+	host.handle(1, NetProtocol.Msg.READY, { "player": server.players_of(1)[0].id, "ready": true })
+	_pump(func() -> bool: return false, 0.2)
+	assert_str(host.state).is_equal("lobby") # one player of two
+	host.min_players = 1
+	assert_bool(_pump(func() -> bool: return host.state == "session")).is_true()
+	NetHost.countdown_s = -1.0
+	assert_float(host.countdown()).is_equal(3.0)
+
+
+## The playlist (docs/UI_FLOW.md §7.5): the host sets it, Change event takes the place of the one
+## up, and it moves on after each session. A car or kart class the new class can't take is dropped,
+## and everyone readies again.
+func test_playlist_moves_on_and_change_event() -> void:
+	_start()
+	var p: NetPlayer = server.players_of(1)[0]
+	var race := RaceEvent.new()
+	race.kind = "race"
+	var items := [
+		{ "track": "proving_ground", "class": "official.track.gt", "event": race.to_dict(), "name": "Regular race" },
+		{ "track": "proving_ground", "class": "official.track.formula", "event": race.to_dict(), "name": "Custom race" },
+	]
+	var changed := [0]
+	host.rotation_changed.connect(func() -> void: changed[0] += 1)
+	host.set_rotation(items, 0)
+	assert_int(changed[0]).is_equal(1)
+	assert_str(host.platform_id()).is_equal("official.track.gt")
+	host.handle(1, NetProtocol.Msg.PICK, { "player": p.id, "car": "sha256:" + "a".repeat(64), "car_name": "Box", "family": "car" })
+	host.handle(1, NetProtocol.Msg.READY, { "player": p.id, "ready": true })
+	host.start_session()
+	host.end_session()
+	assert_int(host.rotation_index).is_equal(1)
+	assert_str(host.platform_id()).is_equal("official.track.formula")
+	assert_bool(p.ready).is_false()
+	assert_str(p.car).is_empty() # Formula takes open-wheelers only
+	assert_bool(_lines(sunk).any(func(t: String) -> bool: return t.begins_with("Next: "))).is_true()
+	host.end_session() # not in a session: nothing moves
+	assert_int(host.rotation_index).is_equal(1)
+	# Change event: the one up now is replaced; the rest stay. A kart class goes with a kart event.
+	host.set_event({ "track": "proving_ground", "class": EventFlow.KART, "event": race.to_dict(), "name": "Kart race" })
+	host.handle(1, NetProtocol.Msg.PICK, { "player": p.id, "car": "sha256:" + "a".repeat(64), "car_name": "Box", "family": "car",
+		"class": "official.kart.heavy" })
+	assert_str(p.kart_class).is_equal("official.kart.heavy")
+	var sumo := { "track": "proving_ground", "class": EventFlow.SUMO, "event": RaceEvent.sumo().to_dict(), "name": "Sumo Wrestling" }
+	host.set_event(sumo)
+	assert_str(p.kart_class).is_empty()
+	assert_str(p.car_name).is_equal("Box") # sumo takes any car
+	assert_int(host.config.rotation.size()).is_equal(2)
+	assert_int(host.rotation_index).is_equal(1)
+	assert_str(host.event().kind).is_equal("sumo")
+	assert_str(String(host.config.rotation[0].name)).is_equal("Regular race")
+	# A reorder that keeps the same event up changes nothing for the players.
+	host.handle(1, NetProtocol.Msg.READY, { "player": p.id, "ready": true })
+	host.set_rotation([host.config.rotation[1], host.config.rotation[0]], 0)
+	assert_str(host.event().kind).is_equal("sumo")
+	assert_bool(p.ready).is_true()
+	# The lobby says it all.
+	assert_str(String(host.lobby_dict()["class"])).is_equal(EventFlow.SUMO)
+	assert_bool(host.lobby_dict().has("starting")).is_true()
+
+
+## Local players join and leave in the lobby: the server closes up the others' local indexes as
+## Players closes up its slots, so local index i is always slot i (LOC-05), and the new one comes
+## last.
+func test_local_players_close_up() -> void:
+	_start()
+	var a := _client(["Ann", "Bo", "Cy"])
+	var box := _inbox(a)
+	assert_bool(_pump(func() -> bool: return a.state == NetClient.State.JOINED)).is_true()
+	var ids := a.player_ids()
+	a.send(NetProtocol.Msg.REMOVE_LOCAL, { "player": ids[1] })
+	assert_bool(_pump(func() -> bool: return _last(box, NetProtocol.Msg.YOUR_PLAYERS).get("players", PackedInt32Array()).size() == 2)).is_true()
+	assert_int(server.players[ids[0]].local_index).is_equal(0)
+	assert_int(server.players[ids[2]].local_index).is_equal(1)
+	a.send(NetProtocol.Msg.ADD_LOCAL, { "name": "Di", "color": "0000ff" })
+	assert_bool(_pump(func() -> bool: return _last(box, NetProtocol.Msg.YOUR_PLAYERS).get("players", PackedInt32Array()).size() == 3)).is_true()
+	var now: PackedInt32Array = _last(box, NetProtocol.Msg.YOUR_PLAYERS).players
+	assert_int(now[0]).is_equal(ids[0])
+	assert_int(now[1]).is_equal(ids[2])
+	assert_str(server.players[now[2]].name).is_equal("Di")
+	for i in now.size():
+		assert_int(server.players[now[i]].local_index).is_equal(i)
+
+
+## Net finds this game's players by their local index (a Players slot), not by their place in a
+## list; a local player who goes takes their own id with them.
+func test_net_matches_players_by_local_index() -> void:
+	var cfg := ServerConfig.defaults()
+	cfg.port = port
+	cfg.lan = false
+	assert_int(Net.host(cfg, [{ "name": "Me", "color": "ffffff" }, { "name": "You", "color": "ff00ff" }])).is_equal(OK)
+	Net.server.manual_poll = true
+	Net.host_logic._physics_process(0.0)
+	var me := Net.id_of(0)
+	var you := Net.id_of(1)
+	assert_int(Net.local_of(you)).is_equal(1)
+	assert_int(Net.local_of(12345)).is_equal(-1)
+	Net.set_ready(true, 1)
+	assert_bool(Net.server.players[you].ready).is_true()
+	assert_bool(Net.server.players[me].ready).is_false()
+	Net.send_info(1, { "device": "wheel", "assists": ["abs"] })
+	assert_str(Net.server.players[you].device).is_equal("wheel")
+	Net.remove_local(0)
+	Net.host_logic._physics_process(0.0)
+	assert_array(Array(Net.my_ids)).contains_exactly([you])
+	assert_int(Net.id_of(0)).is_equal(you)
+	assert_int(Net.local_of(you)).is_equal(0)
+	Net.add_local({ "name": "Them", "color": "00ff00" })
+	Net.host_logic._physics_process(0.0)
+	assert_int(Net.my_ids.size()).is_equal(2)
+	assert_str(Net.player(Net.id_of(1)).name).is_equal("Them")
+	Net.leave()

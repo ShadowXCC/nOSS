@@ -2,15 +2,12 @@ class_name ServerMain
 extends Node
 ## The dedicated server (MP-02, docs/NETWORKING.md §9): `noss_server --config server.json`, or
 ## from the project `tools/godot.sh --headless -- --server --config=server.json`. No player of its
-## own and nothing drawn; it logs to stdout and user://logs/server.log. It starts the event once
-## everyone in the lobby is ready (after START_DELAY_S), and goes back to the lobby when the last
-## player leaves.
-
-const START_DELAY_S := 5.0
+## own and nothing drawn; it logs to stdout and user://logs/server.log. NetHost starts the event
+## after its countdown once everyone in the lobby is ready (and there are --min-players), as a
+## listen server does; this goes back to the lobby when the last player leaves.
 
 var config: ServerConfig
 var session: TrackSession
-var _countdown := -1.0
 
 
 func _ready() -> void:
@@ -36,29 +33,16 @@ func _ready() -> void:
 	if Net.host(config, [], NetLog.line) != OK:
 		get_tree().quit(1)
 		return
+	Net.host_logic.min_players = maxi(int(Game.dev.get("min-players", "1")), 1)
 	NetLog.line("Server key: " + NetIdentity.short(Net.identity().fingerprint))
 	add_child(ServerConsole.new())
 	Net.session_started.connect(_on_session_started)
 	Net.session_ended.connect(_end_session)
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	var host := Net.host_logic
-	if host == null:
-		return
-	if host.state == "lobby":
-		if host.all_ready() and host.server.player_count() >= int(Game.dev.get("min-players", "1")):
-			if _countdown < 0.0:
-				_countdown = START_DELAY_S
-				host.say("Starting in %d" % int(START_DELAY_S))
-			_countdown -= delta
-			if _countdown <= 0.0:
-				_countdown = -1.0
-				host.start_session()
-		elif _countdown >= 0.0:
-			_countdown = -1.0
-			host.say("Start held: not everyone's ready")
-	elif host.state == "session" and host.server.player_count() == 0:
+	if host and host.state == "session" and host.server.player_count() == 0:
 		host.end_session()
 
 

@@ -1,14 +1,17 @@
 class_name NetHost
 extends Node
 ## The game server's rules on top of NetServer (docs/NETWORKING.md §4–5, MP-06, MP-07): the
-## lobby (players, their cars, who's ready), chat and its commands, kicks and bans, and which
-## event runs next (the config's rotation). A listen server's own players are peer 1: their
-## requests come in through handle(), and everything sent to all clients also reaches this
-## game's Net (`local_sink`), so the menus work the same when hosting and when joined.
+## lobby (players, their cars, devices, assists and pings, who's ready), the countdown once
+## everyone is, chat and its commands, kicks and bans, and which event runs next (the config's
+## rotation: the host's playlist). A listen server's own players are peer 1: their requests come
+## in through handle(), and everything sent to all clients also reaches this game's Net
+## (`local_sink`), so the menus work the same when hosting and when joined.
 
 signal log_line(text: String)
 ## An admin asked for the session to start.
 signal start_requested
+## The playlist changed (Change event, the Playlist page, or it moved on).
+signal rotation_changed
 ## A client's car's assists (for results).
 signal assists_reported(id: int, used: Dictionary)
 ## The router mapping's result (UPnP), as a short line for the host.
@@ -20,6 +23,13 @@ signal board_requested(peer: int, board: String)
 ## A client's word on an endless road's traffic and players (EndlessNet, D159).
 signal endless_reported(peer: int, data: Dictionary)
 
+## How often the lobby's pings are measured again.
+const PING_S := 2.0
+
+## Seconds from everyone ready to the start (docs/UI_FLOW.md §7.6). Below 0 (as it is): the
+## config's countdown_s. Tests set it near 0.
+static var countdown_s := -1.0
+
 var server: NetServer
 var config: ServerConfig
 ## Content transfer (set by Net before this enters the tree).
@@ -30,8 +40,10 @@ var local_sink := Callable()
 var rotation_index := 0
 ## "lobby" or "session".
 var state := "lobby"
-## peer -> true when that connection's players are ready.
-var ready_peers := {}
+## The fewest players the countdown starts with (the dedicated server's --min-players).
+var min_players := 1
+## Whole seconds left before the start, as the lobby shows them; 0 while not counting down.
+var starting := 0
 ## A session's start (D127): how many of its cars each game has here and loaded, peer -> [have, of].
 var synced := {}
 
@@ -49,6 +61,8 @@ var _highway := {} # this session's traffic: {seed, count, t0} (highway events)
 ## This session's sky (every game the same, D159): {time, time_rate, weather, seed, t0}.
 var _env := {}
 var _endless := {} # an endless session's clock: {t0}
+var _start_at := -1 # when the countdown ends (ticks, ms); -1: not counting down
+var _ping_at := 0 # when the pings are measured next (ticks, ms)
 ## Where each player is on an endless road ({car id: [distance, time, speed]}, from EndlessNet), for
 ## joiners.
 var endless_at := {}
@@ -85,9 +99,59 @@ func _ready() -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	if state == "lobby":
+		_count_down()
+		_measure_pings()
 	if _dirty:
 		_dirty = false
 		_to_all(NetProtocol.Msg.LOBBY, lobby_dict())
+
+
+## Seconds from everyone ready to the start.
+func countdown() -> float:
+	return countdown_s if countdown_s >= 0.0 else config.countdown_s
+
+
+## Once everyone is ready (and there are min_players), the countdown runs, then the session
+## starts; anyone not ready (un-readying, or just joined) holds it.
+func _count_down() -> void:
+	if not (all_ready() and server.player_count() >= min_players):
+		if _start_at >= 0:
+			_stop_countdown()
+			_say("Start held: not everyone's ready")
+		return
+	var now := Time.get_ticks_msec()
+	if _start_at < 0:
+		_start_at = now + roundi(countdown() * 1000.0)
+		if countdown() >= 1.0:
+			_say("Starting in %d" % ceili(countdown()))
+	var left := ceili((_start_at - now) / 1000.0)
+	if left <= 0:
+		_stop_countdown()
+		start_session()
+	elif left != starting:
+		starting = left
+		_dirty = true
+
+
+func _stop_countdown() -> void:
+	if _start_at >= 0 or starting:
+		_dirty = true
+	_start_at = -1
+	starting = 0
+
+
+## Each player's round trip, for the lobby (every PING_S).
+func _measure_pings() -> void:
+	var now := Time.get_ticks_msec()
+	if now < _ping_at:
+		return
+	_ping_at = now + roundi(PING_S * 1000.0)
+	for p: NetPlayer in server.players.values():
+		var ms := 0 if p.peer == 1 else roundi(server.rtt_ms(p.peer))
+		if ms != p.ping:
+			p.ping = ms
+			_dirty = true
 
 
 func platform_id() -> String:
@@ -170,11 +234,9 @@ func event() -> RaceEvent:
 func lobby_dict() -> Dictionary:
 	var players := []
 	for p: NetPlayer in server.players.values():
-		var d := p.to_dict()
-		d.ready = ready_peers.get(p.peer, false)
-		players.append(d)
+		players.append(p.to_dict())
 	return {
-		"name": config.name, "motd": config.motd, "state": state, "max": config.max_players,
+		"name": config.name, "motd": config.motd, "state": state, "max": config.max_players, "starting": starting,
 		"track": track_info().hash, "track_id": track_info().id, "track_name": track_info().name, "track_bytes": track_info().bytes,
 		"class": platform_id(), "class_name": _class_name(platform_id()), "class_hash": platform_result().hash,
 		"event": event().to_dict(), "players": players,
@@ -202,9 +264,13 @@ func handle(peer: int, type: int, data: Dictionary) -> void:
 			if NetProtocol.has_fields(data, { "player": TYPE_INT, "car": [TYPE_STRING, 80], "car_name": [TYPE_STRING, 64], "family": [TYPE_STRING, 16] }):
 				_pick(peer, data)
 		NetProtocol.Msg.READY:
-			if NetProtocol.has_fields(data, { "ready": TYPE_BOOL }):
-				ready_peers[peer] = data.ready
+			if NetProtocol.has_fields(data, { "player": TYPE_INT, "ready": TYPE_BOOL }) and _owns(peer, data.player):
+				server.players[data.player].ready = data.ready
 				_dirty = true
+		NetProtocol.Msg.PLAYER_INFO:
+			if NetProtocol.has_fields(data, { "player": TYPE_INT, "device": [TYPE_STRING, 16], "assists": [TYPE_ARRAY, 16] }) \
+					and _owns(peer, data.player):
+				_player_info(server.players[data.player], data)
 		NetProtocol.Msg.CHAT:
 			if NetProtocol.has_fields(data, { "player": TYPE_INT, "text": [TYPE_STRING, NetChat.MAX_CHARS * 2] }):
 				chat(peer, data.player, data.text)
@@ -297,9 +363,10 @@ func admin(peer: int, cmd: String, target := "") -> void:
 			start_requested.emit()
 			start_session()
 		"next":
-			if state == "session":
-				end_session()
-			next_event()
+			var moved := state == "session" and config.rotation.size() > 1
+			end_session() # a playlist moves on by itself
+			if not moved:
+				next_event()
 		"time", "weather":
 			var allowed: Array = EnvState.HOURS.keys() + ["track"] if cmd == "time" else EnvState.KINDS.keys() + ["changing", "track"]
 			var what := target.strip_edges().to_lower()
@@ -316,6 +383,7 @@ func admin(peer: int, cmd: String, target := "") -> void:
 
 ## Starts the rotation's current event for everyone in the lobby.
 func start_session() -> void:
+	_stop_countdown()
 	_in_session.clear()
 	for id: int in server.players:
 		_in_session[id] = true
@@ -338,15 +406,17 @@ func start_session() -> void:
 	_dirty = true
 
 
-## Back to the lobby.
+## Back to the lobby, everyone un-readied; a playlist moves on to its next event.
 func end_session() -> void:
 	if state != "session":
 		return
 	state = "lobby"
 	_ai = []
 	synced.clear()
-	ready_peers.clear()
+	_unready()
 	_to_all(NetProtocol.Msg.SESSION_END, {})
+	if config.rotation.size() > 1:
+		next_event()
 	_dirty = true
 
 
@@ -429,7 +499,7 @@ func _ai_entries() -> Array:
 			"color": AiRacer.COLOR.to_html(false), "fp": "", "admin": false, "car": h,
 			"car_name": String(pick[1].get("name", "")).left(64), "family": String(pick[1].get("family", "car")).left(16),
 			"class": String(kart_classes[rng.randi() % kart_classes.size()]) if not kart_classes.is_empty() else "",
-			"car_note": "", "ready": true, "ai": true, "skill": skills[i],
+			"car_note": "", "ready": true, "device": "", "assists": [], "ping": 0, "ai": true, "skill": skills[i],
 			"paint": CarVisual.random_paint(PackageLoader.read_json(pick[0], "paint.json"), rng),
 		})
 		_ai_paths[NetProtocol.FIRST_AI_ID + i] = pick[0]
@@ -464,10 +534,61 @@ func _endless_cars() -> Array:
 ## The next event in the rotation (back in the lobby).
 func next_event() -> void:
 	rotation_index = (rotation_index + 1) % config.rotation.size()
-	state = "lobby"
-	ready_peers.clear()
+	_event_changed()
+	rotation_changed.emit()
+
+
+## Change event (docs/UI_FLOW.md §7.5): `item` ({track, class, event, name}) takes the place of
+## the event that's up.
+func set_event(item: Dictionary) -> void:
+	var items := config.rotation.duplicate()
+	items[rotation_index] = item
+	set_rotation(items, rotation_index)
+
+
+## The playlist: `items` ({track, class, event, name}) run one after another, `index` up now.
+## When the event that's up changes, everyone readies again and a car its class can't take is
+## dropped (the player's game picks another).
+func set_rotation(items: Array, index := 0) -> void:
+	if items.is_empty():
+		return
+	var was: Dictionary = config.rotation[rotation_index] if rotation_index < config.rotation.size() else {}
+	config.rotation.assign(items)
+	rotation_index = clampi(index, 0, items.size() - 1)
+	if config.rotation[rotation_index] != was:
+		_event_changed()
+	rotation_changed.emit()
+	_dirty = true
+
+
+## Another event is up: everyone readies again.
+func _event_changed() -> void:
+	_unready()
+	_drop_misfits()
 	_say("Next: %s, %s" % [track_info().name, _class_name(platform_id())])
 	_dirty = true
+
+
+func _unready() -> void:
+	_stop_countdown()
+	for p: NetPlayer in server.players.values():
+		p.ready = false
+
+
+## Cars and kart classes the event's class can't take go (their games pick again).
+func _drop_misfits() -> void:
+	var platform := platform_result()
+	if not platform.ok():
+		return
+	var karts := GameModes.kart_classes(platform.platform.id)
+	for p: NetPlayer in server.players.values():
+		if p.car and not Fitting.compatible(platform.platform, p.family):
+			p.car = ""
+			p.car_name = ""
+			p.family = ""
+			p.car_note = ""
+		if p.kart_class and not p.kart_class in karts:
+			p.kart_class = ""
 
 
 ## A line from the server to everyone.
@@ -490,14 +611,26 @@ func sync_state() -> Vector2i:
 	return Vector2i(done, games)
 
 
-## Everyone's players are ready (and there's someone to race).
+## Every player is ready (and there's someone to race). Each readies on their own (a PC with
+## two players is ready once both are).
 func all_ready() -> bool:
 	if server.player_count() == 0:
 		return false
-	for peer: int in server.peers:
-		if not server.peers[peer].players.is_empty() and not ready_peers.get(peer, false):
+	for p: NetPlayer in server.players.values():
+		if not p.ready:
 			return false
 	return true
+
+
+## What a player drives with, their assists, and (after a profile change) their name and colour.
+func _player_info(p: NetPlayer, data: Dictionary) -> void:
+	p.device = String(data.device) if data.device in NetPlayer.DEVICES else ""
+	p.assists = NetPlayer.clean_assists(data.assists)
+	if data.get("name") is String and (data.name as String).length() <= 64:
+		p.name = server.unique_name(NetProtocol.clean_name(data.name), p.id)
+	if data.get("color") is String and (data.color as String).length() <= 8:
+		p.color = server.free_color(Color.from_string(data.color, p.color), p.id)
+	_dirty = true
 
 
 func _pick(peer: int, data: Dictionary) -> void:
@@ -571,7 +704,6 @@ func _roster_changed(except := 0) -> void:
 
 
 func _on_left(peer: int, reason: String, names: String) -> void:
-	ready_peers.erase(peer)
 	synced.erase(peer)
 	_chat.forget(peer)
 	if reason in ["Left", "Kicked", "Banned"]:

@@ -2,7 +2,8 @@ extends GdUnitTestSuite
 ## Drive Online (docs/UI_FLOW.md §7, MP-01, ACC-03): main menu -> Drive Online -> Host -> the
 ## event pages -> the lobby -> Leave by keyboard alone, every control named; Sumo, Drag, Stock Car,
 ## Kart and Highway hosted through the pages; Join's recent servers and favourites, the password
-## page for a locked server, the Official tab that's off; chat and a kart lobby's classes.
+## page for a locked server, the Official tab that's off; the lobby's event line. The lobby page
+## itself has its own suite (lobby_page_test).
 
 const TITLE_SCENE := "res://game/ui/title/title_screen.tscn"
 
@@ -157,13 +158,17 @@ func test_host_a_race_by_keys() -> void:
 	assert_str(Net.host_logic.event().kind).is_equal("race")
 	assert_str(Net.host_logic.platform_id()).is_equal("official.track.gt")
 	assert_int(Net.host_logic.config.port).is_equal(int(Settings.net_host.port))
-	var lobby: LobbyMenu = _find(runner.scene(), "LobbyMenu")
+	var lobby: LobbyPage = _find(runner.scene(), "LobbyPage")
 	assert_object(lobby).is_not_null()
 	_assert_named(lobby)
+	assert_array(Array(lobby.crumbs)).contains_exactly(["Drive Online", "Lobby"])
+	assert_str(_step(lobby)).is_equal("Step 5 of 5")
+	for row in ["Change event", "Playlist", "Force start", "Profile", "Car", "Controls", "Driving Settings", "Ready", "Leave"]:
+		assert_object(_control(lobby, row)).override_failure_message("No " + row).is_not_null()
 	# The lobby took the place of the pages on the way.
 	for gone in ["HostOptionsPage", "LocalDrivePage", "RacingPage", "EventSettingsPage", "ClassPage"]:
 		assert_object(_find(runner.scene(), gone)).override_failure_message(gone + " still up").is_null()
-	assert_str(lobby._event_label.text).starts_with("Race, ")
+	assert_str(lobby.event_label.text).starts_with("Race, ")
 	assert_int(Net.roster.size()).is_equal(1)
 	assert_str(_focused(runner)).starts_with("Player 1")
 	# Chat from the lobby.
@@ -175,7 +180,7 @@ func test_host_a_race_by_keys() -> void:
 	await _frames(4)
 	assert_bool(Net.online()).is_false()
 	assert_bool(online.visible).is_true()
-	assert_object(_find(runner.scene(), "LobbyMenu")).is_null()
+	assert_object(_find(runner.scene(), "LobbyPage")).is_null()
 	assert_str(_focused(runner)).is_equal("Host")
 
 
@@ -215,9 +220,10 @@ func test_hosting_sumo() -> void:
 	assert_bool(Net.is_server()).is_true()
 	assert_str(Net.host_logic.event().kind).is_equal("sumo")
 	assert_str(Net.host_logic.platform_id()).is_equal(EventFlow.SUMO)
-	var lobby: LobbyMenu = _find(runner.scene(), "LobbyMenu")
-	assert_str(lobby._event_label.text).starts_with("Sumo Wrestling   Sumo")
-	assert_str(lobby._event_label.text).not_contains("Proving Ground")
+	var lobby: LobbyPage = _find(runner.scene(), "LobbyPage")
+	assert_str(lobby.event_label.text).starts_with("Sumo Wrestling   Sumo")
+	assert_str(lobby.event_label.text).not_contains("Proving Ground")
+	assert_str(_step(lobby)).is_equal("Step 4 of 4") # no Class step
 	# Remembered for hosting, apart from Local Drive's.
 	assert_bool((Settings.profile.event_memory as Dictionary).has("online/mini/sumo")).is_true()
 	assert_bool((Settings.profile.event_memory as Dictionary).has("mini/sumo")).is_false()
@@ -238,7 +244,7 @@ func test_hosting_drag() -> void:
 	assert_bool(Net.is_server()).is_true()
 	assert_str(Net.host_logic.event().kind).is_equal("drag")
 	assert_str(Net.host_logic.platform_id()).is_equal("official.drag.pro")
-	assert_str((_find(runner.scene(), "LobbyMenu") as LobbyMenu)._event_label.text).starts_with("Drag Strip, ")
+	assert_str((_find(runner.scene(), "LobbyPage") as LobbyPage).event_label.text).starts_with("Drag Strip, ")
 
 
 ## Stock Car: only ovals, its own class, no Class step.
@@ -254,7 +260,7 @@ func test_hosting_stock_car() -> void:
 	assert_str(Net.host_logic.event().kind).is_equal("race")
 	assert_str(Net.host_logic.platform_id()).is_equal(EventFlow.STOCK_CAR)
 	assert_str(Net.host_logic.track_info().id).is_equal("piedmont_speedway")
-	assert_str((_find(runner.scene(), "LobbyMenu") as LobbyMenu)._event_label.text).starts_with("Stock Car race, 10 laps")
+	assert_str((_find(runner.scene(), "LobbyPage") as LobbyPage).event_label.text).starts_with("Stock Car race, 10 laps")
 
 
 ## Kart: a race only (no Play row: cups online come later), each kart's class on its card.
@@ -269,7 +275,7 @@ func test_hosting_kart_and_highway() -> void:
 	kart.go_on()
 	await _frames(6)
 	assert_str(Net.host_logic.platform_id()).is_equal(EventFlow.KART)
-	assert_str((_find(runner.scene(), "LobbyMenu") as LobbyMenu)._event_label.text).starts_with("Kart race, ")
+	assert_str((_find(runner.scene(), "LobbyPage") as LobbyPage).event_label.text).starts_with("Kart race, ")
 	Net.leave()
 	await _frames(4)
 	var highway := await _settings(runner, "highway")
@@ -281,7 +287,7 @@ func test_hosting_kart_and_highway() -> void:
 	await _frames(6)
 	assert_str(Net.host_logic.event().kind).is_equal("highway")
 	assert_str(Net.host_logic.event().sub).is_equal("cruise")
-	assert_str((_find(runner.scene(), "LobbyMenu") as LobbyMenu)._event_label.text).starts_with("Highway cruise")
+	assert_str((_find(runner.scene(), "LobbyPage") as LobbyPage).event_label.text).starts_with("Highway cruise")
 
 
 ## Hosting lists only tracks that can go online; Free Drive there has no AI rows.
@@ -448,45 +454,11 @@ func test_lobby_event_text() -> void:
 	var race := RaceEvent.new()
 	race.kind = "race"
 	race.race_laps = 10
-	assert_str(LobbyMenu.event_text(race, EventFlow.STOCK_CAR)).is_equal("Stock Car race, 10 laps")
-	assert_str(LobbyMenu.event_text(race, "official.kart.medium")).is_equal("Kart race, 10 laps")
-	assert_str(LobbyMenu.event_text(race, "official.track.gt")).is_equal("Race, 10 laps")
-	assert_str(LobbyMenu.event_text(RaceEvent.battle("hits"), EventFlow.KART)).is_equal("Kart Battle, most hits")
-	assert_str(LobbyMenu.event_text(RaceEvent.highway("cruise"), "official.highway.street")).is_equal("Highway cruise")
-	assert_str(LobbyMenu.event_text(RaceEvent.sumo(), EventFlow.SUMO)).is_equal("Sumo Wrestling")
-	assert_str(LobbyMenu.event_text(RaceEvent.free_drive(), "official.track.gt")).is_equal("Free Drive")
-	assert_str(LobbyMenu.event_text(RaceEvent.endless(), "official.endless.cruiser")).is_empty()
-
-
-## A kart lobby (D149): your row opens your car and class; the class goes to the server.
-func test_a_kart_lobby_picks_your_class() -> void:
-	Settings.primary.set_value("kart_class", "")
-	var cfg := ServerConfig.from_dict(Settings.net_host)
-	cfg.rotation[0]["class"] = "official.kart.medium"
-	assert_int(Net.host(cfg, Net.local_players())).is_equal(OK)
-	var lobby: LobbyMenu = auto_free(LobbyMenu.new())
-	add_child(lobby)
-	await _frames(6)
-	var me: int = Net.my_ids[0]
-	assert_str(UiKit.text_of(lobby._player_rows[0])).contains("Medium")
-	lobby._on_player(me)
-	await _frames(2)
-	var pick: Control = lobby._sub
-	assert_object(pick).is_not_null()
-	_assert_named(pick)
-	var klass := _control(pick, "Class") as Button
-	for i in 3:
-		if UiKit.text_of(klass).contains("Heavy"):
-			break
-		klass.pressed.emit()
-		await _frames(2)
-	assert_str(String(Settings.primary.data.get("kart_class", ""))).is_equal("official.kart.heavy")
-	var until := Time.get_ticks_msec() + 3000
-	while Time.get_ticks_msec() < until and Net.server.players[me].kart_class != "official.kart.heavy":
-		await _frames(1)
-	assert_str(Net.server.players[me].kart_class).is_equal("official.kart.heavy")
-	pick.closed.emit()
-	await _frames(2)
-	assert_str(UiKit.text_of(lobby._player_rows[0])).contains("Heavy")
-	Net.leave()
-	Settings.primary.set_value("kart_class", "")
+	assert_str(LobbyPage.event_text(race, EventFlow.STOCK_CAR)).is_equal("Stock Car race, 10 laps")
+	assert_str(LobbyPage.event_text(race, "official.kart.medium")).is_equal("Kart race, 10 laps")
+	assert_str(LobbyPage.event_text(race, "official.track.gt")).is_equal("Race, 10 laps")
+	assert_str(LobbyPage.event_text(RaceEvent.battle("hits"), EventFlow.KART)).is_equal("Kart Battle, most hits")
+	assert_str(LobbyPage.event_text(RaceEvent.highway("cruise"), "official.highway.street")).is_equal("Highway cruise")
+	assert_str(LobbyPage.event_text(RaceEvent.sumo(), EventFlow.SUMO)).is_equal("Sumo Wrestling")
+	assert_str(LobbyPage.event_text(RaceEvent.free_drive(), "official.track.gt")).is_equal("Free Drive")
+	assert_str(LobbyPage.event_text(RaceEvent.endless(), "official.endless.cruiser")).is_empty()

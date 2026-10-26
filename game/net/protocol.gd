@@ -6,7 +6,7 @@ extends RefCounted
 ## before decoding, its fields after. Car states and content chunks have their own packed formats.
 
 ## Bumped whenever messages change: a client and server must match.
-const VERSION := 12
+const VERSION := 13
 const DEFAULT_PORT := 47800
 ## Channels beyond Godot's channel 0 (which carries reliable control messages).
 const EXTRA_CHANNELS := 3
@@ -52,7 +52,7 @@ enum Msg {
 	BYE = 10, ## server: {reason} just before it disconnects the client
 	LOBBY = 11, ## server: the lobby (NetHost.lobby_dict)
 	PICK = 12, ## client: {player, car, car_name, family}: a player's car (package hash)
-	READY = 13, ## client: {ready}: the connection's players are ready
+	READY = 13, ## client: {player, ready}: one of the connection's players is ready (or not)
 	CHAT = 14, ## client: {player, text}
 	CHAT_LINE = 15, ## server: {from, name, color, text, kind ("chat" or "server")}
 	ADMIN = 16, ## client: {cmd, target}: kick, ban, start, next, restart
@@ -60,6 +60,7 @@ enum Msg {
 	REMOVE_LOCAL = 18, ## client: {player}
 	YOUR_PLAYERS = 19, ## server: {players}: this connection's player ids, after a change
 	NOTICE = 20, ## server: {text}: a short message for this client only
+	PLAYER_INFO = 21, ## client: {player, device, assists, name, color}: what a player drives with and the assists they have on (the lobby's roster), their name and colour
 	# Content (NetTransfer), either way.
 	WANT = 30, ## {hash, from}: send this file (from this chunk)
 	OFFER = 31, ## {xfer, hash, size, csize, from}: it's coming

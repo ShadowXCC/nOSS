@@ -17,17 +17,19 @@ const HOST_KART := "Kart races with items"
 
 ## The switch is on Time Trial.
 var tt := false
-## "local", or "host" (LocalDrivePage).
+## "local", "host" or "change" (LocalDrivePage).
 var context := "local"
 ## Hosting: the Host page's options.
 var server: ServerConfig
+## From the lobby: the flow's `done`.
+var done := Callable()
 var switch: TabRow
 
 
 func _ready() -> void:
 	title = "Racing"
-	if context == "host":
-		crumbs = ["Drive Online", "Host", "Racing"]
+	if context != "local":
+		crumbs = EventFlow.crumbs_for(context) + PackedStringArray(["Racing"])
 		back_hint = "Back to the event types"
 	else:
 		crumbs = ["Local Drive", "Racing"]
@@ -50,7 +52,7 @@ func _build() -> void:
 
 func _fill() -> void:
 	for t: Array in TYPES:
-		var b := UiKit.button(t[1], _pick.bind(String(t[0])), t[3] if tt else HOST_KART if context == "host" and t[0] == "kart" else t[2])
+		var b := UiKit.button(t[1], _pick.bind(String(t[0])), t[3] if tt else HOST_KART if context != "local" and t[0] == "kart" else t[2])
 		b.name = String(t[1]).validate_node_name()
 		b.set_meta(&"variant", t[0])
 		add_row(b)
@@ -106,6 +108,7 @@ func _show_steps(variant: String) -> void:
 func _pick(variant: String) -> void:
 	var flow := EventFlow.racing(variant, tt, context)
 	flow.server = server
+	flow.done = done
 	flow.recall()
 	open_settings(flow)
 

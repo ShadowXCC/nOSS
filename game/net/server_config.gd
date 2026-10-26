@@ -22,8 +22,10 @@ var lan := true
 var upnp := false
 ## Car states per second from clients: 30, 60, or 0 (60 on fast links, else 30).
 var state_rate := 0
-## [{track, class, event}], run in turn.
+## [{track, class, event, name}], run in turn (a listen server's playlist).
 var rotation: Array[Dictionary] = []
+## Seconds from everyone ready to the start (docs/UI_FLOW.md §7.6).
+var countdown_s := 3.0
 var rules := {
 	"classes": [], "assists": null, "tuning": "allow", "fitting": "normal", "hotswap": "practice",
 	"ghost_bad_links": true,
@@ -75,6 +77,8 @@ static func from_dict(d: Dictionary, errors: PackedStringArray = []) -> ServerCo
 	for key: String in ["port", "max_players", "state_rate"]:
 		if d.has(key):
 			c.set(key, int(d[key]))
+	if d.has("countdown_s"):
+		c.countdown_s = float(d.countdown_s)
 	for key: String in ["admins", "whitelist", "bans"]:
 		if d.has(key):
 			c.set(key, PackedStringArray(d[key]))
@@ -95,7 +99,7 @@ func to_dict() -> Dictionary:
 	return {
 		"schema": SCHEMA, "name": name, "port": port, "password": password, "max_players": max_players,
 		"motd": motd, "admins": Array(admins), "whitelist": Array(whitelist), "bans": Array(bans),
-		"lan": lan, "upnp": upnp, "state_rate": state_rate, "rotation": rotation.duplicate(true),
+		"lan": lan, "upnp": upnp, "state_rate": state_rate, "countdown_s": countdown_s, "rotation": rotation.duplicate(true),
 		"rules": rules_out, "caps": caps.duplicate(), "plausibility": plausibility,
 	}
 

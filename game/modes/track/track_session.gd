@@ -907,8 +907,8 @@ func make_guide(r: Racer) -> Node:
 	return ai
 
 
-## An online session's cars (D84): this game's players drive their own (their ids are Net.my_ids,
-## in local order); everyone else's car is remote. Everyone's spot is their place in the roster.
+## An online session's cars (D84): this game's players drive their own (each on the Players slot
+## of their local index, Net.local_of()); everyone else's car is remote. Everyone's spot is their place in the roster.
 func _ready_online() -> void:
 	net = NetSession.new()
 	net.name = "NetSession"
@@ -985,7 +985,7 @@ func _ready_online() -> void:
 func _endless_file_index(id: int, roster_index: int) -> int:
 	var at: Variant = online.get("endless", {}).get("at", {})
 	if at is Dictionary and not (at as Dictionary).is_empty():
-		return maxi(Array(Net.my_ids).find(id), 0)
+		return maxi(Net.local_of(id), 0)
 	return roster_index
 
 
@@ -1029,7 +1029,7 @@ func _add_online_racer(d: Dictionary, index: int) -> Racer:
 		net.add(a, true)
 		safe_rejoin = true
 		return a
-	var local := Array(Net.my_ids).find(id)
+	var local := Net.local_of(id)
 	if local >= 0 and local < Players.slots.size() and not dedicated:
 		var slot := Players.slots[local]
 		if autodrive:
@@ -1354,8 +1354,7 @@ func _on_session_ended(kind: String, results: Array) -> void:
 				_drop_leavers()
 				race.next_session()
 			elif Net.host_logic:
-				Net.host_logic.end_session()
-				Net.host_logic.next_event())
+				Net.host_logic.end_session()) # a playlist moves on
 		return
 	print("%s results: %s" % [kind.capitalize(), ", ".join(PackedStringArray(results.map(func(row: Dictionary) -> String: return "%d %s" % [row.position, row.name])))])
 	if Game.dev.has("quit-after-results") or (Game.dev.has("auto-continue") and not race.has_next()):

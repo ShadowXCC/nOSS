@@ -311,6 +311,8 @@ func add_player(peer: int, entry: Dictionary) -> NetPlayer:
 	return _add_player(peer, index, entry, peers[peer])
 
 
+## Takes a local guest off. The connection's others keep their order and close up, as its
+## Players slots do: local index i is always its game's slot i (LOC-05).
 func remove_player(id: int) -> void:
 	var p: NetPlayer = players.get(id)
 	if p == null:
@@ -320,13 +322,17 @@ func remove_player(id: int) -> void:
 		var list: PackedInt32Array = peers[p.peer].players
 		list.remove_at(list.find(id))
 		peers[p.peer].players = list
+		for i in list.size():
+			players[list[i]].local_index = i
 
 
-## `name`, or "name 2", "name 3"… if someone already has it.
-func unique_name(name: String) -> String:
+## `name`, or "name 2", "name 3"… if someone already has it (someone other than player
+## `except`, renaming).
+func unique_name(name: String, except := 0) -> String:
 	var taken := {}
 	for p: NetPlayer in players.values():
-		taken[p.name.to_lower()] = true
+		if p.id != except:
+			taken[p.name.to_lower()] = true
 	if not taken.has(name.to_lower()):
 		return name
 	var n := 2
@@ -335,11 +341,13 @@ func unique_name(name: String) -> String:
 	return "%s %d" % [name.left(NetProtocol.MAX_NAME - 3), n]
 
 
-## `wanted`, unless another player has it: then the first colour of COLORS nobody has.
-func free_color(wanted: Color) -> Color:
+## `wanted`, unless another player (not `except`) has it: then the first colour of COLORS nobody
+## has.
+func free_color(wanted: Color, except := 0) -> Color:
 	var used := {}
 	for p: NetPlayer in players.values():
-		used[p.color.to_html(false)] = true
+		if p.id != except:
+			used[p.color.to_html(false)] = true
 	if not used.has(wanted.to_html(false)):
 		return wanted
 	for c: Color in COLORS:

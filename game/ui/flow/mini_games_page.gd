@@ -10,16 +10,18 @@ const TYPES := [
 	["kart_battle", "Kart Battle", "Items in an arena"],
 ]
 
-## "local", or "host" (LocalDrivePage).
+## "local", "host" or "change" (LocalDrivePage).
 var context := "local"
 ## Hosting: the Host page's options.
 var server: ServerConfig
+## From the lobby: the flow's `done`.
+var done := Callable()
 
 
 func _ready() -> void:
 	title = "Mini Games"
-	if context == "host":
-		crumbs = ["Drive Online", "Host", "Mini Games"]
+	if context != "local":
+		crumbs = EventFlow.crumbs_for(context) + PackedStringArray(["Mini Games"])
 		back_hint = "Back to the event types"
 	else:
 		crumbs = ["Local Drive", "Mini Games"]
@@ -54,6 +56,7 @@ func _focused(c: Control) -> void:
 func _pick(variant: String) -> void:
 	var flow := EventFlow.make("mini", variant, false, context)
 	flow.server = server
+	flow.done = done
 	flow.recall()
 	open_settings(flow)
 

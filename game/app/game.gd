@@ -29,9 +29,8 @@ extends Node
 ##   --pause-at=<s>       open the last player's pause menu
 ##   --menu=<m>           main menu: open local (or solo), racing, mini-games, a Settings page (regular,
 ##                        stock-car, kart, custom, time-trial (Regular's), endless, highway, free, sumo, drag,
-##                        kart-battle), class or players (Regular's), settings, driving-settings, online,
-##                        online-players (--join=<n>: n devices join), host, host-event (Host's event types)
-##                        or join
+##                        kart-battle), class or players (Regular's; --join=<n>: n devices join), settings,
+##                        driving-settings, online, host, host-event (Host's event types) or join
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
 ##   --track=<ref>        the track for --drive, --race and --time-trial: an id, a path or a hash
 ##   --highway            a highway session right away (the first highway, or --track): --sub=cruise|score|run|loop,
@@ -84,8 +83,8 @@ extends Node
 ##   --bot-full           bot: fetch every car whole, timing it (net_check --fresh)
 ##   --cache=<folder>     keep downloaded content there (an empty one: a fresh client)
 ##   --share-personal     server: send personal-use cars too (only to this PC's bots: net_check --fresh)
-##   --auto-ready         lobby: ready once the cars are picked
-##   --auto-start=<n>     hosting: start once n players are in and everyone's ready
+##   --auto-ready         lobby: ready each player here once their car is picked
+##   --auto-start=<n>     hosting: the countdown waits for n players (everyone ready starts it)
 ##   --traffic-selftest[=<track>]  step a highway's traffic 1000 s, print its checksum and quit
 ##                        (compare builds: tools/traffic_determinism.sh)
 

@@ -114,38 +114,3 @@ func _focus(v: Viewport) -> String:
 
 static func _pad(id: int) -> Dictionary:
 	return { "kind": "gamepad", "key": "pad:test#%d" % id, "name": "Test pad %d" % id, "id": id, "guid": "test%d" % id, "preset": "pad_standard" }
-
-
-## Before going online (Changes.md): no car row, a Done row, back on a card returns to Drive
-## Online (which stays open, though the same B reaches it raw), and empty places say how to join.
-func test_online_players_screen_returns_to_online() -> void:
-	Players.clear()
-	Devices.test_devices = [_pad(PAD)]
-	var online := DriveOnlinePage.new()
-	add_child(online)
-	await get_tree().process_frame
-	var closed := [false]
-	online.closed.connect(func() -> void: closed[0] = true)
-	online.open_players()
-	var menu: PlayersMenu = online.find_children("*", "PlayersMenu", true, false)[0]
-	var p1 := Players.join(_pad(PAD))
-	for i in 3:
-		await get_tree().process_frame
-	var rows: Array = p1.menu_target.find_children("*", "Button", true, false).map(func(b: Button) -> String: return UiKit.text_of(b))
-	assert_bool(rows.any(func(t: String) -> bool: return t.begins_with("Car"))).is_false()
-	assert_bool(rows.has("Done")).is_true()
-	assert_bool(menu._holders[1].get_node(^"JoinHint").visible).is_true()
-	assert_bool(menu._holders[0].get_node(^"JoinHint").visible).is_false()
-	# B: raw into the window, and pushed into the card.
-	var raw := InputEventAction.new()
-	raw.action = "ui_cancel"
-	raw.pressed = true
-	get_tree().root.push_input(raw)
-	Players.push_action(p1.menu_target, "ui_cancel")
-	for i in 3:
-		await get_tree().process_frame
-	assert_bool(is_instance_valid(menu) and menu.is_inside_tree()).is_false()
-	assert_bool(closed[0]).is_false()
-	assert_int(Players.count()).is_equal(1)
-	online.queue_free()
-	await get_tree().process_frame

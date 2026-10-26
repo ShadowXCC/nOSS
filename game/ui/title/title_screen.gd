@@ -12,7 +12,7 @@ extends Control
 var _stack := MenuStack.new()
 var _solo: LocalDrivePage
 var _online: DriveOnlinePage
-var _lobby: LobbyMenu
+var _lobby: LobbyPage
 
 
 func _ready() -> void:
@@ -124,9 +124,6 @@ func _open_dev_menu(menu: String) -> void:
 			_open_settings()
 			(_stack.top() as SettingsMenu)._open_player()
 		"online": _open_online()
-		"online-players":
-			_open_online()
-			_online.open_players()
 		"host":
 			_open_online()
 			_online.open_host()
@@ -160,7 +157,8 @@ func _open_lobby() -> void:
 	var above := _stack.index_of(_online) + 1
 	if above > 0 and above < _stack.depth():
 		_stack.close(_stack.pages()[above])
-	_lobby = LobbyMenu.new()
+	_lobby = LobbyPage.new()
+	_lobby.name = "Lobby"
 	_lobby.left.connect(func(reason: String) -> void:
 		_stack.close(_lobby)
 		_online.show_status(reason))

@@ -6,7 +6,8 @@ its Settings page -> the class -> Players -> a 1-lap race -> results -> main men
 screen under the top one isn't showing: UI overhaul P2's page stack), then Racing again: Stock Car
 (no Class step), the Time Trial switch (Regular's and Kart's time trials to their Players pages),
 and Custom with its Save preset page, and back out (UI overhaul P4-P6), then Drive Online -> Host -> the event
-pages -> the class -> the lobby -> Leave, and Join's tabs (M5, UI overhaul P8), then each Local Drive
+pages -> the class -> the lobby (This PC's rows, Driving Settings, Change event, Playlist) -> Leave,
+and Join's tabs (M5, UI overhaul P8, P9), then each Local Drive
 type's pages (UI overhaul P5): Highway -> its Settings page -> the class -> Players and back out
 (M7); Racing -> Kart -> a race, a cup and the cup builder, then Mini Games -> Kart Battle ->
 Players and back out (M8); Endless -> the class -> Players (M9); Mini Games -> Sumo Wrestling and
@@ -36,7 +37,7 @@ display. Writes no settings or profiles (--no-save).
     tools/a11y_check.py --settings-only  # just Settings and Driving Settings, every tab
     tools/a11y_check.py --racing-only  # just Racing: Stock Car, the time trials, Custom
     tools/a11y_check.py --garage-only  # just the Garage and the Fitting Bay's Import step
-    tools/a11y_check.py --online-only  # just Drive Online: hosting through the event pages, Join's tabs
+    tools/a11y_check.py --online-only  # just Drive Online: hosting through the event pages, the lobby, Join's tabs
 """
 import os
 import subprocess
@@ -473,8 +474,10 @@ def garage_menus():
 
 def online_menus():
     """Main menu -> Drive Online -> Host -> Next -> the Event page -> Racing -> Regular -> its
-    Settings page -> the class, which hosts -> the lobby -> Leave; then Join -> Direct -> On your
-    network (Official is off) -> Back -> Back (M5, UI overhaul P8; docs/UI_FLOW.md §7)."""
+    Settings page -> the class, which hosts -> the lobby: This PC's rows (Ready isn't pressed: the
+    countdown would start), Driving Settings and back, Change event (the lobby hidden under it) and
+    back, Playlist and back -> Leave; then Join -> Direct -> On your network (Official is off) ->
+    Back -> Back (M5, UI overhaul P8, P9; docs/UI_FLOW.md §7)."""
     log("Drive Online")
     ok = step("Main menu (online)", "Drive Online")
     ok = ok and hidden("Drive Online", "Local Drive")
@@ -491,7 +494,22 @@ def online_menus():
         ok = False
     if ok:
         find("Player 1", "button", timeout=10.0, prefix=True)  # the list arrives a tick later
-        ok = step("Lobby", "Leave")
+        for name in ("Profile: ", "Car: ", "Controls: ", "Driving Settings", "Ready", "Change event", "Playlist", "Force start"):
+            if find(name, "button", timeout=5.0, prefix=name.endswith(": ")) is None:
+                problems.append(f"Lobby: no '{name.rstrip(': ')}' button")
+                ok = False
+        ok = ok and step("Lobby", "Driving Settings")
+        ok = ok and hidden("Lobby: Driving Settings", "Change event")
+        ok = ok and back_from("Lobby: Driving Settings", "Auto gearbox")
+        ok = ok and step("Lobby again", "Change event")
+        ok = ok and hidden("Lobby: Change event", "Playlist")
+        ok = ok and back_from("Lobby: Change event", "Racing")
+        ok = ok and step("Lobby again", "Playlist")
+        if ok and find("1. ", "toggle button", timeout=10.0, prefix=True) is None:
+            problems.append("Playlist: no events listed")
+            ok = False
+        ok = ok and back_from("Lobby: Playlist", "Add event")
+        ok = ok and step("Lobby", "Leave")
     ok = ok and step("Drive Online again", "Join")
     ok = ok and step("Join: On your network", "Direct", role="toggle button")
     # Godot 4.7.2 doesn't tell AT-SPI a button is disabled: the Official tab is off if it can't

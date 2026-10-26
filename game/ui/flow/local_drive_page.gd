@@ -5,7 +5,8 @@ extends MenuPage
 ## pages of types; Endless, Highway and Free Drive go straight to their Settings page.
 ##
 ## Hosting (`context` "host", §7.2) it's the Event page after Host: the same types, no Drive again,
-## each flow taking the Host page's `server` options.
+## each flow taking the Host page's `server` options. From the lobby (`context` "change", §7.5:
+## Change event, the Playlist's Add event) it's the same Event page, each flow ending in `done`.
 
 ## [type, button, description].
 const TYPES := [
@@ -19,17 +20,19 @@ const TYPES := [
 ## Hosting, Highway is a cruise (its other modes online come in P10).
 const HOST_HIGHWAY := "A cruise through traffic"
 
-## "local", or "host" (the Event page of hosting).
+## "local", "host" (the Event page of hosting) or "change" (the lobby's).
 var context := "local"
 ## Hosting: the Host page's options.
 var server: ServerConfig
+## From the lobby: given the flow once its event is set up (EventFlow.done).
+var done := Callable()
 
 
 func _ready() -> void:
-	if context == "host":
+	if context != "local":
 		title = "Event"
-		crumbs = ["Drive Online", "Host", "Event"]
-		back_hint = "Back to Host"
+		crumbs = EventFlow.crumbs_for(context) + PackedStringArray(["Event"])
+		back_hint = "Back to Host" if context == "host" else "Back to the lobby"
 	else:
 		title = "Local Drive"
 		crumbs = ["Local Drive"]
@@ -48,7 +51,7 @@ func _build() -> void:
 		b.set_meta(&"steps", again.steps())
 		add_row(b)
 	for t: Array in TYPES:
-		var b := UiKit.button(t[1], _pick.bind(String(t[0])), HOST_HIGHWAY if context == "host" and t[0] == "highway" else t[2])
+		var b := UiKit.button(t[1], _pick.bind(String(t[0])), HOST_HIGHWAY if context != "local" and t[0] == "highway" else t[2])
 		b.name = String(t[1]).validate_node_name()
 		b.set_meta(&"type", t[0])
 		b.set_meta(&"steps", _steps_of(String(t[0])))
@@ -70,6 +73,7 @@ func _pick(type: String) -> void:
 		_:
 			var flow := EventFlow.make(type, "", false, context)
 			flow.server = server
+			flow.done = done
 			flow.recall()
 			open_settings(flow)
 
@@ -79,6 +83,7 @@ func open_racing(tt := false) -> RacingPage:
 	racing.tt = tt
 	racing.context = context
 	racing.server = server
+	racing.done = done
 	open_over(racing)
 	return racing
 
@@ -87,6 +92,7 @@ func open_mini_games() -> MiniGamesPage:
 	var mini := MiniGamesPage.new()
 	mini.context = context
 	mini.server = server
+	mini.done = done
 	open_over(mini)
 	return mini
 

@@ -41,7 +41,7 @@ var content: NetContent
 ## The lobby as last sent by the server (NetHost.lobby_dict), and its players.
 var lobby := {}
 var roster: Array[NetPlayer] = []
-## This game's players' ids on the server, in local order.
+## This game's players' ids on the server, in local order (local index i: Players slot i).
 var my_ids := PackedInt32Array()
 ## Recent chat and server lines.
 var chat_log: Array[Dictionary] = []
@@ -209,19 +209,51 @@ func request(type: int, data: Dictionary) -> void:
 		client.send(type, data)
 
 
+## This game's player on Players slot `local_index` (the player's local index on the server),
+## or 0. By the index, not the list's order (LOC-05).
+func id_of(local_index: int) -> int:
+	for p in roster:
+		if p.local_index == local_index and p.id in my_ids:
+			return p.id
+	return my_ids[local_index] if local_index >= 0 and local_index < my_ids.size() else 0
+
+
+## Which of this game's players (their Players slot) player `id` is, or -1 for someone else's.
+func local_of(id: int) -> int:
+	if not id in my_ids:
+		return -1
+	var p := player(id)
+	return p.local_index if p else Array(my_ids).find(id)
+
+
 func say(text: String, local_index := 0) -> void:
-	if local_index < my_ids.size():
-		request(NetProtocol.Msg.CHAT, { "player": my_ids[local_index], "text": text })
+	var id := id_of(local_index)
+	if id:
+		request(NetProtocol.Msg.CHAT, { "player": id, "text": text })
 
 
-func set_ready(on: bool) -> void:
-	request(NetProtocol.Msg.READY, { "ready": on })
+## This game's player `local_index` is ready (or not); -1: every one of them. Each player readies
+## on their own (docs/UI_FLOW.md §7.5).
+func set_ready(on: bool, local_index := -1) -> void:
+	for i in my_ids.size():
+		var id := id_of(i)
+		if id and (local_index < 0 or i == local_index):
+			request(NetProtocol.Msg.READY, { "player": id, "ready": on })
+
+
+## What this game's player `local_index` drives with and the assists they have on, for everyone's
+## roster, with their name and colour: `info` {device, assists, name, color}.
+func send_info(local_index: int, info: Dictionary) -> void:
+	var id := id_of(local_index)
+	if id:
+		request(NetProtocol.Msg.PLAYER_INFO, info.merged({ "player": id }, true))
 
 
 ## Picks the car at `path` for this game's player `local_index`, with their kart class (the
 ## server keeps it for kart sessions, D149).
 func pick_car(local_index: int, path: String) -> void:
-	if local_index >= my_ids.size():
+	var id := id_of(local_index)
+	if not id:
 		return
 	var m := PackageLoader.read_manifest(path)
 	if not ContentIndex.shareable(m):
@@ -230,7 +262,7 @@ func pick_car(local_index: int, path: String) -> void:
 	if content:
 		content.share_car(h) # the server fetches it from here
 	var profile := Players.slots[local_index].profile if local_index < Players.slots.size() else Settings.primary
-	request(NetProtocol.Msg.PICK, { "player": my_ids[local_index], "car": h, "bytes": NetContent.package_bytes(path),
+	request(NetProtocol.Msg.PICK, { "player": id, "car": h, "bytes": NetContent.package_bytes(path),
 		"car_name": String(m.get("name", path.get_file())).left(64), "family": String(m.get("family", "car")).left(16),
 		"class": String(profile.data.get("kart_class", "")).left(64) })
 
@@ -239,13 +271,17 @@ func admin(cmd: String, target := "") -> void:
 	request(NetProtocol.Msg.ADMIN, { "cmd": cmd, "target": target })
 
 
+## A local player joined in the lobby ({name, color}): they play too (LOC-05).
 func add_local(entry: Dictionary) -> void:
 	request(NetProtocol.Msg.ADD_LOCAL, entry)
 
 
+## This game's player `local_index` left; the server closes up the others' local indexes, as
+## Players does its slots.
 func remove_local(local_index: int) -> void:
-	if local_index < my_ids.size():
-		request(NetProtocol.Msg.REMOVE_LOCAL, { "player": my_ids[local_index] })
+	var id := id_of(local_index)
+	if id:
+		request(NetProtocol.Msg.REMOVE_LOCAL, { "player": id })
 
 
 func mute(id: int, on: bool) -> void:

@@ -91,7 +91,8 @@ func focus_next() -> void:
 	next_button.grab_focus()
 
 
-## Next: the class, else the players (hosting: the server, then its lobby).
+## Next: the class, else the players (hosting: the server, then its lobby; from the lobby, back
+## to it with this event).
 func go_on() -> void:
 	if not flow.ready_to_go():
 		return
@@ -100,6 +101,8 @@ func go_on() -> void:
 		open_class()
 	elif flow.context == "host":
 		status.text = flow.host()
+	elif flow.context == "change":
+		flow.start()
 	else:
 		open_players()
 

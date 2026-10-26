@@ -9,18 +9,13 @@ extends Control
 signal started
 signal closed
 
-## A card's content is laid out at this size, then scaled to fit; online cards are shorter
-## (no car), so their text comes out bigger.
+## A card's content is laid out at this size, then scaled to fit.
 const CARD_REF := Vector2(520, 1000)
-const CARD_REF_ONLINE := Vector2(520, 800)
 
 ## Seconds from everyone Ready to the start (tests set it near 0).
 static var countdown_s := 3.0
 
 var platform_id := ""
-## Before going online (LOC-05): who plays on this machine. Cars are picked in the lobby, and
-## any player's Done (or back on a card) returns to Drive Online.
-var online := false
 
 var _platform := {}
 ## Kart: the classes each player picks from (D149); [] otherwise.
@@ -42,7 +37,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_platform = PlatformLoader.load_official(platform_id).platform
 	var mode := GameModes.mode_for(platform_id)
-	if not GameModes.arcade(mode).is_empty() and not online:
+	if not GameModes.arcade(mode).is_empty():
 		kart_classes = GameModes.classes(mode).map(func(r: PlatformLoader.Result) -> Array: return [r.platform.id, String(r.platform.name)])
 	var bg := ColorRect.new()
 	bg.color = Color(0.05, 0.05, 0.06)
@@ -61,9 +56,8 @@ func _ready() -> void:
 	var title := UiKit.label("Players", 48)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
-	if not online:
-		head.add_child(UiKit.label(String(mode.get("name", "Kart")) if not kart_classes.is_empty() else String(_platform.get("name", "")), 34))
-	_join_text = ("Press any button to join, then Done." if online else "Press any button to join.") + " To share the keyboard, set a player's keyboard to one side."
+	head.add_child(UiKit.label(String(mode.get("name", "Kart")) if not kart_classes.is_empty() else String(_platform.get("name", "")), 34))
+	_join_text = "Press any button to join. To share the keyboard, set a player's keyboard to one side."
 	_hint = UiKit.label(_join_text, 24)
 	_hint.name = "Hint"
 	_hint.accessibility_live = AccessibilityServer.AccessibilityLiveMode.LIVE_POLITE
@@ -146,7 +140,7 @@ func _add_card(slot: PlayerSlot) -> void:
 	slot.ready = false
 	var v := PlayerView.new()
 	v.slot = slot
-	v.reference = _card_ref()
+	v.reference = CARD_REF
 	v.viewport.disable_3d = true
 	v.viewport.transparent_bg = true
 	v.set_listener(false)
@@ -177,7 +171,7 @@ func _refresh() -> void:
 
 ## Everyone ready: the countdown starts (it stops when someone isn't).
 func _check_start() -> void:
-	if online or Players.count() == 0 or not Players.slots.all(func(s: PlayerSlot) -> bool: return s.ready):
+	if Players.count() == 0 or not Players.slots.all(func(s: PlayerSlot) -> bool: return s.ready):
 		stop_countdown()
 		return
 	if _countdown >= 0.0:
@@ -225,10 +219,6 @@ func _start() -> void:
 	started.emit()
 
 
-func _card_ref() -> Vector2:
-	return CARD_REF_ONLINE if online else CARD_REF
-
-
 func compatible_cars() -> Array:
 	var out := []
 	for path in PackageLoader.list_available():
@@ -265,7 +255,7 @@ func open_settings(slot: PlayerSlot, access := false) -> void:
 	var back := func() -> void:
 		menu.queue_free()
 		_expanded = null
-		v.reference = _card_ref()
+		v.reference = CARD_REF
 		card.visible = true
 		_refresh()
 		card.focus_row("Access" if access else "Driving Settings")
@@ -342,14 +332,13 @@ class PlayerCard:
 			var p := Settings.new_profile() if id == "+new" else Settings.get_profile(id)
 			Players.set_profile(slot, p)))
 
-		if not menu.online: # online, cars are picked in the lobby
-			_add_car_row(list)
-			if not menu.kart_classes.is_empty():
-				var mine := String(slot.profile.data.get("kart_class", menu.platform_id))
-				if not menu.kart_classes.any(func(c: Array) -> bool: return c[0] == mine):
-					mine = menu.platform_id
-				_add(list, UiKit.spinner("Class", menu.kart_classes, mine, func(id: String) -> void:
-					slot.profile.set_value("kart_class", id), "Light pulls hardest, Heavy wins the bumps"))
+		_add_car_row(list)
+		if not menu.kart_classes.is_empty():
+			var mine := String(slot.profile.data.get("kart_class", menu.platform_id))
+			if not menu.kart_classes.any(func(c: Array) -> bool: return c[0] == mine):
+				mine = menu.platform_id
+			_add(list, UiKit.spinner("Class", menu.kart_classes, mine, func(id: String) -> void:
+				slot.profile.set_value("kart_class", id), "Light pulls hardest, Heavy wins the bumps"))
 
 		var zone := slot.keyboard_zone()
 		if zone:
@@ -369,14 +358,11 @@ class PlayerCard:
 			_status.text = "Press a button on it", "Wheel, pedals or a second controller"))
 		_add(list, UiKit.button("Access", func() -> void: menu.open_settings(slot, true), "Accessibility presets for this player"))
 		_add(list, UiKit.button("Driving Settings", func() -> void: menu.open_settings(slot), "Assists, comfort, HUD and controls"))
-		if menu.online:
-			_add(list, UiKit.button("Done", func() -> void: menu.closed.emit(), "Back to Online"))
-		else:
-			var ready_button := UiKit.button("Ready ✓" if slot.ready else "Ready", func() -> void:
-				slot.ready = not slot.ready
-				rebuild()
-				menu._check_start())
-			_add(list, ready_button)
+		var ready_button := UiKit.button("Ready ✓" if slot.ready else "Ready", func() -> void:
+			slot.ready = not slot.ready
+			rebuild()
+			menu._check_start())
+		_add(list, ready_button)
 		_add(list, UiKit.button("Leave", func() -> void: Players.leave(slot)))
 		_status = UiKit.label("Ready. Waiting for the others" if slot.ready else "", 22)
 		_status.accessibility_live = AccessibilityServer.AccessibilityLiveMode.LIVE_POLITE
@@ -421,8 +407,6 @@ class PlayerCard:
 		if Players.adding == slot:
 			Players.adding = null
 			_status.text = ""
-		elif menu.online: # back to Online; Leave is its own row
-			menu.closed.emit()
 		elif slot.ready:
 			slot.ready = false
 			rebuild()

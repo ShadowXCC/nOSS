@@ -4,7 +4,7 @@ extends MenuPage
 ## 1300 kg", named "Track GT" for screen readers; on the right P1's last car on a turntable,
 ## fitted to the class in focus, or the class's default car when it can't take that one. The fit
 ## waits until the focus has stayed put for FIT_DELAY. Confirm goes on to the players, or hosting,
-## starts the server (its lobby follows).
+## starts the server (its lobby follows), or from the lobby, goes back to it with the event.
 ##
 ## Without a flow (the Garage's Drive) it lists every class that takes `car`, shows that car, and
 ## reports the pick (`picked`).
@@ -115,6 +115,9 @@ func _pick(id: String) -> void:
 	flow.class_id = id
 	if flow.context == "host":
 		status.text = flow.host()
+		return
+	if flow.context == "change":
+		flow.start()
 		return
 	flow.remember()
 	open_over(flow.players_page())

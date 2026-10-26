@@ -47,6 +47,9 @@ var cup := ""
 ## Hosting: the server's options from the Host page (name, password, port, ...); its rotation is
 ## this event (server_config()).
 var server: ServerConfig
+## Changing the event ("change": the lobby's Change event, the Playlist's Add event): called with
+## this flow once it's set up, in place of a start.
+var done := Callable()
 
 
 static func make(type_id: String, variant_id := "", time_trial := false, where := "local") -> EventFlow:
@@ -89,13 +92,20 @@ func crumb() -> String:
 	return String(PLAIN.get(type, type.capitalize()))
 
 
+## Where the event pages of `where` start in a breadcrumb: "Local Drive", "Drive Online › Host",
+## "Drive Online › Lobby".
+static func crumbs_for(where: String) -> PackedStringArray:
+	match where:
+		"host":
+			return PackedStringArray(["Drive Online", "Host"])
+		"change":
+			return PackedStringArray(["Drive Online", "Lobby"])
+	return PackedStringArray(["Local Drive"])
+
+
 ## The crumbs of the page `page` ("Settings", "Class", "Players").
 func crumbs(page: String) -> PackedStringArray:
-	var out := PackedStringArray(["Local Drive"])
-	if context == "host":
-		out = PackedStringArray(["Drive Online", "Host"])
-	elif context == "change":
-		out = PackedStringArray(["Drive Online", "Lobby"])
+	var out := crumbs_for(context)
 	if type == "racing":
 		out.append("Racing")
 	elif type == "mini":
@@ -141,12 +151,17 @@ func next_hint() -> String:
 		return "Pick the class"
 	if context == "host":
 		return "Start the server and open the lobby"
+	if context == "change":
+		return "Back to the lobby with this event"
 	return "The players: each picks a car and a class" if class_rule(type, variant) == "card" else "The players: each picks a car"
 
 
-## The Settings page's Next: "Start hosting" when it hosts (no Class step), else "Next".
+## The Settings page's Next: with no Class step, "Start hosting" when it hosts and "Done" when it
+## changes the lobby's event; else "Next".
 func next_text() -> String:
-	return "Start hosting" if context == "host" and not has_class_step() else "Next"
+	if not has_class_step() and context in ["host", "change"]:
+		return "Start hosting" if context == "host" else "Done"
+	return "Next"
 
 
 ## Sumo, Drag and Endless make their own ground; the rest are on a track.
@@ -433,10 +448,16 @@ func session_event() -> RaceEvent:
 
 
 ## Starts the event for everyone who joined. Remembered first; Local Drive's is Drive again's too,
-## and Game.flow_return keeps it for the results' "Event menu". Hosting, it hosts (host()).
+## and Game.flow_return keeps it for the results' "Event menu". Hosting, it hosts (host()); changing
+## the lobby's event, `done` takes it.
 func start() -> void:
 	if context == "host":
 		host()
+		return
+	if context == "change":
+		remember()
+		if done.is_valid():
+			done.call(self)
 		return
 	remember()
 	var data := to_dict()
@@ -465,13 +486,19 @@ func host() -> String:
 	return ""
 
 
-## The server's config: the Host page's options, this event its one rotation item. Endless has no
-## track (its road comes from its seed); Sumo and Drag make their own ground, so any track will do.
+## The server's config: the Host page's options, this event its one rotation item.
 func server_config() -> ServerConfig:
 	var cfg := server if server else ServerConfig.defaults()
-	var where := ServerConfig.ENDLESS if type == "endless" else track if has_track() else ServerConfig.DEFAULT_TRACK
-	cfg.rotation = [{ "track": where, "class": class_id, "event": session_event().to_dict() }]
+	cfg.rotation = [rotation_item()]
 	return cfg
+
+
+## This event as a server runs it (a ServerConfig rotation item, the playlist's): {track, class,
+## event, name}. Endless has no track (its road comes from its seed); Sumo and Drag make their own
+## ground, so any track will do.
+func rotation_item() -> Dictionary:
+	var where := ServerConfig.ENDLESS if type == "endless" else track if has_track() else ServerConfig.DEFAULT_TRACK
+	return { "track": where, "class": class_id, "event": session_event().to_dict(), "name": name() }
 
 
 ## The Players screen for this event; everyone Ready starts it.

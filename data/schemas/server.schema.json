@@ -22,6 +22,7 @@
     "lan": { "description": "Answer LAN discovery.", "type": "boolean" },
     "upnp": { "description": "Ask the router to open the port.", "type": "boolean" },
     "state_rate": { "description": "Car states per second sent by clients; 0 = 60 on fast links, else 30.", "enum": [0, 30, 60] },
+    "countdown_s": { "description": "Seconds from everyone ready to the start.", "type": "number", "minimum": 0, "maximum": 60 },
     "rotation": {
       "description": "Events run in turn.",
       "type": "array",
@@ -85,7 +86,8 @@
           "maxLength": 256
         },
         "class": { "$ref": "#/$defs/platform_id" },
-        "event": { "$ref": "#/$defs/event" }
+        "event": { "$ref": "#/$defs/event" },
+        "name": { "description": "What the playlist calls it (\"Regular race\"); made from the event when missing.", "type": "string", "maxLength": 64 }
       }
     },
     "event": {
