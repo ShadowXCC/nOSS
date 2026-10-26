@@ -57,6 +57,10 @@ static func build(page: EventSettingsPage) -> void:
 			battle(page)
 		"free":
 			free_drive(page)
+	if flow.tt and flow.context != "local":
+		# Online a time trial is a timed session (docs/UI_FLOW.md §7.7).
+		page.add_row(UiKit.spinner("Minutes", minutes(EventFlow.TT_MINUTES, flow.event.tt_min), flow.event.tt_min,
+			func(v: int) -> void: flow.event.tt_min = v, "How long the session runs; the best laps win"))
 	for row in SkyRows.rows(flow.event):
 		page.add_row(row)
 
@@ -116,22 +120,21 @@ static func ai_rows(page: EventSettingsPage, label: String, most: int, descripti
 
 
 ## Kart (D144, D145): a race on any circuit (kart tracks first) or a cup, the AI karts, the items.
-## Hosting, a race only (cups online come in P10).
+## Hosting, a cup's races are the playlist (the server keeps the standings).
 static func kart(page: EventSettingsPage) -> void:
 	var flow := page.flow
 	var e := flow.event
 	if flow.tt:
 		page.add_row(track_row(page))
 		return
-	if flow.context == "local":
-		page.add_row(UiKit.spinner("Play", KART_PLAY, "cup" if flow.cup else "race", func(v: String) -> void:
-			if v == "cup":
-				var cups := CupRun.list()
-				flow.cup = String(page.stash.get("cup", cups[0].path if not cups.is_empty() else ""))
-			else:
-				page.stash.cup = flow.cup
-				flow.cup = ""
-			page.rebuild.call_deferred("Play"), "Race: one race. Cup: four races for points"))
+	page.add_row(UiKit.spinner("Play", KART_PLAY, "cup" if flow.cup else "race", func(v: String) -> void:
+		if v == "cup":
+			var cups := CupRun.list()
+			flow.cup = String(page.stash.get("cup", cups[0].path if not cups.is_empty() else ""))
+		else:
+			page.stash.cup = flow.cup
+			flow.cup = ""
+		page.rebuild.call_deferred("Play"), "Race: one race. Cup: four races for points"))
 	if flow.cup.is_empty():
 		page.add_row(track_row(page))
 		page.add_row(UiKit.spinner("Laps", numbers(1, 10), clampi(e.race_laps, 1, 10), func(v: int) -> void: e.race_laps = v))
@@ -310,8 +313,7 @@ static func _enter_code(page: EventSettingsPage, code: LineEdit) -> void:
 
 
 ## Highway (M7): the highway, what to do on it (Cruise, Score attack, Run, Loop), its traffic and
-## police, and which way round to start (named from the track), or for a run, which one. Hosting,
-## a cruise only (the others online come in P10).
+## police, and which way round to start (named from the track), or for a run, which one.
 static func highway(page: EventSettingsPage) -> void:
 	var flow := page.flow
 	var e := flow.event
@@ -323,12 +325,11 @@ static func highway(page: EventSettingsPage) -> void:
 	var layout: Variant = data.highway if data else null
 	if e.traffic < 0 and layout:
 		e.traffic = int(layout.settings.traffic.count)
-	if flow.context == "local":
-		page.add_row(UiKit.spinner("Mode", HIGHWAY_MODES, e.sub, func(v: String) -> void:
-			var was := e.sub
-			e.sub = v
-			if (v == "run") != (was == "run"):
-				page.rebuild.call_deferred("Mode"), "Cruise: no score. Score attack: near misses. Run: a sprint. Loop: lap times"))
+	page.add_row(UiKit.spinner("Mode", HIGHWAY_MODES, e.sub, func(v: String) -> void:
+		var was := e.sub
+		e.sub = v
+		if (v == "run") != (was == "run"):
+			page.rebuild.call_deferred("Mode"), "Cruise: no score. Score attack: near misses. Run: a sprint. Loop: lap times"))
 	var counts := HIGHWAY_TRAFFIC.duplicate()
 	if not counts.any(func(c: Array) -> bool: return c[0] == e.traffic):
 		counts.append([e.traffic, str(e.traffic)])

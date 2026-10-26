@@ -3,7 +3,7 @@ extends Node
 ## The game server's rules on top of NetServer (docs/NETWORKING.md §4–5, MP-06, MP-07): the
 ## lobby (players, their cars, devices, assists and pings, who's ready), the countdown once
 ## everyone is, chat and its commands, kicks and bans, and which event runs next (the config's
-## rotation: the host's playlist). A listen server's own players are peer 1: their requests come
+## rotation: the host's playlist; a kart cup's races in turn, with its standings kept here). A listen server's own players are peer 1: their requests come
 ## in through handle(), and everything sent to all clients also reaches this game's Net
 ## (`local_sink`), so the menus work the same when hosting and when joined.
 
@@ -67,6 +67,13 @@ var _ping_at := 0 # when the pings are measured next (ticks, ms)
 ## Where each player is on an endless road ({car id: [distance, time, speed]}, from EndlessNet), for
 ## joiners.
 var endless_at := {}
+## The kart cup being run (its standings, by player id and AI name), or null. It stays after its last
+## race, for the lobby, until another event starts.
+var cup: CupRun
+
+var _cup_ai: Array = [] # the cup's AI field, kept from its first race
+var _cup_ai_paths := {}
+var _cup_before := {} # the standings before the race now's results ({race, table, index}): a restart's go again
 
 
 func _init(p_server: NetServer) -> void:
@@ -241,7 +248,7 @@ func lobby_dict() -> Dictionary:
 		"name": config.name, "motd": config.motd, "state": state, "max": config.max_players, "starting": starting,
 		"track": track_info().hash, "track_id": track_info().id, "track_name": track_info().name, "track_bytes": track_info().bytes,
 		"class": platform_id(), "class_name": _class_name(platform_id()), "class_hash": platform_result().hash,
-		"event": event().to_dict(), "players": players,
+		"event": event().to_dict(), "players": players, "cup": cup_dict(),
 		"rules": { "own_sounds": config.caps.own_sounds, "custom_platforms": config.caps.custom_platforms,
 			"max_package_mb": config.caps.max_package_mb, "tuning": config.rules.tuning },
 	}
@@ -392,6 +399,7 @@ func start_session() -> void:
 	_ai = []
 	synced.clear()
 	state = "session"
+	_start_cup()
 	_highway = {}
 	if event().kind == "highway":
 		# The same traffic on every game: one seed, tick 0 at this moment on the server's clock.
@@ -473,6 +481,14 @@ func _ai_entries() -> Array:
 	var count := mini(e.ai_count, NetProtocol.MAX_PLAYERS - server.player_count())
 	if count <= 0:
 		return out
+	if cup and not _cup_ai.is_empty():
+		# A cup keeps its field from race to race: the same names, cars, paint and skill (D145).
+		_ai_paths = _cup_ai_paths.duplicate()
+		for d: Dictionary in _cup_ai.slice(0, count):
+			if content:
+				content.share_car(String(d.car))
+			out.append(d)
+		return out
 	var platform := platform_result()
 	var pool := []
 	for path in PackageLoader.list_available():
@@ -505,6 +521,9 @@ func _ai_entries() -> Array:
 			"paint": CarVisual.random_paint(PackageLoader.read_json(pick[0], "paint.json"), rng),
 		})
 		_ai_paths[NetProtocol.FIRST_AI_ID + i] = pick[0]
+	if cup:
+		_cup_ai = out.duplicate(true)
+		_cup_ai_paths = _ai_paths.duplicate()
 	return out
 
 
@@ -543,9 +562,19 @@ func next_event() -> void:
 ## Change event (docs/UI_FLOW.md §7.5): `item` ({track, class, event, name}) takes the place of
 ## the event that's up.
 func set_event(item: Dictionary) -> void:
-	var items := config.rotation.duplicate()
-	items[rotation_index] = item
-	set_rotation(items, rotation_index)
+	set_events([item])
+
+
+## Change event with several events (a kart cup's races): they take the place of the one up, the
+## first of them up.
+func set_events(items: Array) -> void:
+	if items.is_empty():
+		return
+	var all := config.rotation.duplicate()
+	all.remove_at(rotation_index)
+	for i in items.size():
+		all.insert(rotation_index + i, items[i])
+	set_rotation(all, rotation_index)
 
 
 ## The playlist: `items` ({track, class, event, name}) run one after another, `index` up now.
@@ -591,6 +620,55 @@ func _drop_misfits() -> void:
 			p.car_note = ""
 		if p.kart_class and not p.kart_class in karts:
 			p.kart_class = ""
+
+
+## The event up's place in a kart cup ({id, name, race, races}), or {}.
+func cup_item() -> Dictionary:
+	return config.cup_of(rotation_index)
+
+
+## A session starts: the cup it's a race of (a new one from its first race, or another cup's), or
+## none (any other event: the last cup's standings go).
+func _start_cup() -> void:
+	var item := cup_item()
+	if item.is_empty():
+		cup = null
+	elif cup == null or String(cup.cup.get("id", "")) != item.id or int(item.race) == 0 or cup.done():
+		cup = CupRun.start({ "id": item.id, "name": item.name, "races": range(int(item.races)) }, platform_id(), event())
+		_cup_ai = []
+		_cup_ai_paths = {}
+	_cup_before = {}
+
+
+## A session's results (the server's RaceControl rows, NetRace): a cup race's go into the cup's
+## standings, once a race (a restarted race's take the place of the first go's).
+func session_results(kind: String, rows: Array) -> void:
+	var item := cup_item()
+	if cup == null or kind != "race" or item.is_empty() or String(cup.cup.get("id", "")) != item.id:
+		return
+	if int(_cup_before.get("race", -1)) == int(item.race):
+		cup.table = (_cup_before.table as Dictionary).duplicate(true)
+		cup.index = int(_cup_before.index)
+	_cup_before = { "race": int(item.race), "table": cup.table.duplicate(true), "index": cup.index }
+	cup.add_results(rows)
+	_say("%s: after race %d of %d" % [cup.cup.name, cup.index, cup.races().size()] if not cup.done() else "%s: final" % cup.cup.name)
+	_dirty = true
+
+
+## The cup for the lobby ({} with none): the event up's place in its cup (`name`, `race` 1-based
+## and `races`; `race` 0 when it's no cup race) and the standings of the cup run last, in progress or
+## done (`cup` its name, `run` races run, `of`, `standings` [{name, points, wins}]).
+func cup_dict() -> Dictionary:
+	var item := cup_item()
+	if cup == null and item.is_empty():
+		return {}
+	var out := { "name": String(item.get("name", "")), "race": int(item.get("race", -1)) + 1, "races": int(item.get("races", 0)) }
+	if cup:
+		var rows := []
+		for t: Dictionary in cup.standings():
+			rows.append({ "name": String(t.name), "points": int(t.points), "wins": int(t.wins) })
+		out.merge({ "cup": String(cup.cup.name), "run": cup.index, "of": cup.races().size(), "standings": rows })
+	return out
 
 
 ## A line from the server to everyone.
@@ -685,14 +763,22 @@ func _on_joined(peer: int) -> void:
 	_say("%s joined" % ", ".join(names))
 	if config.motd:
 		_notice(peer, config.motd)
-	if state == "session" and event().kind not in ["race", "battle", "sumo"]: # joins the drive in progress
+	if state == "session" and takes_joiners(): # joins the drive in progress
 		for p in server.players_of(peer):
 			_in_session[p.id] = true
 		server.send(peer, NetProtocol.Msg.SESSION, session_dict())
 		_roster_changed(peer)
 	elif state == "session":
-		_notice(peer, "%s on: you're in the next one" % { "battle": "Battle", "sumo": "Sumo" }.get(event().kind, "Race"))
+		_notice(peer, "%s on: you're in the next one" % { "battle": "Battle", "sumo": "Sumo", "highway": "Run" }.get(event().kind, "Race"))
 	_dirty = true
+
+
+## Whether a session under way takes a newcomer: free drives, time trials, highways (not a run),
+## endless roads and drag ladders (drawn into the next round) do; a race, a battle, a sumo match
+## and a run don't (they wait in the lobby for the next).
+func takes_joiners() -> bool:
+	var e := event()
+	return e.kind not in ["race", "battle", "sumo"] and not (e.kind == "highway" and e.sub == "run")
 
 
 ## Everyone already in the session hears who's in it now.

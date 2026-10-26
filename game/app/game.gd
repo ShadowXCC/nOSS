@@ -515,6 +515,8 @@ func online_session(data: Dictionary) -> TrackSession:
 	session.platform_id = String(data["class"])
 	session.event = RaceEvent.from_dict(data.event)
 	session.autodrive = dev.has("autodrive")
+	if Net.host_logic and not Net.host_logic.cup_item().is_empty():
+		session.cup = Net.host_logic.cup # a cup's later races start in reverse order of its standings
 	return session
 
 

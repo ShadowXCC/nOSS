@@ -10,8 +10,8 @@ const MSG_STATE := 103
 const STATE_HZ := 10.0
 ## Session kinds on the wire, by index: a client drops a race state whose kind is not the one it
 ## began, so a kind missing here leaves that client's RaceControl stuck in LOADING for the whole
-## session. Appended to, never reordered (protocol 8 added sumo and drag).
-const KINDS := ["free", "time_trial", "practice", "qualifying", "race", "battle", "sumo", "drag"]
+## session. Appended to, never reordered (protocol 8 added sumo and drag, 14 a highway run).
+const KINDS := ["free", "time_trial", "practice", "qualifying", "race", "battle", "sumo", "drag", "run"]
 const FLAGS := ["", "green", "yellow", "blue", "checkered"]
 const HEADER := 32
 const CAR_SIZE := 21
@@ -96,6 +96,8 @@ func _on_begin(kind: String) -> void:
 
 
 func _on_end(kind: String, results: Array) -> void:
+	if Net.host_logic:
+		Net.host_logic.session_results(kind, results) # a kart cup's standings
 	var rows := []
 	for row: Dictionary in results:
 		var r: Racer = row.racer
@@ -240,7 +242,8 @@ func _apply_car(r: Racer, b: PackedByteArray, at: int) -> void:
 		r.forced_ghost = bad
 		r.set_ghost(bad or session.ghosted or r.waiting)
 		r.notify("Bad link: ghosted" if bad else "Link fine again", 3.0)
-	r.pace_limit = b[at + 2]
+	if not (own and race.kind == "run"): # a run's rolling start is its own game's (RunControl)
+		r.pace_limit = b[at + 2]
 	r.penalty_s = b[at + 13]
 	r.warnings = b[at + 14]
 	var finish := b.decode_float(at + 15)

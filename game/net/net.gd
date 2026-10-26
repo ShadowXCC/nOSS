@@ -22,7 +22,8 @@ signal session_ended
 signal race_message(type: int, data: Dictionary)
 ## The server's highway traffic as it is (HighwayNet, D109).
 signal traffic_full(data: Dictionary)
-## One of the server's boards for this session's track (D118): [{name, car, time or score}].
+## One of the server's boards for this session's track (D118): [{name, car, time or score}]; or a
+## time trial's live board ("live": each with its car id and laps, TimeTrialNet).
 signal board_received(board: String, entries: Array)
 ## Police news for one of this game's cars (D115): {id, kind (heat, busted, evaded), level, evading, text}.
 signal highway_event(data: Dictionary)
@@ -477,9 +478,10 @@ func _handle(type: int, data: Dictionary) -> void:
 					"text": NetChat.clean(String(data.text)) })
 		NetProtocol.Msg.BOARD:
 			if NetProtocol.has_fields(data, { "board": [TYPE_STRING, 160], "entries": [TYPE_ARRAY, Leaderboard.KEEP] }):
+				# A time trial's live board (TimeTrialNet) has each driver's car id and laps too.
 				var entries := (data.entries as Array).filter(func(e: Variant) -> bool: return e is Dictionary).map(func(e: Dictionary) -> Dictionary:
 					return { "name": NetProtocol.clean_name(String(e.get("name", ""))), "car": String(e.get("car", "")).left(64),
-						"time": float(e.get("time", 0.0)), "score": int(e.get("score", 0)) })
+						"time": float(e.get("time", 0.0)), "score": int(e.get("score", 0)), "id": int(e.get("id", 0)), "laps": int(e.get("laps", 0)) })
 				board_received.emit(String(data.board), entries)
 		NetProtocol.Msg.RACE_BEGIN, NetProtocol.Msg.RESULTS, NetProtocol.Msg.NOTE:
 			if type == NetProtocol.Msg.RACE_BEGIN:

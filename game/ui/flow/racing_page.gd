@@ -2,8 +2,8 @@ class_name RacingPage
 extends MenuPage
 ## Racing (docs/UI_FLOW.md §5.3): a Race | Time Trial switch over Regular, Stock Car, Kart and
 ## Custom. LB/RB (Q/E) flip it from anywhere on the page, left and right on the switch itself, and
-## the descriptions follow it. Each type goes on to its Settings page. Hosting there's no switch:
-## time trials online come in P10 (§7.2).
+## the descriptions follow it. Each type goes on to its Settings page. Hosting, the same: a time
+## trial online is a timed session (§7.7).
 
 ## [variant, button, race description, time trial description].
 const TYPES := [
@@ -12,9 +12,6 @@ const TYPES := [
 	["kart", "Kart", "Kart races and cups with items", "Kart laps against your ghost"],
 	["custom", "Custom", "Every setting, any class, saved presets", "Any class, any circuit, your ghost"],
 ]
-## Hosting, Kart is a race (cups online come in P10).
-const HOST_KART := "Kart races with items"
-
 ## The switch is on Time Trial.
 var tt := false
 ## "local", "host" or "change" (LocalDrivePage).
@@ -34,25 +31,24 @@ func _ready() -> void:
 	else:
 		crumbs = ["Local Drive", "Racing"]
 		back_hint = "Back to Local Drive"
-		prompts = [["tabs", "Race / Time Trial"]]
+	prompts = [["tabs", "Race / Time Trial"]]
 	steps = EventFlow.steps_for(context, "racing", "regular")
 	step = steps.find("Event")
 	super._ready()
 
 
 func _build() -> void:
-	if context == "local":
-		switch = TabRow.new(["Race", "Time Trial"])
-		switch.name = "Switch"
-		switch.current = 1 if tt else 0
-		switch.changed.connect(_on_switch)
-		add_header(switch)
+	switch = TabRow.new(["Race", "Time Trial"])
+	switch.name = "Switch"
+	switch.current = 1 if tt else 0
+	switch.changed.connect(_on_switch)
+	add_header(switch)
 	_fill()
 
 
 func _fill() -> void:
 	for t: Array in TYPES:
-		var b := UiKit.button(t[1], _pick.bind(String(t[0])), t[3] if tt else HOST_KART if context != "local" and t[0] == "kart" else t[2])
+		var b := UiKit.button(t[1], _pick.bind(String(t[0])), t[3] if tt else t[2])
 		b.name = String(t[1]).validate_node_name()
 		b.set_meta(&"variant", t[0])
 		add_row(b)

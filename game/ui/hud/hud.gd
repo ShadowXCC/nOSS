@@ -350,9 +350,11 @@ func _update_wear() -> void:
 	_wear.text = "  ".join(bits)
 
 
-## Position, gaps, standings, flag, lights and the live delta (race sessions).
+## Position, gaps, standings, flag, lights and the live delta (race sessions; an online time
+## trial's live board).
 func _update_race(delta := 0.0) -> void:
-	var racing := race != null and racer != null and race.kind in ["race", "practice", "qualifying"]
+	var board := _live_board()
+	var racing := race != null and racer != null and (race.kind in ["race", "practice", "qualifying"] or board != null)
 	_position.visible = racing and shows("position")
 	_gaps.visible = racing and race.kind == "race" and shows("position")
 	_standings.visible = racing and shows("standings")
@@ -374,6 +376,9 @@ func _update_race(delta := 0.0) -> void:
 	if not is_nan(live):
 		_delta_bar.delta = live
 	if not racing:
+		return
+	if board != null:
+		_show_board(board)
 		return
 	var order := race.standings()
 	var me := order.find(racer)
@@ -405,6 +410,33 @@ func _update_race(delta := 0.0) -> void:
 		_gaps.text = "   ".join(gaps)
 	else:
 		_gaps.text = ""
+
+
+## An online time trial's live board (TimeTrialNet), or null.
+func _live_board() -> TimeTrialNet:
+	var session := racer.session if racer else null
+	return session.time_trial_net if session and race and race.kind == "time_trial" else null
+
+
+## The live board as the standings: the top three and the cars round this one's place, each with
+## its best lap; "P2/5" once this car has a lap on it.
+func _show_board(board: TimeTrialNet) -> void:
+	var entries := board.entries
+	var me := board.place_of(racer.net_id) - 1
+	_position.text = "P%d/%d" % [me + 1, entries.size()] if me >= 0 else ""
+	_gaps.text = ""
+	var lines := PackedStringArray()
+	var last := -1
+	for i in entries.size():
+		if not (i < 3 or (me >= 0 and absi(i - me) <= 1)):
+			continue
+		if last >= 0 and i > last + 1:
+			lines.append("…")
+		var e: Dictionary = entries[i]
+		var who := String(e.get("name", ""))
+		lines.append("%s%d %s  %s" % ["» " if i == me else "", i + 1, who if who.length() <= 10 else who.substr(0, 10), format_time(float(e.get("time", 0.0)))])
+		last = i
+	_standings.text = "\n".join(lines)
 
 
 func _update_captions(delta: float) -> void:

@@ -1,7 +1,7 @@
 extends GdUnitTestSuite
 ## Drive Online (docs/UI_FLOW.md §7, MP-01, ACC-03): main menu -> Drive Online -> Host -> the
 ## event pages -> the lobby -> Leave by keyboard alone, every control named; Sumo, Drag, Stock Car,
-## Kart and Highway hosted through the pages; Join's recent servers and favourites, the password
+## a kart cup, a highway run and a time trial hosted through the pages; Join's recent servers and favourites, the password
 ## page for a locked server, the Official tab that's off; the lobby's event line. The lobby page
 ## itself has its own suite (lobby_page_test).
 
@@ -134,7 +134,8 @@ func test_host_a_race_by_keys() -> void:
 	await _key(KEY_ENTER)
 	await _frames(4)
 	var racing: RacingPage = _find(runner.scene(), "RacingPage")
-	assert_object(racing.switch).is_null() # time trials online come later
+	assert_object(racing.switch).is_not_null() # time trials host too (P10)
+	assert_bool(racing.tt).is_false()
 	assert_str(_focused(runner)).is_equal("Regular")
 	await _key(KEY_ENTER)
 	await _frames(4)
@@ -263,31 +264,84 @@ func test_hosting_stock_car() -> void:
 	assert_str((_find(runner.scene(), "LobbyPage") as LobbyPage).event_label.text).starts_with("Stock Car race, 10 laps")
 
 
-## Kart: a race only (no Play row: cups online come later), each kart's class on its card.
-## Highway: a cruise only (no Mode row).
-func test_hosting_kart_and_highway() -> void:
+## Kart: a race or a cup (P10). A cup's races are the playlist, each marked as the cup's; the
+## lobby names the race up ("Spark Cup, race 1 of 4"). Each kart's class is on its card.
+func test_hosting_a_kart_cup() -> void:
 	var runner := scene_runner(TITLE_SCENE)
 	await _open_online(runner)
 	var kart := await _settings(runner, "racing", "kart")
-	assert_object(kart.row_named("Play")).is_null()
+	assert_object(kart.row_named("Play")).is_not_null()
 	assert_object(kart.row_named("Laps")).is_not_null()
+	kart.flow.cup = "res://data/cups/spark_cup.cup.json"
+	kart.rebuild("Play")
+	await _frames(2)
+	assert_object(kart.row_named("Cup")).is_not_null()
+	assert_object(kart.row_named("Laps")).is_null()
 	assert_str(UiKit.text_of(kart.next_button)).is_equal("Start hosting")
 	kart.go_on()
 	await _frames(6)
+	assert_bool(Net.is_server()).is_true()
+	var rotation := Net.host_logic.config.rotation
+	assert_int(rotation.size()).is_equal(4)
+	for i in 4:
+		assert_dict(Net.host_logic.config.cup_of(i)).is_equal({ "id": "spark_cup", "name": "Spark Cup", "race": i, "races": 4 })
+		assert_str(String(rotation[i].name)).is_equal("Spark Cup, race %d of 4" % (i + 1))
+	assert_str(Net.host_logic.config.event(1).grid).is_equal("reverse") # later races: the standings reversed
 	assert_str(Net.host_logic.platform_id()).is_equal(EventFlow.KART)
-	assert_str((_find(runner.scene(), "LobbyPage") as LobbyPage).event_label.text).starts_with("Kart race, ")
-	Net.leave()
-	await _frames(4)
+	assert_str((_find(runner.scene(), "LobbyPage") as LobbyPage).event_label.text).starts_with("Spark Cup, race 1 of 4, 2 laps")
+
+
+## Highway: every mode (P10), each with its own rows: a run picks its run.
+func test_hosting_highway_modes() -> void:
+	var runner := scene_runner(TITLE_SCENE)
+	await _open_online(runner)
 	var highway := await _settings(runner, "highway")
-	assert_object(highway.row_named("Mode")).is_null()
+	assert_object(highway.row_named("Mode")).is_not_null()
 	assert_object(highway.row_named("Way round")).is_not_null()
+	highway.flow.event.sub = "run"
+	highway.rebuild("Mode")
+	await _frames(2)
+	assert_object(highway.row_named("Run")).is_not_null()
+	assert_object(highway.row_named("Way round")).is_null()
 	highway.go_on()
 	await _frames(3)
 	(_find(runner.scene(), "ClassPage") as ClassPage)._pick("official.highway.street")
 	await _frames(6)
 	assert_str(Net.host_logic.event().kind).is_equal("highway")
-	assert_str(Net.host_logic.event().sub).is_equal("cruise")
-	assert_str((_find(runner.scene(), "LobbyPage") as LobbyPage).event_label.text).starts_with("Highway cruise")
+	assert_str(Net.host_logic.event().sub).is_equal("run")
+	assert_array(Array(Net.host_logic.event().sessions())).contains_exactly(["run"])
+	assert_bool(Net.host_logic.takes_joiners()).is_false() # a run under way waits for the next
+	assert_str((_find(runner.scene(), "LobbyPage") as LobbyPage).event_label.text).starts_with("Highway run")
+
+
+## Time trials online (P10): the Race | Time Trial switch on the host's Racing page; the session is
+## timed (Minutes, 10 to start); the lobby says so.
+func test_hosting_a_time_trial() -> void:
+	var runner := scene_runner(TITLE_SCENE)
+	await _open_online(runner)
+	var online: DriveOnlinePage = _find(runner.scene(), "DriveOnlinePage")
+	var racing := online.open_host().open_event().open_racing()
+	await _frames(3)
+	assert_object(racing.switch).is_not_null()
+	racing.switch._pick(1, false) # as Q or E would
+	await _frames(2)
+	assert_bool(racing.tt).is_true()
+	racing._pick("regular")
+	await _frames(3)
+	var settings: EventSettingsPage = _find(runner.scene(), "EventSettingsPage")
+	assert_array(Array(settings.crumbs)).contains_exactly(["Drive Online", "Host", "Racing", "Regular Time Trial", "Settings"])
+	var minutes := settings.row_named("Minutes")
+	assert_object(minutes).is_not_null()
+	assert_str(UiKit.text_of(minutes)).contains("10 min")
+	settings.go_on()
+	await _frames(3)
+	(_find(runner.scene(), "ClassPage") as ClassPage)._pick("official.track.gt")
+	await _frames(6)
+	assert_bool(Net.is_server()).is_true()
+	assert_str(Net.host_logic.event().kind).is_equal("time_trial")
+	assert_int(Net.host_logic.event().tt_min).is_equal(10)
+	assert_bool(Net.host_logic.takes_joiners()).is_true() # drop in to hot-lap
+	assert_str((_find(runner.scene(), "LobbyPage") as LobbyPage).event_label.text).starts_with("Time trial, 10 min")
 
 
 ## Hosting lists only tracks that can go online; Free Drive there has no AI rows.
@@ -462,3 +516,17 @@ func test_lobby_event_text() -> void:
 	assert_str(LobbyPage.event_text(RaceEvent.sumo(), EventFlow.SUMO)).is_equal("Sumo Wrestling")
 	assert_str(LobbyPage.event_text(RaceEvent.free_drive(), "official.track.gt")).is_equal("Free Drive")
 	assert_str(LobbyPage.event_text(RaceEvent.endless(), "official.endless.cruiser")).is_empty()
+	var tt := RaceEvent.time_trial()
+	tt.tt_min = 15
+	assert_str(LobbyPage.event_text(tt, "official.track.gt")).is_equal("Time trial, 15 min")
+	assert_str(LobbyPage.event_text(tt, "official.kart.light")).is_equal("Kart time trial, 15 min")
+	assert_str(LobbyPage.event_text(RaceEvent.highway("score"), "official.highway.street")).is_equal("Highway score attack")
+	# A kart cup's race, and its standings so far, then once it's over.
+	var cup := { "name": "Spark Cup", "race": 2, "races": 4, "cup": "Spark Cup", "run": 1, "of": 4,
+		"standings": [{ "name": "Ana", "points": 15, "wins": 1 }, { "name": "Bo", "points": 12, "wins": 0 }] }
+	race.race_laps = 3
+	assert_str(LobbyPage.cup_race_text(cup, race)).is_equal("Spark Cup, race 2 of 4, 3 laps")
+	assert_str(LobbyPage.standings_text(cup)).is_equal("After race 1 of 4: Ana 15, Bo 12")
+	cup.run = 4
+	assert_str(LobbyPage.standings_text(cup)).is_equal("Spark Cup final: 1st Ana 15, 2nd Bo 12")
+	assert_str(LobbyPage.standings_text({})).is_empty()

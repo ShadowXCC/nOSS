@@ -143,13 +143,22 @@ func platform(i: int) -> PlatformLoader.Result:
 	return PlatformLoader.load_file(PlatformLoader.USER_DIR + id + PlatformLoader.SUFFIX)
 
 
-## Rotation item `i`'s event (online: free drive, a race weekend, a highway, a kart battle, an
-## endless road, a sumo match or a drag strip).
+## Rotation item `i`'s event (online: free drive, a race weekend, a time trial, a highway, a kart
+## battle, an endless road, a sumo match or a drag strip).
 func event(i: int) -> RaceEvent:
 	var e := RaceEvent.from_dict(rotation[i].get("event", {}))
-	if e.kind not in ["free", "race", "highway", "battle", "endless", "sumo", "drag"]:
+	if e.kind not in ["free", "race", "time_trial", "highway", "battle", "endless", "sumo", "drag"]:
 		e.kind = "free"
 	return e
+
+
+## Rotation item `i`'s place in a kart cup ({id, name, race, races}: the cup's races run in turn,
+## the server keeping the standings), or {} for an event on its own.
+func cup_of(i: int) -> Dictionary:
+	var c: Variant = rotation[i].get("cup") if i >= 0 and i < rotation.size() else null
+	if not (c is Dictionary and NetProtocol.has_fields(c, { "id": [TYPE_STRING, 64], "name": [TYPE_STRING, 64], "race": TYPE_FLOAT, "races": TYPE_FLOAT })):
+		return {}
+	return { "id": String(c.id), "name": String(c.name), "race": clampi(int(c.race), 0, 15), "races": clampi(int(c.races), 1, 16) }
 
 
 func is_banned(fingerprint: String) -> bool:

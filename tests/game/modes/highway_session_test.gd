@@ -330,6 +330,49 @@ func test_a_run_rolls_up_starts_at_the_line_and_finishes() -> void:
 	assert_float(float(rows[0].time)).is_between(20.0, 120.0)
 	var board := Leaderboard.entries(s.track.record_key(), "official.highway.street|run:south_sprint")
 	assert_int(board.size()).is_greater(0)
+	# The run is the event's session (P10): its results are the session's, as online.
+	assert_str(s.race.kind).is_equal("run")
+	assert_int(s.race.phase).is_equal(RaceControl.Phase.DONE)
+	assert_int(s.race.results.size()).is_equal(1)
+	assert_float(float(s.race.results[0].time)).is_equal_approx(float(rows[0].time), 0.001)
+	assert_str(run.status_text(p)).is_equal("Run " + Hud.format_time(float(rows[0].time)))
+	# Restart lines everyone up again.
+	s.race.restart_session()
+	for i in 5:
+		await get_tree().physics_frame
+	assert_bool(run.state.has(p)).is_true()
+	assert_float(run.progress(p)).is_less(0.0)
+	s.queue_free()
+	await get_tree().process_frame
+
+
+## Online every game lines up only the cars it drives, each on its spot by the grid, so the spots
+## agree; a car another game drives counts only once it's been seen behind the line (it may still
+## be on its way to its spot when the run begins).
+func test_a_run_lines_up_by_the_grid_and_waits_for_cars_on_their_way() -> void:
+	Players.clear()
+	var s := TrackSession.new()
+	s.track_path = FIXTURE
+	s.platform_id = "official.highway.street"
+	s.event = RaceEvent.highway("run", false, 0)
+	s.event.run = "north_sprint"
+	s.traffic_seed = 3
+	add_child(s)
+	await _wait_for_car(s)
+	await _ticks(10)
+	var run := s.run
+	assert_float(run.spot_for(0).origin.distance_to(run.spot_for(run.layout.lanes).origin)).is_between(RunControl.ROW_M - 1.0, RunControl.ROW_M + 1.0)
+	var p := s.players[0]
+	assert_float(p.vehicle.global_position.distance_to(run.spot_for(0).origin)).is_less(15.0)
+	assert_str(run.status_text(p)).is_equal("Rolling")
+	# A car over the line that was never seen behind it hasn't started.
+	run.state[p].lined = false
+	p.distance = fposmod(float(run.run.from_m) + int(run.run.dir) * 5.0, run.layout.main.length)
+	run._physics_process(0.016)
+	assert_float(float(run.state[p].started)).is_less(0.0)
+	run.state[p].lined = true
+	run._physics_process(0.016)
+	assert_float(float(run.state[p].started)).is_greater_equal(0.0)
 	s.queue_free()
 	await get_tree().process_frame
 

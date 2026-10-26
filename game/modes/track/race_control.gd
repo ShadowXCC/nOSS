@@ -1,7 +1,7 @@
 class_name RaceControl
 extends Node
-## Runs a track event's sessions (docs/GAMEMODES.md §1, MODE-02): free drive, time trial,
-## practice, qualifying and the race. For a race it forms the grid (from qualifying, reversed or
+## Runs a track event's sessions (docs/GAMEMODES.md §1, MODE-02): free drive, time trial (timed
+## online, docs/UI_FLOW.md §7.7), practice, qualifying and the race, and a highway run's results. For a race it forms the grid (from qualifying, reversed or
 ## random), counts down with five lights or leads a rolling start, keeps the race clock and the
 ## standings, shows flags, rules on track limits, and brings everyone home after the checkered
 ## flag. When a session ends it hands its results to the session to show. Online, an event's
@@ -40,7 +40,8 @@ const PENALTY_S := { "lenient": 2.0, "strict": 5.0 }
 
 var session: TrackSession
 var event: RaceEvent
-## The current session: "free", "time_trial", "practice", "qualifying", "race" or "battle".
+## The current session: "free", "time_trial", "practice", "qualifying", "race", "battle", "sumo",
+## "drag" or "run" (a highway run: RunControl lines the cars up and times them).
 var kind := "free"
 var index := 0
 var phase := Phase.LOADING
@@ -141,6 +142,15 @@ func session_text(r: Racer) -> String:
 		"practice", "qualifying":
 			var left := maxf((event.practice_min if kind == "practice" else event.qualifying_min) * 60.0 - clock, 0.0)
 			return "%s  %s" % ["Practice" if kind == "practice" else "Qualifying", _clock_text(left)]
+		"time_trial":
+			# A timed session (online, the host's minutes): what's left of it.
+			if not timed():
+				return ""
+			if phase in [Phase.LOADING, Phase.COUNTDOWN]:
+				return "Ready"
+			return "Time trial  " + _clock_text(maxf(event.tt_min * 60.0 - clock, 0.0))
+		"run":
+			return session.run.status_text(r) if session.run else ""
 		"battle":
 			if phase in [Phase.LOADING, Phase.COUNTDOWN]:
 				return "Ready"
@@ -168,7 +178,7 @@ func begin_mirror(session_kind: String, session_index: int, grid_ids: Array) -> 
 func begin(session_kind: String) -> void:
 	kind = session_kind
 	go_at = -1.0
-	light_count = 0 if kind == "drag" else LIGHTS if kind == "race" else SHORT_LIGHTS
+	light_count = 0 if kind in ["drag", "run"] else LIGHTS if kind == "race" else SHORT_LIGHTS
 	_loading_time = 0.0
 	clock = 0.0
 	lights = 0
@@ -185,7 +195,7 @@ func begin(session_kind: String) -> void:
 		r.dnf = false
 		_laps[r] = 0
 		r.held = false
-	var fixed := kind in ["race", "battle", "sumo", "drag"]
+	var fixed := kind in ["race", "battle", "sumo", "drag", "run"]
 	session.hotswap_allowed = not fixed and session.hotswap_rule != "never" or session.hotswap_rule == "always"
 	Players.joining = not session.solo and not fixed and not session.is_online()
 	match kind:
@@ -208,6 +218,10 @@ func begin(session_kind: String) -> void:
 				if not order[i].is_human:
 					_release[order[i]] = RELEASE_GAP_S * i
 					order[i].held = true
+		"run":
+			# The run lines the cars up and rolls them to its start itself (RunControl), once this
+			# session runs.
+			phase = Phase.LOADING
 		_:
 			phase = Phase.RUNNING
 	if _syncs():
@@ -365,7 +379,7 @@ func _physics_process(delta: float) -> void:
 			_release_cars()
 			if kind == "race":
 				_check_finish()
-			elif kind in ["practice", "qualifying"]:
+			elif kind in ["practice", "qualifying"] or timed():
 				_check_time_up()
 	_flag_time -= delta
 	if _flag_time <= 0.0:
@@ -447,10 +461,15 @@ func _check_finish() -> void:
 			end_session()
 
 
-## Practice and qualifying: when time's up, each car finishes the lap it's on (it may still set
-## a time); the session ends once all are in, or after LAP_IN_S.
+## A time trial with an end (online: the host's minutes).
+func timed() -> bool:
+	return kind == "time_trial" and event.tt_min > 0
+
+
+## Practice, qualifying and a timed time trial: when time's up, each car finishes the lap it's on
+## (it may still set a time); the session ends once all are in, or after LAP_IN_S.
 func _check_time_up() -> void:
-	var limit := (event.practice_min if kind == "practice" else event.qualifying_min) * 60.0
+	var limit := float(event.tt_min if kind == "time_trial" else event.practice_min if kind == "practice" else event.qualifying_min) * 60.0
 	if clock < limit:
 		return
 	if phase == Phase.RUNNING:
@@ -524,6 +543,10 @@ func end_session() -> void:
 			row.merge(session.sumo.row(r))
 		if session.drag:
 			row.merge(session.drag.row(r))
+		if session.run and kind == "run":
+			row.merge(session.run.row(r))
+			results.append(row)
+			continue
 		if kind == "race":
 			if r.dnf:
 				row.gap = "DNF"
@@ -633,7 +656,7 @@ func gap_seconds(r: Racer, ahead: Racer) -> float:
 
 
 func _update_flags() -> void:
-	if kind in ["free", "time_trial", "battle", "sumo", "drag"]:
+	if kind in ["free", "time_trial", "battle", "sumo", "drag", "run"]:
 		for r in session.racers:
 			r.flag = ""
 		return

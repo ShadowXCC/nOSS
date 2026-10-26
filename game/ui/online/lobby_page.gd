@@ -26,6 +26,8 @@ const DEVICE_WORDS := { "keyboard": "keyboard", "xbox": "controller", "playstati
 const DEVICE_GLYPHS := { "keyboard": "arrows", "xbox": "left_stick", "playstation": "left_stick" }
 
 var event_label: Label
+## A kart cup's standings ("After race 2 of 4: Ana 27, Bo 22"), with a cup on.
+var cup_label: Label
 var host_label: Label
 var status: Label
 var chat: ChatPanel
@@ -124,6 +126,9 @@ func _exit_tree() -> void:
 func _build() -> void:
 	event_label = add_text("")
 	event_label.name = "Event"
+	cup_label = add_text("")
+	cup_label.name = "Cup"
+	cup_label.visible = false
 	host_label = add_text("")
 	host_label.name = "HostInfo"
 	host_label.visible = Net.is_server()
@@ -245,11 +250,14 @@ func _refresh() -> void:
 	_show_steps()
 	refresh_header()
 	var e := RaceEvent.from_dict(lobby.get("event", {}))
-	var about := PackedStringArray([event_text(e, String(lobby.get("class", "")))])
+	var cup: Dictionary = lobby.get("cup", {}) if lobby.get("cup") is Dictionary else {}
+	var about := PackedStringArray([cup_race_text(cup, e) if int(cup.get("race", 0)) > 0 else event_text(e, String(lobby.get("class", "")))])
 	if e.kind not in ["sumo", "drag"]: # their ground is made from the settings: no track
 		about.append(String(lobby.get("track_name", "")))
 	about.append_array([String(lobby.get("class_name", "")), "%d/%d players" % [Net.roster.size(), lobby.get("max", 16)]])
 	event_label.text = "   ".join(Array(about).filter(func(b: String) -> bool: return not b.is_empty()))
+	cup_label.text = standings_text(cup)
+	cup_label.visible = not cup_label.text.is_empty()
 	if String(lobby.get("class", "")) != _picked_class:
 		_picked_class = String(lobby.get("class", ""))
 		_picked.clear() # another class: each player's car again, and a kart lobby's Class rows
@@ -284,6 +292,9 @@ static func event_text(e: RaceEvent, class_id: String) -> String:
 		"race":
 			var what := "Kart race" if not GameModes.kart_classes(class_id).is_empty() else "Stock Car race" if class_id == EventFlow.STOCK_CAR else "Race"
 			return "%s, %s" % [what, e.race_length_text()]
+		"time_trial":
+			var what := "Kart time trial" if not GameModes.kart_classes(class_id).is_empty() else "Time trial"
+			return "%s, %d min" % [what, e.tt_min] if e.tt_min > 0 else what
 		"battle":
 			return "Kart Battle, " + ("most hits" if e.battle_rule == "hits" else "last one standing")
 		"highway":
@@ -301,6 +312,28 @@ static func event_text(e: RaceEvent, class_id: String) -> String:
 				if l[0] == length:
 					return "Drag Strip, " + String(l[1] if Settings.units == "imperial" else l[2])
 	return "Free Drive"
+
+
+## A kart cup's race (NetHost.cup_dict): "Spark Cup, race 2 of 4, 3 laps".
+static func cup_race_text(cup: Dictionary, e: RaceEvent) -> String:
+	return "%s, race %d of %d, %s" % [String(cup.get("name", "Cup")), int(cup.race), int(cup.get("races", 4)), e.race_length_text()]
+
+
+## The cup's standings so far: "After race 2 of 4: Ana 27, Bo 22, Cy 18" (the top five), or once
+## it's over "Spark Cup final: 1st Ana 45, 2nd Bo 40, 3rd Cy 30"; "" with none.
+static func standings_text(cup: Dictionary) -> String:
+	var rows: Array = cup.get("standings", []) if cup.get("standings") is Array else []
+	if rows.is_empty():
+		return ""
+	var bits := PackedStringArray()
+	var final := int(cup.get("run", 0)) >= int(cup.get("of", 4))
+	for i in mini(3 if final else 5, rows.size()):
+		var t: Dictionary = rows[i] if rows[i] is Dictionary else {}
+		var who := "%s %d" % [String(t.get("name", "?")), int(t.get("points", 0))]
+		bits.append("%s %s" % [["1st", "2nd", "3rd"][i], who] if final else who)
+	if final:
+		return "%s final: %s" % [String(cup.get("cup", "Cup")), ", ".join(bits)]
+	return "After race %d of %d: %s" % [int(cup.get("run", 0)), int(cup.get("of", 4)), ", ".join(bits)]
 
 
 # --- The roster ---
@@ -900,7 +933,7 @@ func change_event() -> LocalDrivePage:
 	page.context = "change"
 	page.done = func(flow: EventFlow) -> void:
 		if Net.host_logic:
-			Net.host_logic.set_event(flow.rotation_item())
+			Net.host_logic.set_events(flow.rotation_items()) # a cup: its races
 		close_over(page)
 	open_over(page)
 	return page

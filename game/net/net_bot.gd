@@ -12,7 +12,8 @@ extends Node
 ## reports its items (D141): uses, hits on its cars, the server's corrections and how far its
 ## items were from the server's (p95). On an endless road (D159) it reports how far it drove, its
 ## origin's moves, where it started against the leader, the traffic cars it drove and showed from
-## other games, and how long another player was near.
+## other games, and how long another player was near. In a time trial (P10) it reports the most
+## drivers it saw on the server's live board and whether its own car was ever on it.
 
 const CONTACT_IMPULSE := 150.0 # N·s in one tick counts as contact (as race_check)
 
@@ -48,6 +49,7 @@ var _siren_proxies := 0
 var _owned_traffic_max := 0
 var _near_s := 0
 var _kart_hooked: KartItems
+var _tt := {}
 
 
 func _ready() -> void:
@@ -87,6 +89,7 @@ func _physics_process(delta: float) -> void:
 		_traffic_sample(session)
 		_kart_sample(session)
 		_endless_sample(session)
+		_tt_sample(session)
 	for id: int in session.net.owned:
 		var r: Racer = session.net.owned[id]
 		var v := r.vehicle
@@ -160,6 +163,17 @@ func _endless_sample(session: TrackSession) -> void:
 		"shifts": session.origin.shifts, "owned_max": _owned_traffic_max, "proxies_max": _proxies_max, "handovers": en.handovers,
 		"gone": t.gone.size() if t else 0, "near_s": _near_s, "pursuits": session.police.pursuits if session.police else 0,
 		"siren_proxies": _siren_proxies }
+
+
+## Once a second: a time trial's live board (TimeTrialNet), as the server sent it.
+func _tt_sample(session: TrackSession) -> void:
+	var tn := session.time_trial_net
+	if tn == null:
+		return
+	var on := bool(_tt.get("on_board", false))
+	for id: int in session.net.owned:
+		on = on or tn.place_of(id) > 0
+	_tt = { "board_max": maxi(int(_tt.get("board_max", 0)), tn.entries.size()), "on_board": on }
 
 
 ## Once a second: the kart items' counters.
@@ -245,7 +259,7 @@ func _exit_tree() -> void:
 		"err_p95": e[int(e.size() * 0.95)] if not e.is_empty() else 0.0, "err_max": e.back() if not e.is_empty() else 0.0,
 		"contacts": _contacts, "remote_cars": _remote_cars, "throttle_min": _throttle_min,
 		"rtt_ms": Net.client.rtt_ms() if Net.client else 0.0,
-		"cars": _cars, "preview_s": _preview_s, "full_s": _full_s, "traffic": _traffic, "kart": _kart, "endless": _endless,
+		"cars": _cars, "preview_s": _preview_s, "full_s": _full_s, "traffic": _traffic, "kart": _kart, "endless": _endless, "tt": _tt,
 	}))
 
 

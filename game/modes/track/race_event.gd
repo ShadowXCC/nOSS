@@ -18,6 +18,8 @@ var run := ""
 var direction := 1
 ## Minutes; 0 = no such session.
 var practice_min := 0
+## A time trial's minutes (online, the host's: a timed session, docs/UI_FLOW.md §7.7); 0 = no end.
+var tt_min := 0
 var qualifying_min := 0
 ## Race length: laps, or minutes when race_min > 0.
 var race_laps := 5
@@ -113,7 +115,7 @@ const CHOICES := {
 }
 ## Time rates offered in menus (game minutes per real minute).
 const TIME_RATES := [0, 1, 10, 30, 60, 120]
-const KEYS := ["kind", "practice_min", "qualifying_min", "race_laps", "race_min", "ai_count", "ai_skill",
+const KEYS := ["kind", "practice_min", "qualifying_min", "tt_min", "race_laps", "race_min", "ai_count", "ai_skill",
 	"start", "grid", "collisions", "track_limits", "ai_cars", "draft", "fuel_x", "tyre_x", "sub", "police", "traffic", "run", "direction",
 	"items", "battle_rule", "battle_min", "battle_hits",
 	"sumo_tiers", "sumo_hazard", "sumo_shrink", "sumo_secs", "sumo_pillar", "sumo_drift",
@@ -125,6 +127,10 @@ const KEYS := ["kind", "practice_min", "qualifying_min", "race_laps", "race_min"
 const HIGHWAY_KEYS := ["sub", "police", "traffic", "run", "direction"]
 ## Written only for circuit events (free drive, time trial, race weekends).
 const TRACK_KEYS := ["draft", "fuel_x", "tyre_x"]
+## Written only for time trials.
+const TT_KEYS := ["tt_min"]
+## A time trial's minutes at most.
+const TT_MAX := 60
 ## Fuel and tire multipliers at most.
 const WEAR_X_MAX := 10
 ## Written only for battles, or with items off.
@@ -212,8 +218,10 @@ static func highway(sub_mode := "cruise", with_police := false, traffic_cars := 
 
 
 ## The sessions in order: "free", "time_trial", or "practice", "qualifying", "race". A highway
-## event is one free session (its own rules run beside it).
+## event is one free session (its own rules run beside it), a run one "run" session (RunControl).
 func sessions() -> PackedStringArray:
+	if kind == "highway" and sub == "run":
+		return PackedStringArray(["run"])
 	if kind == "highway" or kind == "endless":
 		return PackedStringArray(["free"])
 	if kind == "battle":
@@ -248,6 +256,8 @@ func to_dict() -> Dictionary:
 			continue
 		if key in TRACK_KEYS and kind not in ["free", "race", "time_trial"]:
 			continue
+		if key in TT_KEYS and kind != "time_trial":
+			continue
 		d[key] = get(key)
 	return d
 
@@ -263,6 +273,7 @@ static func from_dict(d: Dictionary) -> RaceEvent:
 	e.race_laps = clampi(e.race_laps, 1, 99)
 	e.practice_min = clampi(e.practice_min, 0, 120)
 	e.qualifying_min = clampi(e.qualifying_min, 0, 120)
+	e.tt_min = clampi(e.tt_min, 0, TT_MAX)
 	e.race_min = clampi(e.race_min, 0, 240)
 	e.traffic = clampi(e.traffic, -1, TRAFFIC_MAX)
 	e.direction = clampi(e.direction, -1, 1)

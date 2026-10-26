@@ -24,9 +24,12 @@ func _ready() -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	if session.run and session.run.state.is_empty() and not session.players.is_empty() \
-			and session.players.all(func(p: SessionPlayer) -> bool: return p.vehicle != null) \
-			and session.race.phase == RaceControl.Phase.RUNNING: # online, after the start's hold (D127)
+	# A run lines up once its session runs (online, after the start's hold, D127) with every car
+	# here; the dedicated server has no players of its own, only everyone else's.
+	if session.run and session.run.state.is_empty() and session.run.phase != RunControl.Phase.DONE \
+			and session.race.kind == "run" and session.race.phase == RaceControl.Phase.RUNNING \
+			and session.racers.any(RunControl.drives) \
+			and session.racers.all(func(r: Racer) -> bool: return r.vehicle != null or not RunControl.drives(r)):
 		session.run.begin() # everyone's here: line up
 	for r in session.racers:
 		var timed_here := r is SessionPlayer or (Net.is_server() and r is NetRacer and r.is_human)

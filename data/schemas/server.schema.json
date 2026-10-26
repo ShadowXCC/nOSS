@@ -87,15 +87,28 @@
         },
         "class": { "$ref": "#/$defs/platform_id" },
         "event": { "$ref": "#/$defs/event" },
-        "name": { "description": "What the playlist calls it (\"Regular race\"); made from the event when missing.", "type": "string", "maxLength": 64 }
+        "name": { "description": "What the playlist calls it (\"Regular race\"); made from the event when missing.", "type": "string", "maxLength": 64 },
+        "cup": {
+          "description": "A kart cup's race (its races run in turn, the server keeping the standings): the cup's id and name, this race's index and how many there are.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "name", "race", "races"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+            "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+            "race": { "type": "integer", "minimum": 0, "maximum": 15 },
+            "races": { "type": "integer", "minimum": 1, "maximum": 16 }
+          }
+        }
       }
     },
     "event": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "kind": { "description": "battle: a kart class on an arena (D144); endless: a road made from road_seed (D159); sumo: shrinking platforms made from the sumo_* settings (D162); drag: a strip made from the drag_* settings (D168).", "enum": ["free", "race", "highway", "battle", "endless", "sumo", "drag"] },
+        "kind": { "description": "time_trial: a timed session of hot laps, ghosted (tt_min); battle: a kart class on an arena (D144); endless: a road made from road_seed (D159); sumo: shrinking platforms made from the sumo_* settings (D162); drag: a strip made from the drag_* settings (D168).", "enum": ["free", "race", "time_trial", "highway", "battle", "endless", "sumo", "drag"] },
         "practice_min": { "type": "integer", "minimum": 0, "maximum": 120 },
+        "tt_min": { "description": "Time trials: the session's minutes (0: no end).", "type": "integer", "minimum": 0, "maximum": 60 },
         "qualifying_min": { "type": "integer", "minimum": 0, "maximum": 120 },
         "race_laps": { "type": "integer", "minimum": 1, "maximum": 99 },
         "race_min": { "type": "integer", "minimum": 0, "maximum": 240 },

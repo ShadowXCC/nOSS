@@ -2,7 +2,8 @@ class_name PlaylistPage
 extends MenuPage
 ## The host's playlist (docs/UI_FLOW.md §7.5): events run one after another, moving on after each
 ## session (NetHost). Pick one, then Remove, Move up or Move down it; Add event runs the event pages
-## (the "change" context) and puts the new one at the end. The one up now is marked.
+## (the "change" context) and puts the new one at the end (a kart cup: its races). The one up now
+## is marked.
 
 var host: NetHost
 ## The event picked (an index into the rotation).
@@ -131,8 +132,8 @@ func add_event() -> LocalDrivePage:
 		else:
 			page.closed.emit()
 		var items := host.config.rotation.duplicate()
-		items.append(flow.rotation_item())
-		selected = items.size() - 1
+		selected = items.size()
+		items.append_array(flow.rotation_items()) # a cup: its races
 		_apply(items, host.rotation_index)
 		_show()
 	open_over(page)

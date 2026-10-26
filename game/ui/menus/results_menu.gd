@@ -14,7 +14,7 @@ signal to_event_menu
 ## Online host: back to the lobby.
 signal to_lobby
 
-## "race", "qualifying", "practice", "battle", "sumo" or "drag".
+## "race", "qualifying", "practice", "time_trial", "battle", "sumo", "drag" or "run" (a highway run).
 var kind := "race"
 ## RaceControl.results rows.
 var results: Array = []
@@ -37,12 +37,13 @@ const ASSIST_NAMES := { "abs": "ABS", "tcs": "TCS", "stability": "SC", "auto_gea
 func _ready() -> void:
 	theme = UiKit.theme()
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	var title: String = { "race": "Race results", "qualifying": "Qualifying", "practice": "Practice", "battle": "Battle results", "sumo": "Sumo results", "drag": "Drag results" }.get(kind, "Results")
+	var title: String = { "race": "Race results", "qualifying": "Qualifying", "practice": "Practice", "time_trial": "Time trial", "battle": "Battle results",
+		"sumo": "Sumo results", "drag": "Drag results", "run": "Run results" }.get(kind, "Results")
 	var list := UiKit.panel(self, title, 1500)
 	var head := _line(["Pos", "Driver", "Car", "Lives", "Hits", "Taken", "", "Assists"] if kind == "battle" else
 		["Pos", "Driver", "Car", "Tier", "Lasted", "", "", "Assists"] if kind == "sumo" else
 		["Pos", "Driver", "Car", "Round", "Reaction", "Best ET", "Speed", "Assists"] if kind == "drag" else
-		["Pos", "Driver", "Car", "Time" if kind == "race" else "Best", "Gap", "Laps", "Pen", "Assists"])
+		["Pos", "Driver", "Car", "Time" if _timed() else "Best", "Gap", "Laps", "Pen", "Assists"])
 	head.modulate = UiKit.ACCENT
 	list.add_child(head)
 	var scroll := ScrollContainer.new()
@@ -87,6 +88,11 @@ func _ready() -> void:
 	_link_buttons(controls)
 
 
+## The time column is the whole race's (or run's), not the best lap.
+func _timed() -> bool:
+	return kind in ["race", "run"]
+
+
 ## The driver's own row, for screen readers and tests.
 func row_text(i: int) -> String:
 	return (_rows[i] as Button).accessibility_name if i < _rows.size() else ""
@@ -100,8 +106,8 @@ func _row_button(row: Dictionary) -> Button:
 	if kind == "drag":
 		return _drag_row(row)
 	var r: Racer = row.racer
-	var time := Hud.format_time(row.time) if kind == "race" else Hud.format_time(row.best)
-	if kind == "race" and row.dnf:
+	var time := Hud.format_time(row.time) if _timed() else Hud.format_time(row.best)
+	if _timed() and row.dnf:
 		time = "DNF"
 	var assists := String(row.assists) if row.has("assists") else assists_text(r)
 	var flagged := " (flagged)" if row.get("flagged", false) else ""

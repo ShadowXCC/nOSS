@@ -3,7 +3,7 @@
 # platform conformance, a short AI race check (and one in the rain), a short kart check, two short
 # sumo checks, two short drag checks, a 10-minute endless drive and a 5-minute one with traps and
 # police, a short highway check, short online checks (a race, a highway with traffic, karts, an
-# endless convoy, endless police, a sumo match, a drag ladder),
+# endless convoy, endless police, a sumo match, a drag ladder, a timed time trial, a highway run),
 # the track editor's 3 km acceptance
 # build (raced and sent online), boot smoke test.
 # Exits non-zero if any fails. Run tools/setup_dev.sh once first.
@@ -97,6 +97,12 @@ step "Sumo net check (3 bots, 2 AI, two platforms, 150 ms)"
 
 step "Online: a drag ladder"
 .venv/bin/python tools/net_check.py --event drag --clients 2 --ai 3 --length 201 --duration 200 --rtt 150 --jitter 10 --loss 1 | grep -E "^(net_check|drag results|  server|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("drag net check")
+
+step "Online: a timed time trial (3 bots, 2 minutes, 150 ms)"
+.venv/bin/python tools/net_check.py --event tt --clients 3 --minutes 2 --rtt 150 --jitter 10 --loss 1 | grep -E "^(net_check|time trial results|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("time trial net check")
+
+step "Online: a highway run (3 bots, 60 traffic cars, 150 ms)"
+.venv/bin/python tools/net_check.py --event highway --sub run --clients 3 --traffic 60 --rtt 150 --jitter 10 --loss 1 | grep -E "^(net_check|run results|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("run net check")
 
 step "Track check (3 km track: built in the editor, raced, sent online)"
 tools/track_check.sh | grep -E "^(track_check|Race|Time|net_check|bot00 got|fresh|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("track check")

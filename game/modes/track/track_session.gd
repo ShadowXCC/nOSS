@@ -89,6 +89,8 @@ var race := RaceControl.new()
 var results_menu: ResultsMenu
 ## Time trial: records each player's laps, shows their ghosts (null in other events).
 var time_trial: TimeTrial
+## Online, a time trial's live board (docs/UI_FLOW.md §7.7); null otherwise.
+var time_trial_net: TimeTrialNet
 var world_env: Environment
 ## The sky: time of day and weather (D153).
 var env: EnvDirector
@@ -695,13 +697,14 @@ func _ready_highway() -> void:
 			add_child(score)
 		"run":
 			var runs: Array = track.highway.runs.filter(func(r: Dictionary) -> bool: return event.run.is_empty() or r.id == event.run)
-			if not runs.is_empty():
+			if runs.is_empty():
+				event.sub = "cruise" # no such run here: a cruise (every game the same), not a run that never ends
+			else:
 				run = RunControl.new()
 				run.name = "RunControl"
 				run.session = self
 				run.layout = track.highway
 				run.run = runs[0]
-				run.done.connect(_on_run_done)
 				add_child(run)
 	var settings: Dictionary = track.highway.settings.traffic
 	var count := event.traffic if event.traffic >= 0 else int(settings.count)
@@ -942,6 +945,12 @@ func _ready_online() -> void:
 		drag_net.drag = drag
 		drag.net = drag_net
 		add_child(drag_net)
+	if event.kind == "time_trial":
+		# A timed session (§7.7): the server's live board of best laps.
+		time_trial_net = TimeTrialNet.new()
+		time_trial_net.name = "TimeTrialNet"
+		time_trial_net.session = self
+		add_child(time_trial_net)
 	var sky: Dictionary = online.get("environment", {})
 	if not sky.is_empty():
 		var t0 := float(sky.t0)
@@ -1074,7 +1083,7 @@ func _on_roster(roster: Array) -> void:
 	for id: int in net.racers.keys():
 		var r: Racer = net.racers[id]
 		if not ids.has(id) and r is NetRacer:
-			if race.kind in ["practice", "qualifying", "race"] and race.phase != RaceControl.Phase.DONE:
+			if race.kind in ["practice", "qualifying", "race", "time_trial", "run"] and race.phase != RaceControl.Phase.DONE:
 				# Gone mid-session: out of it, in the results as such, until the session ends.
 				r.dnf = true
 				r.set_meta(&"left", true)
@@ -1369,14 +1378,14 @@ func _on_session_ended(kind: String, results: Array) -> void:
 	results_menu.mode = "client" if race.mirror else "host" if is_online() else "local"
 	results_menu.has_next = race.has_next()
 	results_menu.next_name = race.event.sessions()[race.index + 1].capitalize() if race.has_next() else ""
-	if cup and kind == "race":
+	if cup and kind == "race" and not is_online(): # online the server keeps the cup's standings
 		cup.keep_roster(self)
 		cup.add_results(results)
 		results_menu.has_next = true
 		results_menu.next_name = "Cup standings"
 	results_menu.continued.connect(func() -> void:
 		_close_results()
-		if cup and kind == "race":
+		if cup and kind == "race" and not is_online():
 			_open_cup_standings()
 			return
 		_drop_leavers()
@@ -1480,30 +1489,6 @@ func _on_board_requested(peer: int, board: String) -> void:
 		server_boards[board] = entries # the host's own players
 	else:
 		Net.server.send(peer, NetProtocol.Msg.BOARD, { "board": board, "entries": entries })
-
-
-## A highway run is done: its results on the main window; Restart lines everyone up again.
-func _on_run_done(rows: Array) -> void:
-	if dedicated or Game.dev.has("quit-after-results"):
-		print("Run results: %s" % ", ".join(PackedStringArray(rows.map(func(row: Dictionary) -> String: return "%d %s" % [row.position, row.name]))))
-		if Game.dev.has("quit-after-results"):
-			get_tree().quit()
-		return
-	results_menu = ResultsMenu.new()
-	results_menu.kind = "race"
-	results_menu.results = rows
-	results_menu.mode = "local"
-	results_menu.restarted.connect(func() -> void:
-		_close_results()
-		run.begin())
-	results_menu.quit_to_title.connect(func() -> void: Game.go_title())
-	_offer_event_menu(results_menu)
-	var layer: CanvasLayer = $ResultsLayer
-	var window := get_viewport().get_visible_rect().size
-	var s := window.y / 1080.0 * Players.menu_text_scale()
-	layer.scale = Vector2(s, s)
-	results_menu.size = window / s
-	layer.add_child(results_menu)
 
 
 ## Players who left during the last session go before the next one.
@@ -1633,7 +1618,7 @@ func _open_pause(p: SessionPlayer) -> void:
 	menu.can_change_car = hotswap_allowed
 	menu.can_end_session = race.kind in ["practice", "qualifying"]
 	menu.allowed_assists = AssistRules.allowed(platform.platform, mode)
-	menu.can_restart = race.kind in ["race", "practice", "qualifying", "drag"] and not race.mirror
+	menu.can_restart = race.kind in ["race", "practice", "qualifying", "drag", "run"] and not race.mirror
 	if race.kind == "drag":
 		# A ladder is a long thing to lose to a stray press, so this one asks first (D179).
 		menu.restart_text = "Restart event"
@@ -1662,8 +1647,12 @@ func _open_pause(p: SessionPlayer) -> void:
 		menu.ghost_items = lane.choices()
 		menu.ghost_current = lane.choice
 		menu.ghost_picked.connect(lane.pick)
-		menu.leaderboard = Leaderboard.entries(track.record_key(), p.platform.platform.id)
-		menu.leaderboard_title = "%s · %s" % [track.display_name, p.platform.platform.name]
+		if time_trial_net:
+			menu.leaderboard = time_trial_net.entries # this session's, the server's
+			menu.leaderboard_title = "%s · this session" % track.display_name
+		else:
+			menu.leaderboard = Leaderboard.entries(track.record_key(), p.platform.platform.id)
+			menu.leaderboard_title = "%s · %s" % [track.display_name, p.platform.platform.name]
 	elif highway and highway.board(p):
 		var board := highway.board(p)
 		if is_online():

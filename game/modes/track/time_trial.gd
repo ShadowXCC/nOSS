@@ -3,7 +3,8 @@ extends Node
 ## Time trial (docs/GAMEMODES.md §1, MODE-02): every local player laps against their own ghost,
 ## the others' cars ghosted too (RaceEvent.time_trial() has no collisions). Each player has a lane
 ## (TimeTrial.Lane): every lap of theirs is recorded; a new best valid lap becomes their ghost, is
-## saved in user://ghosts/<track>/<class>/best_<profile>.json and goes on the local leaderboard.
+## saved in user://ghosts/<track>/<class>/best_<profile>.json and goes on the local leaderboard
+## (online, the server's: TimeTrialNet).
 ## Ghost files from friends dropped in that folder (and the other players' bests) can be picked
 ## from each player's pause menu. The live delta is measured against the player's ghost. Each
 ## lane's ghost sits on a visual layer of its own that only its player's camera draws.
@@ -237,6 +238,8 @@ class Lane:
 			"platform_hash": g.meta.platform_hash, "version": g.meta.version, "assists": Array(g.meta.assists),
 			"setup": g.meta.setup, "game_speed": g.meta.game_speed, "date": g.meta.date, "road": g.meta.road,
 		}
+		if trial.session.is_online():
+			return # online the server times the laps and keeps the board (TimeTrialNet)
 		var place := Leaderboard.submit(trial.session.track.record_key(), entry)
 		if place > 0:
 			player.notify("%s  ·  Board P%d" % [Hud.format_time(time), place], 3.0)

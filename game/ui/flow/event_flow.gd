@@ -29,6 +29,10 @@ const PLAIN := {
 	"free": "Free Drive",
 }
 
+## An online time trial's minutes (the Minutes row), and where it starts.
+const TT_MINUTES := [5, 10, 15, 20, 30]
+const TT_DEFAULT := 10
+
 ## "local" (Local Drive), "host" (hosting, P8) or "change" (the lobby's Change event, P9).
 var context := "local"
 ## "racing", "endless", "highway", "mini" or "free".
@@ -332,21 +336,19 @@ func defaults() -> RaceEvent:
 ## Makes the setup one this type runs: its kind, the settings it has no rows for at their
 ## defaults, a track and a class it offers.
 func fit() -> void:
-	# Online, time trials, kart cups and the highway's Score attack, Run and Loop wait for their
-	# network code (docs/UI_FLOW.md §7.2, P10).
-	if context != "local":
-		tt = false
-		cup = ""
-		if type == "highway":
-			event.sub = "cruise"
 	if tt:
 		var was := event
 		event = RaceEvent.time_trial()
-		var keep := ["time", "time_rate", "weather", "env_seed"]
+		var keep := ["time", "time_rate", "weather", "env_seed", "tt_min"]
 		if variant == "custom":
 			keep.append("track_limits")
 		for key in keep:
 			event.set(key, was.get(key))
+		# Online a time trial is a timed session (docs/UI_FLOW.md §7.7); here it has no end.
+		if context == "local":
+			event.tt_min = 0
+		elif event.tt_min not in TT_MINUTES:
+			event.tt_min = TT_DEFAULT
 	else:
 		match id():
 			"racing/regular", "racing/stock_car":
@@ -464,7 +466,7 @@ func start() -> void:
 	if context == "local":
 		Settings.set_value("last_drive", data)
 	var e := session_event()
-	if variant == "kart" and not cup.is_empty() and not tt:
+	if is_cup():
 		Game.start_cup_race(CupRun.start(CupRun.load_file(cup), class_id, e))
 	elif e.kind == "free":
 		Game.start_free_drive("", class_id, false, false, track, e)
@@ -486,10 +488,10 @@ func host() -> String:
 	return ""
 
 
-## The server's config: the Host page's options, this event its one rotation item.
+## The server's config: the Host page's options, this event its rotation (a cup's races).
 func server_config() -> ServerConfig:
 	var cfg := server if server else ServerConfig.defaults()
-	cfg.rotation = [rotation_item()]
+	cfg.rotation.assign(rotation_items())
 	return cfg
 
 
@@ -499,6 +501,29 @@ func server_config() -> ServerConfig:
 func rotation_item() -> Dictionary:
 	var where := ServerConfig.ENDLESS if type == "endless" else track if has_track() else ServerConfig.DEFAULT_TRACK
 	return { "track": where, "class": class_id, "event": session_event().to_dict(), "name": name() }
+
+
+## This event as the playlist's items: a kart cup's races, one after another, each marked as the
+## cup's (the server keeps its standings, docs/NETWORKING.md §15); any other event, its one item.
+func rotation_items() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var c := CupRun.load_file(cup) if is_cup() else {}
+	if c.is_empty():
+		out.append(rotation_item())
+		return out
+	var run := CupRun.start(c, class_id, event)
+	var races := run.races()
+	var id := String(c.get("id", cup.get_file().get_basename())).left(64)
+	for i in races.size():
+		out.append({ "track": run.track_for(i), "class": class_id, "event": run.event_for(i).to_dict(),
+			"name": ("%s, race %d of %d" % [String(c.name), i + 1, races.size()]).left(64),
+			"cup": { "id": id, "name": String(c.name).left(64), "race": i, "races": races.size() } })
+	return out
+
+
+## A kart cup (not one race).
+func is_cup() -> bool:
+	return variant == "kart" and not tt and not cup.is_empty()
 
 
 ## The Players screen for this event; everyone Ready starts it.

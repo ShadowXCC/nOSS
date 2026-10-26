@@ -3,8 +3,9 @@ extends RefCounted
 ## A cup in progress (D145): four kart races in a row, points by finishing place (15, 12, 10, 8,
 ## 6, 4, 2, 1), ties to the most wins, then the better last race. The AI field stays the same
 ## through it (names, cars, paint, skill: the roster), and each race after the first starts in
-## reverse order of the standings. Offline only. Built-in cups are in data/cups/, players' own in
-## user://cups/ (noss.cup/1).
+## reverse order of the standings. Online the server keeps one (NetHost), its races the host's
+## playlist (docs/NETWORKING.md §15). Built-in cups are in data/cups/, players' own in user://cups/
+## (noss.cup/1).
 
 const POINTS := [15, 12, 10, 8, 6, 4, 2, 1]
 const BUILTIN_DIR := "res://data/cups/"
@@ -143,8 +144,10 @@ func event_for(i: int) -> RaceEvent:
 	return e
 
 
-## A racer's key in the table: the player's slot, or the AI's name.
+## A racer's key in the table: the player's slot (online, their id on the server), or the AI's name.
 static func key_of(r: Racer) -> String:
+	if r.net_id > 0 and r.net_id < NetProtocol.FIRST_AI_ID:
+		return "net:%d" % r.net_id
 	if r is SessionPlayer:
 		return "p%d" % (r as SessionPlayer).slot.index
 	return "ai:" + r.display_name

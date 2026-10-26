@@ -17,9 +17,6 @@ const TYPES := [
 	["free", "Free Drive", "Any class on any track"],
 ]
 
-## Hosting, Highway is a cruise (its other modes online come in P10).
-const HOST_HIGHWAY := "A cruise through traffic"
-
 ## "local", "host" (the Event page of hosting) or "change" (the lobby's).
 var context := "local"
 ## Hosting: the Host page's options.
@@ -51,7 +48,7 @@ func _build() -> void:
 		b.set_meta(&"steps", again.steps())
 		add_row(b)
 	for t: Array in TYPES:
-		var b := UiKit.button(t[1], _pick.bind(String(t[0])), HOST_HIGHWAY if context != "local" and t[0] == "highway" else t[2])
+		var b := UiKit.button(t[1], _pick.bind(String(t[0])), t[2])
 		b.name = String(t[1]).validate_node_name()
 		b.set_meta(&"type", t[0])
 		b.set_meta(&"steps", _steps_of(String(t[0])))

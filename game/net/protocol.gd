@@ -6,7 +6,7 @@ extends RefCounted
 ## before decoding, its fields after. Car states and content chunks have their own packed formats.
 
 ## Bumped whenever messages change: a client and server must match.
-const VERSION := 13
+const VERSION := 14
 const DEFAULT_PORT := 47800
 ## Channels beyond Godot's channel 0 (which carries reliable control messages).
 const EXTRA_CHANNELS := 3
@@ -79,7 +79,7 @@ enum Msg {
 	SYNCED = 49, ## client: {have, of}: how many of the session's cars are here and loaded (the start waits, D127)
 	HW_EVENT = 50, ## server: {id, kind, level, evading, text}: a player's police heat, or busted, evaded (D115)
 	BOARD_REQUEST = 51, ## client: {board}: this session's track's board on the server (D118)
-	BOARD = 52, ## server: {board, entries}: it
+	BOARD = 52, ## server: {board, entries}: it; or a time trial's live board ("live", TimeTrialNet: entries {id, name, car, time, laps})
 	ENDLESS = 53, ## client: {want, drop, gone, at, sums}: an endless road's traffic, players and road (EndlessNet, D159)
 	ENDLESS_STATE = 54, ## server: {owners, gone, at, full}: who drives which traffic car, slots used up, where everyone is
 	ENV = 55, ## server: {time, time_rate, weather, seed, t0}: the sky changed (an admin's /time or /weather)

@@ -2,7 +2,8 @@ extends GdUnitTestSuite
 ## The lobby over real ENet (MP-03, MP-06, MP-07, LOC-05; docs/UI_FLOW.md §7.5, §7.6): what
 ## everyone sees, cars, devices, assists and pings, ready per player, the countdown and a forced
 ## start, the playlist, chat and its limits, admin commands, local players joining and leaving
-## (closing up their local indexes), and LAN discovery.
+## (closing up their local indexes), LAN discovery, and a kart cup's standings kept on the server
+## (P10).
 
 var port := 0
 var server: NetServer
@@ -590,3 +591,71 @@ func test_net_matches_players_by_local_index() -> void:
 	assert_int(Net.my_ids.size()).is_equal(2)
 	assert_str(Net.player(Net.id_of(1)).name).is_equal("Them")
 	Net.leave()
+
+
+## A kart cup online (P10): its races are the playlist; the server keeps the standings (by player
+## id, the AI by name), a restarted race's results take the place of the first go's, the cup's AI
+## field stays the same from race to race, and the lobby carries the standings, the final too.
+func test_a_cup_keeps_its_standings_on_the_server() -> void:
+	_start()
+	var flow := EventFlow.racing("kart", false, "host")
+	flow.recall()
+	flow.cup = "res://data/cups/spark_cup.cup.json"
+	flow.event.ai_count = 2
+	flow.fit()
+	host.set_events(flow.rotation_items())
+	assert_int(host.config.rotation.size()).is_equal(4)
+	assert_int(host.cup_item().race).is_equal(0)
+	var me: NetPlayer = server.players_of(1)[0]
+	var ann := Racer.new()
+	ann.net_id = me.id
+	ann.display_name = "Host"
+	var bot := Racer.new()
+	bot.net_id = NetProtocol.FIRST_AI_ID
+	bot.display_name = AiRacer.NAMES[0]
+	var rows := func(first: Racer, second: Racer) -> Array:
+		return [{ "racer": first, "position": 1, "dnf": false }, { "racer": second, "position": 2, "dnf": false }]
+	host.start_session()
+	assert_object(host.cup).is_not_null()
+	var ai_first: Array = host.session_dict().roster.filter(func(d: Dictionary) -> bool: return d.get("ai", false))
+	assert_int(ai_first.size()).is_equal(2)
+	host.session_results("race", rows.call(ann, bot))
+	assert_int(host.cup.index).is_equal(1)
+	# Restart: the second go's results take the first's place.
+	host.session_results("race", rows.call(bot, ann))
+	assert_int(host.cup.index).is_equal(1)
+	var table := host.cup.standings()
+	assert_str(String(table[0].key)).is_equal("ai:" + AiRacer.NAMES[0])
+	assert_int(int(table[0].points)).is_equal(CupRun.POINTS[0])
+	assert_str(String(table[1].key)).is_equal("net:%d" % me.id)
+	# The lobby: the race up and the standings so far.
+	host.end_session()
+	var cup: Dictionary = host.lobby_dict().cup
+	assert_int(int(cup.race)).is_equal(2)
+	assert_int(int(cup.run)).is_equal(1)
+	assert_str(String(cup.standings[0].name)).is_equal(AiRacer.NAMES[0])
+	assert_str(LobbyPage.standings_text(cup)).starts_with("After race 1 of 4: ")
+	# The next race: the same cup, the same AI field.
+	host.start_session()
+	var ai_next: Array = host.session_dict().roster.filter(func(d: Dictionary) -> bool: return d.get("ai", false))
+	assert_array(ai_next.map(func(d: Dictionary) -> String: return d.car)).is_equal(ai_first.map(func(d: Dictionary) -> String: return d.car))
+	assert_array(ai_next.map(func(d: Dictionary) -> float: return d.skill)).is_equal(ai_first.map(func(d: Dictionary) -> float: return d.skill))
+	for i in 3:
+		host.session_results("race", rows.call(ann, bot))
+		host.end_session()
+		if i < 2:
+			host.start_session()
+	assert_bool(host.cup.done()).is_true()
+	cup = host.lobby_dict().cup
+	assert_int(int(cup.race)).is_equal(1) # round again: the first race is up
+	assert_str(LobbyPage.standings_text(cup)).starts_with("Spark Cup final: 1st ")
+	# Its first race again starts a new cup; another event drops the standings.
+	host.start_session()
+	assert_int(host.cup.index).is_equal(0)
+	host.end_session()
+	host.set_event({ "track": "proving_ground", "class": "official.track.gt", "event": RaceEvent.free_drive().to_dict(), "name": "Free Drive" })
+	host.start_session()
+	assert_object(host.cup).is_null()
+	assert_dict(host.lobby_dict().cup).is_empty()
+	ann.free()
+	bot.free()

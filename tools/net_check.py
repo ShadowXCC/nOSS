@@ -17,6 +17,8 @@ and exits 0 (PASS) or 1 (FAIL).
   tools/net_check.py --event race --track piedmont_speedway --class official.track.stock_car --clients 2 --ai 6 --laps 8 --fuel 10 --tyres 10   # drafting, wear, stops
   tools/net_check.py --event highway --clients 12 --quad 1 --traffic 150   # M7: highway traffic
   tools/net_check.py --event highway --clients 2 --dirs opposite --speed-factor 1.6 --duration 600   # M7 acceptance 3
+  tools/net_check.py --event highway --sub run --clients 3 --traffic 60 --rtt 150  # a run, the server in charge
+  tools/net_check.py --event tt --clients 3 --minutes 2 --rtt 150     # a timed time trial and its live board
   tools/net_check.py --event kart --clients 4 --ai 4 --track gearworks --laps 3 --rtt 150 --jitter 10 --loss 1   # M8
   tools/net_check.py --event battle --clients 4 --ai 4 --track crate_yard --rule hits   # M8
   tools/net_check.py --event endless --clients 3 --late 40 --duration 150   # M9: an endless convoy
@@ -30,6 +32,12 @@ reports its traffic: checksums that disagreed with the server's (must be 0), ful
 server reports promotions and handovers (NETCHECK_SERVER). With --dirs opposite the server also
 watches the first player each way round (NETCHECK_LOOP): they must pass every lap, and at least 60%
 of the traffic the first meets on the other carriageway one lap must come round the next.
+
+A highway run (--sub run, the Lumen Ring's first run unless --run): the server lines nobody up
+itself; each bot lines up its own car by the session's grid, and the server times them through the
+checkpoints: every bot must be through, in the server's results, with a time. A time trial (--event
+tt: the Proving Ground and GT unless given) is a timed session (--minutes): every bot must set a lap,
+be in the results with its best lap, and see itself on the server's live board (BOARD "live").
 
 A kart race (--event kart: Gearworks and the Medium kart unless given) or battle (--event battle:
 the Crate Yard; the bots drive Light, Medium and Heavy in turn unless --classes same) also checks the items (D141): every bot's Bolts and Slicks within 0.5 m of the server's (p95; Seekers home on each game's own
@@ -140,7 +148,7 @@ def main(argv=None):
     p.add_argument("--clients", type=int, default=3, help="bots with one player each")
     p.add_argument("--quad", type=int, default=0, help="bots with four players each (splitscreen guests)")
     p.add_argument("--duration", type=float, default=60.0, help="seconds of driving (free drive)")
-    p.add_argument("--event", choices=["free", "race", "highway", "kart", "battle", "endless", "sumo", "drag"], default="free")
+    p.add_argument("--event", choices=["free", "race", "tt", "highway", "kart", "battle", "endless", "sumo", "drag"], default="free")
     p.add_argument("--rule", choices=["standing", "hits"], default="standing", help="battle: last one standing or most hits")
     p.add_argument("--tiers", type=int, default=2, help="sumo: how many platforms are stacked (1-5)")
     p.add_argument("--length", type=int, default=402, help="drag: the strip in metres (201, 402 or 805)")
@@ -149,10 +157,11 @@ def main(argv=None):
     p.add_argument("--hazard", choices=["lava", "acid"], default="lava", help="sumo: what is under the platforms")
     p.add_argument("--shrink", choices=["smooth", "crumble", "stepped"], default="smooth", help="sumo: how a platform shrinks")
     p.add_argument("--platform-secs", type=int, default=60, help="sumo: how long one platform takes to go")
-    p.add_argument("--minutes", type=int, default=5, help="battle: its length at most")
+    p.add_argument("--minutes", type=int, default=5, help="battle: its length at most; tt: the session's length")
     p.add_argument("--traffic", type=int, default=150, help="highway: traffic cars")
     p.add_argument("--dirs", choices=["same", "opposite"], default="same", help="highway: players start one way, or turn about")
-    p.add_argument("--sub", choices=["cruise", "score", "loop"], default="cruise", help="highway: the sub-mode")
+    p.add_argument("--sub", choices=["cruise", "score", "loop", "run"], default="cruise", help="highway: the sub-mode")
+    p.add_argument("--run", default="", help="highway --sub run: the run's id (the track's first unless given)")
     p.add_argument("--police", action="store_true", help="highway, endless: police on (the bots speed, so they get chased; endless: the first bot only, past speed traps)")
     p.add_argument("--speed-factor", type=float, default=0.0, help="highway: the bots drive at this times the limit (default 1.4 with --police, else 1)")
     p.add_argument("--open", action="store_true",
@@ -193,6 +202,8 @@ def main(argv=None):
     endless = args.event == "endless"
     sumo = args.event == "sumo"
     drag = args.event == "drag"
+    tt = args.event == "tt"
+    run = highway and args.sub == "run"
     args.klass = args.klass or ("official.highway.street" if highway else "official.kart.medium" if karts
                                 else "official.endless.cruiser" if endless else "official.sumo.standard" if sumo
                                 else ("official.drag." + args.drag_class) if drag else "official.track.gt")
@@ -210,9 +221,13 @@ def main(argv=None):
     if Path(track).exists():  # a path here, not an id: the config lives in the logs' folder
         track = str(Path(track).resolve())
     builtin_track = (ROOT / "content" / "tracks" / args.track).is_dir() or endless or sumo or drag
-    event = {"kind": "race" if args.event == "kart" else args.event}
+    event = {"kind": "race" if args.event == "kart" else "time_trial" if tt else args.event}
     if highway:
         event.update({"sub": args.sub, "traffic": args.traffic, "direction": 0 if args.dirs == "opposite" else 1, "police": args.police})
+        if run:
+            event["run"] = args.run
+    if tt:
+        event.update({"tt_min": args.minutes, "collisions": False})
     if endless:
         event.update({"road_seed": args.seed, "biome": 1, "endless_traffic": "normal", "oncoming": True,
                       "police": args.police, "speed_traps": args.police})
@@ -299,7 +314,7 @@ def main(argv=None):
         threading.Thread(target=sim.run, daemon=True).start()
         port = sim.port
 
-    quit_flag = ["--quit-after-results"] if args.event in ["race", "kart", "battle", "sumo", "drag"] else [f"--quit-at={args.duration + 15}"]
+    quit_flag = ["--quit-after-results"] if args.event in ["race", "kart", "battle", "sumo", "drag", "tt"] or run else [f"--quit-at={args.duration + 15}"]
     if args.fresh:
         cache = logs / "fresh_cache"
         import shutil
@@ -326,6 +341,7 @@ def main(argv=None):
 
     peak = {}
     deadline = time.monotonic() + (args.within + 80 if args.fresh else 120 + args.minutes * 60 if args.event == "battle"
+                                   else 300 + args.minutes * 60 if tt else 420 if run
                                    else 60 + args.laps * 150 if args.event in ["race", "kart"] else args.duration + 60)
     try:
         while time.monotonic() < deadline and any(b.poll() is None for b in bots):
@@ -510,6 +526,37 @@ def main(argv=None):
             r.get("cars", 0), r.get("preview_s", -1), r.get("full_s", -1), args.within))
         if r.get("full_s", -1) < 0 or r["full_s"] > args.within:
             fails.append("not every car whole within %g s" % args.within)
+    elif tt:
+        if results is None:
+            fails.append("no time trial results")
+        else:
+            rows = results["rows"]
+            print("time trial results (%d min):" % args.minutes)
+            for r in rows:
+                print("  P%-2d %-16s %d laps, best %s" % (r["position"], r["name"], r["laps"], "%.3f s" % r["best"] if r["best"] > 0 else "-"))
+            if len(rows) != players:
+                fails.append("%d drivers in the results, not %d" % (len(rows), players))
+            for r in rows:
+                if r["best"] <= 0:
+                    fails.append(f"{r['name']} set no lap")
+        for name in sorted(n for n in reports if n.startswith("bot")):
+            b = reports[name].get("tt", {})
+            print("%-7s live board: up to %d drivers, itself on it %s" % (name, b.get("board_max", 0), "yes" if b.get("on_board") else "no"))
+            if not b.get("on_board"):
+                fails.append(f"{name} never saw itself on the live board")
+    elif run:
+        if results is None or results.get("kind") != "run":
+            fails.append("no run results")
+        else:
+            rows = results["rows"]
+            print("run results:")
+            for r in rows:
+                print("  P%-2d %-16s %s" % (r["position"], r["name"], "out" if r["dnf"] else "%.3f s" % r["time"]))
+            if len(rows) != players:
+                fails.append("%d drivers in the run's results, not %d" % (len(rows), players))
+            for r in rows:
+                if r["dnf"] or r["time"] <= 0:
+                    fails.append(f"{r['name']} didn't get through the run")
     elif args.event == "battle":
         if results is None:
             fails.append("no battle results")

@@ -6,8 +6,8 @@ its Settings page -> the class -> Players -> a 1-lap race -> results -> main men
 screen under the top one isn't showing: UI overhaul P2's page stack), then Racing again: Stock Car
 (no Class step), the Time Trial switch (Regular's and Kart's time trials to their Players pages),
 and Custom with its Save preset page, and back out (UI overhaul P4-P6), then Drive Online -> Host -> the event
-pages -> the class -> the lobby (This PC's rows, Driving Settings, Change event, Playlist) -> Leave,
-and Join's tabs (M5, UI overhaul P8, P9), then each Local Drive
+pages (the Time Trial switch too, P10) -> the class -> the lobby (This PC's rows, Driving Settings,
+Change event, Playlist) -> Leave, and Join's tabs (M5, UI overhaul P8-P10), then each Local Drive
 type's pages (UI overhaul P5): Highway -> its Settings page -> the class -> Players and back out
 (M7); Racing -> Kart -> a race, a cup and the cup builder, then Mini Games -> Kart Battle ->
 Players and back out (M8); Endless -> the class -> Players (M9); Mini Games -> Sumo Wrestling and
@@ -475,11 +475,12 @@ def garage_menus():
 
 
 def online_menus():
-    """Main menu -> Drive Online -> Host -> Next -> the Event page -> Racing -> Regular -> its
+    """Main menu -> Drive Online -> Host -> Next -> the Event page -> Racing -> the Time Trial switch
+    -> Regular -> its Settings page (a timed session: Minutes) and back -> Race -> Regular -> its
     Settings page -> the class, which hosts -> the lobby: Ready (not pressed: the countdown would
     start), Change event (the lobby hidden under it) and back, Playlist and back, P1's row to This
     PC's rows, Driving Settings and back -> Leave; then Join -> Direct -> On your network (Official
-    is off) -> Back -> Back (M5, UI overhaul P8, P9; docs/UI_FLOW.md §7)."""
+    is off) -> Back -> Back (M5, UI overhaul P8-P10; docs/UI_FLOW.md §7)."""
     log("Drive Online")
     ok = step("Main menu (online)", "Drive Online")
     ok = ok and hidden("Drive Online", "Local Drive")
@@ -487,6 +488,14 @@ def online_menus():
     ok = ok and hidden("Host", "Join")
     ok = ok and step("Host", "Next")
     ok = ok and step("Host: event", "Racing")
+    # Time trials host too (P10): the switch, and a timed session's Minutes.
+    ok = ok and step("Host: racing, to Time Trial", "Time Trial", role="toggle button")
+    ok = ok and step("Host: Regular time trial", "Regular")
+    if ok and find("Minutes: ", "button", timeout=20.0, prefix=True) is None:
+        problems.append("Host: a time trial's settings have no 'Minutes' row")
+        ok = False
+    ok = ok and back_from("Host: time trial settings", "Minutes: ")
+    ok = ok and step("Host: racing, back to Race", "Race", role="toggle button")
     ok = ok and step("Host: racing", "Regular")
     ok = ok and hidden("Host: settings", "Stock Car")
     ok = ok and step("Host: settings", "Next")
