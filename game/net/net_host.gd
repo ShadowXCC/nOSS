@@ -25,6 +25,7 @@ signal endless_reported(peer: int, data: Dictionary)
 
 ## How often the lobby's pings are measured again.
 const PING_S := 2.0
+const PING_STEP := 5
 
 ## Seconds from everyone ready to the start (docs/UI_FLOW.md §7.6). Below 0 (as it is): the
 ## config's countdown_s. Tests set it near 0.
@@ -141,7 +142,8 @@ func _stop_countdown() -> void:
 	starting = 0
 
 
-## Each player's round trip, for the lobby (every PING_S).
+## Each player's round trip, for the lobby (every PING_S). A change of PING_STEP ms or less isn't
+## sent: the roster's names (a screen reader's) don't change for it.
 func _measure_pings() -> void:
 	var now := Time.get_ticks_msec()
 	if now < _ping_at:
@@ -149,7 +151,7 @@ func _measure_pings() -> void:
 	_ping_at = now + roundi(PING_S * 1000.0)
 	for p: NetPlayer in server.players.values():
 		var ms := 0 if p.peer == 1 else roundi(server.rtt_ms(p.peer))
-		if ms != p.ping:
+		if absi(ms - p.ping) > PING_STEP:
 			p.ping = ms
 			_dirty = true
 

@@ -108,9 +108,10 @@ def showing(node):
     return s is not None and s.contains(Atspi.StateType.SHOWING)
 
 
-def find(name, role=None, timeout=20.0, prefix=False, last=False):
-    """The first showing element with this accessible name (or name prefix); the last one with
-    `last` (the newest screen's, should one under it still show)."""
+def find(name, role=None, timeout=20.0, prefix=False, last=False, contains=False):
+    """The first showing element with this accessible name (or name prefix, or with `contains` a
+    name that has it anywhere); the last one with `last` (the newest screen's, should one under it
+    still show)."""
     end = time.time() + timeout
     while time.time() < end:
         a = app()
@@ -123,7 +124,8 @@ def find(name, role=None, timeout=20.0, prefix=False, last=False):
             for n in walk(a):
                 try:
                     nm = n.get_name() or ""
-                    if (nm.startswith(name) if prefix else nm == name) and showing(n) and (role is None or n.get_role_name() == role):
+                    matched = name in nm if contains else nm.startswith(name) if prefix else nm == name
+                    if matched and showing(n) and (role is None or n.get_role_name() == role):
                         found = n
                         if not last:
                             break
@@ -245,9 +247,9 @@ def _check_screen(label, settle):
     log(f"  {label}: {count} focusable controls, focus on {focus_text}")
 
 
-def step(label, name, role="button", prefix=False, timeout=20.0, last=False):
+def step(label, name, role="button", prefix=False, timeout=20.0, last=False, contains=False):
     last = last or name == "Back"  # the newest screen's Back, not one hidden behind it
-    node = find(name, role, timeout, prefix, last)
+    node = find(name, role, timeout, prefix, last, contains)
     if node is None:
         problems.append(f"{label}: no '{name}' {role}")
         names = sorted({f"{n.get_role_name()} '{n.get_name()}'" for n in walk(app()) if showing(n) and (n.get_name() or "")})
@@ -264,7 +266,7 @@ def step(label, name, role="button", prefix=False, timeout=20.0, last=False):
             log(f"  pressed '{shown}'")
             return True
         time.sleep(1.0)
-        node = find(name, role, timeout, prefix, last)
+        node = find(name, role, timeout, prefix, last, contains)
         if node is None:
             break
     problems.append(f"{label}: couldn't press '{name}'")
@@ -474,10 +476,10 @@ def garage_menus():
 
 def online_menus():
     """Main menu -> Drive Online -> Host -> Next -> the Event page -> Racing -> Regular -> its
-    Settings page -> the class, which hosts -> the lobby: This PC's rows (Ready isn't pressed: the
-    countdown would start), Driving Settings and back, Change event (the lobby hidden under it) and
-    back, Playlist and back -> Leave; then Join -> Direct -> On your network (Official is off) ->
-    Back -> Back (M5, UI overhaul P8, P9; docs/UI_FLOW.md §7)."""
+    Settings page -> the class, which hosts -> the lobby: Ready (not pressed: the countdown would
+    start), Change event (the lobby hidden under it) and back, Playlist and back, P1's row to This
+    PC's rows, Driving Settings and back -> Leave; then Join -> Direct -> On your network (Official
+    is off) -> Back -> Back (M5, UI overhaul P8, P9; docs/UI_FLOW.md §7)."""
     log("Drive Online")
     ok = step("Main menu (online)", "Drive Online")
     ok = ok and hidden("Drive Online", "Local Drive")
@@ -493,15 +495,12 @@ def online_menus():
         problems.append("Lobby: no Leave button")
         ok = False
     if ok:
-        find("Player 1", "button", timeout=10.0, prefix=True)  # the list arrives a tick later
-        for name in ("Profile: ", "Car: ", "Controls: ", "Driving Settings", "Ready", "Change event", "Playlist", "Force start"):
-            if find(name, "button", timeout=5.0, prefix=name.endswith(": ")) is None:
-                problems.append(f"Lobby: no '{name.rstrip(': ')}' button")
+        find(", host", "button", timeout=10.0, contains=True)  # the list (P1's row) arrives a tick later
+        for name in ("Ready", "Change event", "Playlist", "Force start"):
+            if find(name, "button", timeout=5.0) is None:
+                problems.append(f"Lobby: no '{name}' button")
                 ok = False
-        ok = ok and step("Lobby", "Driving Settings")
-        ok = ok and hidden("Lobby: Driving Settings", "Change event")
-        ok = ok and back_from("Lobby: Driving Settings", "Auto gearbox")
-        ok = ok and step("Lobby again", "Change event")
+        ok = ok and step("Lobby", "Change event")
         ok = ok and hidden("Lobby: Change event", "Playlist")
         ok = ok and back_from("Lobby: Change event", "Racing")
         ok = ok and step("Lobby again", "Playlist")
@@ -509,6 +508,15 @@ def online_menus():
             problems.append("Playlist: no events listed")
             ok = False
         ok = ok and back_from("Lobby: Playlist", "Add event")
+        # P1's own row brings This PC into view (rows that start below the fold aren't in the tree).
+        ok = ok and step("Lobby again", ", host", contains=True)
+        for name in ("Profile: ", "Car: ", "Controls: ", "Driving Settings"):
+            if ok and find(name, "button", timeout=5.0, prefix=name.endswith(": ")) is None:
+                problems.append(f"Lobby: no '{name.rstrip(': ')}' button under This PC")
+                ok = False
+        ok = ok and step("Lobby: This PC", "Driving Settings")
+        ok = ok and hidden("Lobby: Driving Settings", "Ready")
+        ok = ok and back_from("Lobby: Driving Settings", "Auto gearbox")
         ok = ok and step("Lobby", "Leave")
     ok = ok and step("Drive Online again", "Join")
     ok = ok and step("Join: On your network", "Direct", role="toggle button")

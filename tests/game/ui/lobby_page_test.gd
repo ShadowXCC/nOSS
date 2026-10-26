@@ -88,9 +88,11 @@ func _card_focus(v: Viewport) -> String:
 func test_this_pc_and_ready() -> void:
 	var lobby := await _lobby()
 	_assert_named(lobby)
-	for row in ["Profile", "Car", "Controls", "Driving Settings", "Ready"]:
+	for row in ["Profile", "Car", "Controls", "Driving Settings"]:
 		assert_object(_control(lobby._p1_box, row)).override_failure_message("No " + row).is_not_null()
-	assert_object(_control(lobby._p1_box, "Leave")).is_null() # P1 leaves the game with the bar's Leave
+	for row in ["Ready", "Leave"]: # P1's: in the action bar, always on screen
+		assert_object(_control(lobby._p1_box, row)).is_null()
+	assert_object(lobby.ready_button).is_same(lobby._ready_buttons[Players.slots[0]])
 	var me: int = Net.my_ids[0]
 	var car := _control(lobby._p1_box, "Car") as Button
 	assert_str(String(car.accessibility_name)).is_equal("Car: " + Net.player(me).car_name)
@@ -101,6 +103,14 @@ func test_this_pc_and_ready() -> void:
 	assert_str(String(row.accessibility_name)).not_contains(", ready")
 	assert_str(Net.player(me).device).is_equal("keyboard")
 	assert_str(String(row.accessibility_name)).contains("keyboard")
+	# P1's own row takes them to their rows, This PC scrolled into view.
+	row.pressed.emit()
+	await _frames(3)
+	assert_str(String(UiKit.focus_owner(lobby).accessibility_name)).starts_with("Profile")
+	var to_scroll := lobby.scroll().get_global_transform().affine_inverse()
+	var last: Control = lobby._p1_rows[-1]
+	assert_float((to_scroll * lobby._this_pc.get_global_transform()).origin.y).is_greater_equal(0.0)
+	assert_float((to_scroll * last.get_global_transform()).origin.y + last.size.y).is_less_equal(lobby.scroll().size.y)
 	# Ready: the server's, then the count.
 	var ready: Button = lobby._ready_buttons[Players.slots[0]]
 	ready.pressed.emit()

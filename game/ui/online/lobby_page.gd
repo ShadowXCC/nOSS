@@ -34,11 +34,14 @@ var change_button: Button
 var playlist_button: Button
 var start_button: Button
 var leave_button: Button
+## P1's Ready, in the action bar beside Leave: always on screen.
+var ready_button: Button
 
 var _roster_box: VBoxContainer
 var _roster_rows: Array[Button] = []
 var _p1_box: VBoxContainer
 var _p1_rows: Array[Control] = []
+var _this_pc: Label
 var _chat_place: VBoxContainer # in the body, for chat when there's no room for the pane
 var _chat_pane: VBoxContainer
 var _strip: HBoxContainer
@@ -140,7 +143,7 @@ func _build() -> void:
 	change_button.visible = Net.is_server()
 	playlist_button.visible = Net.is_server()
 	start_button.visible = Net.is_admin()
-	add_heading("This PC")
+	_this_pc = add_heading("This PC")
 	_p1_box = VBoxContainer.new()
 	_p1_box.name = "ThisPC"
 	body.add_child(_p1_box)
@@ -176,6 +179,9 @@ func _build() -> void:
 	leave_button = UiKit.button("Leave", leave, "Close the server" if Net.is_server() else "Leave this game")
 	leave_button.name = "Leave"
 	add_action(leave_button)
+	ready_button = UiKit.button("Ready", func() -> void: _toggle_ready(Players.slots[0]), "Tell the others you're ready")
+	ready_button.name = "Ready"
+	add_action(ready_button)
 	_build_p1()
 
 
@@ -429,7 +435,7 @@ func _fill_row(b: Button, p: NetPlayer) -> void:
 		bits.append("muted")
 	b.accessibility_name = ", ".join(bits)
 	var local := Net.local_of(p.id)
-	b.accessibility_description = "Your car and Ready are under This PC" if local == 0 else "On this PC" if local > 0 \
+	b.accessibility_description = "Your car and the rest are under This PC" if local == 0 else "On this PC" if local > 0 \
 		else "Mute%s" % (", kick or ban" if Net.is_admin() else "")
 
 
@@ -473,8 +479,14 @@ func _on_car_changed(car_hash: String) -> void:
 
 func _on_player(id: int) -> void:
 	var local := Net.local_of(id)
-	if local == 0 and _car_buttons.has(Players.slots[0]):
-		(_car_buttons[Players.slots[0]] as Button).grab_focus()
+	if local == 0 and not _p1_rows.is_empty():
+		_p1_rows[0].grab_focus()
+		_show_this_pc()
+		# Made again once they're in view: Godot 4.7.2 leaves rows made out of a scroll's view out
+		# of the screen-reader tree until each is focused (ARCHITECTURE §1).
+		await get_tree().process_frame
+		if is_inside_tree():
+			_build_p1()
 	elif local < 0:
 		var p := Net.player(id)
 		if p:
@@ -486,11 +498,21 @@ func _on_player(id: int) -> void:
 # --- This PC ---
 
 
-## P1's rows, under "This PC" (again after a change of profile or class, the focus kept).
+## Scrolls This PC to the top of the body: all of P1's rows in view at once (and in the
+## screen-reader tree, which leaves out rows that start out of view until they're focused).
+func _show_this_pc() -> void:
+	var xf := scroll().get_global_transform().affine_inverse() * _this_pc.get_global_transform()
+	scroll().scroll_vertical += floori(xf.origin.y) - REVEAL_MARGIN
+
+
+## P1's rows, under "This PC" (again after a change of profile or class, the focus kept). Their
+## Ready is the action bar's.
 func _build_p1() -> void:
 	var slot := Players.slots[0] if not Players.slots.is_empty() else null
 	if slot == null:
 		return
+	_ready_buttons[slot] = ready_button
+	_show_ready(slot)
 	var focus := UiKit.focus_owner(self) if is_inside_tree() else null
 	var keep := UiKit.text_of(focus).get_slice(" ", 0) if focus is Button and _p1_box.is_ancestor_of(focus) else ""
 	var old := _p1_box.get_children()
@@ -517,8 +539,8 @@ func _build_p1() -> void:
 		c.queue_free()
 
 
-## A local player's rows: Profile, Car, (a kart lobby's Class), Controls, Driving Settings, Ready,
-## and for P2-P4, Leave.
+## A local player's rows: Profile, Car, (a kart lobby's Class), Controls, Driving Settings, and
+## for P2-P4, Ready and Leave (P1's Ready is in the action bar).
 func card_rows(slot: PlayerSlot) -> Array[Control]:
 	var rows: Array[Control] = []
 	var used := Players.slots.filter(func(s: PlayerSlot) -> bool: return s != slot).map(func(s: PlayerSlot) -> String: return s.profile.id)
@@ -542,11 +564,11 @@ func card_rows(slot: PlayerSlot) -> Array[Control]:
 			"Light pulls hardest, Heavy wins the bumps"))
 	rows.append(_controls_row(slot))
 	rows.append(UiKit.button("Driving Settings", _open_settings.bind(slot), "Assists, comfort, HUD and controls"))
-	var ready := UiKit.button("Ready", _toggle_ready.bind(slot), "Tell the others you're ready")
-	_ready_buttons[slot] = ready
-	_show_ready(slot)
-	rows.append(ready)
 	if slot.index > 0:
+		var ready := UiKit.button("Ready", _toggle_ready.bind(slot), "Tell the others you're ready")
+		_ready_buttons[slot] = ready
+		_show_ready(slot)
+		rows.append(ready)
 		rows.append(UiKit.button("Leave", func() -> void: Players.leave(slot), "Stop playing on this PC"))
 	return rows
 
@@ -570,9 +592,10 @@ func _controls_row(slot: PlayerSlot) -> Button:
 
 
 func _show_car(slot: PlayerSlot) -> void:
-	var b: Button = _car_buttons.get(slot)
-	if b == null or not is_instance_valid(b):
+	var found: Variant = _car_buttons.get(slot)
+	if not is_instance_valid(found): # a card freed with its rows
 		return
+	var b := found as Button
 	var p := _player_of(slot)
 	var car := p.car_name if p and p.car_name else "None"
 	UiKit.set_shown_text(b, "Car: " + car)
@@ -580,9 +603,10 @@ func _show_car(slot: PlayerSlot) -> void:
 
 
 func _show_ready(slot: PlayerSlot) -> void:
-	var b: Button = _ready_buttons.get(slot)
-	if b == null or not is_instance_valid(b):
+	var found: Variant = _ready_buttons.get(slot)
+	if not is_instance_valid(found): # a card freed with its rows
 		return
+	var b := found as Button
 	var waiting := _track_text not in ["", "?"]
 	var on := _player_of(slot) != null and _player_of(slot).ready
 	var text := _track_text if waiting else "Ready ✓" if on else "Ready"

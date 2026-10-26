@@ -138,7 +138,8 @@ Event type → the event's settings → the class (only if needed) → the playe
 | Changing the event from the lobby | "Event · Settings · Class · Lobby" |
 
 The Class step drops out when the class is fixed (Stock Car, Sumo Wrestling) or picked on each
-player's card (Kart, Kart Battle). The Event step covers the event type page and, for Racing and
+player's card (Kart, Kart Battle). Changing the event from the lobby (P9), the last page's confirm
+is "Done" ("Back to the lobby with this event"), or the class picked. The Event step covers the event type page and, for Racing and
 Mini Games, the page after it. On the event type pages, before a type is picked, the step row
 shows the steps of the focused type.
 
@@ -351,14 +352,13 @@ Title "Drive Online", breadcrumb "Drive Online".
 |---|---|
 | "Host" | "Start a game others can join" |
 | "Join" | "Find a game on your network or by address" |
-| "Players" | "Who plays on this PC: Ana, Ben" (until P9) |
 | "Back" | "Back to the main menu" |
 
 A status line under the buttons says why the last game ended, when it did ("Kicked", "Server
 closed").
 
-- **"Players"** opens today's Players screen (online mode: no car row, "Done") so local players can
-  join before going online. It stays until P9's lobby takes them ("This PC"), then it goes.
+- Local players join in the lobby's "This PC" (§7.5). The "Players" button that set them up first
+  (P8) went in P9, with the Players screen's online mode.
 - Hosting or joining, **the lobby takes the place of the pages on the way** (Host and the event
   pages, or Join and Password): Back or Leave in the lobby comes back here, with the focus where
   it was.
@@ -431,31 +431,66 @@ address here.
 
 ### 7.5 Lobby
 
-Title: the server's name. Breadcrumb "Drive Online › Lobby"; when hosting, "Step 5 of 5".
+Title: the server's name. Breadcrumb "Drive Online › Lobby"; when hosting, the last step of the
+step row: "Step 5 of 5" ("Step 4 of 4" for a type with no Class step). Built in P9 (`LobbyPage`).
 
-- **Left, the roster:** everyone in the game. Each row: their colour, a car thumbnail (a
-  placeholder until it arrives), an input device icon, assist icons, ping ("42 ms") and "Ready"
-  when ready. A row's accessible name says it all: "Ana, Saleen S7, controller, ABS, 42 ms,
-  ready".
-- **Right, chat**, as today.
-- **Bottom, "This PC":** a card per local player (in their own `PlayerView`): "Profile", "Car",
-  "Controls", "Driving Settings", "Ready" and "Leave", and a "Press to join" slot for another local
-  player.
-- **Ready is per player:** each local player readies on their own card. A PC is ready when all of
-  its players are.
-- **Host only:** "Change event" (runs the Event, Settings and Class pages again and comes back to
-  the lobby), "Playlist" and "Force start".
-- **Playlist** page (title "Playlist"): the events in order ("1. Regular race · Piedmont Speedway
-  · Stock Car"), "Add event", "Remove", "Move up", "Move down" and "Back". The playlist moves on
-  after each session.
-- At the bottom: "Leave" ("Leave this game", or "Close the server" when hosting).
+- **The event line** at the top: "Race, 5 laps   Proving Ground   GT   2/16 players"; when hosting,
+  "Join at 192.168.1.20:47800" under it.
+- **Left, the roster** (heading "Players"): everyone in the game. Each row: their colour, a car
+  thumbnail (a placeholder until the car is here), the device they play with (a glyph: the arrow
+  keys for a keyboard, a stick for a controller; a "Wheel" chip), their assists as chips ("ABS",
+  "TCS", "Aid"…), their ping ("42 ms"; "host" for the host's own players) and "Ready". A row's
+  accessible name says it all: "Ana, Saleen S7, controller, ABS, 42 ms, ready", then ", admin" and
+  ", muted" where they apply. A row of another PC's player opens their page (title their name):
+  "Mute" (or "Unmute"), and for admins "Kick" and "Ban". P1's own row ("Your car and the rest are
+  under This PC") goes to their Profile row, This PC scrolled into view.
+- **Right, chat**, as before: "Say", "Quick chat", "Send quick". Below 1100 px logical width (no
+  room for the pane) it sits under This PC.
+- **Host only**, under the roster: "Change event" ("Pick another event to run next") and "Playlist"
+  ("Events to run one after another"); admins also get "Force start" ("Start now, ready or not").
+- **"This PC"**: P1's rows on the page, under their tag and name: "Profile", "Car: Saleen S7" ("Pick
+  your car"), a kart lobby's "Class", "Controls" and "Driving Settings"; P1's "Ready" is in the
+  action bar beside "Leave", always on screen. Each other player here has a card at the bottom of
+  the page, in their own `PlayerView`, driven by their own devices: the same rows, "Ready" and
+  "Leave" ("Stop playing on this PC"). Then a "Press to join" place while there's
+  room (a line while P1 is alone, a card's height once others have joined). Cancel on a card
+  un-readies, then leaves.
+  - **P1's card is the page's own rows** (D215): the main window is P1's, as on every page,
+    so P1 reaches the roster, chat, the host's buttons and their own rows in one focus order. The
+    keys and pads of the other players here, and pads nobody has yet (pressed to join), don't move
+    the window's focus; their presses reach their own card.
+  - "Controls": with a controller, its layout ("Standard", "Left hand", "Right hand"); on the
+    keyboard, its side ("Whole keyboard", "Left side", "Right side"), so two can share it.
+  - P1's Car and Driving Settings open over the lobby; another player's open full screen in their
+    own view, and their card comes back when they close.
+  - Each player starts with their last car, if the class takes it, else the class's own. Their
+    device and assists (the ones the class allows) go to the server for everyone's roster.
+- **Ready is per player:** each local player readies on their own (P1 in the action bar, the others
+  on their cards). A PC is ready when all of its players are. Ready waits for the track ("Getting
+  track 40%").
+- **Change event** runs the Event, Settings and Class pages again (the "change" context: crumbs
+  "Drive Online › Lobby › Event", steps "Event · Settings · Class · Lobby", hosting's types, tracks
+  and rows; Back on the Event page is "Back to the lobby"), and comes back to the lobby with the
+  event, everyone to ready again.
+- **Playlist** page (title "Playlist", breadcrumb "Drive Online › Lobby › Playlist"): the events in
+  order, as toggle buttons ("1. Regular race · Piedmont Speedway · GT", with ", up now" on the one
+  up; no track for events that make their own ground, no class where each kart picks its own), then
+  "Add event" ("Another event at the end": the event pages, as Change event's), "Remove", "Move up"
+  and "Move down" (each on the event picked; the one up stays up) and "Back" ("Back to the lobby").
+  The playlist moves on after each session.
+- At the bottom, the action bar: "Leave" ("Leave this game", or "Close the server" when hosting) and
+  P1's "Ready" ("Tell the others you're ready"; "Ready ✓" once ready). Cancel leaves too.
+- **A status line:** the server's notices, "Starting in 3", "Start held: not everyone's ready",
+  "Track here".
 
 ### 7.6 Start
 
-- Once everyone is ready, a **3-second countdown** runs, "Starting in 3", and it stops ("Start
-  held: not everyone's ready") if anyone un-readies. The host's "Force start" starts at once.
-- The dedicated server uses the same 3 s countdown (today it waits 5 s); `countdown_s` in the
-  server config changes it. `NetHost.countdown_s` (tests set it near 0).
+- Once everyone is ready (and the server has its fewest players: the dedicated server's
+  `--min-players`), the server counts down: "Starting in 3" in chat and on the status line (the
+  lobby carries the seconds left, `starting`). It stops ("Start held: not everyone's ready") if
+  anyone un-readies or a new player joins. The host's "Force start" starts at once.
+- The dedicated server uses the same 3 s countdown (it waited 5 s before P9); `countdown_s` in the
+  server config changes it. `NetHost.countdown_s` (tests set it).
 
 ### 7.7 Online time trial (P10)
 
@@ -548,12 +583,13 @@ Title "Settings", breadcrumb "Settings" (in a session: "Pause › Settings").
 ### 9.2 Driving Settings
 
 Title "Driving Settings · <name>" ("Driving Settings · Ana"). Opened from Settings, the Players
-screen's cards, the Profiles page, the pause menu and first boot, which all call it "Driving
-Settings" (until P3: "Player settings", "Settings", "More settings"). Its breadcrumb says where
-it came from: "Settings › Driving Settings", "Players › Driving Settings", "Settings › Profiles ›
-Driving Settings", "Pause › Driving Settings", "Accessibility › Driving Settings". The card's
-button reads "Driving Settings" ("Assists, comfort, HUD and controls"); the Settings tab's says
-whose ("Ana: assists, comfort, HUD and controls").
+screen's cards, the Profiles page, the pause menu, first boot and the lobby (P9), which all call it
+"Driving Settings" (until P3: "Player settings", "Settings", "More settings"). Its breadcrumb says
+where it came from: "Settings › Driving Settings", "Players › Driving Settings", "Settings ›
+Profiles › Driving Settings", "Pause › Driving Settings", "Accessibility › Driving Settings",
+"Drive Online › Lobby › Driving Settings". The card's button reads "Driving Settings" ("Assists,
+comfort, HUD and controls"); the Settings tab's says whose ("Ana: assists, comfort, HUD and
+controls").
 
 | Tab | Rows |
 |---|---|
@@ -623,13 +659,16 @@ menus Q and E don't shift (menus don't drive).
 
 ## 11. Network protocol
 
-Protocol 12 today.
+Protocol 13 today (P9).
 
-- **13 (P9), the lobby:** PLAYER_INFO carries `{player, device, assists}` per local player; Ready
-  is per player; the lobby list carries each player's ping (from `rtt_ms`, refreshed every 2 s);
-  local players join and leave mid-lobby (`Net.add_local`, `remove_local`, matched by
-  `local_index` and slot index, not list order); the countdown runs in `NetHost` (moved from
-  `server_main.gd`); `set_rotation` and `set_event` for the playlist and Change event.
+- **13 (P9), the lobby:** READY is `{player, ready}` (Ready per player); PLAYER_INFO carries
+  `{player, device, assists, name, color}` per local player; the lobby's players carry `device`,
+  `assists` and `ping` (from `rtt_ms`, measured every 2 s, sent when it changes by more than 5 ms)
+  and the lobby `starting`; local players join and leave mid-lobby (`Net.add_local`,
+  `remove_local`; the server closes up the others' local indexes, and games match players by local
+  index and slot index, not list order: `Net.id_of`, `local_of`); the countdown runs in `NetHost`
+  (moved from `server_main.gd`); `set_rotation` and `set_event` for the playlist and Change event;
+  a rotation item may carry a `name` ("Regular race").
 - **14 (P10), new events online:** time trials (a timed session with a live BOARD of best laps
   and results at the end, `game/net/time_trial_net.gd`); Highway Score attack, Run and Loop with
   the server in charge (`run_control.gd`, "run" in `NetRace.KINDS`); Kart cups as a playlist with
@@ -652,7 +691,7 @@ AT-SPI. Each phase updates its routes:
 | P7 | New `--garage-only`: Garage → "Built-in" and "My cars" → Fitting Bay → the Import step ("From online games") → Exit → the Garage → Back. |
 | P7b | `--garage-only` opens "nOSS Box"'s page from Built-in (the grid hidden under it) and comes back before My cars. |
 | P8 | The online route (also `--online-only`): Drive Online → Host → "Next" → Racing → Regular → Settings → Class → the lobby → "Leave"; Join → each tab → Back. Official can't take the focus and says "Coming soon" (Godot 4.7.2 doesn't tell AT-SPI a button is disabled). |
-| P9 | The lobby: the "This PC" card's buttons, "Change event", "Playlist", "Leave". |
+| P9 | The online route's lobby: "Ready" (not pressed: the countdown would start), "Change event", "Playlist" and "Force start"; Change event (the lobby hidden under it) and back, Playlist (its events) and back; P1's own roster row to This PC's "Profile", "Car", "Controls" and "Driving Settings" (rows that start below the fold are out of the screen-reader tree until focused: the row press makes them again in view); Driving Settings and back, then "Leave". |
 | P11 | The final routes and the docstring. |
 
 ## 13. Phases

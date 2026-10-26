@@ -18,7 +18,7 @@ Both run identical server code (`NetServer` for connections, `NetHost` for the l
 ## 2. Transport
 
 - **ENet** (UDP) through Godot's `ENetMultiplayerPeer`, polled by our own `SceneMultiplayer`. Default port **UDP 47800**, configurable (D83).
-- **Protocol version 12** (Piedmont: an event's start, drafting, fuel use and tire wear, D207-D210; tracks with pit lanes and scenery roads, D203, D212; version 11: endless lanes, garage traffic and police, D189-D195; version 10: sumo wedges and the warning on a platform, D182, D183; version 9: a drag pass waits for its drivers to lock in, D177; version 8: Mini Games: drag passes, D175; version 7: sumo platforms, D166; version 6, M9: world positions in car states, knocks relative to the car, the sky and endless roads, D159; version 5, M8: the kart word in car states and kart items, D142; version 4: the start waits for every game's cars, D127; version 3, M7: 16-bit car ids, a second flags byte, highway traffic, D112; version 2 brought the track by hash, D98). A client and server must match it and the game version ("Version mismatch").
+- **Protocol version 13** (the lobby, UI overhaul P9: Ready per player, PLAYER_INFO with each player's device and assists, pings in the lobby, the countdown in the server, local players joining and leaving in the lobby; version 12, Piedmont: an event's start, drafting, fuel use and tire wear, D207-D210; tracks with pit lanes and scenery roads, D203, D212; version 11: endless lanes, garage traffic and police, D189-D195; version 10: sumo wedges and the warning on a platform, D182, D183; version 9: a drag pass waits for its drivers to lock in, D177; version 8: Mini Games: drag passes, D175; version 7: sumo platforms, D166; version 6, M9: world positions in car states, knocks relative to the car, the sky and endless roads, D159; version 5, M8: the kart word in car states and kart items, D142; version 4: the start waits for every game's cars, D127; version 3, M7: 16-bit car ids, a second flags byte, highway traffic, D112; version 2 brought the track by hash, D98). A client and server must match it and the game version ("Version mismatch").
 - **No RPCs** (D78). Every message is raw bytes (`send_bytes`): one type byte, then either a `var_to_bytes` Dictionary (control messages; never objects; size-checked before decoding, field-checked after) or a packed binary layout (car states, race state, content).
 - **Channels:**
 
@@ -34,7 +34,7 @@ Both run identical server code (`NetServer` for connections, `NetHost` for the l
 
 ## 3. Finding and joining games
 
-- **Hosting:** Drive Online → Host (name, password, players, port, LAN discovery, router port) → the event pages → the lobby ([UI_FLOW.md §7.2](UI_FLOW.md#72-host)). The last page before the lobby builds the `ServerConfig` (the Host page's options, the event as its one rotation item) and calls `Net.host()`; the options are kept in `settings.cfg` without the password. Hosts get automatic **UPnP** port mapping (Godot `UPNP`, on a thread, leased for 2 hours and renewed hourly, removed when hosting stops). If it fails: "Port closed. Forward UDP 47800." The host's lobby shows the addresses to share, IPv6 included.
+- **Hosting:** Drive Online → Host (name, password, players, port, LAN discovery, router port) → the event pages → the lobby ([UI_FLOW.md §7.2](UI_FLOW.md#72-host)). The last page before the lobby builds the `ServerConfig` (the Host page's options, the event as its one rotation item, named: "Regular race") and calls `Net.host()`; the options are kept in `settings.cfg` without the password. In the lobby the host can change the event and keep a playlist (§5). Hosts get automatic **UPnP** port mapping (Godot `UPNP`, on a thread, leased for 2 hours and renewed hourly, removed when hosting stops). If it fails: "Port closed. Forward UDP 47800." The host's lobby shows the addresses to share, IPv6 included.
 - **Join** (Drive Online → Join, [UI_FLOW.md §7.3](UI_FLOW.md#73-join)): tabs On your network, Direct and Official (off: "Coming soon").
   - **Direct:** an address (`host`, `host:port` or `[ipv6]:port`), with the player's **favourites** above it (named by them; Edit renames or removes one) and the last 8 servers joined (**Recent**, each with Save to make it a favourite, named after the server). Both are kept in `settings.cfg` (`[online] favourites`, `recent`).
   - **A password first:** a locked server on the LAN list asks for its password before trying to join; a direct join refused with "Password needed" asks, then goes again. "Wrong password" keeps the password page up.
@@ -53,21 +53,25 @@ Both run identical server code (`NetServer` for connections, `NetHost` for the l
 
 ```
 connect ─► join checks (versions, key, password, bans, room)
-        ─► lobby: everyone's players, track (by hash), class, event, chat; each player picks a car
-           (and on kart classes, their own class: D149)
-        ─► a client without the track gets it first ("Getting track 40%"); then Ready
+        ─► lobby: everyone's players (car, device, assists, ping, ready), track (by hash), class,
+           event, chat; each player picks a car (and on kart classes, their own class: D149)
+        ─► a client without the track gets it first ("Getting track 40%"); then each player readies
         ─► the server fetches each picked car from its owner (§7); clients fetch everyone's
-        ─► start (host, admin /start, or the dedicated server once all are ready)
+        ─► everyone ready: the server counts down ("Starting in 3") and starts; an admin's Force
+           start (/start) starts at once
         ─► SESSION: track (hash, id, name, size; "endless" for an endless road), class (and its hash), event, rules,
            roster in grid order, the sky (environment: time, rate, weather, seed, t0) and an endless road's
            clock and where everyone is (endless: t0, at)
         ─► each game builds its session: its own players drive, every other car is remote
         ─► the start waits until every game has the session's cars ("Syncing 2/3"; 3–30 s, D127)
         ─► races: the server runs the event, clients follow (§6); results; next session
-        ─► back to the lobby (host, last session over, or everyone gone)
+        ─► back to the lobby (host, last session over, or everyone gone); the playlist moves on
 ```
 
-- **Splitscreen online** (LOC-05): one connection carries up to 4 local players, each with their own id. All count toward the **16-player** cap (MP-03).
+- **The lobby** ([UI_FLOW.md §7.5](UI_FLOW.md#75-lobby), `NetHost`, `LobbyPage`): each game sends its players' cars (PICK) and, for everyone's roster, what each drives with and the assists they have on (PLAYER_INFO `{player, device, assists, name, color}`: "keyboard", "xbox", "playstation" or "wheel"; AssistRules ids, those the class allows; a profile change renames the player). The server measures each player's round trip every 2 s and sends it in the lobby (`ping`, 0 for the host's own players; a change of 5 ms or less isn't sent).
+- **Ready is per player** (READY `{player, ready}`): a game with two players is ready when both are. Once every player is (and there are `min_players`: the dedicated server's `--min-players`), `NetHost` counts down `countdown_s` (the config's, 3 s; the lobby carries the seconds left as `starting`) and starts; anyone un-readying, or a new player joining, holds it ("Start held: not everyone's ready"). Listen and dedicated servers count down the same way.
+- **The playlist** (the config's rotation): the host's lobby has Change event (the event pages again; `NetHost.set_event()` puts the event in the place of the one up) and Playlist (`set_rotation()`: add, remove and reorder; each item is `{track, class, event, name}`). It moves on after each session. When the event up changes, everyone readies again, and a car or kart class the new class can't take is dropped (the player's game picks again).
+- **Splitscreen online** (LOC-05): one connection carries up to 4 local players, each with their own id. All count toward the **16-player** cap (MP-03). Players join and leave in the lobby (ADD_LOCAL, REMOVE_LOCAL): the server closes up the others' local indexes as the game closes up its Players slots, so a player's local index is always their slot, and games match players by it, never by list order (`Net.id_of()`, `local_of()`).
 - **Joining mid-session:** free drive takes newcomers at once (first free grid spot); an endless road starts them just behind whoever's furthest along. A race weekend doesn't; they wait in the lobby for the next event ("Race on: you're in the next one").
 - **Leaving mid-session:** in a race weekend the car stays in the results as out, until the next session.
 - **Online the game never pauses** and runs at full speed (D85). A player's pause menu opens just for them.
@@ -150,8 +154,8 @@ connect ─► join checks (versions, key, password, bans, room)
 ## 9. Dedicated server
 
 - **Build:** `tools/export.sh server` → `export/server/noss_server.x86_64` (the "Linux Server" preset: dedicated server mode, runs headless on its own). From the project: `tools/godot.sh --headless -- --server --config=server.json`.
-- **Run:** `noss_server --config server.json [--port N]`. Example config: `data/server.example.json` (schema `data/schemas/server.schema.json`): name, port, password, max players (≤16), MOTD, admins, whitelist, bans, LAN discovery, UPnP, car-state rate, event rotation, rules, caps, plausibility response.
-- **Running:** it starts the event once everyone in the lobby is ready (after 5 s), runs the event's sessions with 15 s of results between them, goes on to the next event in the rotation, and goes back to the lobby when the last player leaves.
+- **Run:** `noss_server --config server.json [--port N] [--min-players N]`. Example config: `data/server.example.json` (schema `data/schemas/server.schema.json`): name, port, password, max players (≤16), MOTD, admins, whitelist, bans, LAN discovery, UPnP, car-state rate, the countdown (`countdown_s`, 3), event rotation, rules, caps, plausibility response.
+- **Running:** once everyone in the lobby is ready (and there are `--min-players`), it counts down (3 s, as a listen server does) and starts the event, runs the event's sessions with 15 s of results between them, goes on to the next event in the rotation, and goes back to the lobby when the last player leaves.
 - **Console** (stdin, a terminal or a pipe): `players`, `kick <name>`, `ban <name>`, `say <text>`, `start`, `next`, `restart`, `time <…>`, `weather <…>`, `quit`. Logs go to stdout and `user://logs/server.log`.
 - **No GPU needed:** physics only; cars load without models; no sound. On an endless road it builds no world: a short stretch at the start, its own floating origin round the convoy, and the road chunks it checks.
 
