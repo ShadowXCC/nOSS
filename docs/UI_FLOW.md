@@ -86,7 +86,11 @@ Built in P2 (`game/ui/page/`) and P3 (tabs).
 - **`MenuPage`:** a full-screen page: breadcrumb, step row, title, a scrolling body, an optional
   right pane, and a `PromptBar`. It scrolls to the focused control itself (on
   `gui_focus_changed`), so scrolling follows the focus inside a `PlayerView` too, where
-  `follow_focus` doesn't.
+  `follow_focus` doesn't. A page's main action ("Next") sits in an **action bar** under the body,
+  "Back" on its left, always on screen however long the body (P4): down from the last row goes to
+  it, then Back; left and right go along the bar. Godot 4.7.2 leaves a row that starts out of the
+  scroll's view out of the screen-reader tree until it has the focus, so a Next at the end of a long
+  body was out of reach of the checks (which can't send keys) and of a screen reader's review.
 - **`MenuStack`:** push and pop. Only the top page is visible. Popping gives the focus back to the
   control that had it. Until P4 and P5 replace them, the old menus run on the main menu's stack too,
   each refocusing itself as before (P2).
@@ -151,7 +155,8 @@ Title "Local Drive", breadcrumb "Local Drive".
 
 - **Drive again** shows only when there is a last event and its track and class still exist. It
   repeats the last type, settings and class, and goes straight to the Players page; Back from
-  there comes to that event's Settings page.
+  there comes to that event's Settings page (Next focused), then the Racing page, then Local Drive.
+  A time trial before P6 has no Players page: it starts the drive.
 - Focus starts on the first button (Drive again when it's there).
 
 ### 5.3 Racing page
@@ -170,6 +175,10 @@ page, and left/right on the switch itself. The descriptions follow the switch:
 
 "NASCAR" is a trademark: the type is "Stock Car" everywhere in the game.
 
+Until P5, Kart opens the Kart menu and Custom opens the old Race menu (Custom's time trial: the old
+class and track pickers). Kart's time trial comes with P6: until then its button is off, its
+description "Coming soon".
+
 ### 5.4 Mini Games page
 
 Title "Mini Games", breadcrumb "Local Drive › Mini Games".
@@ -187,9 +196,10 @@ Title: the event's name (§6), breadcrumb ending "› Settings". The rows on the
 spinner, check, text field or button as today), the `TrackPane` on the right for types with a
 track. The **Track** row steps through the tracks in place: there is no separate track picker.
 
-At the bottom: "Next" and "Back". Next's description says what comes next: "Pick the class",
-"The players: each picks a car", "The players: each picks a car and a class", or, when hosting
-with no Class step, Next reads "Start hosting" ("Start the server and open the lobby").
+Under the rows, in the action bar: "Back" and "Next". Next's description says what comes next:
+"Pick the class", "The players: each picks a car", "The players: each picks a car and a class",
+"Start driving" (a time trial with no Class step, before P6), or, when hosting with no Class step,
+Next reads "Start hosting" ("Start the server and open the lobby").
 
 The rows of each type are in §6.1. Rows keep today's names and values unless §6.1 says otherwise.
 
@@ -211,9 +221,10 @@ Title "Choose class", breadcrumb ending "› Class".
 ### 5.7 Players page
 
 The Players screen stays as it is (a redesign is out of scope), but the start changes: once
-everyone is Ready, a **3-second countdown** runs in the hint line, "Starting in 3", "2", "1", and
-it stops (the hint goes back to "Press any button to join.") if anyone un-readies, joins or
-leaves. `PlayersMenu.countdown_s` (3.0; tests set it near 0).
+everyone is Ready, a **3-second countdown** runs in the hint line, "Starting in 3", "Starting in
+2", "Starting in 1", and it stops (the hint goes back to "Press any button to join. …") if anyone
+un-readies or joins. When someone leaves it stops too, and if everyone left is ready it starts
+again from 3. `PlayersMenu.countdown_s` (3.0; tests set it near 0).
 
 The card's "Settings" button becomes "Driving Settings".
 
@@ -530,7 +541,7 @@ AT-SPI. Each phase updates its routes:
 | P1 | Every route: "Solo Drive" becomes "Local Drive", "Online" becomes "Drive Online", "Quit" becomes "Exit Game". |
 | P2 | Every route still passes with the page stack. A page under the top one is not showing. |
 | P3 | New `--settings-only`: Settings → every tab → Players → Driving Settings → every tab, and back. |
-| P4 | The main route: Local Drive → Racing → Regular → Settings ("Next") → "Track GT" → Players ("Ready") → the race → results ("Main menu"). New `--racing-only`: Stock Car (no Class step) and the Time Trial switch, and back. |
+| P4 | The main route: Local Drive → Racing → Regular → Settings ("Next") → "Track GT" → Players ("Ready") → the race → results ("Main menu"), then `--racing-only`'s route. New `--racing-only`: Stock Car (no Class step) → Players and back, the Time Trial switch → Regular → the class and back. The kart route goes through Racing. |
 | P5 | Rewrite `--highway-only`, `--kart-only`, `--endless-only`, `--sumo-only` and `--drag-only` for the pages; `--racing-only` adds Custom; new `--free-only`. |
 | P6 | `--racing-only` adds a time trial's Players step. |
 | P7 | New `--garage-only`: Garage → Fitting Bay → the Import step ("From online games") → Exit → the Garage → Back. |

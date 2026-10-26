@@ -77,7 +77,7 @@ The **track editor** has its own controls for its view (mouse, keyboard or contr
 
 *Requirements: LOC-04. Built in M3 (D54, D55).*
 
-- **Players screen:** "Press any button to join". The first press on a free device claims the next player slot (Esc, Backspace, B, View and Guide never join; with nobody joined they go back). Each player then sets up their own card with their own device: profile, car, keyboard side, monitor, settings, Ready. Everyone ready starts the drive.
+- **Players screen:** "Press any button to join". The first press on a free device claims the next player slot (Esc, Backspace, B, View and Guide never join; with nobody joined they go back). Each player then sets up their own card with their own device: profile, car, keyboard side, monitor, settings, Ready. Once everyone is ready a 3-second countdown runs in the hint line ("Starting in 3"); anyone un-readying (back on a ready card) or joining stops it, and a leave starts it again from 3 for the rest ([UI_FLOW.md](UI_FLOW.md) §5.7).
 - **Mid-drive:** a free controller or wheel joins by pressing a button; the views re-flow. Leave in your pause menu drops out.
 - **Combining devices:** "Add device" on a card claims the next device pressed, e.g. a wheel plus separate pedals, or a second controller for a helper (two devices, one car; the larger value wins).
 - **Remembered assignments:** which profile each device belongs to, by GUID, in `user://players.json`. A remembered device joins with its profile.
