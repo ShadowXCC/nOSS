@@ -11,7 +11,7 @@ type's pages (UI overhaul P5): Highway -> its Settings page -> the class -> Play
 Players and back out (M8); Endless -> the class -> Players (M9); Mini Games -> Sumo Wrestling and
 Drag Strip (its class) -> Players; Free Drive -> the class -> Players, each backed out of, then
 Settings and Driving Settings, every tab (P3), then the Garage: its tabs, the Fitting Bay's Import
-step with its "From online games" list, and back through the Garage (P7), then the track editor: every
+step with its "From online games" list, and back through the Garage (P7; a car's page, P7b), then the track editor: every
 tool, a new oval, its race setup and checks, a new highway loop and its ramps, the Stunts tool on
 a kart circuit and an arena, and out (M6-M8);
 then, in a second run, a highway session's pause menu (opened with --pause-at: keys can't be
@@ -433,15 +433,21 @@ def settings_menus():
 
 
 def garage_menus():
-    """Main menu -> Garage -> its tabs (Built-in, My cars) -> Fitting Bay -> the Import step's
-    "From online games" list -> Exit -> the Garage again -> Back (UI overhaul P7,
-    docs/UI_FLOW.md §8)."""
+    """Main menu -> Garage -> its tabs (Built-in) -> nOSS Box's page (the grid hidden under it) ->
+    Back -> My cars -> Fitting Bay -> the Import step's "From online games" list -> Exit -> the
+    Garage again -> Back (UI overhaul P7, P7b; docs/UI_FLOW.md §8)."""
     log("Garage")
     ok = step("Main menu (garage)", "Garage")
     ok = ok and step("Garage: to Built-in", "Built-in", role="toggle button")
     if ok and find("nOSS Box", "button", timeout=20.0) is None:  # the tab has switched
         problems.append("Garage: Built-in shows no 'nOSS Box'")
         ok = False
+    ok = ok and step("Garage: Built-in", "nOSS Box")
+    if ok and find("Drive", "button", timeout=20.0) is None:
+        problems.append("nOSS Box's page: no 'Drive'")
+        ok = False
+    ok = ok and hidden("nOSS Box's page", "New car")
+    ok = ok and step("nOSS Box's page", "Back")
     ok = ok and step("Garage: to My cars", "My cars", role="toggle button")
     end = time.time() + 20.0
     while ok and find("nOSS Box", "button", timeout=0.5) is not None:  # until the tab has switched

@@ -88,6 +88,10 @@ func _ready() -> void:
 	split.add_child(panel)
 	var side := VBoxContainer.new()
 	panel.add_child(side)
+	var crumbs := UiKit.label("Garage › Fitting Bay" if _from_garage() else "Fitting Bay", 26)
+	crumbs.name = "Crumbs"
+	crumbs.add_theme_color_override("font_color", UiKit.MUTED)
+	side.add_child(crumbs)
 	var title := UiKit.label("Fitting Bay", 38)
 	side.add_child(title)
 	var steps := HFlowContainer.new()
@@ -115,11 +119,14 @@ func _ready() -> void:
 	var actions := HBoxContainer.new()
 	_drive_button = UiKit.button("Save and drive", _save_and_drive, "Save the car to the garage and drive it")
 	_save_button = UiKit.button("Save", _save, "Save the car to the garage")
-	var exit := UiKit.button("Exit", _exit, "Back to the Garage" if Game.bay_from == "garage" else "Back to the main menu")
+	var exit := UiKit.button("Exit", _exit, "Back to the Garage" if _from_garage() else "Back to the main menu")
 	for b in [_drive_button, _save_button, exit]:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		actions.add_child(b)
 	side.add_child(actions)
+	var prompts := PromptBar.new()
+	prompts.extra = [["tabs", "Steps"]]
+	side.add_child(prompts)
 
 	_preview = BayPreview.new()
 	_preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -883,16 +890,23 @@ func _test_drive() -> void:
 	Game.start_free_drive(draft.draft_dir(), platform_id, true)
 
 
-## Back where the bay was opened from: the Garage (on the car being fitted), else the main menu.
+## Back where the bay was opened from: the Garage on the car being fitted (on its page when a car's
+## page opened the bay), else the main menu.
 func _exit() -> void:
-	var car: String = _saved_path if _saved_path else draft.edit_path if draft else ""
+	var car: String = _saved_path if _saved_path else draft.edit_path if draft and draft.edit_path else ""
+	if car.is_empty() and Game.bay_from == "car":
+		car = Game.bay_car # left without saving: back to the car it came from
 	_leave()
 	_discard_draft()
 	closed.emit()
-	if Game.bay_from == "garage":
-		Game.open_garage(car)
+	if _from_garage():
+		Game.open_garage(car, "car" if Game.bay_from == "car" else "")
 	else:
 		Game.go_title()
+
+
+static func _from_garage() -> bool:
+	return Game.bay_from in ["garage", "car"]
 
 
 ## Takes the preview's car out before the scene goes, so the draft's model isn't freed.
@@ -1158,7 +1172,23 @@ static func _focusable(controls: Array) -> Array:
 	return out
 
 
+## The next step on, `d` along (LB/RB), wrapping. Without a car only Import is on.
+func _step_by(d: int) -> void:
+	var on: Array = STEPS.filter(func(s: String) -> bool: return not (_step_buttons[s] as Button).disabled)
+	if on.size() > 1:
+		_show_step(on[posmod(on.find(_step) + d, on.size())])
+
+
 func _unhandled_input(event: InputEvent) -> void:
+	var d := -1 if event.is_action_pressed("ui_tab_prev") else 1 if event.is_action_pressed("ui_tab_next") else 0
+	if d != 0:
+		var focus := UiKit.focus_owner(self)
+		var typing := focus is LineEdit and (focus as LineEdit).is_editing()
+		var dialog := (_dialog != null and _dialog.visible) or (_audio_dialog != null and _audio_dialog.visible)
+		if not typing and not dialog and not is_instance_valid(_overlay):
+			get_viewport().set_input_as_handled()
+			_step_by(d)
+		return
 	if event.is_action_pressed("ui_cancel") and (_dialog == null or not _dialog.visible):
 		get_viewport().set_input_as_handled()
 		if is_instance_valid(_overlay):

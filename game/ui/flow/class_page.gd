@@ -34,8 +34,9 @@ func _ready() -> void:
 		steps = flow.steps()
 		step = steps.find("Class")
 	else:
-		crumbs = ["Garage", "Class"]
-		back_hint = "Back to the Garage"
+		var car_name := String(PackageLoader.read_manifest(car).get("name", ""))
+		crumbs = ["Garage", car_name, "Class"]
+		back_hint = "Back to " + car_name
 	super._ready()
 
 

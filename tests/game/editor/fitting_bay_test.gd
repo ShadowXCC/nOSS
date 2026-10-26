@@ -171,6 +171,49 @@ func test_a_noss_already_in_the_garage_asks_first() -> void:
 	DirAccess.remove_absolute(path)
 
 
+## LB/RB (the tab actions) step through the steps with a car in, both ways and wrapping, but not
+## while a text field is being typed in (docs/UI_FLOW.md §8). The prompt bar says "Steps".
+func test_the_tab_actions_step_through_the_steps() -> void:
+	_bay._show_step("Import")
+	await get_tree().process_frame
+	await _push("ui_tab_next")
+	assert_str(_bay._step).is_equal("Orient")
+	await _push("ui_tab_prev")
+	await _push("ui_tab_prev")
+	assert_str(_bay._step).is_equal("Save")
+	_bay._show_step("Import")
+	await get_tree().process_frame
+	var field := _bay._content.find_children("*", "LineEdit", true, false)[0] as LineEdit
+	field.grab_focus()
+	await get_tree().process_frame # reached by keys, a field waits for confirm (UiKit.text_field)
+	field.edit()
+	await _push("ui_tab_next")
+	assert_str(_bay._step).is_equal("Import")
+	field.unedit()
+	var bar := _bay.find_children("*", "PromptBar", true, false)[0] as PromptBar
+	assert_array(bar.extra).contains_exactly([["tabs", "Steps"]])
+
+
+## Without a car only Import is on: LB/RB stay there.
+func test_the_tab_actions_wait_for_a_car() -> void:
+	var empty := FittingBay.new()
+	add_child(empty)
+	await get_tree().process_frame
+	await _push("ui_tab_next")
+	assert_str(empty._step).is_equal("Import")
+	empty.free()
+
+
+func _push(action: String) -> void:
+	for pressed in [true, false]:
+		var e := InputEventAction.new()
+		e.action = action
+		e.pressed = pressed
+		get_tree().root.push_input(e)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
 ## The step's button labelled `text` (not one of the old step's, still waiting to be freed).
 func _button(text: String) -> Button:
 	for b: Button in _bay._content.find_children("*", "Button", true, false):

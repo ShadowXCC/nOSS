@@ -59,7 +59,7 @@ extends Node
 ##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5; a list like 5,30,90 takes several), one per window
 ##   --quit-at=<s>        quit after this many seconds
 ##   --bay                open the Fitting Bay
-##   --garage             open the garage
+##   --garage[=<car>]     open the garage (on that car's page: a package path, res://content/cars/noss_box)
 ##   --import=<path>      Fitting Bay: import this model
 ##   --bay-auto           Fitting Bay: save and drive as soon as the import is in (timed runs)
 ##   --bay-step=<step>    Fitting Bay: show this step after the import (screenshots)
@@ -110,8 +110,12 @@ var headless := false
 var dedicated := false
 ## The Fitting Bay's draft, kept while the player test-drives it.
 var bay_draft: Variant = null
-## Where the Fitting Bay was opened from: "garage" sends its Exit back there (docs/UI_FLOW.md §8).
+## Where the Fitting Bay was opened from: "garage" (the grid) or "car" (a car's page) sends its Exit
+## back there (docs/UI_FLOW.md §8).
 var bay_from := ""
+## The car whose page opened the bay ("car"): Exit goes back to its page, unless the bay saved
+## another car.
+var bay_car := ""
 ## The track editor's draft (TrackDraft), kept while the player test-drives it.
 var track_draft: Variant = null
 ## A kart cup in progress (CupRun), kept between its races; null otherwise.
@@ -531,15 +535,18 @@ func _on_net_cut_off(reason: String) -> void:
 		go_title()
 
 
-## The garage, with the car at `select` (a package path) picked if it's there.
-func open_garage(select := "") -> void:
+## The garage, with the car at `select` (a package path) picked if it's there; with `page` "car",
+## on that car's page.
+func open_garage(select := "", page := "") -> void:
 	get_tree().paused = false
 	var garage := Garage.new()
 	garage.start_car = select
+	garage.start_page = page
 	_switch(garage)
 
 
-## `from`: "garage" when the Garage opened it (its Exit goes back there), else empty.
+## `from`: "garage" when the Garage's grid opened it, "car" when a car's page did (bay_car), so its
+## Exit goes back there; else empty.
 func open_fitting_bay(import_path := "", step := "", from := "") -> void:
 	get_tree().paused = false
 	bay_from = from
