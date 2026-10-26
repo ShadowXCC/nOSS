@@ -21,6 +21,7 @@ Rules and flow for each mode. Every mode uses the same vehicle core ([PHYSICS.md
   - The sky is worked out from the settings and the clock, so online every game shows the same one (the server's seed and clock, D159); admins change it with `/time` and `/weather`.
   - Leaderboards and ghosts record a wet or snowy road; such laps are tagged on the boards.
 - **In-game text is short.** Examples: "Lap 2/5", "P3", "+0.42", "Best lap", "Track limits", "Busted", "Combo ×4".
+- **Hosting (UI overhaul P8):** main menu → **Drive Online → Host** (the server's name, password, size, port, LAN discovery, router port) → Next → the same Event, Settings and Class pages as Local Drive → the lobby. Every type with network code goes online: Regular, Stock Car and Custom races, Kart races, Endless, Highway Cruise, Sumo Wrestling, Drag Strip, Kart Battle and Free Drive. Only tracks that can be shared are listed, and Free Drive has no AI cars online. Time trials, Kart cups and the highway's Score attack, Runs and Loop wait for their network code (P10), so hosting leaves them out. The last page before the lobby starts the server ("Start hosting", or the class). Hosting remembers each type apart from Local Drive ([UI_FLOW.md §7](UI_FLOW.md#7-drive-online)).
 
 ## 1. Track racing
 
@@ -101,7 +102,7 @@ Four races for points (15, 12, 10, 8, 6, 4, 2, 1); ties go to the most wins, the
 
 ### Online
 
-Kart races and battles run on servers (protocol 5): the server rules on boxes, items and hits, and each game shows its own items at once (D141, NETWORKING.md §11). Host → Event offers Kart battle. In a kart lobby your row picks your car and your class; the server's AI karts pick their own.
+Kart races and battles run on servers (protocol 5): the server rules on boxes, items and hits, and each game shows its own items at once (D141, NETWORKING.md §11). Drive Online → Host → Event offers Kart races (Racing → Kart: no cups yet) and Kart Battle (Mini Games). In a kart lobby your row picks your car and your class; the server's AI karts pick their own.
 
 ## 3. Highway
 
@@ -109,7 +110,7 @@ Kart races and battles run on servers (protocol 5): the server rules on boxes, i
 
 High-speed driving through traffic on a multi-lane highway that closes into a loop, with on and off ramps. The first map, the **Lumen Ring** (8.3 km, D121), is made with the track editor; open-ended highways and a generator come with Endless (M9).
 
-**Start:** main menu → Local Drive → Highway → its Settings page: the highway, what to do (mode, traffic Off/75/150/250/400, police, which way round: clockwise, anticlockwise or both ways in turn; the run for Runs) → the class (Street or Super) → players. Players start in single file on the hard shoulder behind the lap line. Online, the host picks "Highway cruise" in the host menu.
+**Start:** main menu → Local Drive → Highway → its Settings page: the highway, what to do (mode, traffic Off/75/150/250/400, police, which way round: clockwise, anticlockwise or both ways in turn; the run for Runs) → the class (Street or Super) → players. Players start in single file on the hard shoulder behind the lap line. Online, Drive Online → Host → Event → Highway hosts a Cruise (no Mode row: Score attack, Runs and Loop online come in UI P10).
 
 ### Traffic
 
@@ -175,7 +176,7 @@ A highway that closes on itself, like a city ring expressway. The world feels li
 
 A calm, never-ending drive, like Slow Roads.
 
-**Start:** main menu → Local Drive → Endless → its Settings page: the road (a road code, or New road), the biome it starts in, lanes (2 or 4), the side traffic drives on (Right or Left), traffic (Light, Normal, Heavy or Off), garage cars in the traffic, oncoming traffic, speed traps, police, what happens when players on this PC drift apart, and the sky (Morning, 30×, Changing by default) → the class (Cruiser or Sport) → players. The last setup is remembered. Online, the host picks "Endless road" in the host menu.
+**Start:** main menu → Local Drive → Endless → its Settings page: the road (a road code, or New road), the biome it starts in, lanes (2 or 4), the side traffic drives on (Right or Left), traffic (Light, Normal, Heavy or Off), garage cars in the traffic, oncoming traffic, speed traps, police, what happens when players on this PC drift apart, and the sky (Morning, 30×, Changing by default) → the class (Cruiser or Sport) → players. The last setup is remembered. Online, Drive Online → Host → Event → Endless takes the same pages.
 
 - **The road (D152):** a road made 2 m at a time from the seed, in integers only, so every machine makes the same road.
   - **Lanes (D190):** one or two each way, driven on the right or the left. The edges are solid white; one each way has a dashed centre line, two each way a double solid one and dashed lane lines. The centre line is yellow driving on the right and white on the left. Lanes and side don't change the road code: the road is the same, only its lanes differ.

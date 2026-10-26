@@ -92,15 +92,18 @@ Built in P2 (`game/ui/page/`) and P3 (tabs).
   scroll's view out of the screen-reader tree until it has the focus, so a Next at the end of a long
   body was out of reach of the checks (which can't send keys) and of a screen reader's review.
 - **`MenuStack`:** push and pop. Only the top page is visible. Popping gives the focus back to the
-  control that had it. Drive Online's old menus run on the main menu's stack too, each refocusing
-  itself as before (P2), until P8 replaces them.
+  control that had it. Drive Online's old menus ran on the main menu's stack too (P2) until P8 made
+  them pages.
 - **`ConfirmPage`:** a question with the safe answer focused first (promoted from the pause menu's
   `ConfirmMenu`). Its title is the question; its buttons are given (e.g. "Keep" and "Reset").
 - **`TabRow`:** a row of tabs (toggle buttons). `ui_tab_prev` and `ui_tab_next` switch tabs from
   anywhere on the page, only while its page is on top and not while a text field is being typed
   in, wrapping at the ends. Left and right on the tab row switch too. Switched from a row, the
   focus goes to the new tab's first row; from the tab row it stays on the row (the new tab). Up
-  from a tab's first row reaches the tab row. The row scrolls sideways when the tabs don't fit.
+  from a tab's first row reaches the tab row. The row scrolls sideways when the tabs don't fit. A
+  tab can be off (Join's Official, P8): it shows dimmed, its name then why ("Official · Coming
+  soon"), its accessible name the name alone and why its description; it can't take the focus,
+  and the tab keys and left and right skip it.
 - **`TabbedPage`:** a `MenuPage` with a `TabRow`, a help line at the bottom, and a "Reset to
   defaults" button at the end of each tab that has settings (§9). It builds one tab's rows at a
   time; a page opens another over itself with `open_over()` (on its `MenuStack`, or in its place in
@@ -348,21 +351,44 @@ Title "Drive Online", breadcrumb "Drive Online".
 |---|---|
 | "Host" | "Start a game others can join" |
 | "Join" | "Find a game on your network or by address" |
+| "Players" | "Who plays on this PC: Ana, Ben" (until P9) |
 | "Back" | "Back to the main menu" |
 
 A status line under the buttons says why the last game ended, when it did ("Kicked", "Server
 closed").
+
+- **"Players"** opens today's Players screen (online mode: no car row, "Done") so local players can
+  join before going online. It stays until P9's lobby takes them ("This PC"), then it goes.
+- Hosting or joining, **the lobby takes the place of the pages on the way** (Host and the event
+  pages, or Join and Password): Back or Leave in the lobby comes back here, with the focus where
+  it was.
 
 ### 7.2 Host
 
 Title "Host", breadcrumb "Drive Online › Host", "Step 1 of 5".
 
 Rows: "Name", "Password", "Players", "Port", "LAN discovery", "Open port" (today's Host rows, with
-the same descriptions). At the bottom: "Next" ("Choose the event") and "Back".
+the same descriptions; LAN discovery and Open port are On/Off spinners). At the bottom: "Next"
+("Choose the event") and "Back" ("Back to Drive Online").
 
 Then the same Event, Settings and Class pages as Local Drive (in the "host" context), and the
 lobby. The last page before the lobby hosts: its confirm is "Start hosting", and it builds the
 `ServerConfig` for `Net.host(...)`.
+
+- **The Event page:** title "Event", breadcrumb "Drive Online › Host › Event", "Step 2 of 5": the
+  Local Drive types without Drive again. Highway's description is "A cruise through traffic". Back
+  is "Back to Host"; Racing's and Mini Games' Back is "Back to the event types".
+- **Racing** has no Race | Time Trial switch, and Kart's description is "Kart races with items".
+- **Rows left out when hosting:** Kart's "Play" (a race only), Highway's "Mode" (a Cruise), and
+  Free Drive's "AI cars", "AI skill" and "AI cars look" (a free drive online has no AI).
+- **The last page:** a type with no Class step (Stock Car, Kart, Sumo Wrestling, Kart Battle) has
+  "Start hosting" ("Start the server and open the lobby") for its Next; the others host on the
+  class picked. If the port is taken, a line under the rows says "Can't open UDP 47800" and the
+  page stays.
+- **The server:** the Host page's options with the event as its one rotation item: the track
+  (Endless: "endless"; Sumo and Drag, which make their own ground: the default track), the class
+  (Kart and Kart Battle: Medium, each player picking theirs in the lobby) and the event. The
+  options are kept in `Settings.net_host` without the password, and `--host` hosts them again.
 
 Every type can be hosted. Regular, Stock Car, Custom, Kart races, Kart Battle, Endless, Highway
 Cruise, Sumo Wrestling, Drag Strip and Free Drive need only the pages (P8). Time trials, Highway
@@ -374,22 +400,34 @@ event pages leave them out when hosting.
 Title "Join", breadcrumb "Drive Online › Join". Tabs "On your network | Direct | Official".
 
 - **On your network:** the servers found on the LAN, as today ("Name   2/16   class, track
-  (password)"). "None found" when there are none.
+  (password)"). "None found" when there are none; then the focus starts on the tab row.
 - **Direct:** "Favourites" first (pinned at the top, each named by you), then "Recent" (the last 8
-  servers joined), then "Address", "Password" and "Join".
-  - A favourite's row joins it; beside it, "Edit" opens a page with "Name", "Address", "Remove" and
-    "Back".
-  - A recent row joins it; beside it, "Save" adds it to the favourites, named after the server.
-  - New settings keys: `net_recent` and `net_favourites`.
-- **Official:** disabled, reading "Coming soon" (its description too).
+  servers joined), then "Address", "Password" and "Join". A heading shows only with something
+  under it.
+  - Each server row reads "Name   address" ("Ana's PC   192.168.1.20:47800"), its description
+    "Join this server". Right reaches the button beside it; up and down go where the row does.
+  - A favourite's row joins it; beside it, "Edit" ("Rename or remove Ana's PC") opens a page titled
+    with its name (breadcrumb "Drive Online › Join › Ana's PC") with "Name", "Address", "Remove"
+    and "Back". Name and Address are kept as typed (an address that isn't one is not); Remove
+    takes it off at once.
+  - A recent row joins it; beside it, "Save" ("Add Ana's game to your favourites") adds it to the
+    favourites, named after the server. On a server that's a favourite already it's off ("In your
+    favourites").
+  - New settings keys: `net_recent` and `net_favourites` (`settings.cfg`, `[online]`), each a list
+    of `{name, address}`. A recent server is named by the server's own name from its answer.
+- **Official:** off, reading "Official · Coming soon" (its description "Coming soon").
+- A line under the rows says how a join goes: "Joining 192.168.1.20:47800", "Enter an address",
+  "Can't reach …", "Server not found", or the server's refusal.
 - A **locked server asks for its password before** trying to join (§7.4). A direct join that
   fails with "Password needed" asks, then tries again.
 
 ### 7.4 Password page
 
 Title "Password", breadcrumb "Drive Online › Join › Password". The line "<server> needs a
-password.", then "Password" (hidden as typed), "Join" and "Back". A wrong one shows "Wrong
-password" and keeps the page up.
+password.", then "Password" (hidden as typed), and "Join" ("Join <server>") and "Back" ("Back to
+Join") in the action bar; Enter in the field joins too. An empty one says "Type the password". A
+wrong one shows "Wrong password" and keeps the page up. A direct join's server is named by its
+address here.
 
 ### 7.5 Lobby
 
@@ -613,7 +651,7 @@ AT-SPI. Each phase updates its routes:
 | P6 | `--racing-only` adds the time trials' Players step: Regular's (after the class) and Kart's. |
 | P7 | New `--garage-only`: Garage → "Built-in" and "My cars" → Fitting Bay → the Import step ("From online games") → Exit → the Garage → Back. |
 | P7b | `--garage-only` opens "nOSS Box"'s page from Built-in (the grid hidden under it) and comes back before My cars. |
-| P8 | The online route: Drive Online → Host → "Next" → Racing → Regular → Settings → Class → the lobby → "Leave"; Join → each tab → Back. |
+| P8 | The online route (also `--online-only`): Drive Online → Host → "Next" → Racing → Regular → Settings → Class → the lobby → "Leave"; Join → each tab → Back. Official can't take the focus and says "Coming soon" (Godot 4.7.2 doesn't tell AT-SPI a button is disabled). |
 | P9 | The lobby: the "This PC" card's buttons, "Change event", "Playlist", "Leave". |
 | P11 | The final routes and the docstring. |
 
