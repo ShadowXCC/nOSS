@@ -6,7 +6,7 @@ extends Node
 ##   --platform=<id>      platform class for --drive, e.g. official.highway.street
 ##   --autodrive          let the racing AI drive the players (tests, screenshots)
 ##   --speed-factor=<x>   highways: autodriven players go x times the lanes' limits (police checks)
-##   --players=<n>        free drive with n players; the extra ones are driven by the racing AI
+##   --players=<n>        free drive (highway, time trial) with n players; the extra ones are driven by the racing AI
 ##   --ai=<n>             add n AI racers (no views); --ai-skill=<0-100>, --ai-builtin: built-in cars only
 ##   --race               start a race right away (the last race set up); --race-laps=<n>, --race-ai=<n>,
 ##                        --race-start=track|standing|rolling, --race-draft=track|off|on,
@@ -384,8 +384,8 @@ func start_free_drive(car_path := "", platform_id := "", bay_return := false, so
 	open_session(session)
 
 
-## A race weekend or time trial with `event`; every joined player takes part (time trial: P1).
-## `track`: a path; empty: selected_track().
+## A race weekend or time trial with `event`; every joined player takes part. `track`: a path;
+## empty: selected_track().
 func start_event(event: RaceEvent, platform_id: String, track := "") -> void:
 	flow_return = {} # EventFlow.start() sets it again after this
 	event_requested.emit(event, platform_id)
@@ -396,10 +396,9 @@ func start_event(event: RaceEvent, platform_id: String, track := "") -> void:
 	if event.kind not in ["sumo", "drag"]: # both are generated, so there is no track to pick
 		session.track_path = track if track else selected_track("highway" if event.kind == "highway" else "arena" if event.kind == "battle" else "circuit")
 	session.event = event
-	session.solo = event.kind == "time_trial"
 	session.platform_id = platform_id
 	session.autodrive = dev.has("autodrive")
-	if event.kind == "highway":
+	if event.kind in ["highway", "time_trial"]:
 		session.ai_players = maxi(int(dev.get("players", "1")) - maxi(Players.count(), 1), 0)
 	if dev.has("camera"):
 		Settings.profile.camera = dev.camera

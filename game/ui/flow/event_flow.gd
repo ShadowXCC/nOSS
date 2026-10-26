@@ -117,30 +117,25 @@ func has_class_step() -> bool:
 
 
 ## The step row's names (docs/UI_FLOW.md §5.1).
-static func steps_for(where: String, type_id: String, variant_id: String, time_trial: bool) -> PackedStringArray:
+static func steps_for(where: String, type_id: String, variant_id: String) -> PackedStringArray:
 	var out := PackedStringArray()
 	if where == "host":
 		out.append("Host")
 	out.append_array(["Event", "Settings"])
 	if class_rule(type_id, variant_id) == "pick":
 		out.append("Class")
-	if where != "local":
-		out.append("Lobby")
-	elif not time_trial: # a time trial's players come in P6; until then P1 drives
-		out.append("Players")
+	out.append("Players" if where == "local" else "Lobby")
 	return out
 
 
 func steps() -> PackedStringArray:
-	return steps_for(context, type, variant, tt)
+	return steps_for(context, type, variant)
 
 
 ## What Next on the Settings page leads to (its description).
 func next_hint() -> String:
 	if has_class_step():
 		return "Pick the class"
-	if tt:
-		return "Start driving"
 	return "The players: each picks a car and a class" if class_rule(type, variant) == "card" else "The players: each picks a car"
 
 
@@ -420,8 +415,8 @@ func session_event() -> RaceEvent:
 	return event
 
 
-## Starts the event (time trials: P1 alone until P6). Remembered first; Local Drive's is Drive
-## again's too, and Game.flow_return keeps it for the results' "Event menu".
+## Starts the event for everyone who joined. Remembered first; Local Drive's is Drive again's too,
+## and Game.flow_return keeps it for the results' "Event menu".
 func start() -> void:
 	remember()
 	var data := to_dict()
@@ -467,7 +462,7 @@ static func from_dict(d: Dictionary) -> EventFlow:
 func known() -> bool:
 	match type:
 		"racing":
-			return RACING.has(variant) and not (variant == "kart" and tt) # Kart's time trial: P6
+			return RACING.has(variant)
 		"mini":
 			return MINI.has(variant) and not tt
 	return PLAIN.has(type) and variant.is_empty() and not tt

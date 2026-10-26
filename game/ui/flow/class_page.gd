@@ -3,8 +3,7 @@ extends MenuPage
 ## Picks the class (docs/UI_FLOW.md §5.6): the type's classes on the left, each "GT   RWD · 380 kW ·
 ## 1300 kg", named "Track GT" for screen readers; on the right P1's last car on a turntable,
 ## fitted to the class in focus, or the class's default car when it can't take that one. The fit
-## waits until the focus has stayed put for FIT_DELAY. Confirm goes on to the players (a time
-## trial before P6: straight to the drive).
+## waits until the focus has stayed put for FIT_DELAY. Confirm goes on to the players.
 ##
 ## Without a flow (the Garage's Drive) it lists every class that takes `car`, shows that car, and
 ## reports the pick (`picked`).
@@ -105,10 +104,7 @@ func _pick(id: String) -> void:
 		return
 	flow.class_id = id
 	flow.remember()
-	if flow.tt:
-		flow.start()
-	else:
-		open_over(flow.players_page())
+	open_over(flow.players_page())
 
 
 ## The car the turntable shows for `platform`: `own` (the Garage's car), else P1's last car if the

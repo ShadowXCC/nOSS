@@ -4,7 +4,7 @@ extends Control
 ## its name: words carry the meaning), the roulette while it rolls, the uses left of a triple; the
 ## drift's tier as pips and a word; a bar for a boost; in a battle, lives as pips and a number
 ## (or "Out") and hits. With Reduce flashing the roulette doesn't cycle through names, it says
-## "Rolling".
+## "Rolling". With no items in the event (a time trial, Items off) there's no item line.
 
 const ROLL_HZ := 8.0
 const KINDS := {
@@ -14,6 +14,8 @@ const KINDS := {
 
 var palette: Dictionary = Palette.PRESETS.default
 var calm := false
+## The event has items.
+var items := true
 var _swatch := ColorRect.new()
 var _item := Label.new()
 var _drift := Label.new()
@@ -55,7 +57,9 @@ func _init() -> void:
 func show_kart(slot: Dictionary, flags: int, state: Dictionary, delta: float) -> void:
 	_time += delta
 	var item: String = slot.item
-	if item != "" and float(slot.roulette) > 0.0:
+	if not items:
+		_item.text = ""
+	elif item != "" and float(slot.roulette) > 0.0:
 		if calm:
 			_item.text = "Rolling"
 		else:
@@ -69,7 +73,7 @@ func show_kart(slot: Dictionary, flags: int, state: Dictionary, delta: float) ->
 		_item.text = "No item"
 		_swatch.color = Color(1, 1, 1, 0.15)
 	_item.add_theme_color_override("font_color", Hud.TEXT if item != "" else Hud.DIM)
-	_swatch.visible = true
+	_swatch.visible = items
 	var drifting := flags & (VehicleSim.KART_FLAG_DRIFT_LEFT | VehicleSim.KART_FLAG_DRIFT_RIGHT) != 0
 	var tier := (flags >> VehicleSim.KART_FLAG_TIER_SHIFT) & 3
 	_drift.text = ("Drift %s  %d" % ["●".repeat(tier) + "○".repeat(3 - tier), tier]) if drifting else ""
@@ -78,7 +82,7 @@ func show_kart(slot: Dictionary, flags: int, state: Dictionary, delta: float) ->
 	_boost_back.visible = boost > 0.0
 	_boost.size.x = 240.0 * clampf(boost / 1.5, 0.0, 1.0)
 	_boost.color = palette.get("item_speed", Color.ORANGE)
-	accessibility_name = "Item: " + _item.text
+	accessibility_name = "Item: " + _item.text if items else ""
 
 
 ## A battle's line: lives left (-1: a most-hits match, no lives), hits dealt, out; in a most-hits

@@ -20,7 +20,7 @@ func _init() -> void:
 func _ready() -> void:
 	title = "Mini Games"
 	crumbs = ["Local Drive", "Mini Games"]
-	steps = EventFlow.steps_for(context, "mini", "sumo", false)
+	steps = EventFlow.steps_for(context, "mini", "sumo")
 	step = 0
 	super._ready()
 
@@ -43,7 +43,7 @@ func focus_variant(variant: String) -> void:
 
 func _focused(c: Control) -> void:
 	if c and c.has_meta(&"variant") and is_ancestor_of(c):
-		steps = EventFlow.steps_for(context, "mini", String(c.get_meta(&"variant")), false)
+		steps = EventFlow.steps_for(context, "mini", String(c.get_meta(&"variant")))
 		refresh_header()
 
 

@@ -2,8 +2,8 @@ class_name EventSettingsPage
 extends MenuPage
 ## An event's settings (docs/UI_FLOW.md §5.5, §6.1): the type's rows (EventForms), the track's map
 ## on the right (TrackPane), and "Next" under them (beside Back, always on screen), on to the
-## class, the players, or (a time trial before P6) the drive. Next is off until the event can go
-## (a kart race needs a track, a battle an arena, a cup all its tracks).
+## class or the players. Next is off until the event can go (a kart race needs a track, a battle
+## an arena, a cup all its tracks).
 
 var flow: EventFlow
 var next_button: Button
@@ -91,15 +91,13 @@ func focus_next() -> void:
 	next_button.grab_focus()
 
 
-## Next: the class, else the players, else (a time trial) the drive.
+## Next: the class, else the players.
 func go_on() -> void:
 	if not flow.ready_to_go():
 		return
 	flow.remember()
 	if flow.has_class_step():
 		open_class()
-	elif flow.tt:
-		flow.start()
 	else:
 		open_players()
 

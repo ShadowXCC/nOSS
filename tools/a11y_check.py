@@ -4,8 +4,8 @@
 Runs the game with accessibility on and walks main menu -> Local Drive -> Racing -> Regular ->
 its Settings page -> the class -> Players -> a 1-lap race -> results -> main menu (on the way, the
 screen under the top one isn't showing: UI overhaul P2's page stack), then Racing again: Stock Car
-(no Class step), the Time Trial switch, and Custom with its Save preset page, and back out (UI
-overhaul P4, P5), then Drive Online -> Host -> the lobby -> Leave (M5), then each Local Drive
+(no Class step), the Time Trial switch (Regular's and Kart's time trials to their Players pages),
+and Custom with its Save preset page, and back out (UI overhaul P4-P6), then Drive Online -> Host -> the lobby -> Leave (M5), then each Local Drive
 type's pages (UI overhaul P5): Highway -> its Settings page -> the class -> Players and back out
 (M7); Racing -> Kart -> a race, a cup and the cup builder, then Mini Games -> Kart Battle ->
 Players and back out (M8); Endless -> the class -> Players (M9); Mini Games -> Sumo Wrestling and
@@ -32,7 +32,7 @@ display. Writes no settings or profiles (--no-save).
     tools/a11y_check.py --drag-only    # just Mini Games and Drag Strip's pages
     tools/a11y_check.py --free-only    # just Free Drive's pages
     tools/a11y_check.py --settings-only  # just Settings and Driving Settings, every tab
-    tools/a11y_check.py --racing-only  # just Racing: Stock Car, the Time Trial switch, Custom
+    tools/a11y_check.py --racing-only  # just Racing: Stock Car, the time trials, Custom
 """
 import os
 import subprocess
@@ -310,8 +310,9 @@ def kart_menus():
 def racing_menus():
     """Main menu -> Local Drive -> Racing -> Stock Car -> its Settings page -> Players (no Class
     step: its class is fixed), and back; then the Time Trial switch -> Regular -> its Settings ->
-    the class, and back; then Custom -> Save preset's page, its Settings -> the class, and back out
-    (UI overhaul P4, P5, docs/UI_FLOW.md §5.3, §6.1)."""
+    the class -> Players, and back, and Kart -> its Settings -> Players, and back; then Custom ->
+    Save preset's page, its Settings -> the class, and back out (UI overhaul P4-P6,
+    docs/UI_FLOW.md §5.3, §6.1)."""
     log("Racing")
     ok = step("Main menu (racing)", "Local Drive")
     ok = ok and step("Local Drive (racing)", "Racing")
@@ -324,8 +325,15 @@ def racing_menus():
     ok = ok and step("Racing: to Time Trial", "Time Trial", role="toggle button")
     ok = ok and step("Racing: Regular time trial", "Regular")
     ok = ok and step("Regular time trial: settings", "Next")
-    ok = ok and back_from("Regular time trial: class", "Track GT")
-    ok = ok and back_from("Regular time trial: settings again", "Next")
+    ok = ok and step("Regular time trial: class", "Track GT", prefix=True)
+    # Time trials have a Players step (P6): splitscreen, each player with their own ghost.
+    for label, anchor in (("Regular time trial: players", "Ready"), ("Regular time trial: class again", "Track GT"),
+                          ("Regular time trial: settings again", "Next")):
+        ok = ok and back_from(label, anchor)
+    ok = ok and step("Racing: Kart time trial", "Kart")
+    ok = ok and step("Kart time trial: settings", "Next")
+    ok = ok and back_from("Kart time trial: players", "Ready")  # each card picks its class
+    ok = ok and back_from("Kart time trial: settings again", "Next")
     ok = ok and step("Racing: back to Race", "Race", role="toggle button")
     # Custom (P5): its presets' name page, its Settings page, its class (any mode's).
     ok = ok and step("Racing: Custom", "Custom")

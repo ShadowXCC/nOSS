@@ -217,7 +217,7 @@ func test_stock_car_skips_the_class_step() -> void:
 
 
 ## The Race | Time Trial switch: E (ui_tab_next) from a type flips it, the descriptions follow,
-## and a Regular time trial has no AI rows; its class starts P1's drive (P6 brings the players).
+## and a Regular time trial has no AI rows; its class goes on to the players, and Ready starts it.
 func test_time_trial_switch() -> void:
 	var runner := scene_runner(TITLE_SCENE)
 	await _frames(4)
@@ -232,10 +232,10 @@ func test_time_trial_switch() -> void:
 	assert_bool(racing.tt).is_true()
 	assert_str(_focused(runner)).is_equal("Regular")
 	assert_str(String(racing.get_viewport().gui_get_focus_owner().accessibility_description)).is_equal("Laps against your ghost")
-	assert_str(racing.step_text()).is_equal("Step 1 of 3")
+	assert_str(racing.step_text()).is_equal("Step 1 of 4")
 	var kart: Button = racing.body.find_child("Kart", false, false)
-	assert_bool(kart.disabled).is_true()
-	assert_str(kart.accessibility_description).is_equal("Coming soon")
+	assert_bool(kart.disabled).is_false()
+	assert_str(kart.accessibility_description).is_equal("Kart laps against your ghost")
 	# Q flips it back, and again.
 	await _key(KEY_Q)
 	assert_bool(racing.tt).is_false()
@@ -250,11 +250,20 @@ func test_time_trial_switch() -> void:
 	settings.next_button.pressed.emit()
 	await _frames(4)
 	assert_bool(_stack(runner).top() is ClassPage).is_true()
-	assert_str((_stack(runner).top() as ClassPage).step_text()).is_equal("Step 3 of 3")
+	assert_str((_stack(runner).top() as ClassPage).step_text()).is_equal("Step 3 of 4")
 	await _key(KEY_ENTER) # GT, last used
-	await _frames(2)
+	await _frames(4)
+	assert_bool(_stack(runner).top() is PlayersMenu).is_true()
+	assert_bool(_requested.is_empty()).is_true()
+	await _key(KEY_ENTER) # joins
+	await _frames(6)
+	await _key(KEY_UP)
+	await _key(KEY_UP) # Ready
+	await _key(KEY_ENTER)
+	await _frames(4)
 	assert_int(_requested.size()).is_equal(1)
 	assert_str((_requested[0][0] as RaceEvent).kind).is_equal("time_trial")
+	assert_bool(bool(Settings.profile.last_drive.tt)).is_true()
 
 
 ## Drive again: first on Local Drive, it opens the last event's Players page straight away, the

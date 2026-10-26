@@ -2,8 +2,7 @@ class_name RacingPage
 extends MenuPage
 ## Racing (docs/UI_FLOW.md §5.3): a Race | Time Trial switch over Regular, Stock Car, Kart and
 ## Custom. LB/RB (Q/E) flip it from anywhere on the page, left and right on the switch itself, and
-## the descriptions follow it. Each type goes on to its Settings page. Kart's time trial comes
-## with P6.
+## the descriptions follow it. Each type goes on to its Settings page.
 
 ## [variant, button, race description, time trial description].
 const TYPES := [
@@ -27,7 +26,7 @@ func _init() -> void:
 func _ready() -> void:
 	title = "Racing"
 	crumbs = ["Local Drive", "Racing"]
-	steps = EventFlow.steps_for(context, "racing", "regular", tt)
+	steps = EventFlow.steps_for(context, "racing", "regular")
 	step = 0
 	super._ready()
 
@@ -46,9 +45,6 @@ func _fill() -> void:
 		var b := UiKit.button(t[1], _pick.bind(String(t[0])), t[3] if tt else t[2])
 		b.name = String(t[1]).validate_node_name()
 		b.set_meta(&"variant", t[0])
-		if tt and t[0] == "kart": # P6
-			b.disabled = true
-			b.accessibility_description = "Coming soon"
 		add_row(b)
 
 
@@ -95,7 +91,7 @@ func _focused(c: Control) -> void:
 
 
 func _show_steps(variant: String) -> void:
-	steps = EventFlow.steps_for(context, "racing", variant, tt)
+	steps = EventFlow.steps_for(context, "racing", variant)
 	refresh_header()
 
 

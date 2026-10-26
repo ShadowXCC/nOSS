@@ -124,7 +124,7 @@ func test_the_turntable_falls_back_to_the_class_default() -> void:
 	page.get_parent().get_parent().free()
 
 
-## Confirm on a class goes on to the players; a time trial's (before P6) starts P1's drive.
+## Confirm on a class goes on to the players, a time trial's too.
 func test_confirm_goes_on() -> void:
 	var flow := EventFlow.racing("regular")
 	flow.recall()
@@ -143,7 +143,9 @@ func test_confirm_goes_on() -> void:
 	page = _page(tt)
 	await _frames(4)
 	(page.body.find_child("official_track_touring", false, false) as Button).pressed.emit()
-	assert_int(_requested.size()).is_equal(1)
-	assert_str((_requested[0][0] as RaceEvent).kind).is_equal("time_trial")
-	assert_str(String(_requested[0][1])).is_equal("official.track.touring")
-	page.get_parent().get_parent().free()
+	await _frames(2)
+	stack = page.get_parent() as MenuStack
+	assert_bool(stack.top() is PlayersMenu).is_true()
+	assert_str((stack.top() as PlayersMenu).platform_id).is_equal("official.track.touring")
+	assert_bool(_requested.is_empty()).is_true()
+	stack.get_parent().free()

@@ -87,7 +87,7 @@ var field := RaceField.new()
 var race := RaceControl.new()
 ## The results screen while it's up.
 var results_menu: ResultsMenu
-## Time trial: records laps, shows the ghost (null in other events).
+## Time trial: records each player's laps, shows their ghosts (null in other events).
 var time_trial: TimeTrial
 var world_env: Environment
 ## The sky: time of day and weather (D153).
@@ -454,8 +454,6 @@ func _ready() -> void:
 			ai_skill = event.ai_skill
 			ai_builtin_cars = event.ai_cars == "builtin"
 	ghosted = not event.collisions
-	if event.kind == "time_trial":
-		solo = true
 	field.track = track
 	field.racers = racers
 	add_child(field)
@@ -467,7 +465,9 @@ func _ready() -> void:
 		_ready_sumo()
 	elif event.kind == "drag":
 		_ready_drag()
-	elif not arcade.is_empty() and event.kind != "time_trial":
+	elif not arcade.is_empty():
+		if event.kind == "time_trial":
+			event.items = false # each lap the driver's own
 		_ready_kart()
 		if event.kind == "battle":
 			_ready_battle()
@@ -1240,6 +1240,8 @@ func ai_car_pool() -> PackedStringArray:
 
 func _on_joined(slot: PlayerSlot) -> void:
 	var p := _add_player(slot)
+	if time_trial:
+		time_trial.add(p)
 	apply_game_speed()
 	p.hud.show_message("%s joined" % slot.tag(), 2.0)
 
@@ -1251,6 +1253,8 @@ func _on_left(slot: PlayerSlot) -> void:
 		if p.slot == slot:
 			if paused_by == p:
 				_resume()
+			if time_trial:
+				time_trial.remove(p)
 			players.erase(p)
 			racers.erase(p)
 			p.remove()
@@ -1654,12 +1658,13 @@ func _open_pause(p: SessionPlayer) -> void:
 			"What the next stop puts in"))
 		menu.extra_rows.append(UiKit.spinner("Pit tires", tires, int(request.tires), func(v: int) -> void: pits.set_request(p, "tires", v),
 			"How many tires the next stop changes"))
-	if time_trial:
-		menu.ghost_items = time_trial.choices()
-		menu.ghost_current = time_trial.choice
-		menu.ghost_picked.connect(time_trial.pick)
-		menu.leaderboard = Leaderboard.entries(track.record_key(), platform.platform.id)
-		menu.leaderboard_title = "%s · %s" % [track.display_name, platform.platform.name]
+	if time_trial and time_trial.lane_of(p):
+		var lane := time_trial.lane_of(p)
+		menu.ghost_items = lane.choices()
+		menu.ghost_current = lane.choice
+		menu.ghost_picked.connect(lane.pick)
+		menu.leaderboard = Leaderboard.entries(track.record_key(), p.platform.platform.id)
+		menu.leaderboard_title = "%s · %s" % [track.display_name, p.platform.platform.name]
 	elif highway and highway.board(p):
 		var board := highway.board(p)
 		if is_online():

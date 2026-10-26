@@ -45,7 +45,7 @@ func _build() -> void:
 ## The steps the step row shows with `type` in focus: Racing's and Mini Games' first type's.
 static func _steps_of(type: String) -> PackedStringArray:
 	var variant := "regular" if type == "racing" else "sumo" if type == "mini" else ""
-	return EventFlow.steps_for("local", type, variant, false)
+	return EventFlow.steps_for("local", type, variant)
 
 
 func _pick(type: String) -> void:
@@ -80,8 +80,8 @@ func open_settings(flow: EventFlow) -> EventSettingsPage:
 	return page
 
 
-## Repeats the last event: straight to its Players page (a time trial: the drive), Back from
-## there leading to its Settings page.
+## Repeats the last event: straight to its Players page, Back from there leading to its Settings
+## page.
 func _drive_again() -> void:
 	var flow := EventFlow.last_drive()
 	if flow:
@@ -90,7 +90,7 @@ func _drive_again() -> void:
 
 ## Opens `flow`'s pages over this one as if picked one by one (Racing, its switch set, or Mini
 ## Games; the Settings page), each with the focus on what was picked, then `then`: "settings"
-## (Next focused), "class" or "players" (a time trial before P6: the drive starts).
+## (Next focused), "class" or "players".
 func open_flow(flow: EventFlow, then := "settings") -> void:
 	if not get_parent() is MenuStack:
 		return
@@ -116,10 +116,7 @@ func open_flow(flow: EventFlow, then := "settings") -> void:
 			if flow.has_class_step():
 				settings.open_class()
 		"players":
-			if flow.tt and not flow.steps().has("Players"):
-				flow.start()
-			else:
-				settings.open_players()
+			settings.open_players()
 
 
 func _focus_type(type: String) -> void:

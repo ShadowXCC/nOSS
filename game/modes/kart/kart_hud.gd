@@ -37,6 +37,7 @@ func _process(delta: float) -> void:
 			_panels[p] = panel
 		panel.palette = Palette.of(p.slot.profile)
 		panel.calm = bool(p.slot.profile.data.get("reduce_flashing", false))
+		panel.items = session.event.items
 		var slot := items.slot(p)
 		panel.show_kart(slot, p.vehicle.kart_flags(), p.vehicle.sim.get_kart_state(), delta)
 		var battle := session.battle

@@ -43,16 +43,21 @@ func test_steps_and_crumbs() -> void:
 	assert_array(Array(stock.steps())).contains_exactly(["Event", "Settings", "Players"])
 	assert_bool(stock.has_class_step()).is_false()
 	assert_str(stock.name()).is_equal("Stock Car race")
-	# Time trials: P1 drives until P6 brings their Players step.
+	# Time trials have the race's steps, splitscreen players and all.
 	var tt := EventFlow.racing("regular", true)
-	assert_array(Array(tt.steps())).contains_exactly(["Event", "Settings", "Class"])
+	assert_array(Array(tt.steps())).contains_exactly(["Event", "Settings", "Class", "Players"])
 	assert_array(Array(tt.crumbs("Class"))).contains_exactly(["Local Drive", "Racing", "Regular Time Trial", "Class"])
 	assert_str(tt.name()).is_equal("Regular time trial")
-	assert_array(Array(EventFlow.racing("stock_car", true).steps())).contains_exactly(["Event", "Settings"])
+	assert_array(Array(EventFlow.racing("stock_car", true).steps())).contains_exactly(["Event", "Settings", "Players"])
+	assert_str(EventFlow.racing("stock_car", true).next_hint()).is_equal("The players: each picks a car")
+	var kart_tt := EventFlow.racing("kart", true)
+	assert_array(Array(kart_tt.steps())).contains_exactly(["Event", "Settings", "Players"])
+	assert_str(kart_tt.next_hint()).is_equal("The players: each picks a car and a class")
+	assert_str(kart_tt.name()).is_equal("Kart time trial")
 	# Karts pick their class on their cards; hosting starts at Host and ends at the lobby.
-	assert_array(Array(EventFlow.steps_for("local", "racing", "kart", false))).contains_exactly(["Event", "Settings", "Players"])
-	assert_array(Array(EventFlow.steps_for("host", "racing", "regular", false))).contains_exactly(["Host", "Event", "Settings", "Class", "Lobby"])
-	assert_array(Array(EventFlow.steps_for("change", "racing", "stock_car", false))).contains_exactly(["Event", "Settings", "Lobby"])
+	assert_array(Array(EventFlow.steps_for("local", "racing", "kart"))).contains_exactly(["Event", "Settings", "Players"])
+	assert_array(Array(EventFlow.steps_for("host", "racing", "regular"))).contains_exactly(["Host", "Event", "Settings", "Class", "Lobby"])
+	assert_array(Array(EventFlow.steps_for("change", "racing", "stock_car"))).contains_exactly(["Event", "Settings", "Lobby"])
 	var host := EventFlow.racing("regular", false, "host")
 	assert_array(Array(host.crumbs("Settings"))).contains_exactly(["Drive Online", "Host", "Racing", "Regular", "Settings"])
 
@@ -359,6 +364,15 @@ func test_the_other_types_start() -> void:
 	assert_object(again).is_not_null()
 	assert_str(again.summary()).starts_with("Endless · ")
 	assert_str(EventFlow.from_dict(cup.to_dict()).summary()).is_equal("Kart cup · Spark Cup")
-	# Kart's time trial isn't on the pages yet (P6).
+	# Kart's time trial: a kart track first, Medium to start from (each player picks theirs), and
+	# Drive again knows it.
 	var kart_tt := EventFlow.racing("kart", true)
-	assert_bool(kart_tt.known()).is_false()
+	kart_tt.recall()
+	assert_bool(kart_tt.known()).is_true()
+	assert_str(kart_tt.event.kind).is_equal("time_trial")
+	assert_str(kart_tt.class_id).is_equal(EventFlow.KART)
+	assert_bool(EventFlow._for_karts(TrackLibrary.entry(kart_tt.track))).is_true()
+	kart_tt.start()
+	assert_str((_requested[-1][0] as RaceEvent).kind).is_equal("time_trial")
+	assert_str(String(_requested[-1][1])).is_equal(EventFlow.KART)
+	assert_str(EventFlow.last_drive().summary()).starts_with("Kart time trial · ")

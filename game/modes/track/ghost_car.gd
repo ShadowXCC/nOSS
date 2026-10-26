@@ -2,7 +2,8 @@ class_name GhostCar
 extends Node3D
 ## Shows a Ghost on the track: the recorded car's model, see-through, with no collisions and no
 ## physics. It's placed each frame at the lap time it's given, so it runs in step with the
-## player's own lap clock.
+## player's own lap clock. It's drawn on the visual `layers` given (a time trial gives each
+## player's ghost its own, which only their camera draws).
 
 const SEE_THROUGH := 0.6
 
@@ -14,7 +15,7 @@ var _spin := 0.0
 var _front: Array[int] = []
 
 
-static func create(g: Ghost, platform: Dictionary, pkg: VehiclePackage) -> GhostCar:
+static func create(g: Ghost, platform: Dictionary, pkg: VehiclePackage, layers := 1) -> GhostCar:
 	var car := GhostCar.new()
 	car.name = "Ghost"
 	car.ghost = g
@@ -22,9 +23,11 @@ static func create(g: Ghost, platform: Dictionary, pkg: VehiclePackage) -> Ghost
 	car.visual = CarVisual.create(pkg, car.fitted)
 	car.add_child(car.visual)
 	car.max_steer = deg_to_rad(float(platform.steering.max_road_angle_deg))
-	for mi: GeometryInstance3D in car.visual.find_children("*", "GeometryInstance3D", true, false):
-		mi.transparency = SEE_THROUGH
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for vi: VisualInstance3D in car.visual.find_children("*", "VisualInstance3D", true, false):
+		vi.layers = layers
+		if vi is GeometryInstance3D:
+			(vi as GeometryInstance3D).transparency = SEE_THROUGH
+			(vi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# Front wheels steer: those on the most forward axle.
 	var front_z := -INF
 	for w: Dictionary in car.fitted.wheels:

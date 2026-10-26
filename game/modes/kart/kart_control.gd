@@ -114,7 +114,8 @@ func _physics_process(delta: float) -> void:
 	_slip_time += delta
 	if _slip_time >= 1.0 / SLIP_HZ:
 		_slip_time = 0.0
-		_slipstream()
+		if session.event.kind != "time_trial": # a time trial's laps are each driver's own
+			_slipstream()
 
 
 ## Karts this game drives that rest on something with no wheel down are towed (D132).
