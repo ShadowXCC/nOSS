@@ -3,7 +3,8 @@ extends MenuPage
 ## Picks the class (docs/UI_FLOW.md §5.6): the type's classes on the left, each "GT   RWD · 380 kW ·
 ## 1300 kg", named "Track GT" for screen readers; on the right P1's last car on a turntable,
 ## fitted to the class in focus, or the class's default car when it can't take that one. The fit
-## waits until the focus has stayed put for FIT_DELAY. Confirm goes on to the players.
+## waits until the focus has stayed put for FIT_DELAY. Confirm goes on to the players, or hosting,
+## starts the server (its lobby follows).
 ##
 ## Without a flow (the Garage's Drive) it lists every class that takes `car`, shows that car, and
 ## reports the pick (`picked`).
@@ -20,6 +21,8 @@ var car := ""
 var shown_class := ""
 var shown_car := ""
 var preview: BayPreview
+## Hosting: why the server couldn't start.
+var status: Label
 
 var _wanted := "" # the class in focus, waiting for the fit
 var _timer: Timer
@@ -76,6 +79,12 @@ func _build() -> void:
 			add_row(b)
 			if last:
 				_current = b
+	if flow and flow.context == "host":
+		status = Label.new()
+		status.name = "Status"
+		status.theme_type_variation = &"PageCrumb"
+		status.accessibility_live = AccessibilityServer.AccessibilityLiveMode.LIVE_POLITE
+		add_footer(status)
 	preview = BayPreview.new()
 	preview.turntable = true
 	set_pane(preview)
@@ -104,6 +113,9 @@ func _pick(id: String) -> void:
 		picked.emit(id)
 		return
 	flow.class_id = id
+	if flow.context == "host":
+		status.text = flow.host()
+		return
 	flow.remember()
 	open_over(flow.players_page())
 

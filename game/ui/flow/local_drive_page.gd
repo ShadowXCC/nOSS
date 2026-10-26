@@ -3,6 +3,9 @@ extends MenuPage
 ## Local Drive (docs/UI_FLOW.md §5.2): the event types on this PC. "Drive again" repeats the last
 ## event: its Players page, with the pages before it under it. Racing and Mini Games open their
 ## pages of types; Endless, Highway and Free Drive go straight to their Settings page.
+##
+## Hosting (`context` "host", §7.2) it's the Event page after Host: the same types, no Drive again,
+## each flow taking the Host page's `server` options.
 
 ## [type, button, description].
 const TYPES := [
@@ -13,21 +16,31 @@ const TYPES := [
 	["free", "Free Drive", "Any class on any track"],
 ]
 
+## Hosting, Highway is a cruise (its other modes online come in P10).
+const HOST_HIGHWAY := "A cruise through traffic"
 
-func _init() -> void:
-	back_hint = "Back to the main menu"
+## "local", or "host" (the Event page of hosting).
+var context := "local"
+## Hosting: the Host page's options.
+var server: ServerConfig
 
 
 func _ready() -> void:
-	title = "Local Drive"
-	crumbs = ["Local Drive"]
+	if context == "host":
+		title = "Event"
+		crumbs = ["Drive Online", "Host", "Event"]
+		back_hint = "Back to Host"
+	else:
+		title = "Local Drive"
+		crumbs = ["Local Drive"]
+		back_hint = "Back to the main menu"
 	steps = _steps_of("racing")
-	step = 0
+	step = steps.find("Event")
 	super._ready()
 
 
 func _build() -> void:
-	var again := EventFlow.last_drive()
+	var again := EventFlow.last_drive() if context == "local" else null
 	if again:
 		var b := UiKit.button("Drive again", _drive_again, again.summary())
 		b.name = "DriveAgain"
@@ -35,7 +48,7 @@ func _build() -> void:
 		b.set_meta(&"steps", again.steps())
 		add_row(b)
 	for t: Array in TYPES:
-		var b := UiKit.button(t[1], _pick.bind(String(t[0])), t[2])
+		var b := UiKit.button(t[1], _pick.bind(String(t[0])), HOST_HIGHWAY if context == "host" and t[0] == "highway" else t[2])
 		b.name = String(t[1]).validate_node_name()
 		b.set_meta(&"type", t[0])
 		b.set_meta(&"steps", _steps_of(String(t[0])))
@@ -43,9 +56,9 @@ func _build() -> void:
 
 
 ## The steps the step row shows with `type` in focus: Racing's and Mini Games' first type's.
-static func _steps_of(type: String) -> PackedStringArray:
+func _steps_of(type: String) -> PackedStringArray:
 	var variant := "regular" if type == "racing" else "sumo" if type == "mini" else ""
-	return EventFlow.steps_for("local", type, variant)
+	return EventFlow.steps_for(context, type, variant)
 
 
 func _pick(type: String) -> void:
@@ -55,7 +68,8 @@ func _pick(type: String) -> void:
 		"mini":
 			open_mini_games()
 		_:
-			var flow := EventFlow.make(type)
+			var flow := EventFlow.make(type, "", false, context)
+			flow.server = server
 			flow.recall()
 			open_settings(flow)
 
@@ -63,12 +77,16 @@ func _pick(type: String) -> void:
 func open_racing(tt := false) -> RacingPage:
 	var racing := RacingPage.new()
 	racing.tt = tt
+	racing.context = context
+	racing.server = server
 	open_over(racing)
 	return racing
 
 
 func open_mini_games() -> MiniGamesPage:
 	var mini := MiniGamesPage.new()
+	mini.context = context
+	mini.server = server
 	open_over(mini)
 	return mini
 

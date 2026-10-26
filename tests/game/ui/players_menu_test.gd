@@ -116,17 +116,17 @@ static func _pad(id: int) -> Dictionary:
 	return { "kind": "gamepad", "key": "pad:test#%d" % id, "name": "Test pad %d" % id, "id": id, "guid": "test%d" % id, "preset": "pad_standard" }
 
 
-## Before going online (Changes.md): no car row, a Done row, back on a card returns to the Online
-## menu (which stays open, though the same B reaches it raw), and empty places say how to join.
+## Before going online (Changes.md): no car row, a Done row, back on a card returns to Drive
+## Online (which stays open, though the same B reaches it raw), and empty places say how to join.
 func test_online_players_screen_returns_to_online() -> void:
 	Players.clear()
 	Devices.test_devices = [_pad(PAD)]
-	var online := OnlineMenu.new()
+	var online := DriveOnlinePage.new()
 	add_child(online)
 	await get_tree().process_frame
 	var closed := [false]
 	online.closed.connect(func() -> void: closed[0] = true)
-	online._open_players()
+	online.open_players()
 	var menu: PlayersMenu = online.find_children("*", "PlayersMenu", true, false)[0]
 	var p1 := Players.join(_pad(PAD))
 	for i in 3:

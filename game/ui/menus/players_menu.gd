@@ -19,7 +19,7 @@ static var countdown_s := 3.0
 
 var platform_id := ""
 ## Before going online (LOC-05): who plays on this machine. Cars are picked in the lobby, and
-## any player's Done (or back on a card) returns to the Online menu.
+## any player's Done (or back on a card) returns to Drive Online.
 var online := false
 
 var _platform := {}

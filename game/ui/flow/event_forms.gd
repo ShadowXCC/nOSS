@@ -116,20 +116,22 @@ static func ai_rows(page: EventSettingsPage, label: String, most: int, descripti
 
 
 ## Kart (D144, D145): a race on any circuit (kart tracks first) or a cup, the AI karts, the items.
+## Hosting, a race only (cups online come in P10).
 static func kart(page: EventSettingsPage) -> void:
 	var flow := page.flow
 	var e := flow.event
 	if flow.tt:
 		page.add_row(track_row(page))
 		return
-	page.add_row(UiKit.spinner("Play", KART_PLAY, "cup" if flow.cup else "race", func(v: String) -> void:
-		if v == "cup":
-			var cups := CupRun.list()
-			flow.cup = String(page.stash.get("cup", cups[0].path if not cups.is_empty() else ""))
-		else:
-			page.stash.cup = flow.cup
-			flow.cup = ""
-		page.rebuild.call_deferred("Play"), "Race: one race. Cup: four races for points"))
+	if flow.context == "local":
+		page.add_row(UiKit.spinner("Play", KART_PLAY, "cup" if flow.cup else "race", func(v: String) -> void:
+			if v == "cup":
+				var cups := CupRun.list()
+				flow.cup = String(page.stash.get("cup", cups[0].path if not cups.is_empty() else ""))
+			else:
+				page.stash.cup = flow.cup
+				flow.cup = ""
+			page.rebuild.call_deferred("Play"), "Race: one race. Cup: four races for points"))
 	if flow.cup.is_empty():
 		page.add_row(track_row(page))
 		page.add_row(UiKit.spinner("Laps", numbers(1, 10), clampi(e.race_laps, 1, 10), func(v: int) -> void: e.race_laps = v))
@@ -308,7 +310,8 @@ static func _enter_code(page: EventSettingsPage, code: LineEdit) -> void:
 
 
 ## Highway (M7): the highway, what to do on it (Cruise, Score attack, Run, Loop), its traffic and
-## police, and which way round to start (named from the track), or for a run, which one.
+## police, and which way round to start (named from the track), or for a run, which one. Hosting,
+## a cruise only (the others online come in P10).
 static func highway(page: EventSettingsPage) -> void:
 	var flow := page.flow
 	var e := flow.event
@@ -320,11 +323,12 @@ static func highway(page: EventSettingsPage) -> void:
 	var layout: Variant = data.highway if data else null
 	if e.traffic < 0 and layout:
 		e.traffic = int(layout.settings.traffic.count)
-	page.add_row(UiKit.spinner("Mode", HIGHWAY_MODES, e.sub, func(v: String) -> void:
-		var was := e.sub
-		e.sub = v
-		if (v == "run") != (was == "run"):
-			page.rebuild.call_deferred("Mode"), "Cruise: no score. Score attack: near misses. Run: a sprint. Loop: lap times"))
+	if flow.context == "local":
+		page.add_row(UiKit.spinner("Mode", HIGHWAY_MODES, e.sub, func(v: String) -> void:
+			var was := e.sub
+			e.sub = v
+			if (v == "run") != (was == "run"):
+				page.rebuild.call_deferred("Mode"), "Cruise: no score. Score attack: near misses. Run: a sprint. Loop: lap times"))
 	var counts := HIGHWAY_TRAFFIC.duplicate()
 	if not counts.any(func(c: Array) -> bool: return c[0] == e.traffic):
 		counts.append([e.traffic, str(e.traffic)])
@@ -418,8 +422,8 @@ static func drag(page: EventSettingsPage) -> void:
 		e.ai_cars = v, "Garage: bots bring your own cars too"))
 
 
-## Free Drive: any circuit or highway. On a circuit AI cars can drive laps beside the players; on a
-## highway its traffic is on or off.
+## Free Drive: any circuit or highway. On a circuit AI cars can drive laps beside the players (not
+## online: a free drive there has no AI); on a highway its traffic is on or off.
 static func free_drive(page: EventSettingsPage) -> void:
 	var flow := page.flow
 	var e := flow.event
@@ -431,12 +435,13 @@ static func free_drive(page: EventSettingsPage) -> void:
 		page.add_row(UiKit.spinner("Traffic", [[-1, "On"], [0, "Off"]], 0 if e.traffic == 0 else -1,
 			func(v: int) -> void: e.traffic = v, "Cars on the road"))
 		return
-	var counts := numbers(0, 15)
-	counts[0] = [0, "Off"]
-	page.add_row(UiKit.spinner("AI cars", counts, e.ai_count, func(v: int) -> void: e.ai_count = v, "They drive laps with you"))
-	page.add_row(skill_row(e))
-	page.add_row(UiKit.spinner("AI cars look", [["garage", "Garage"], ["builtin", "Built-in"]], e.ai_cars,
-		func(v: String) -> void: e.ai_cars = v))
+	if flow.context == "local":
+		var counts := numbers(0, 15)
+		counts[0] = [0, "Off"]
+		page.add_row(UiKit.spinner("AI cars", counts, e.ai_count, func(v: int) -> void: e.ai_count = v, "They drive laps with you"))
+		page.add_row(skill_row(e))
+		page.add_row(UiKit.spinner("AI cars look", [["garage", "Garage"], ["builtin", "Built-in"]], e.ai_cars,
+			func(v: String) -> void: e.ai_cars = v))
 	page.add_row(UiKit.spinner("Collisions", [[true, "On"], [false, "Ghosted"]], e.collisions,
 		func(v: bool) -> void: e.collisions = v))
 	page.add_row(UiKit.spinner("Track limits", [["off", "Off"], ["lenient", "Lenient"], ["strict", "Strict"]], e.track_limits,

@@ -5,7 +5,8 @@ Runs the game with accessibility on and walks main menu -> Local Drive -> Racing
 its Settings page -> the class -> Players -> a 1-lap race -> results -> main menu (on the way, the
 screen under the top one isn't showing: UI overhaul P2's page stack), then Racing again: Stock Car
 (no Class step), the Time Trial switch (Regular's and Kart's time trials to their Players pages),
-and Custom with its Save preset page, and back out (UI overhaul P4-P6), then Drive Online -> Host -> the lobby -> Leave (M5), then each Local Drive
+and Custom with its Save preset page, and back out (UI overhaul P4-P6), then Drive Online -> Host -> the event
+pages -> the class -> the lobby -> Leave, and Join's tabs (M5, UI overhaul P8), then each Local Drive
 type's pages (UI overhaul P5): Highway -> its Settings page -> the class -> Players and back out
 (M7); Racing -> Kart -> a race, a cup and the cup builder, then Mini Games -> Kart Battle ->
 Players and back out (M8); Endless -> the class -> Players (M9); Mini Games -> Sumo Wrestling and
@@ -35,6 +36,7 @@ display. Writes no settings or profiles (--no-save).
     tools/a11y_check.py --settings-only  # just Settings and Driving Settings, every tab
     tools/a11y_check.py --racing-only  # just Racing: Stock Car, the time trials, Custom
     tools/a11y_check.py --garage-only  # just the Garage and the Fitting Bay's Import step
+    tools/a11y_check.py --online-only  # just Drive Online: hosting through the event pages, Join's tabs
 """
 import os
 import subprocess
@@ -469,6 +471,46 @@ def garage_menus():
     return ok
 
 
+def online_menus():
+    """Main menu -> Drive Online -> Host -> Next -> the Event page -> Racing -> Regular -> its
+    Settings page -> the class, which hosts -> the lobby -> Leave; then Join -> Direct -> On your
+    network (Official is off) -> Back -> Back (M5, UI overhaul P8; docs/UI_FLOW.md §7)."""
+    log("Drive Online")
+    ok = step("Main menu (online)", "Drive Online")
+    ok = ok and hidden("Drive Online", "Local Drive")
+    ok = ok and step("Drive Online", "Host")
+    ok = ok and hidden("Host", "Join")
+    ok = ok and step("Host", "Next")
+    ok = ok and step("Host: event", "Racing")
+    ok = ok and step("Host: racing", "Regular")
+    ok = ok and hidden("Host: settings", "Stock Car")
+    ok = ok and step("Host: settings", "Next")
+    ok = ok and step("Host: class", "Track GT", prefix=True)
+    if ok and find("Leave", "button", timeout=20.0) is None:
+        problems.append("Lobby: no Leave button")
+        ok = False
+    if ok:
+        find("Player 1", "button", timeout=10.0, prefix=True)  # the list arrives a tick later
+        ok = step("Lobby", "Leave")
+    ok = ok and step("Drive Online again", "Join")
+    ok = ok and step("Join: On your network", "Direct", role="toggle button")
+    # Godot 4.7.2 doesn't tell AT-SPI a button is disabled: the Official tab is off if it can't
+    # take the focus, and its description says why.
+    official = find("Official", "toggle button", timeout=5.0) if ok else None
+    if ok and official is None:
+        problems.append("Join: no 'Official' tab")
+    elif official is not None and (states(official) is None or states(official).contains(Atspi.StateType.FOCUSABLE)
+                                   or official.get_description() != "Coming soon"):
+        problems.append("Join: the Official tab is on, or doesn't say 'Coming soon'")
+    ok = ok and step("Join: Direct", "On your network", role="toggle button")
+    ok = ok and step("Join: On your network again", "Back")
+    ok = ok and back_from("Drive Online (after join)", "Host")
+    if ok and find("Local Drive", "button", timeout=20.0) is None:
+        problems.append("Out of Drive Online: no main menu")
+        return False
+    return ok
+
+
 def hidden(label, name):
     """Only the top page shows (docs/UI_FLOW.md §4): `name`, a button of the screen under it,
     isn't showing, so a screen reader can't reach it."""
@@ -614,6 +656,10 @@ def main():
             if find("Local Drive", "button", timeout=60.0) is not None:
                 garage_menus()
             raise SystemExit(report())
+        if "--online-only" in sys.argv:
+            if find("Local Drive", "button", timeout=60.0) is not None:
+                online_menus()
+            raise SystemExit(report())
         log("Title")
         ok = step("Title", "Local Drive")
         ok = ok and hidden("Local Drive", "Drive Online")
@@ -637,18 +683,10 @@ def main():
                     problems.append("Back at the title: no Local Drive button")
                 else:
                     racing_menus()
-                    log("Drive Online")
-                    ok = step("Title again", "Drive Online")
-                    ok = ok and step("Drive Online", "Host")
-                    # The Host menu is up: its rows scroll (LAN discovery is below the fold, so not
-                    # showing), Start hosting doesn't. step() reports it if it never comes.
-                    ok = ok and step("Host", "Start hosting")
-                    if ok and find("Leave", "button", timeout=20.0) is not None:
-                        find("Player 1", "button", timeout=10.0, prefix=True)  # the list arrives a tick later
-                        step("Lobby", "Leave")
-                        step("Drive Online again", "Back")
-                    elif ok:
-                        problems.append("Lobby: no Leave button")
+                if find("Local Drive", "button", timeout=20.0) is not None:
+                    online_menus()
+                else:
+                    problems.append("Back at the title: no Local Drive button")
                 if find("Local Drive", "button", timeout=20.0) is not None:
                     highway_menus()
                 else:
@@ -692,7 +730,7 @@ def main():
 
 def finish():
     if not any(f in sys.argv for f in ("--editor-only", "--kart-only", "--endless-only", "--sumo-only", "--drag-only", "--free-only",
-                                       "--settings-only", "--racing-only", "--garage-only")):
+                                       "--settings-only", "--racing-only", "--garage-only", "--online-only")):
         highway_pause_walk()
     return report()
 

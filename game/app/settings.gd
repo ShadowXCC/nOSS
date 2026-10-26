@@ -33,6 +33,8 @@ const MACHINE := {
 	"first_boot_done": ["game", "first_boot_done"],
 	"net_address": ["online", "address"],
 	"net_host": ["online", "host"],
+	"net_recent": ["online", "recent"],
+	"net_favourites": ["online", "favourites"],
 }
 
 var graphics := "medium"
@@ -68,6 +70,10 @@ var first_boot_done := false
 ## Online: the last address joined, and the last server hosted (ServerConfig.to_dict()).
 var net_address := ""
 var net_host := {}
+## Join's lists (docs/UI_FLOW.md §7.3): the last servers joined, newest first, and the ones the
+## player keeps, each {name, address}.
+var net_recent := []
+var net_favourites := []
 
 var primary: PlayerProfile
 var profile := {}
@@ -80,7 +86,7 @@ var _defaults := {} # MACHINE key -> its value before settings.cfg is read
 func _init() -> void:
 	for key: String in MACHINE:
 		var v: Variant = get(key)
-		_defaults[key] = v.duplicate(true) if v is Dictionary else v
+		_defaults[key] = v.duplicate(true) if v is Dictionary or v is Array else v
 
 
 func _ready() -> void:
@@ -129,7 +135,7 @@ func reset_keys(keys: Array) -> void:
 	for key: String in keys:
 		if _defaults.has(key):
 			var v: Variant = _defaults[key]
-			set(key, v.duplicate(true) if v is Dictionary else v)
+			set(key, v.duplicate(true) if v is Dictionary or v is Array else v)
 	apply_display()
 	save()
 

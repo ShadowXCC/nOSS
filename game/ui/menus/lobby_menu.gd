@@ -5,7 +5,7 @@ extends Control
 ## and admins can kick or ban from there. The host (or an admin) starts the session. A track
 ## that isn't here yet comes first: Ready waits for it ("Getting track 40%", EDT-08).
 
-## Back to the Online menu; `reason` says why if the server ended it.
+## Back to Drive Online; `reason` says why if the server ended it.
 signal left(reason: String)
 
 var _rows: Array = []
@@ -126,9 +126,11 @@ func _refresh() -> void:
 		return
 	_title.text = String(lobby.get("name", "Lobby"))
 	var e := RaceEvent.from_dict(lobby.get("event", {}))
-	var what := "Free drive" if e.kind == "free" else "Battle, " + ("most hits" if e.battle_rule == "hits" else "last one standing") \
-		if e.kind == "battle" else "Race, " + e.race_length_text()
-	_event_label.text = "%s   %s   %s   %d/%d players" % [what, lobby.get("track_name", ""), lobby.get("class_name", ""), Net.roster.size(), lobby.get("max", 16)]
+	var about := PackedStringArray([event_text(e, String(lobby.get("class", "")))])
+	if e.kind not in ["sumo", "drag"]: # their ground is made from the settings: no track
+		about.append(String(lobby.get("track_name", "")))
+	about.append_array([String(lobby.get("class_name", "")), "%d/%d players" % [Net.roster.size(), lobby.get("max", 16)]])
+	_event_label.text = "   ".join(Array(about).filter(func(b: String) -> bool: return not b.is_empty()))
 	_auto_pick()
 	var focused := get_viewport().gui_get_focus_owner()
 	var focused_id := int(focused.get_meta(&"player", 0)) if focused else 0
@@ -166,6 +168,33 @@ func _refresh() -> void:
 		_focused_once = true # the list arrived after the menu opened: start on it
 		(func() -> void: if is_inside_tree() and is_visible_in_tree(): grab_focus_first()).call_deferred()
 	_dev_auto()
+
+
+## What the lobby's event is: "Stock Car race, 10 laps", "Kart Battle, most hits", "Highway
+## cruise", "Drag Strip, 1/4 mile". Endless says nothing: its track's name does ("Endless
+## FOREST-0000001").
+static func event_text(e: RaceEvent, class_id: String) -> String:
+	match e.kind:
+		"race":
+			var what := "Kart race" if not GameModes.kart_classes(class_id).is_empty() else "Stock Car race" if class_id == EventFlow.STOCK_CAR else "Race"
+			return "%s, %s" % [what, e.race_length_text()]
+		"battle":
+			return "Kart Battle, " + ("most hits" if e.battle_rule == "hits" else "last one standing")
+		"highway":
+			for m: Array in EventForms.HIGHWAY_MODES:
+				if m[0] == e.sub:
+					return "Highway " + String(m[1]).to_lower()
+			return "Highway"
+		"endless":
+			return ""
+		"sumo":
+			return "Sumo Wrestling"
+		"drag":
+			var length := EventForms.nearest(EventForms.DRAG_LENGTHS, e.drag_length_m)
+			for l: Array in EventForms.DRAG_LENGTHS:
+				if l[0] == length:
+					return "Drag Strip, " + String(l[1] if Settings.units == "imperial" else l[2])
+	return "Free Drive"
 
 
 ## Dev: --auto-ready readies once this game's cars are in; --auto-start (hosting) starts once

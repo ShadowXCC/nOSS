@@ -4,7 +4,8 @@ extends ScrollContainer
 ## underlined in the accent colour. ui_tab_prev and ui_tab_next (LB/RB, Q/E; a player's own
 ## Previous and Next tab) switch from anywhere on the page while it shows, wrapping, but not while
 ## a text field is being typed in; left and right on the row switch too. The row scrolls sideways
-## when the tabs don't fit (big text, a small view).
+## when the tabs don't fit (big text, a small view). A tab that's off (`off`: Join's Official,
+## "Coming soon") shows, but is skipped.
 
 ## The tab is now `index`: picked by the row itself (a click, left or right on it) when
 ## `on_row`, by ui_tab_prev or ui_tab_next from elsewhere on the page when not.
@@ -15,6 +16,8 @@ const FONT_SIZE := 30
 
 var tabs: PackedStringArray = []
 var current := 0
+## Tabs that are off: index -> what their button shows after the name, and says ("Coming soon").
+var off := {}
 
 var _buttons: Array[Button] = []
 var _group := ButtonGroup.new()
@@ -50,6 +53,23 @@ func _ready() -> void:
 		b.gui_input.connect(_on_button_input.bind(b))
 		row.add_child(b)
 		_buttons.append(b)
+		if off.has(i):
+			_turn_off(b, String(off[i]))
+
+
+## A tab that's off: dimmed, out of the focus, its name then why ("Official · Coming soon"; the
+## name alone for screen readers, why as its description).
+func _turn_off(b: Button, why: String) -> void:
+	b.disabled = true
+	b.focus_mode = Control.FOCUS_NONE
+	b.accessibility_description = why
+	b.tooltip_text = why
+	var text := "%s · %s" % [b.text, why]
+	UiKit.set_shown_text(b, text) # the shown text is a label, which doesn't size the button
+	var shown := b.get_node(^"Shown") as Label
+	shown.add_theme_color_override(&"font_color", UiKit.MUTED.darkened(0.3))
+	shown.add_theme_font_size_override(&"font_size", FONT_SIZE)
+	b.custom_minimum_size.x = b.get_theme_font(&"font").get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x + 64
 
 
 ## The current tab's button (or tab `i`'s).
@@ -95,7 +115,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if focus is LineEdit and (focus as LineEdit).is_editing():
 		return
 	get_viewport().set_input_as_handled()
-	_pick(posmod(current + d, tabs.size()), focus != null and is_ancestor_of(focus))
+	_pick(_step(d), focus != null and is_ancestor_of(focus))
 
 
 func _on_button_input(event: InputEvent, b: Button) -> void:
@@ -104,7 +124,17 @@ func _on_button_input(event: InputEvent, b: Button) -> void:
 		return
 	b.accept_event()
 	if tabs.size() > 1:
-		_pick(posmod(current + d, tabs.size()), true)
+		_pick(_step(d), true)
+
+
+## The next tab that's on, `d` (1 or -1) along, wrapping.
+func _step(d: int) -> int:
+	var i := current
+	for n in tabs.size():
+		i = posmod(i + d, tabs.size())
+		if not off.has(i):
+			return i
+	return current
 
 
 func _show(b: Button) -> void:
@@ -131,6 +161,7 @@ static func _style(b: Button) -> void:
 	focus.set_border_width_all(4)
 	focus.set_corner_radius_all(4)
 	b.add_theme_stylebox_override(&"normal", flat)
+	b.add_theme_stylebox_override(&"disabled", flat)
 	b.add_theme_stylebox_override(&"hover", hover)
 	b.add_theme_stylebox_override(&"pressed", under)
 	b.add_theme_stylebox_override(&"hover_pressed", under)

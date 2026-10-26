@@ -2,7 +2,8 @@ class_name RacingPage
 extends MenuPage
 ## Racing (docs/UI_FLOW.md §5.3): a Race | Time Trial switch over Regular, Stock Car, Kart and
 ## Custom. LB/RB (Q/E) flip it from anywhere on the page, left and right on the switch itself, and
-## the descriptions follow it. Each type goes on to its Settings page.
+## the descriptions follow it. Each type goes on to its Settings page. Hosting there's no switch:
+## time trials online come in P10 (§7.2).
 
 ## [variant, button, race description, time trial description].
 const TYPES := [
@@ -11,38 +12,45 @@ const TYPES := [
 	["kart", "Kart", "Kart races and cups with items", "Kart laps against your ghost"],
 	["custom", "Custom", "Every setting, any class, saved presets", "Any class, any circuit, your ghost"],
 ]
+## Hosting, Kart is a race (cups online come in P10).
+const HOST_KART := "Kart races with items"
 
 ## The switch is on Time Trial.
 var tt := false
+## "local", or "host" (LocalDrivePage).
 var context := "local"
+## Hosting: the Host page's options.
+var server: ServerConfig
 var switch: TabRow
-
-
-func _init() -> void:
-	prompts = [["tabs", "Race / Time Trial"]]
-	back_hint = "Back to Local Drive"
 
 
 func _ready() -> void:
 	title = "Racing"
-	crumbs = ["Local Drive", "Racing"]
+	if context == "host":
+		crumbs = ["Drive Online", "Host", "Racing"]
+		back_hint = "Back to the event types"
+	else:
+		crumbs = ["Local Drive", "Racing"]
+		back_hint = "Back to Local Drive"
+		prompts = [["tabs", "Race / Time Trial"]]
 	steps = EventFlow.steps_for(context, "racing", "regular")
-	step = 0
+	step = steps.find("Event")
 	super._ready()
 
 
 func _build() -> void:
-	switch = TabRow.new(["Race", "Time Trial"])
-	switch.name = "Switch"
-	switch.current = 1 if tt else 0
-	switch.changed.connect(_on_switch)
-	add_header(switch)
+	if context == "local":
+		switch = TabRow.new(["Race", "Time Trial"])
+		switch.name = "Switch"
+		switch.current = 1 if tt else 0
+		switch.changed.connect(_on_switch)
+		add_header(switch)
 	_fill()
 
 
 func _fill() -> void:
 	for t: Array in TYPES:
-		var b := UiKit.button(t[1], _pick.bind(String(t[0])), t[3] if tt else t[2])
+		var b := UiKit.button(t[1], _pick.bind(String(t[0])), t[3] if tt else HOST_KART if context == "host" and t[0] == "kart" else t[2])
 		b.name = String(t[1]).validate_node_name()
 		b.set_meta(&"variant", t[0])
 		add_row(b)
@@ -97,6 +105,7 @@ func _show_steps(variant: String) -> void:
 
 func _pick(variant: String) -> void:
 	var flow := EventFlow.racing(variant, tt, context)
+	flow.server = server
 	flow.recall()
 	open_settings(flow)
 

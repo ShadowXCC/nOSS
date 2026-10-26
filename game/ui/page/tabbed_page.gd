@@ -11,6 +11,8 @@ extends MenuPage
 const HINTS := ["Left and right to change", "Enter to type"]
 
 var tabs: PackedStringArray = []
+## Tabs that show but are off: index -> why ("Coming soon"; TabRow.off).
+var tabs_off := {}
 ## The current tab (an index into `tabs`).
 var tab := 0
 
@@ -24,6 +26,7 @@ func _init() -> void:
 
 func _build() -> void:
 	tab_row = TabRow.new(tabs)
+	tab_row.off = tabs_off
 	tab_row.current = tab
 	tab_row.changed.connect(func(i: int, on_row: bool) -> void: show_tab(i, "" if on_row else "first"))
 	add_header(tab_row)

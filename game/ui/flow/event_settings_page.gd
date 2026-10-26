@@ -3,7 +3,7 @@ extends MenuPage
 ## An event's settings (docs/UI_FLOW.md §5.5, §6.1): the type's rows (EventForms), the track's map
 ## on the right (TrackPane), and "Next" under them (beside Back, always on screen), on to the
 ## class or the players. Next is off until the event can go (a kart race needs a track, a battle
-## an arena, a cup all its tracks).
+## an arena, a cup all its tracks). Hosting with no Class step, it's "Start hosting" (§7.2).
 
 var flow: EventFlow
 var next_button: Button
@@ -34,7 +34,7 @@ func _build() -> void:
 	if flow.has_track():
 		pane = TrackPane.new()
 	EventForms.build(self)
-	next_button = UiKit.button("Next", go_on, flow.next_hint())
+	next_button = UiKit.button(flow.next_text(), go_on, flow.next_hint())
 	next_button.name = "Next"
 	add_action(next_button)
 	if pane:
@@ -91,13 +91,15 @@ func focus_next() -> void:
 	next_button.grab_focus()
 
 
-## Next: the class, else the players.
+## Next: the class, else the players (hosting: the server, then its lobby).
 func go_on() -> void:
 	if not flow.ready_to_go():
 		return
 	flow.remember()
 	if flow.has_class_step():
 		open_class()
+	elif flow.context == "host":
+		status.text = flow.host()
 	else:
 		open_players()
 

@@ -11,7 +11,7 @@ extends Control
 ## hide while one is up.
 var _stack := MenuStack.new()
 var _solo: LocalDrivePage
-var _online: OnlineMenu
+var _online: DriveOnlinePage
 var _lobby: LobbyMenu
 
 
@@ -83,7 +83,7 @@ func _ready() -> void:
 		_open_online()
 		_online.show_status(Game.net_status)
 		Game.net_status = ""
-	elif Game.dev.has("host"): # dev: host with the last settings (--port, --password)
+	elif Game.dev.has("host"): # dev: host with the last settings and event (--port, --password)
 		_open_online()
 		_online.host_now()
 	elif Game.dev.has("connect"): # dev: --connect=<address> (--password)
@@ -94,7 +94,7 @@ func _ready() -> void:
 			for slot in Players.slots:
 				slot.profile.data.name = "Bot%s %s" % [OS.get_process_id() % 1000, slot.tag()]
 		_open_online()
-		_online._join(String(Game.dev.connect), String(Game.dev.get("password", "")))
+		_online.join_now(String(Game.dev.connect), String(Game.dev.get("password", "")))
 
 
 ## Local Drive: the event types on this machine (LocalDrivePage, docs/UI_FLOW.md §5). Not
@@ -126,7 +126,16 @@ func _open_dev_menu(menu: String) -> void:
 		"online": _open_online()
 		"online-players":
 			_open_online()
-			_online._open_players()
+			_online.open_players()
+		"host":
+			_open_online()
+			_online.open_host()
+		"host-event":
+			_open_online()
+			_online.open_host().open_event()
+		"join":
+			_open_online()
+			_online.open_join()
 		_:
 			if FLOWS.has(menu):
 				var f: Array = FLOWS[menu]
@@ -135,16 +144,22 @@ func _open_dev_menu(menu: String) -> void:
 				_open_solo(false).open_flow(flow, menu if menu in ["class", "players"] else "settings")
 
 
+## Drive Online (DriveOnlinePage, docs/UI_FLOW.md §7).
 func _open_online() -> void:
-	_online = OnlineMenu.new()
+	_online = DriveOnlinePage.new()
+	_online.name = "DriveOnline"
 	_online.entered_lobby.connect(_open_lobby)
-	_stack.push(_online, _online.grab_focus_first)
+	_stack.push(_online)
 
 
-## The lobby, over the Online menu; leaving it comes back there with the reason, if any.
+## The lobby, over Drive Online in place of the pages on the way (Host and the event pages, Join);
+## leaving it comes back to Drive Online with the reason, if any.
 func _open_lobby() -> void:
 	if is_instance_valid(_lobby):
 		return
+	var above := _stack.index_of(_online) + 1
+	if above > 0 and above < _stack.depth():
+		_stack.close(_stack.pages()[above])
 	_lobby = LobbyMenu.new()
 	_lobby.left.connect(func(reason: String) -> void:
 		_stack.close(_lobby)

@@ -29,8 +29,9 @@ extends Node
 ##   --pause-at=<s>       open the last player's pause menu
 ##   --menu=<m>           main menu: open local (or solo), racing, mini-games, a Settings page (regular,
 ##                        stock-car, kart, custom, time-trial (Regular's), endless, highway, free, sumo, drag,
-##                        kart-battle), class or players (Regular's), settings, driving-settings, online or
-##                        online-players (--join=<n>: n devices join)
+##                        kart-battle), class or players (Regular's), settings, driving-settings, online,
+##                        online-players (--join=<n>: n devices join), host, host-event (Host's event types)
+##                        or join
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
 ##   --track=<ref>        the track for --drive, --race and --time-trial: an id, a path or a hash
 ##   --highway            a highway session right away (the first highway, or --track): --sub=cruise|score|run|loop,
@@ -304,7 +305,7 @@ func _start_dev_kart() -> void:
 
 
 ## Dev overrides for a race (--race-laps, --race-ai, --race-practice, --race-quali, --race-start,
-## --race-grid, --ai-skill), also used by the Race menu so checks can walk the real menus.
+## --race-grid, --ai-skill), also used by the event pages so checks can walk the real menus.
 func apply_dev_event(e: RaceEvent) -> void:
 	if dev.has("race-laps"):
 		e.race_laps = int(dev["race-laps"])
@@ -428,7 +429,7 @@ func start_cup_race(run: CupRun) -> void:
 	open_session(session)
 
 
-## Why the last online game ended ("Server closed"), for the title's Online menu; then "".
+## Why the last online game ended ("Server closed"), for Drive Online on the main menu; then "".
 var net_status := ""
 
 
@@ -528,7 +529,7 @@ func _on_online_session_ended() -> void:
 		go_title() # the title opens the lobby while online
 
 
-## Cut off from the server mid-session: back to the Online menu with why.
+## Cut off from the server mid-session: back to Drive Online with why.
 func _on_net_cut_off(reason: String) -> void:
 	if not dedicated and get_tree().current_scene is TrackSession and (get_tree().current_scene as TrackSession).is_online():
 		net_status = reason

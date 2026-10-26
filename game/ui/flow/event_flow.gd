@@ -44,6 +44,9 @@ var track := ""
 var class_id := ""
 ## A kart cup's path, or "" (a kart race).
 var cup := ""
+## Hosting: the server's options from the Host page (name, password, port, ...); its rotation is
+## this event (server_config()).
+var server: ServerConfig
 
 
 static func make(type_id: String, variant_id := "", time_trial := false, where := "local") -> EventFlow:
@@ -136,7 +139,14 @@ func steps() -> PackedStringArray:
 func next_hint() -> String:
 	if has_class_step():
 		return "Pick the class"
+	if context == "host":
+		return "Start the server and open the lobby"
 	return "The players: each picks a car and a class" if class_rule(type, variant) == "card" else "The players: each picks a car"
+
+
+## The Settings page's Next: "Start hosting" when it hosts (no Class step), else "Next".
+func next_text() -> String:
+	return "Start hosting" if context == "host" and not has_class_step() else "Next"
 
 
 ## Sumo, Drag and Endless make their own ground; the rest are on a track.
@@ -307,6 +317,13 @@ func defaults() -> RaceEvent:
 ## Makes the setup one this type runs: its kind, the settings it has no rows for at their
 ## defaults, a track and a class it offers.
 func fit() -> void:
+	# Online, time trials, kart cups and the highway's Score attack, Run and Loop wait for their
+	# network code (docs/UI_FLOW.md §7.2, P10).
+	if context != "local":
+		tt = false
+		cup = ""
+		if type == "highway":
+			event.sub = "cruise"
 	if tt:
 		var was := event
 		event = RaceEvent.time_trial()
@@ -416,8 +433,11 @@ func session_event() -> RaceEvent:
 
 
 ## Starts the event for everyone who joined. Remembered first; Local Drive's is Drive again's too,
-## and Game.flow_return keeps it for the results' "Event menu".
+## and Game.flow_return keeps it for the results' "Event menu". Hosting, it hosts (host()).
 func start() -> void:
+	if context == "host":
+		host()
+		return
 	remember()
 	var data := to_dict()
 	if context == "local":
@@ -430,6 +450,28 @@ func start() -> void:
 	else:
 		Game.start_event(e, class_id, track if has_track() else "")
 	Game.flow_return = data
+
+
+## Hosting (docs/UI_FLOW.md §7.2): the server with this event, its lobby next (Net.joined). The
+## host options are kept for next time, without the password. "" or why it couldn't.
+func host() -> String:
+	remember()
+	var cfg := server_config()
+	var saved := cfg.to_dict()
+	saved.password = ""
+	Settings.set_value("net_host", saved)
+	if Net.host(cfg, Net.local_players()) != OK:
+		return "Can't open UDP %d" % cfg.port
+	return ""
+
+
+## The server's config: the Host page's options, this event its one rotation item. Endless has no
+## track (its road comes from its seed); Sumo and Drag make their own ground, so any track will do.
+func server_config() -> ServerConfig:
+	var cfg := server if server else ServerConfig.defaults()
+	var where := ServerConfig.ENDLESS if type == "endless" else track if has_track() else ServerConfig.DEFAULT_TRACK
+	cfg.rotation = [{ "track": where, "class": class_id, "event": session_event().to_dict() }]
+	return cfg
 
 
 ## The Players screen for this event; everyone Ready starts it.
