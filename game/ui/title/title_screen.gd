@@ -130,6 +130,9 @@ func _open_dev_menu(menu: String) -> void:
 		"host-event":
 			_open_online()
 			_online.open_host().open_event()
+		"host-time-trial":
+			_open_online()
+			_online.open_host().open_event().open_racing(true)._pick("regular")
 		"join":
 			_open_online()
 			_online.open_join()

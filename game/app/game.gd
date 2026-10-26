@@ -30,7 +30,8 @@ extends Node
 ##   --menu=<m>           main menu: open local (or solo), racing, mini-games, a Settings page (regular,
 ##                        stock-car, kart, custom, time-trial (Regular's), endless, highway, free, sumo, drag,
 ##                        kart-battle), class or players (Regular's; --join=<n>: n devices join), settings,
-##                        driving-settings, online, host, host-event (Host's event types) or join
+##                        driving-settings, online, host, host-event (Host's event types), host-time-trial
+##                        (Host's Regular time trial Settings page) or join
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
 ##   --track=<ref>        the track for --drive, --race and --time-trial: an id, a path or a hash
 ##   --highway            a highway session right away (the first highway, or --track): --sub=cruise|score|run|loop,
