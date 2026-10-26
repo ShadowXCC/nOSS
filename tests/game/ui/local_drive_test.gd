@@ -246,7 +246,7 @@ func test_time_trial_switch() -> void:
 	var settings := _stack(runner).top() as EventSettingsPage
 	assert_str(settings.title).is_equal("Regular time trial")
 	var rows := settings.body.get_children().map(func(b: Button) -> String: return String(b.accessibility_name).get_slice(":", 0))
-	assert_array(rows).contains_exactly(["Track", "Time", "Time runs", "Weather", "Next"])
+	assert_array(rows).contains_exactly(["Track", "Time", "Time runs", "Weather"])
 	settings.next_button.pressed.emit()
 	await _frames(4)
 	assert_bool(_stack(runner).top() is ClassPage).is_true()

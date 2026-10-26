@@ -11,6 +11,11 @@ extends Control
 ##
 ## Build it in _build(), or from outside with add_row() and then chain(). Pages go on a
 ## MenuStack, which shows one at a time.
+##
+## A page's main action ("Next") goes in the action bar under the body with add_action(), Back
+## beside it: always on screen, however long the body. (Godot 4.7.2 leaves a row that starts out
+## of the scroll's view out of the screen-reader tree until it has the focus, so the checks, which
+## can't send keys, couldn't reach a Next at the end of a long body; ARCHITECTURE §1.)
 
 signal closed
 
@@ -47,6 +52,9 @@ var prompt_bar: PromptBar
 
 var _scroll: ScrollContainer
 var _frame: MarginContainer
+var _footer: MarginContainer
+var _actions: HBoxContainer
+var _action_list: Array[Control] = []
 var _pane: VBoxContainer
 var _title_label: Label
 var _crumb_label: Label
@@ -98,13 +106,25 @@ func _ready() -> void:
 	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override(&"separation", 48)
 	column.add_child(content)
+	var main := VBoxContainer.new()
+	main.name = "Main"
+	main.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	main.size_flags_stretch_ratio = 55.0
+	content.add_child(main)
 	_scroll = ScrollContainer.new()
 	_scroll.name = "Scroll"
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_scroll.size_flags_stretch_ratio = 55.0
-	content.add_child(_scroll)
+	main.add_child(_scroll)
+	_footer = MarginContainer.new()
+	_footer.name = "Footer"
+	_footer.visible = false
+	main.add_child(_footer)
+	_actions = HBoxContainer.new()
+	_actions.name = "Actions"
+	_actions.add_theme_constant_override(&"separation", 12)
+	_footer.add_child(_actions)
 	# Side margins centre the body when it has the whole width (_fit()), and leave room for the
 	# focus outline.
 	_frame = MarginContainer.new()
@@ -131,7 +151,12 @@ func _ready() -> void:
 		back_button = UiKit.button(back_text, func() -> void: closed.emit(), back_hint)
 		back_button.name = "Back"
 		back_button.custom_minimum_size.y = UiKit.ROW_HEIGHT
-		rows.add_child(back_button)
+		if _action_list.is_empty():
+			rows.add_child(back_button)
+		else: # beside the actions, on their left
+			back_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			_actions.add_child(back_button)
+			_actions.move_child(back_button, 0)
 	chain(autofocus)
 	resized.connect(_fit)
 	_scroll.resized.connect(_fit)
@@ -204,6 +229,16 @@ func rebuild_rows(build: Callable, pick := Callable()) -> void:
 	old.queue_free()
 
 
+## Adds `c` to the action bar under the body (a page's "Next"), after the rows in the focus order.
+func add_action(c: Control) -> Control:
+	c.custom_minimum_size.y = maxf(c.custom_minimum_size.y, UiKit.ROW_HEIGHT)
+	c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_actions.add_child(c)
+	_action_list.append(c)
+	_footer.visible = true
+	return c
+
+
 ## A group's heading in the body, in the accent colour ("Access assists").
 func add_heading(text: String) -> Label:
 	var l := UiKit.label(text, 30)
@@ -272,25 +307,42 @@ func pane_shown() -> bool:
 	return _pane.visible
 
 
-## Links the rows top to bottom, the Back row last, and focuses the first (unless not
-## `focus_first`: a list refreshed while the player is on it).
+## Links the rows top to bottom, then the actions, the Back row last, and focuses the first (unless
+## not `focus_first`: a list refreshed while the player is on it). Left and right go along the
+## action bar.
 func chain(focus_first := true) -> void:
-	var list: Array = _rows.duplicate()
-	if back_button:
-		list.append(back_button)
-	UiKit.chain_focus(list, focus_first)
+	UiKit.chain_focus(_focus_list(), focus_first)
+	_link_actions()
 
 
 ## Focuses the first row.
 func focus_first() -> void:
-	var list: Array = _rows.duplicate()
-	if back_button:
-		list.append(back_button)
+	var list := _focus_list()
 	for c: Control in list:
 		var target := UiKit._focus_target(c)
 		if target and target.is_visible_in_tree():
 			target.grab_focus()
 			return
+
+
+## The rows, the actions and Back, in the focus order.
+func _focus_list() -> Array:
+	var list: Array = _rows.duplicate()
+	list.append_array(_action_list)
+	if back_button:
+		list.append(back_button)
+	return list
+
+
+## Left and right along the action bar (Back first, as shown).
+func _link_actions() -> void:
+	if _action_list.is_empty():
+		return
+	var bar := _actions.get_children().filter(func(c: Node) -> bool: return c is Control and UiKit._focus_target(c) != null)
+	for i in bar.size():
+		var c := UiKit._focus_target(bar[i])
+		c.focus_neighbor_left = c.get_path_to(UiKit._focus_target(bar[maxi(i - 1, 0)]))
+		c.focus_neighbor_right = c.get_path_to(UiKit._focus_target(bar[mini(i + 1, bar.size() - 1)]))
 
 
 ## The body's scroll (tests, and pages that keep their place).
@@ -315,8 +367,9 @@ func _fit() -> void:
 	var side := 8
 	if not _pane.visible:
 		side = maxi(8, floori((_scroll.size.x - BODY_MAX_WIDTH) / 2.0))
-	_frame.add_theme_constant_override(&"margin_left", side)
-	_frame.add_theme_constant_override(&"margin_right", side)
+	for frame: MarginContainer in [_frame, _footer]:
+		frame.add_theme_constant_override(&"margin_left", side)
+		frame.add_theme_constant_override(&"margin_right", side)
 	var c := UiKit.focus_owner(self) if is_inside_tree() else null
 	if c and _scroll.is_ancestor_of(c):
 		_queue_reveal(c)

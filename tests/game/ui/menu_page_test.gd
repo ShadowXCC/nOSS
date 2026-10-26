@@ -121,6 +121,49 @@ func test_the_pane_shows_only_with_room() -> void:
 	page.get_parent().free()
 
 
+## A page's main action sits under the body with Back beside it, on screen however long the body
+## (a screen reader's tree leaves out rows that start out of view): down goes from the last row to
+## it, then Back, and left and right go along the bar.
+func test_actions_sit_under_the_body() -> void:
+	var built := ActionsPage.new()
+	var holder := Control.new()
+	holder.size = Vector2(1920, 600)
+	add_child(holder)
+	holder.add_child(built)
+	await _frames(4)
+	var bar := built.find_child("Actions", true, false) as HBoxContainer
+	assert_array(bar.get_children().map(func(b: Button) -> String: return b.text)).contains_exactly(["Back", "Next"])
+	assert_bool(built.scroll().is_ancestor_of(built.back_button)).is_false()
+	var area := Rect2(Vector2.ZERO, holder.size)
+	assert_bool(area.encloses(built.next.get_global_rect())).is_true()
+	built.last.grab_focus()
+	_action(get_viewport(), "ui_down")
+	await _frames(2)
+	assert_object(get_viewport().gui_get_focus_owner()).is_same(built.next)
+	_action(get_viewport(), "ui_left")
+	await _frames(2)
+	assert_object(get_viewport().gui_get_focus_owner()).is_same(built.back_button)
+	_action(get_viewport(), "ui_right")
+	await _frames(2)
+	assert_object(get_viewport().gui_get_focus_owner()).is_same(built.next)
+	_action(get_viewport(), "ui_down")
+	await _frames(2)
+	assert_object(get_viewport().gui_get_focus_owner()).is_same(built.back_button)
+	holder.free()
+
+
+class ActionsPage:
+	extends MenuPage
+
+	var next: Button
+	var last: Button
+
+	func _build() -> void:
+		for i in 20:
+			last = add_row(UiKit.button("Row %d" % i, func() -> void: pass)) as Button
+		next = add_action(UiKit.button("Next", func() -> void: pass)) as Button
+
+
 ## Down to the last of many rows by ui_down: the focused row is always in view.
 func test_the_body_scrolls_to_the_focus() -> void:
 	var page := _page(30)
