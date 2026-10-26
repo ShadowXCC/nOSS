@@ -4,11 +4,13 @@
 Runs the game with accessibility on and walks main menu -> Local Drive -> Racing -> Regular ->
 its Settings page -> the class -> Players -> a 1-lap race -> results -> main menu (on the way, the
 screen under the top one isn't showing: UI overhaul P2's page stack), then Racing again: Stock Car
-(no Class step) and the Time Trial switch, and back out (UI overhaul P4), then Drive Online ->
-Host -> the lobby -> Leave (M5), then Local Drive -> Highway -> a highway -> its menu -> the class
--> Players and back out (M7), then Local Drive -> Racing -> Kart -> a race, a battle and the cup
-builder -> Players and back out (M8), then Local Drive -> Endless -> its menu -> the class ->
-Players and back out (M9), then the track editor: every
+(no Class step), the Time Trial switch, and Custom with its Save preset page, and back out (UI
+overhaul P4, P5), then Drive Online -> Host -> the lobby -> Leave (M5), then each Local Drive
+type's pages (UI overhaul P5): Highway -> its Settings page -> the class -> Players and back out
+(M7); Racing -> Kart -> a race, a cup and the cup builder, then Mini Games -> Kart Battle ->
+Players and back out (M8); Endless -> the class -> Players (M9); Mini Games -> Sumo Wrestling and
+Drag Strip (its class) -> Players; Free Drive -> the class -> Players, each backed out of, then
+Settings and Driving Settings, every tab (P3), then the track editor: every
 tool, a new oval, its race setup and checks, a new highway loop and its ramps, the Stunts tool on
 a kart circuit and an arena, and out (M6-M8);
 then, in a second run, a highway session's pause menu (opened with --pause-at: keys can't be
@@ -23,13 +25,14 @@ display. Writes no settings or profiles (--no-save).
 
     tools/a11y_check.py                # exit code 0 = pass
     tools/a11y_check.py --editor-only  # just the track editor
-    tools/a11y_check.py --highway-only # just the highway menus and a highway session's pause
-    tools/a11y_check.py --kart-only    # just the kart menus (race, battle, cup builder)
-    tools/a11y_check.py --endless-only # just the endless menus
-    tools/a11y_check.py --sumo-only    # just the Mini Games submenu and the sumo menu
-    tools/a11y_check.py --drag-only    # just the Mini Games submenu and the drag menu
+    tools/a11y_check.py --highway-only # just Highway's pages and a highway session's pause
+    tools/a11y_check.py --kart-only    # just Kart's pages (race, cup, cup builder) and Kart Battle's
+    tools/a11y_check.py --endless-only # just Endless's pages
+    tools/a11y_check.py --sumo-only    # just Mini Games and Sumo Wrestling's pages
+    tools/a11y_check.py --drag-only    # just Mini Games and Drag Strip's pages
+    tools/a11y_check.py --free-only    # just Free Drive's pages
     tools/a11y_check.py --settings-only  # just Settings and Driving Settings, every tab
-    tools/a11y_check.py --racing-only  # just Racing: Stock Car and the Time Trial switch
+    tools/a11y_check.py --racing-only  # just Racing: Stock Car, the Time Trial switch, Custom
 """
 import os
 import subprocess
@@ -264,45 +267,51 @@ def step(label, name, role="button", prefix=False, timeout=20.0, last=False):
 
 
 def highway_menus():
-    """Title -> Highway -> a highway -> its menu -> its class -> Players, and back out (M7)."""
-    log("Highway menus")
-    ok = step("Title (highway)", "Local Drive")
+    """Main menu -> Local Drive -> Highway -> its Settings page -> the class -> Players, and back
+    out a page at a time (M7, UI overhaul P5)."""
+    log("Highway pages")
+    ok = step("Main menu (highway)", "Local Drive")
     ok = ok and step("Local Drive (highway)", "Highway")
-    ok = ok and step("Highway: tracks", "Lumen Ring", prefix=True)
-    ok = ok and step("Highway: menu", "Next")
+    ok = ok and hidden("Highway: settings", "Mini Games")
+    ok = ok and step("Highway: settings", "Next")
     ok = ok and step("Highway: class", "Highway Street", prefix=True)
-    # Back out a screen at a time, each one known by something only it has.
+    # Back out a page at a time, each one known by something only it has.
     for label, anchor in (("Highway: players", "Ready"), ("Highway: class again", "Highway Street"),
-                          ("Highway: menu again", "Next"), ("Highway: tracks again", "Lumen Ring"),
-                          ("Local Drive (after highway)", "Racing")):
+                          ("Highway: settings again", "Mode: "), ("Local Drive (after highway)", "Racing")):
         ok = ok and back_from(label, anchor)
     return ok
 
 
 def kart_menus():
-    """Title -> Kart -> a race -> Players and back; a battle's; a cup's builder (M8)."""
-    log("Kart menus")
-    ok = step("Title (kart)", "Local Drive")
+    """Main menu -> Racing -> Kart -> a race -> Players and back; a cup and its builder; then Mini
+    Games -> Kart Battle -> Players, and back out (M8, UI overhaul P5)."""
+    log("Kart pages")
+    ok = step("Main menu (kart)", "Local Drive")
     ok = ok and step("Local Drive (kart)", "Racing")
     ok = ok and step("Racing (kart)", "Kart")
+    if ok and find("Play: Cup", "button", timeout=5.0) is not None:  # a cup set up last time
+        ok = step("Kart: to race", "Play: Cup")
     ok = ok and step("Kart: race", "Next")
     ok = ok and back_from("Kart: players", "Ready")  # each card picks its class (D149)
-    ok = ok and step("Kart: to battle", "Play: Race")
-    ok = ok and step("Kart: battle", "Next")
-    ok = ok and back_from("Kart: battle players", "Ready")
-    ok = ok and step("Kart: to cup", "Play: Battle")
+    ok = ok and step("Kart: to cup", "Play: Race")
     ok = ok and step("Kart: cup", "New cup")
-    ok = ok and back_from("Kart: cup builder", "Save")
-    ok = ok and back_from("Kart: menu", "Play: Cup")
+    ok = ok and back_from("Kart: cup builder", "Race 1 laps")
+    ok = ok and back_from("Kart: settings", "Play: Cup")
     ok = ok and back_from("Racing (after kart)", "Custom")
-    ok = ok and back_from("Local Drive (after kart)", "Highway")
+    ok = ok and step("Local Drive (battle)", "Mini Games")
+    ok = ok and step("Mini Games (battle)", "Kart Battle")
+    ok = ok and step("Kart Battle: settings", "Next")
+    for label, anchor in (("Kart Battle: players", "Ready"), ("Kart Battle: settings again", "Rule: "),
+                          ("Mini Games (after battle)", "Kart Battle"), ("Local Drive (after kart)", "Highway")):
+        ok = ok and back_from(label, anchor)
     return ok
 
 
 def racing_menus():
     """Main menu -> Local Drive -> Racing -> Stock Car -> its Settings page -> Players (no Class
     step: its class is fixed), and back; then the Time Trial switch -> Regular -> its Settings ->
-    the class, and back out (UI overhaul P4, docs/UI_FLOW.md §5.3)."""
+    the class, and back; then Custom -> Save preset's page, its Settings -> the class, and back out
+    (UI overhaul P4, P5, docs/UI_FLOW.md §5.3, §6.1)."""
     log("Racing")
     ok = step("Main menu (racing)", "Local Drive")
     ok = ok and step("Local Drive (racing)", "Racing")
@@ -318,7 +327,14 @@ def racing_menus():
     ok = ok and back_from("Regular time trial: class", "Track GT")
     ok = ok and back_from("Regular time trial: settings again", "Next")
     ok = ok and step("Racing: back to Race", "Race", role="toggle button")
-    ok = ok and back_from("Racing (after time trial)", "Custom")
+    # Custom (P5): its presets' name page, its Settings page, its class (any mode's).
+    ok = ok and step("Racing: Custom", "Custom")
+    ok = ok and step("Custom: settings", "Save preset")
+    ok = ok and back_from("Custom: preset name", "Save")  # its Name field is a text field, not a button
+    ok = ok and step("Custom: settings again", "Next")
+    ok = ok and back_from("Custom: class", "Track GT")
+    ok = ok and back_from("Custom: settings, back", "Preset: ")
+    ok = ok and back_from("Racing (after Custom)", "Custom")
     ok = ok and back_from("Local Drive (after racing)", "Highway")
     if ok and find("Local Drive", "button", timeout=20.0) is None:
         problems.append("Out of Racing: no main menu")
@@ -327,43 +343,60 @@ def racing_menus():
 
 
 def endless_menus():
-    """Title -> Local Drive -> Endless -> its menu -> the class -> Players, and back out (M9)."""
-    log("Endless menus")
-    ok = step("Title (endless)", "Local Drive")
+    """Main menu -> Local Drive -> Endless -> its Settings page -> the class -> Players, and back
+    out (M9, UI overhaul P5)."""
+    log("Endless pages")
+    ok = step("Main menu (endless)", "Local Drive")
     ok = ok and step("Local Drive (endless)", "Endless")
-    ok = ok and step("Endless: menu", "Next")
+    ok = ok and step("Endless: settings", "Next")
     ok = ok and step("Endless: class", "Endless Cruiser", prefix=True)
     for label, anchor in (("Endless: players", "Ready"), ("Endless: class again", "Endless Cruiser"),
-                          ("Endless: menu again", "Next"), ("Local Drive (after endless)", "Endless")):
+                          ("Endless: settings again", "New road"), ("Local Drive (after endless)", "Endless")):
         ok = ok and back_from(label, anchor)
     return ok
 
 
 def sumo_menus():
-    """Title -> Local Drive -> Mini Games -> Sumo Wrestling -> its menu -> Players, and back out.
-    There is no class or track to pick: the mode has one class and makes its own arena (D162)."""
-    log("Mini Games and sumo menus")
-    ok = step("Title (sumo)", "Local Drive")
+    """Main menu -> Local Drive -> Mini Games -> Sumo Wrestling -> its Settings page -> Players,
+    and back out. No Class step: the mode has one class, and it makes its own arena (D162)."""
+    log("Mini Games and Sumo Wrestling's pages")
+    ok = step("Main menu (sumo)", "Local Drive")
     ok = ok and step("Local Drive (sumo)", "Mini Games")
     ok = ok and step("Mini Games", "Sumo Wrestling")
-    ok = ok and step("Sumo: menu", "Next")
-    for label, anchor in (("Sumo: players", "Ready"), ("Sumo: menu again", "Next"),
+    ok = ok and step("Sumo: settings", "Next")
+    for label, anchor in (("Sumo: players", "Ready"), ("Sumo: settings again", "Platforms: "),
                           ("Mini Games again", "Sumo Wrestling"), ("Local Drive (after sumo)", "Mini Games")):
         ok = ok and back_from(label, anchor)
     return ok
 
 
 def drag_menus():
-    """Title -> Local Drive -> Mini Games -> Drag Strip -> its menu -> Players, and back out.
-    There is no class or track to pick on their own screens: the class is one of the menu's own
-    rows and the strip is made from the settings (D168)."""
-    log("Mini Games and drag menus")
-    ok = step("Title (drag)", "Local Drive")
+    """Main menu -> Local Drive -> Mini Games -> Drag Strip -> its Settings page -> the class
+    (Street, Pro or Top Fuel) -> Players, and back out. The strip is made from the settings
+    (D168)."""
+    log("Mini Games and Drag Strip's pages")
+    ok = step("Main menu (drag)", "Local Drive")
     ok = ok and step("Local Drive (drag)", "Mini Games")
     ok = ok and step("Mini Games (drag)", "Drag Strip")
-    ok = ok and step("Drag: menu", "Next")
-    for label, anchor in (("Drag: players", "Ready"), ("Drag: menu again", "Next"),
-                          ("Mini Games again (drag)", "Drag Strip"), ("Local Drive (after drag)", "Mini Games")):
+    ok = ok and step("Drag: settings", "Next")
+    ok = ok and step("Drag: class", "Drag Street", prefix=True)
+    for label, anchor in (("Drag: players", "Ready"), ("Drag: class again", "Drag Street"),
+                          ("Drag: settings again", "Boost: "), ("Mini Games again (drag)", "Drag Strip"),
+                          ("Local Drive (after drag)", "Mini Games")):
+        ok = ok and back_from(label, anchor)
+    return ok
+
+
+def free_menus():
+    """Main menu -> Local Drive -> Free Drive -> its Settings page -> the class (every mode's) ->
+    Players, and back out (UI overhaul P5)."""
+    log("Free Drive's pages")
+    ok = step("Main menu (free)", "Local Drive")
+    ok = ok and step("Local Drive (free)", "Free Drive")
+    ok = ok and step("Free Drive: settings", "Next")
+    ok = ok and step("Free Drive: class", "Track GT", prefix=True)
+    for label, anchor in (("Free Drive: players", "Ready"), ("Free Drive: class again", "Track GT"),
+                          ("Free Drive: settings again", "Track: "), ("Local Drive (after free)", "Free Drive")):
         ok = ok and back_from(label, anchor)
     return ok
 
@@ -518,6 +551,10 @@ def main():
             if find("Local Drive", "button", timeout=60.0) is not None:
                 drag_menus()
             raise SystemExit(report())
+        if "--free-only" in sys.argv:
+            if find("Local Drive", "button", timeout=60.0) is not None:
+                free_menus()
+            raise SystemExit(report())
         if "--settings-only" in sys.argv:
             if find("Local Drive", "button", timeout=60.0) is not None:
                 settings_menus()
@@ -582,6 +619,10 @@ def main():
                 else:
                     problems.append("Back at the title: no Local Drive button")
                 if find("Local Drive", "button", timeout=20.0) is not None:
+                    free_menus()
+                else:
+                    problems.append("Back at the title: no Local Drive button")
+                if find("Local Drive", "button", timeout=20.0) is not None:
                     settings_menus()
                 else:
                     problems.append("Back at the title: no Local Drive button")
@@ -595,8 +636,8 @@ def main():
 
 
 def finish():
-    if not any(f in sys.argv for f in ("--editor-only", "--kart-only", "--endless-only", "--sumo-only", "--drag-only", "--settings-only",
-                                       "--racing-only")):
+    if not any(f in sys.argv for f in ("--editor-only", "--kart-only", "--endless-only", "--sumo-only", "--drag-only", "--free-only",
+                                       "--settings-only", "--racing-only")):
         highway_pause_walk()
     return report()
 

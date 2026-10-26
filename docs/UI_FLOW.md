@@ -92,8 +92,8 @@ Built in P2 (`game/ui/page/`) and P3 (tabs).
   scroll's view out of the screen-reader tree until it has the focus, so a Next at the end of a long
   body was out of reach of the checks (which can't send keys) and of a screen reader's review.
 - **`MenuStack`:** push and pop. Only the top page is visible. Popping gives the focus back to the
-  control that had it. Until P4 and P5 replace them, the old menus run on the main menu's stack too,
-  each refocusing itself as before (P2).
+  control that had it. Drive Online's old menus run on the main menu's stack too, each refocusing
+  itself as before (P2), until P8 replaces them.
 - **`ConfirmPage`:** a question with the safe answer focused first (promoted from the pause menu's
   `ConfirmMenu`). Its title is the question; its buttons are given (e.g. "Keep" and "Reset").
 - **`TabRow`:** a row of tabs (toggle buttons). `ui_tab_prev` and `ui_tab_next` switch tabs from
@@ -175,9 +175,7 @@ page, and left/right on the switch itself. The descriptions follow the switch:
 
 "NASCAR" is a trademark: the type is "Stock Car" everywhere in the game.
 
-Until P5, Kart opens the Kart menu and Custom opens the old Race menu (Custom's time trial: the old
-class and track pickers). Kart's time trial comes with P6: until then its button is off, its
-description "Coming soon".
+Kart's time trial comes with P6: until then its button is off, its description "Coming soon".
 
 ### 5.4 Mini Games page
 
@@ -196,7 +194,9 @@ Title: the event's name (§6), breadcrumb ending "› Settings". The rows on the
 spinner, check, text field or button as today), the `TrackPane` on the right for types with a
 track. The **Track** row steps through the tracks in place: there is no separate track picker.
 
-Under the rows, in the action bar: "Back" and "Next". Next's description says what comes next:
+Under the rows, in the action bar: "Back" and "Next". Next is off until the event can go: a kart
+race needs a track, a battle an arena, a cup every one of its tracks. A line under the rows says what
+a row has to say ("Not a road code"). Next's description says what comes next:
 "Pick the class", "The players: each picks a car", "The players: each picks a car and a class",
 "Start driving" (a time trial with no Class step, before P6), or, when hosting with no Class step,
 Next reads "Start hosting" ("Start the server and open the lobby").
@@ -217,6 +217,9 @@ Title "Choose class", breadcrumb ending "› Class".
 - Confirm on a class goes on: to Players, to the lobby when hosting (it hosts), or straight to
   the drive for a time trial before P6.
 - At the bottom: "Back".
+- **The Garage's Drive** (P5) uses it too, without an event: breadcrumb "Garage › Class", every class
+  that takes the Garage's car (any mode's), that car on the turntable, and Back ("Back to the
+  Garage"). A pick drives it.
 
 ### 5.7 Players page
 
@@ -278,9 +281,12 @@ The card's "Settings" button becomes "Driving Settings".
 - A breadcrumb past Settings adds the step: "Local Drive › Racing › Regular › Class", "… ›
   Players". Hosting starts "Drive Online › Host" and ends at the lobby, "Drive Online › Lobby".
   Changing the event starts "Drive Online › Lobby".
-- **Free Drive on a highway** (P5) first checks that non-highway classes can drive a highway
-  (`game.gd` forces a highway class on a test drive); if they can't, the class list keeps to
-  highway classes for a highway.
+- **Free Drive on a highway** (P5): checked first that the other modes' classes can drive one
+  (`game.gd` forces a highway class on a test drive). With `tools/highway_check.sh` (60 s on the
+  Lumen Ring, autodriven) Track GT, Kart Medium, Endless Cruiser and Sumo went 1.4-1.6 km, as far as
+  Highway Street; Drag Street never moved: Drag allows no automatic gearbox, and the highway's
+  autodrive doesn't shift. So on a highway the class list leaves out Drag's classes. A highway in
+  Free Drive drives as a Cruise, its traffic on or off.
 
 ### 6.1 Rows per type
 
@@ -302,9 +308,15 @@ The sky rows are "Time", "Time runs" and "Weather" (`SkyRows`), at the end of ev
 | Kart Battle | "Arena", "Rule", "Hits to win" (Most hits only), "Minutes", "AI karts", "AI skill", sky. |
 | Free Drive | "Track", then on a circuit "AI cars", "AI skill", "AI cars look", "Collisions", "Track limits"; on a highway "Traffic" ("Off" or "On") in their place; then sky. |
 
-- **Presets** (Custom, P5): "Save preset" asks for a name and saves the settings as
-  `user://event_presets/<slug>.json` (the folder follows `Settings.use_folder`). "Preset" steps
-  through "None" and the saved names; picking one fills the rows. "Delete preset" asks first.
+- **Presets** (Custom, P5): "Save preset" asks for a name (a page titled "Save preset": "Name",
+  and "Save" in the action bar) and saves the settings and the class as
+  `user://event_presets/<slug>.json` (a time trial's `<slug>_tt.json`; the folder follows
+  `Settings.use_folder`). A name already there is replaced. "Preset" steps through "None" and the
+  saved names (a race's and a time trial's are listed apart); picking one fills the rows. "Delete
+  preset" (off with None) asks first: "Delete Sprint?", "Keep" ("Leave it", focused) and "Delete".
+- **Cups** (Kart, P5): "Delete this cup" asks first the same way. The Cup builder page has "Name",
+  "Race 1" to "Race 4" and their laps, "Save" in the action bar, and Back ("Without saving"); saved,
+  it's the cup picked.
 - **Defaults** (settled in this spec; the owner can change them): Regular 5 laps and 7 AI cars;
   Stock Car 10 laps and 11 AI cars; Kart as today's Kart menu.
 
