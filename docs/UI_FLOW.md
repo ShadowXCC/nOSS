@@ -216,9 +216,9 @@ Title "Choose class", breadcrumb ending "› Class".
   The fit waits about 150 ms after the focus stops moving.
 - Confirm on a class goes on: to Players, or to the lobby when hosting (it hosts).
 - At the bottom: "Back".
-- **The Garage's Drive** (P5) uses it too, without an event: breadcrumb "Garage › Class", every class
-  that takes the Garage's car (any mode's), that car on the turntable, and Back ("Back to the
-  Garage"). A pick drives it.
+- **The Garage's Drive** (P5) uses it too, without an event: breadcrumb "Garage › <car> › Class"
+  (P7b), every class that takes the Garage's car (any mode's), that car on the turntable, and Back
+  ("Back to <car>"). A pick drives it.
 
 ### 5.7 Players page
 
@@ -426,21 +426,43 @@ laps, and the results come at the end.
 
 ## 8. Garage and Fitting Bay
 
-- The Garage's **"Downloads" becomes "Fitting Bay"** ("Import and fit your own car"), and a **"New
-  car"** card comes first in the grid, a big "+" its picture (description "Import a model in the
-  Fitting Bay"). Both open the bay. The "+" is a picture, not text: Godot 4.7.2 reads a button whose
-  name and text differ as both ("New car: + New car").
-- **Filter tabs** over the grid: "My cars | Built-in" (a `TabRow`: LB/RB or Q/E from the grid, left
-  and right on the row). The Garage opens on My cars, or on Built-in when the player has no cars of
-  their own; back from the bay, on the tab of the car it was on. Each tab comes back to the car last
-  picked on it, and a copy of a built-in car lands on My cars. Up from the grid's top row reaches
-  the tabs; down from its last row, "Fitting Bay", "Back", then round to the tabs.
-- The Garage keeps its own layout (the grid on the left, the turntable on the right): no breadcrumb
-  or prompt bar yet.
-- The bay stays its own screen. When it was opened from the Garage (`Game.open_fitting_bay(...,
-  from)` sets `Game.bay_from`), **"Exit" and Back return to the Garage** ("Back to the Garage"),
-  and a test drive's "Back to Fitting Bay" keeps that. Opened any other way, they go to the main
-  menu as today. The Garage's "Edit" and "Sound" open the bay from the Garage too.
+The Garage is pages (P7b), on a page stack of its own: the grid, a car's page over it, and Paint,
+Copy sound to and Delete over that. One turntable shows the car, in the pane of whichever page is
+up; it waits about 150 ms after the focus stops before loading a car.
+
+| Page | Title; breadcrumb | Rows | Pane | Bar; prompts |
+|---|---|---|---|---|
+| Grid | "Garage"; "Garage" | tabs "My cars", "Built-in"; the cards; a status line | the turntable, the focused car's name, "By GTA V · version 1", "Car · Unknown · 85,721 triangles" | "Fitting Bay" ("Import and fit your own car"), "Back" ("Back to the main menu"); Select, Tabs, Back |
+| A car | its name; "Garage › <car>" | "Drive" ("Pick a class and drive this car"), "Edit" ("Open in the Fitting Bay", " as a copy" for a built-in car), "Paint" ("Change its colours"), "Sound" ("Tune its engine and tire sounds"), "Duplicate" ("Make a copy in the garage"), "Copy sound to…" ("Give another car these sounds"), "Export…" ("Write this car out as a .noss file"), "Delete" ("Delete this car"); a status line | the turntable, "By …", "Car · …" | "Back" ("Back to the Garage") |
+| Class | "Choose class"; "Garage › <car> › Class" | §5.6 | its own turntable | "Back" ("Back to <car>") |
+| Paint | "Paint"; "Garage › <car> › Paint" | its presets ("Its colours on every slot"), then per slot "Primary colour" and "Primary finish" (a spinner), and so on | the turntable, as the colours change | "Save" ("Save the paint"), "Back" ("Without saving") |
+| Copy sound to | "Copy sound to"; "Garage › <car> › Copy sound to" | the player's other cars ("Give it the sounds of <car>"); none: "No other cars in the garage" | the turntable | "Back" ("Without copying") |
+| Delete | "Delete <car>?"; "Garage › <car> › Delete" | "Keep" ("Leave it", focused), "Delete" ("Delete it now") | | |
+
+- **The grid:** a **"New car"** card first, a big "+" its picture (description "Import a model in
+  the Fitting Bay"), then the tab's cars, 272×178 with their names at 26 px. As many columns as fit:
+  3 at text 1.0, 2 at 1.5 (beside the pane) and at 2.0 (no pane). The Garage's **"Downloads" became
+  "Fitting Bay"** (P7), in the action bar. New car and Fitting Bay open the bay. The "+" is a
+  picture, not text: Godot 4.7.2 reads a button whose name and text differ as both ("New car: + New
+  car").
+- **Tabs** over the grid: "My cars | Built-in" (a `TabRow`: LB/RB or Q/E, left and right on the
+  row; not while a page is over the grid). The Garage opens on My cars, or on Built-in when the
+  player has no cars of their own. Each tab comes back to the car last picked on it.
+- **Focus:** up from the grid's top row reaches the tabs; down from its last row, "Fitting Bay",
+  then "Back" (left of it in the bar), then round to the tabs. Confirm on a car opens its page;
+  cancel there comes back to its card. A built-in car's Paint, Sound and Delete are off.
+- **After an action:** Duplicate goes back to the grid on the copy (My cars), "Copy made"; Delete
+  (once asked) back to the grid, "Deleted"; Paint's Save back to the car's page, "Paint saved";
+  Copy sound to back to it, "Sound copied to <car>"; Export… stays, "Exported to <file>". Paint's
+  Back leaves the car's colours as they were.
+- **The bay** stays its own screen, with a breadcrumb ("Garage › Fitting Bay", or "Fitting Bay"
+  when not opened from the Garage) and a prompt bar (Select, "Steps", Back): LB/RB (Q/E) go to the
+  previous or next step that's on, wrapping (only Import before a car is in), not while a field is
+  being typed in. `Game.open_fitting_bay(..., from)` sets `Game.bay_from`: "garage" from the grid
+  (New car, Fitting Bay), "car" from a car's page (Edit, Sound; `Game.bay_car`). **"Exit" and Back
+  return to the Garage** ("Back to the Garage"): on the car being fitted, on its page when a car's
+  page opened the bay (the car it came from when nothing was saved). A test drive's "Back to
+  Fitting Bay" keeps that. Opened any other way, they go to the main menu.
 - **Downloads move into the bay's Import step** as a "From online games" list, under the import
   folder's files. Each car there ("Skyline R34 · by Kaz · 14 MB") has "Save to garage" ("Keep
   Skyline R34 in your garage"), "Export…" ("Write Skyline R34 out as a .noss file") and "Open in
@@ -590,6 +612,7 @@ AT-SPI. Each phase updates its routes:
 | P5 | Rewrite `--highway-only`, `--kart-only`, `--endless-only`, `--sumo-only` and `--drag-only` for the pages; `--racing-only` adds Custom; new `--free-only`. |
 | P6 | `--racing-only` adds the time trials' Players step: Regular's (after the class) and Kart's. |
 | P7 | New `--garage-only`: Garage → "Built-in" and "My cars" → Fitting Bay → the Import step ("From online games") → Exit → the Garage → Back. |
+| P7b | `--garage-only` opens "nOSS Box"'s page from Built-in (the grid hidden under it) and comes back before My cars. |
 | P8 | The online route: Drive Online → Host → "Next" → Racing → Regular → Settings → Class → the lobby → "Leave"; Join → each tab → Back. |
 | P9 | The lobby: the "This PC" card's buttons, "Change event", "Playlist", "Leave". |
 | P11 | The final routes and the docstring. |
@@ -611,6 +634,7 @@ in [ROADMAP.md](ROADMAP.md#ui-overhaul); commits at sensible points.
 | P5 | The other local types; the old menus go. |
 | P6 | Time trials: every variant, splitscreen. |
 | P7 | Garage and Fitting Bay. |
+| P7b | The Garage as pages (a car's page, Paint, Copy sound to, Delete); the bay's breadcrumb, prompt bar and LB/RB steps. |
 | P8 | Drive Online: landing, Host, Join, Password. |
 | P9 | The lobby, protocol 13. |
 | P10 | New online events, protocol 14. |
