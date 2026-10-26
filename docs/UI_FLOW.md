@@ -318,11 +318,11 @@ The sky rows are "Time", "Time runs" and "Weather" (`SkyRows`), at the end of ev
 |---|---|
 | Regular | "Track", "Practice", "Qualifying", "Laps", "AI cars", "AI skill", "Collisions", sky. Everything else uses the track's rules or the defaults: grid from qualifying, lenient track limits, garage cars for the AI, and the track's start, drafting, fuel and tires. |
 | Stock Car | The same rows as Regular. The track's rules apply: rolling start, drafting, fuel and tires, pack racing. |
-| Regular, Stock Car TT | "Track", sky. |
+| Regular, Stock Car TT | "Track", sky. Hosting adds "Minutes" (§7.7). |
 | Kart | "Play" ("Race" or "Cup"), then for a race "Track", "Laps", "AI karts", "AI skill", "Items"; for a cup "Cup", its races, "Change this cup", "Delete this cup", "New cup", "AI karts", "AI skill", "Items"; then sky. The cup builder is a page of its own (title "Cup builder"). |
-| Kart TT | "Track", sky. Items are off. |
+| Kart TT | "Track", sky. Items are off. Hosting adds "Minutes" (§7.7). |
 | Custom | "Preset", "Save preset", "Delete preset", then today's Race menu: "Track", "Practice", "Qualifying", "Race length", "Race", "AI cars", "AI skill", "AI cars look", "Start", "Drafting", "Fuel use", "Tire wear", "Grid", "Collisions", "Track limits", then "Items" (description "Kart classes only"), sky. |
-| Custom TT | "Preset", "Save preset", "Delete preset", "Track", "Track limits", sky. |
+| Custom TT | "Preset", "Save preset", "Delete preset", "Track", "Track limits", sky. Hosting adds "Minutes" (§7.7). |
 | Endless | Today's: "Road code", "New road", "Start in", "Lanes", "Drive on", "Traffic", "Garage cars", "Oncoming", "Speed traps", "Police", "Far apart", sky. |
 | Highway | "Highway" (the highway itself), then today's: "Mode", "Traffic", "Police", "Way round" (or "Run" for a run), sky. |
 | Sumo Wrestling | Today's: "Platforms", "Underneath", "Shrink", "Length", "Sudden death", "Drift", "AI cars", "AI skill", "AI models", sky. |
@@ -376,24 +376,25 @@ lobby. The last page before the lobby hosts: its confirm is "Start hosting", and
 `ServerConfig` for `Net.host(...)`.
 
 - **The Event page:** title "Event", breadcrumb "Drive Online › Host › Event", "Step 2 of 5": the
-  Local Drive types without Drive again. Highway's description is "A cruise through traffic". Back
-  is "Back to Host"; Racing's and Mini Games' Back is "Back to the event types".
-- **Racing** has no Race | Time Trial switch, and Kart's description is "Kart races with items".
-- **Rows left out when hosting:** Kart's "Play" (a race only), Highway's "Mode" (a Cruise), and
-  Free Drive's "AI cars", "AI skill" and "AI cars look" (a free drive online has no AI).
+  Local Drive types without Drive again, with their descriptions. Back is "Back to Host"; Racing's
+  and Mini Games' Back is "Back to the event types".
+- **Racing** has its Race | Time Trial switch, as on Local Drive (P10; P8 left it out).
+- **Rows left out when hosting:** Free Drive's "AI cars", "AI skill" and "AI cars look" (a free
+  drive online has no AI). A time trial gets "Minutes" (§7.7). Kart's "Play" (a cup, §7.9) and
+  Highway's "Mode" (§7.8) are there since P10.
 - **The last page:** a type with no Class step (Stock Car, Kart, Sumo Wrestling, Kart Battle) has
   "Start hosting" ("Start the server and open the lobby") for its Next; the others host on the
   class picked. If the port is taken, a line under the rows says "Can't open UDP 47800" and the
   page stays.
-- **The server:** the Host page's options with the event as its one rotation item: the track
-  (Endless: "endless"; Sumo and Drag, which make their own ground: the default track), the class
-  (Kart and Kart Battle: Medium, each player picking theirs in the lobby) and the event. The
-  options are kept in `Settings.net_host` without the password, and `--host` hosts them again.
+- **The server:** the Host page's options with the event as its one rotation item (a kart cup: its
+  races, §7.9): the track (Endless: "endless"; Sumo and Drag, which make their own ground: the
+  default track), the class (Kart and Kart Battle: Medium, each player picking theirs in the
+  lobby) and the event. The options are kept in `Settings.net_host` without the password, and
+  `--host` hosts them again.
 
 Every type can be hosted. Regular, Stock Car, Custom, Kart races, Kart Battle, Endless, Highway
-Cruise, Sumo Wrestling, Drag Strip and Free Drive need only the pages (P8). Time trials, Highway
-Score attack, Run and Loop, and Kart cups need new network code first (P10); until then the
-event pages leave them out when hosting.
+Cruise, Sumo Wrestling, Drag Strip and Free Drive needed only the pages (P8); time trials (§7.7),
+Highway Score attack, Run and Loop (§7.8) and Kart cups (§7.9) came with their network code in P10.
 
 ### 7.3 Join
 
@@ -434,8 +435,9 @@ address here.
 Title: the server's name. Breadcrumb "Drive Online › Lobby"; when hosting, the last step of the
 step row: "Step 5 of 5" ("Step 4 of 4" for a type with no Class step). Built in P9 (`LobbyPage`).
 
-- **The event line** at the top: "Race, 5 laps   Proving Ground   GT   2/16 players"; when hosting,
-  "Join at 192.168.1.20:47800" under it.
+- **The event line** at the top: "Race, 5 laps   Proving Ground   GT   2/16 players" ("Time trial,
+  10 min", "Highway run", "Spark Cup, race 2 of 4, 3 laps"); when hosting, "Join at
+  192.168.1.20:47800" under it. With a kart cup, a line under it has the standings (§7.9).
 - **Left, the roster** (heading "Players"): everyone in the game. Each row: their colour, a car
   thumbnail (a placeholder until the car is here), the device they play with (a glyph: the arrow
   keys for a keyboard, a stick for a controller; a "Wheel" chip), their assists as chips ("ABS",
@@ -496,6 +498,49 @@ step row: "Step 5 of 5" ("Step 4 of 4" for a type with no Class step). Built in 
 
 A timed session: the host sets the minutes. Everyone hot-laps ghosted, a live board shows the best
 laps, and the results come at the end.
+
+- **Hosting:** Racing's Time Trial switch, then any of the four types; the Settings page adds
+  "Minutes" ("How long the session runs; the best laps win"): "5 min", "10 min" (first), "15 min",
+  "20 min", "30 min". A time trial on Local Drive has no end and no Minutes row.
+- **The start:** as any event's first session online: everyone's cars, then three lights.
+- **Driving:** each player has their own ghost and live delta, as on Local Drive (§5.10); the other
+  cars are ghosted. The HUD's top line counts down: "Time trial  9:42".
+- **The live board:** the server times every lap and keeps each driver's best (`TimeTrialNet`, BOARD
+  "live"). It shows in the HUD's standings ("1 Ana  1:23.456", "» 2 Bo  1:24.010", the top three and
+  the places round yours) with "P2/5" once you have a lap, and as the pause menu's "Leaderboard"
+  ("<track> · this session").
+- **Joining:** players who join during the session drop straight in and hot-lap (unlike a race).
+- **The end:** when time's up, each car finishes the lap it's on; then the results ("Time trial":
+  best laps, fastest first), and back to the lobby as after any event. Each driver's new bests go on
+  the server's board for the track; a car the server flagged (D87) doesn't.
+
+### 7.8 Highway modes online (P10)
+
+Score attack, Run and Loop host like a Cruise, with the Mode row.
+
+- **Score attack and Loop** run as a cruise does online, the server scoring every player and timing
+  the laps for its own boards (D114, D118): the pause menu's Leaderboard is the server's.
+- **A run** is the event's "run" session, the server in charge: every game lines up the cars it
+  drives on their spots by the session's grid (so they agree), rolls them to the start and lets them
+  go at the line; the server times each car from where it shows it, rules on the checkpoints
+  ("Off the run", "Wrong way": a note to that driver) and the finish ("Finish 1:06.450"), and its
+  results ("Run results") are everyone's. The HUD's top line says "Rolling", then the run's clock
+  ("Run 0:42.300"), its time once through, or "Out". Players who join during a run wait in the
+  lobby: "Run on: you're in the next one". The host's Restart lines everyone up again.
+
+### 7.9 Kart cups online (P10)
+
+- **Hosting:** Racing → Kart → "Play": "Cup", then the cup, as on Local Drive. The server's playlist
+  is the cup's races in order, each named "Spark Cup, race 1 of 4" (Change event and the Playlist's
+  Add event put in all four); everything else about the playlist stays (the host can reorder it).
+- **The standings** are the server's (`NetHost.cup`): points as offline (15, 12, 10, 8, 6, 4, 2, 1),
+  each player by their id on the server, the AI by name; the AI field stays the same through the
+  cup; the later races start in reverse order of the standings. A restarted race's results take
+  the place of the first go's.
+- **The lobby** names the race up ("Spark Cup, race 2 of 4, 3 laps") and shows the standings under
+  the event line: "After race 1 of 4: Ana 15, Bo 12, …" (the top five), and once it's over "Spark
+  Cup final: 1st Ana 45, 2nd Bo 40, 3rd Cy 30". The cup's first race up again starts a new cup;
+  another event clears them.
 
 ## 8. Garage and Fitting Bay
 
@@ -659,7 +704,7 @@ menus Q and E don't shift (menus don't drive).
 
 ## 11. Network protocol
 
-Protocol 13 today (P9).
+Protocol 14 today (P10).
 
 - **13 (P9), the lobby:** READY is `{player, ready}` (Ready per player); PLAYER_INFO carries
   `{player, device, assists, name, color}` per local player; the lobby's players carry `device`,
@@ -669,10 +714,12 @@ Protocol 13 today (P9).
   index and slot index, not list order: `Net.id_of`, `local_of`); the countdown runs in `NetHost`
   (moved from `server_main.gd`); `set_rotation` and `set_event` for the playlist and Change event;
   a rotation item may carry a `name` ("Regular race").
-- **14 (P10), new events online:** time trials (a timed session with a live BOARD of best laps
-  and results at the end, `game/net/time_trial_net.gd`); Highway Score attack, Run and Loop with
-  the server in charge (`run_control.gd`, "run" in `NetRace.KINDS`); Kart cups as a playlist with
-  the standings kept on the server.
+- **14 (P10), new events online:** time trials (a timed session, the event's `tt_min`, with a live
+  BOARD "live" of best laps, `{id, name, car, time, laps}`, and results at the end,
+  `game/net/time_trial_net.gd`); Highway Score attack and Loop as before, and Run with the server in
+  charge (`run_control.gd`'s `authority`, "run" in `NetRace.KINDS`, a run's own session); Kart cups
+  as playlist items carrying `cup` `{id, name, race, races}`, the standings kept on the server and
+  sent in the lobby (`cup`: the race up, and the standings `{cup, run, of, standings}`).
 - Older games are turned away by the version check, as today.
 
 ## 12. Screen-reader routes
@@ -692,6 +739,7 @@ AT-SPI. Each phase updates its routes:
 | P7b | `--garage-only` opens "nOSS Box"'s page from Built-in (the grid hidden under it) and comes back before My cars. |
 | P8 | The online route (also `--online-only`): Drive Online → Host → "Next" → Racing → Regular → Settings → Class → the lobby → "Leave"; Join → each tab → Back. Official can't take the focus and says "Coming soon" (Godot 4.7.2 doesn't tell AT-SPI a button is disabled). |
 | P9 | The online route's lobby: "Ready" (not pressed: the countdown would start), "Change event", "Playlist" and "Force start"; Change event (the lobby hidden under it) and back, Playlist (its events) and back; P1's own roster row to This PC's "Profile", "Car", "Controls" and "Driving Settings" (rows that start below the fold are out of the screen-reader tree until focused: the row press makes them again in view); Driving Settings and back, then "Leave". |
+| P10 | The online route: on the host's Racing page, the "Time Trial" switch → Regular → its Settings page has "Minutes" → back, "Race" again → Regular as before. |
 | P11 | The final routes and the docstring. |
 
 ## 13. Phases
