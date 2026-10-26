@@ -490,9 +490,12 @@ def online_menus():
     ok = ok and step("Host: event", "Racing")
     # Time trials host too (P10): the switch, and a timed session's Minutes.
     ok = ok and step("Host: racing, to Time Trial", "Time Trial", role="toggle button")
+    time.sleep(1.5)  # the switch makes the types again: not the Regular being freed
     ok = ok and step("Host: Regular time trial", "Regular")
     if ok and find("Minutes: ", "button", timeout=20.0, prefix=True) is None:
         problems.append("Host: a time trial's settings have no 'Minutes' row")
+        names = sorted({f"{n.get_role_name()} '{n.get_name()}'" for n in walk(app()) if showing(n) and (n.get_name() or "")})
+        log(f"  showing: {', '.join(names[:40])}")
         ok = False
     ok = ok and back_from("Host: time trial settings", "Minutes: ")
     ok = ok and step("Host: racing, back to Race", "Race", role="toggle button")
