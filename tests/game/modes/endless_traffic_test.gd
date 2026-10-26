@@ -144,7 +144,7 @@ func test_heavy_traffic_is_a_car_every_8_seconds_a_lane() -> void:
 		var span := float(t.slot(EndlessTraffic.UP, n).tau) - float(t.slot(EndlessTraffic.UP, 0).tau)
 		assert_float(span / n).is_equal_approx(pair[1], pair[1] * 0.05)
 	assert_bool("heavy" in RaceEvent.CHOICES.endless_traffic).is_true()
-	assert_bool(EndlessMenu.TRAFFIC.any(func(c: Array) -> bool: return c[0] == "heavy")).is_true()
+	assert_bool(EventForms.ENDLESS_TRAFFIC.any(func(c: Array) -> bool: return c[0] == "heavy")).is_true()
 
 
 func test_the_nearest_cars_turn_physical_first() -> void:

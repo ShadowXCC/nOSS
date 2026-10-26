@@ -5,10 +5,18 @@ extends MenuPage
 ## fitted to the class in focus, or the class's default car when it can't take that one. The fit
 ## waits until the focus has stayed put for FIT_DELAY. Confirm goes on to the players (a time
 ## trial before P6: straight to the drive).
+##
+## Without a flow (the Garage's Drive) it lists every class that takes `car`, shows that car, and
+## reports the pick (`picked`).
 
 const FIT_DELAY := 0.15
 
+## The class was picked, on a page without a flow.
+signal picked(id: String)
+
 var flow: EventFlow
+## Without a flow: the car to drive (a package path).
+var car := ""
 ## The class and car the turntable shows (or would: no models load headless).
 var shown_class := ""
 var shown_car := ""
@@ -22,15 +30,31 @@ var _current: Button
 
 func _ready() -> void:
 	title = "Choose class"
-	crumbs = flow.crumbs("Class")
-	steps = flow.steps()
-	step = steps.find("Class")
+	if flow:
+		crumbs = flow.crumbs("Class")
+		steps = flow.steps()
+		step = steps.find("Class")
+	else:
+		crumbs = ["Garage", "Class"]
+		back_hint = "Back to the Garage"
 	super._ready()
 
 
+## The classes listed: the flow's, or every one that takes `car`.
+func classes() -> Array[PlatformLoader.Result]:
+	if flow:
+		return flow.classes()
+	var family := String(PackageLoader.read_manifest(car).get("family", ""))
+	var out: Array[PlatformLoader.Result] = []
+	for mode in GameModes.list():
+		out.append_array(GameModes.classes(mode).filter(func(r: PlatformLoader.Result) -> bool: return Fitting.compatible(r.platform, family)))
+	return out
+
+
 func _build() -> void:
+	var current := flow.class_id if flow else String(Settings.profile.get("last_platform", ""))
 	var modes := {}
-	for r in flow.classes():
+	for r in classes():
 		var mode := GameModes.mode_for(r.platform.id)
 		if not modes.has(mode.id):
 			modes[mode.id] = [mode, []]
@@ -41,7 +65,7 @@ func _build() -> void:
 			add_heading(String(mode.name))
 		for r: PlatformLoader.Result in modes[id][1]:
 			var p := r.platform
-			var last: bool = p.id == flow.class_id
+			var last: bool = p.id == current
 			var info := GameModes.describe(p)
 			var b := UiKit.button("", _pick.bind(String(p.id)), info)
 			b.name = String(p.id).validate_node_name()
@@ -76,6 +100,9 @@ func _focused(c: Control) -> void:
 
 
 func _pick(id: String) -> void:
+	if not flow:
+		picked.emit(id)
+		return
 	flow.class_id = id
 	flow.remember()
 	if flow.tt:
@@ -84,9 +111,11 @@ func _pick(id: String) -> void:
 		open_over(flow.players_page())
 
 
-## The car the turntable shows for `platform`: P1's last car if the class takes it, else the
-## class's default.
-static func car_for(platform: Dictionary) -> String:
+## The car the turntable shows for `platform`: `own` (the Garage's car), else P1's last car if the
+## class takes it, else the class's default.
+static func car_for(platform: Dictionary, own := "") -> String:
+	if own:
+		return own
 	var last := String(Settings.profile.get("last_car", ""))
 	if last and Fitting.compatible(platform, String(PackageLoader.read_manifest(last).get("family", ""))):
 		return last
@@ -98,7 +127,7 @@ func _fit_now() -> void:
 	if not r.ok():
 		return
 	shown_class = _wanted
-	shown_car = car_for(r.platform)
+	shown_car = car_for(r.platform, car)
 	# Headless (tests) loads no models: a worker's model load there hangs the run.
 	if not MeshBatch.threaded() or not pane_shown():
 		return

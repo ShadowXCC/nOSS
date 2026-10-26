@@ -1,20 +1,15 @@
 class_name LocalDrivePage
 extends MenuPage
 ## Local Drive (docs/UI_FLOW.md §5.2): the event types on this PC. "Drive again" repeats the last
-## event: its Players page, with the pages before it under it. Racing opens its page; Endless,
-## Highway, Mini Games and Free Drive (and Racing's Kart and Custom) still open their old menus
-## until P5 (`chosen`).
-
-## A type still on the old menus: "endless", "highway", "mini_games", "free", "kart", "custom" or
-## "custom_tt".
-signal chosen(what: String)
+## event: its Players page, with the pages before it under it. Racing and Mini Games open their
+## pages of types; Endless, Highway and Free Drive go straight to their Settings page.
 
 ## [type, button, description].
 const TYPES := [
 	["racing", "Racing", "Races and time trials: Regular, Stock Car, Kart and Custom"],
 	["endless", "Endless", "A calm drive down a road that never ends"],
 	["highway", "Highway", "Cruise, score attack, runs and laps through traffic"],
-	["mini_games", "Mini Games", "Sumo Wrestling, Drag Strip and Kart Battle"],
+	["mini", "Mini Games", "Sumo Wrestling, Drag Strip and Kart Battle"],
 	["free", "Free Drive", "Any class on any track"],
 ]
 
@@ -26,7 +21,7 @@ func _init() -> void:
 func _ready() -> void:
 	title = "Local Drive"
 	crumbs = ["Local Drive"]
-	steps = EventFlow.steps_for("local", "racing", "regular", false)
+	steps = _steps_of("racing")
 	step = 0
 	super._ready()
 
@@ -43,22 +38,46 @@ func _build() -> void:
 		var b := UiKit.button(t[1], _pick.bind(String(t[0])), t[2])
 		b.name = String(t[1]).validate_node_name()
 		b.set_meta(&"type", t[0])
+		b.set_meta(&"steps", _steps_of(String(t[0])))
 		add_row(b)
 
 
+## The steps the step row shows with `type` in focus: Racing's and Mini Games' first type's.
+static func _steps_of(type: String) -> PackedStringArray:
+	var variant := "regular" if type == "racing" else "sumo" if type == "mini" else ""
+	return EventFlow.steps_for("local", type, variant, false)
+
+
 func _pick(type: String) -> void:
-	if type == "racing":
-		open_racing()
-	else:
-		chosen.emit(type)
+	match type:
+		"racing":
+			open_racing()
+		"mini":
+			open_mini_games()
+		_:
+			var flow := EventFlow.make(type)
+			flow.recall()
+			open_settings(flow)
 
 
 func open_racing(tt := false) -> RacingPage:
 	var racing := RacingPage.new()
 	racing.tt = tt
-	racing.chosen.connect(func(what: String) -> void: chosen.emit(what))
 	open_over(racing)
 	return racing
+
+
+func open_mini_games() -> MiniGamesPage:
+	var mini := MiniGamesPage.new()
+	open_over(mini)
+	return mini
+
+
+func open_settings(flow: EventFlow) -> EventSettingsPage:
+	var page := EventSettingsPage.new()
+	page.flow = flow
+	open_over(page)
+	return page
 
 
 ## Repeats the last event: straight to its Players page (a time trial: the drive), Back from
@@ -69,9 +88,9 @@ func _drive_again() -> void:
 		open_flow(flow, "players")
 
 
-## Opens `flow`'s pages over this one as if picked one by one (Racing, its switch set; the
-## Settings page), each with the focus on what was picked, then `then`: "settings" (Next focused),
-## "class" or "players" (a time trial before P6: the drive starts).
+## Opens `flow`'s pages over this one as if picked one by one (Racing, its switch set, or Mini
+## Games; the Settings page), each with the focus on what was picked, then `then`: "settings"
+## (Next focused), "class" or "players" (a time trial before P6: the drive starts).
 func open_flow(flow: EventFlow, then := "settings") -> void:
 	if not get_parent() is MenuStack:
 		return
@@ -80,9 +99,13 @@ func open_flow(flow: EventFlow, then := "settings") -> void:
 		var racing := RacingPage.new()
 		racing.tt = flow.tt
 		racing.autofocus = false
-		racing.chosen.connect(func(what: String) -> void: chosen.emit(what))
 		open_over(racing)
 		racing.focus_variant(flow.variant)
+	elif flow.type == "mini":
+		var mini := MiniGamesPage.new()
+		mini.autofocus = false
+		open_over(mini)
+		mini.focus_variant(flow.variant)
 	var settings := EventSettingsPage.new()
 	settings.flow = flow
 	settings.autofocus = false
@@ -90,7 +113,8 @@ func open_flow(flow: EventFlow, then := "settings") -> void:
 	settings.focus_next()
 	match then:
 		"class":
-			settings.open_class()
+			if flow.has_class_step():
+				settings.open_class()
 		"players":
 			if flow.tt and not flow.steps().has("Players"):
 				flow.start()
@@ -108,5 +132,5 @@ func _focus_type(type: String) -> void:
 ## The step row follows the type in focus (docs/UI_FLOW.md §5.1).
 func _focused(c: Control) -> void:
 	if c and c.has_meta(&"type") and is_ancestor_of(c):
-		steps = c.get_meta(&"steps", EventFlow.steps_for("local", "racing", "regular", false))
+		steps = c.get_meta(&"steps", _steps_of("racing"))
 		refresh_header()

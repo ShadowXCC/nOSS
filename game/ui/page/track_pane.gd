@@ -45,10 +45,15 @@ func show_track(track_path: String) -> void:
 	_name.text = String(e.get("name", ""))
 	_length.text = length_text(float(e.get("length_m", 0.0))) if float(e.get("length_m", 0.0)) > 0.0 and e.get("type") != "arena" else ""
 	_kind.text = kind_text(e)
+	map.track = data(track_path)
+
+
+## The track at `track_path` (its centreline, a highway's runs), loaded once; null if it won't load.
+func data(track_path: String) -> TrackData:
 	if track_path and not _maps.has(track_path):
 		var pkg := TrackLoader.load_package(track_path, {}, { "terrain": false })
 		_maps[track_path] = pkg.track if pkg.ok() else null
-	map.track = _maps.get(track_path)
+	return _maps.get(track_path)
 
 
 ## The name, length and kind as one line (tests, screen readers).

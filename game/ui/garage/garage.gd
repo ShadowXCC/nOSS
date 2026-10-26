@@ -224,10 +224,8 @@ func _render_thumbnail(i: int) -> void:
 
 func _drive() -> void:
 	var path: String = _cars[_selected].path
-	var family: String = _cars[_selected].manifest.family
-	var classes := ClassPicker.new()
-	classes.current = String(Settings.profile.get("last_platform", ""))
-	classes.family = family
+	var classes := ClassPage.new()
+	classes.car = path
 	classes.picked.connect(func(id: String) -> void:
 		_preview.clear()
 		Game.start_free_drive(path, id))

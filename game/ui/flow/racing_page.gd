@@ -2,11 +2,8 @@ class_name RacingPage
 extends MenuPage
 ## Racing (docs/UI_FLOW.md §5.3): a Race | Time Trial switch over Regular, Stock Car, Kart and
 ## Custom. LB/RB (Q/E) flip it from anywhere on the page, left and right on the switch itself, and
-## the descriptions follow it. Regular and Stock Car go on to their Settings page; Kart and Custom
-## still open their old menus until P5 (`chosen`).
-
-## "kart", "custom" or "custom_tt": a type still on the old menus.
-signal chosen(what: String)
+## the descriptions follow it. Each type goes on to its Settings page. Kart's time trial comes
+## with P6.
 
 ## [variant, button, race description, time trial description].
 const TYPES := [
@@ -103,15 +100,9 @@ func _show_steps(variant: String) -> void:
 
 
 func _pick(variant: String) -> void:
-	match variant:
-		"regular", "stock_car":
-			var flow := EventFlow.racing(variant, tt, context)
-			flow.recall()
-			open_settings(flow)
-		"kart":
-			chosen.emit("kart")
-		"custom":
-			chosen.emit("custom_tt" if tt else "custom")
+	var flow := EventFlow.racing(variant, tt, context)
+	flow.recall()
+	open_settings(flow)
 
 
 func open_settings(flow: EventFlow) -> EventSettingsPage:

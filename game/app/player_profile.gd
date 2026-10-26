@@ -63,7 +63,8 @@ const DEFAULTS := {
 	"last_platform": "official.track.gt",
 	## The last track picked (a path; TrackLibrary).
 	"last_track": "",
-	## The last highway event set up (RaceEvent.to_dict; HighwayMenu).
+	## The last highway event set up by the old menus (RaceEvent.to_dict): read until Highway has
+	## its event_memory.
 	"last_highway": {},
 	"last_endless": {},
 	## Each event type's last setup, by "type/variant(/tt)" ("racing/regular"): {event, track,

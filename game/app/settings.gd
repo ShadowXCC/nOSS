@@ -148,6 +148,8 @@ func use_folder(folder: String) -> void:
 	Setup.dir = folder.path_join("setups/")
 	TimeTrial.dir = folder.path_join("ghosts/")
 	TrackLibrary.user_dir = folder.path_join("tracks/")
+	CupRun.user_dir = folder.path_join("cups/")
+	EventPresets.dir = folder.path_join("event_presets/")
 	Leaderboard.dir = folder.path_join("leaderboards/")
 	Leaderboard.server_dir = folder.path_join("leaderboards/server/")
 	Players.memory_path = folder.path_join("players.json")

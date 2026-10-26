@@ -1,7 +1,7 @@
 extends GdUnitTestSuite
 ## Track-suggested rules (D207): an event's start, drafting, fuel use and tire wear keep "Track's"
 ## or are its own; resolved against a track they take its `rules` (none: as tracks always raced);
-## older saved setups move to "Track's" once; the race menu shows the track's choice.
+## older saved setups move to "Track's" once; Custom's page shows the track's choice.
 
 const DIR := "user://tests/race_event"
 const OVAL := "res://content/tracks/piedmont_speedway"
@@ -83,27 +83,40 @@ func test_an_older_setup_moves_to_the_tracks_start_once() -> void:
 	assert_str(Settings.last_event().start).is_equal("standing") # chosen since: kept
 
 
-func test_the_race_menu_shows_the_tracks_choices() -> void:
+## Custom's Settings page (docs/UI_FLOW.md §6.1) shows the track's own choice beside "Track's",
+## and another track brings its own.
+func test_the_custom_page_shows_the_tracks_choices() -> void:
 	Settings.race_event = {}
+	Settings.profile.event_memory = {}
 	Settings.profile.last_track = PLAIN
-	var menu := EventMenu.new()
-	add_child(menu)
+	var flow := EventFlow.racing("custom")
+	flow.recall()
+	var holder := Control.new()
+	holder.size = Vector2(1920, 1080)
+	add_child(holder)
+	var stack := MenuStack.new()
+	holder.add_child(stack)
+	var page := EventSettingsPage.new()
+	page.flow = flow
+	stack.push(page)
 	await get_tree().process_frame
-	var names := func() -> Array: return menu._rows.map(func(c: Control) -> String: return String(c.accessibility_name))
+	var names := func() -> Array:
+		return page.body.get_children().map(func(c: Control) -> String:
+			var t := UiKit._focus_target(c)
+			return String(t.accessibility_name) if t else "")
 	for row in ["Start: Track's (Standing)", "Drafting: Track's (Off)", "Fuel use: Track's (Off)", "Tire wear: Track's (Off)"]:
 		assert_bool((names.call() as Array).any(func(n: String) -> bool: return n.begins_with(row))).override_failure_message(row).is_true()
 	# Another track: its choices.
-	var track_row := menu._rows[0] as Button
 	var right := InputEventAction.new()
 	right.action = "ui_right"
 	right.pressed = true
 	for i in 12:
-		if Settings.profile.last_track == OVAL:
+		if flow.track == OVAL:
 			break
-		track_row.gui_input.emit(right)
-	assert_str(String(Settings.profile.last_track)).is_equal(OVAL)
+		page.row_named("Track").gui_input.emit(right)
+		await get_tree().process_frame
+	assert_str(flow.track).is_equal(OVAL)
 	await get_tree().process_frame
 	for row in ["Start: Track's (Rolling)", "Drafting: Track's (On)", "Fuel use: Track's (5x)", "Tire wear: Track's (5x)"]:
 		assert_bool((names.call() as Array).any(func(n: String) -> bool: return n.begins_with(row))).override_failure_message(row).is_true()
-	menu.queue_free()
-	await get_tree().process_frame
+	holder.free()

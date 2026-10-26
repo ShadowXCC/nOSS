@@ -1,6 +1,6 @@
 extends GdUnitTestSuite
 ## The page stack (docs/UI_FLOW.md §1, §4): only the top page shows, cancel pops it, and the focus
-## comes back where it was. The main menu runs every screen on it, the old menus too.
+## comes back where it was. The main menu runs every screen on it.
 
 const TITLE_SCENE := "res://game/ui/title/title_screen.tscn"
 
@@ -19,6 +19,7 @@ func after() -> void:
 func before_test() -> void:
 	Players.clear()
 	Settings.profile.last_platform = "official.track.gt"
+	Settings.profile.last_drive = {} # no Drive again: Racing comes first on Local Drive
 
 
 func _frames(n := 3) -> void:
@@ -127,13 +128,14 @@ func test_the_main_menu_runs_its_screens_on_the_stack() -> void:
 		assert_object(title.get_node_or_null(part)).override_failure_message(part + " is still there under a page").is_null()
 	var solo := stack.top()
 	assert_bool(solo is LocalDrivePage).is_true()
-	await _key(KEY_DOWN) # Endless (an old menu, on the stack too)
+	await _key(KEY_DOWN) # Endless: its Settings page
 	await _frames()
 	await _key(KEY_ENTER)
 	await _frames(4)
 	assert_int(stack.depth()).is_equal(2)
 	assert_bool(solo.visible).is_false()
-	assert_bool(stack.top() is EndlessMenu).is_true()
+	assert_bool(stack.top() is EventSettingsPage).is_true()
+	assert_str((stack.top() as EventSettingsPage).title).is_equal("Endless")
 	await _key(KEY_ESCAPE)
 	await _frames(4)
 	assert_int(stack.depth()).is_equal(1)

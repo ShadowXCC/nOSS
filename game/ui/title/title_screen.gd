@@ -13,8 +13,6 @@ var _stack := MenuStack.new()
 var _solo: LocalDrivePage
 var _online: OnlineMenu
 var _lobby: LobbyMenu
-## What the old class picker leads to: "free", "race" (Custom) or "time_trial" (Custom's).
-var _mode := "free"
 
 
 func _ready() -> void:
@@ -74,54 +72,7 @@ func _ready() -> void:
 			_drive_button.grab_focus())
 		_stack.push(first)
 		return
-	match Game.dev.get("menu", ""): # dev: open a menu directly
-		"local", "solo": _open_solo()
-		"racing": _open_solo().open_racing()
-		"regular", "stock-car", "time-trial", "class", "players":
-			var menu := String(Game.dev.menu)
-			var flow := EventFlow.racing("stock_car" if menu == "stock-car" else "regular", menu == "time-trial")
-			flow.recall()
-			_open_solo(false).open_flow(flow, menu if menu in ["class", "players"] else "settings")
-		"classes":
-			_open_solo()
-			_open_classes("free")
-		"event":
-			_open_solo()
-			_open_event(String(Settings.profile.get("last_platform", "official.track.gt")))
-		"free":
-			_open_solo()
-			_open_free(String(Settings.profile.get("last_platform", "official.track.gt")))
-		"settings": _open_settings()
-		"driving-settings":
-			_open_settings()
-			(_stack.top() as SettingsMenu)._open_player()
-		"online": _open_online()
-		"tracks":
-			_open_solo()
-			_open_tracks(func(_t: String) -> void: pass, true)
-		"highway":
-			_open_solo()
-			_open_highway()
-		"kart":
-			_open_solo()
-			_open_kart()
-		"endless":
-			_open_solo()
-			_open_endless()
-		"mini-games":
-			_open_solo()
-			_open_mini_games()
-		"sumo":
-			_open_solo()
-			_open_mini_games()
-			_open_sumo()
-		"drag":
-			_open_solo()
-			_open_mini_games()
-			_open_drag()
-		"online-players":
-			_open_online()
-			_online._open_players()
+	_open_dev_menu(String(Game.dev.get("menu", "")))
 	if Game.reopen_flow: # the results' "Event menu": that event's Settings page, Next focused
 		Game.reopen_flow = false
 		_open_solo(false).open_flow(EventFlow.from_dict(Game.flow_return))
@@ -152,164 +103,36 @@ func _open_solo(autofocus := true) -> LocalDrivePage:
 	_solo = LocalDrivePage.new()
 	_solo.name = "LocalDrive"
 	_solo.autofocus = autofocus
-	_solo.chosen.connect(_on_solo_chosen)
 	_stack.push(_solo)
 	return _solo
 
 
-## The types still on their old menus (until UI P5).
-func _on_solo_chosen(what: String) -> void:
-	match what:
-		"highway": _open_highway()
-		"kart": _open_kart()
-		"endless": _open_endless()
-		"mini_games": _open_mini_games()
-		"free": _open_classes("free")
-		"custom": _open_classes("race")
-		"custom_tt": _open_classes("time_trial")
-
-
-## Free Drive: class first (how it drives), then its setup (track, AI, rules), then the players,
-## who each pick a car (how it looks). Custom (the old Race menu): class, then the event (track
-## included), then the players. Custom's time trial: class, then the track, then P1 drives.
-func _open_classes(mode: String) -> void:
-	_mode = mode
-	var classes := ClassPicker.new()
-	classes.current = String(Settings.profile.get("last_platform", ""))
-	if mode != "free":
-		classes.mode_filter = "track"
-	classes.picked.connect(_on_class_picked)
-	_stack.push(classes, classes.grab_focus_first)
-
-
-func _on_class_picked(id: String) -> void:
-	if _mode == "race":
-		_open_event(id)
-	elif _mode == "time_trial":
-		Settings.profile.last_platform = id
-		_open_tracks(func(track: String) -> void: Game.start_event(RaceEvent.time_trial(), id, track))
-	else:
-		_open_free(id)
-
-
-## Free Drive's setup: the track, AI cars and rules.
-func _open_free(platform_id: String) -> void:
-	var free := FreeDriveMenu.new()
-	free.picked.connect(func(e: RaceEvent, track: String) -> void: _open_players(platform_id, e, track))
-	_stack.push(free, free.grab_focus_first)
-
-
-## The track picker, then `then` (track path). With only one track, straight on (unless `always`).
-func _open_tracks(then: Callable, always := false) -> void:
-	if TrackLibrary.list(true, true, "circuit").size() <= 1 and not always:
-		then.call(Game.selected_track("circuit"))
-		return
-	var tracks := TrackPicker.new()
-	tracks.picked.connect(func(path: String) -> void: then.call(path))
-	_stack.push(tracks, tracks.grab_focus_first)
-
-
-## Highway (M7): the highway first, then what to do on it (HighwayMenu), the class, the players.
-func _open_highway() -> void:
-	var tracks := TrackPicker.new()
-	tracks.type = "highway"
-	tracks.picked.connect(_open_highway_menu)
-	_stack.push(tracks, tracks.grab_focus_first)
-
-
-func _open_highway_menu(track: String) -> void:
-	var menu := HighwayMenu.new()
-	menu.track_path = track
-	menu.picked.connect(func(e: RaceEvent) -> void:
-		var classes := ClassPicker.new()
-		classes.mode_filter = "highway"
-		classes.current = String(Settings.profile.get("last_platform", ""))
-		classes.picked.connect(func(id: String) -> void:
-			Settings.profile.last_platform = id
-			_open_players(id, e, track))
-		_stack.push(classes, classes.grab_focus_first))
-	_stack.push(menu, menu.grab_focus_first)
-
-
-## Kart (M8): race, battle or cup and its setup (KartMenu), then the players, who each pick their
-## kart's class on their card (D149).
-func _open_kart() -> void:
-	var menu := KartMenu.new()
-	menu.name = "KartMenu"
-	menu.picked.connect(func(kind: String, e: RaceEvent, track: String, cup: String) -> void:
-		var id := String(Settings.profile.get("last_kart_platform", "official.kart.medium"))
-		if kind == "cup":
-			_open_players(id, e, "", func() -> void: Game.start_cup_race(CupRun.start(CupRun.load_file(cup), id, e)))
-		else:
-			_open_players(id, e, track))
-	_stack.push(menu, menu.grab_focus_first)
-
-
-## Endless (M9): the road and its setup (EndlessMenu), the class, the players.
-func _open_endless() -> void:
-	var menu := EndlessMenu.new()
-	menu.name = "EndlessMenu"
-	menu.picked.connect(func(e: RaceEvent) -> void:
-		var classes := ClassPicker.new()
-		classes.mode_filter = "endless"
-		classes.current = String(Settings.profile.get("last_platform", ""))
-		classes.picked.connect(func(id: String) -> void:
-			Settings.profile.last_platform = id
-			_open_players(id, e, ""))
-		_stack.push(classes, classes.grab_focus_first))
-	_stack.push(menu, menu.grab_focus_first)
-
-
-## Mini Games (Changes.md): the short matches that aren't races. Picking one opens its own
-## screen; backing out of that shows this list again, and backing out of this shows Local Drive.
-func _open_mini_games() -> void:
-	var mini := MiniGamesMenu.new()
-	mini.name = "MiniGamesMenu"
-	mini.chosen.connect(func(game: String) -> void:
-		if game == "sumo":
-			_open_sumo()
-		elif game == "drag":
-			_open_drag())
-	_stack.push(mini, mini.grab_focus_first)
-
-
-## Sumo Wrestling (D162): its settings (SumoMenu), then the players. There is no class to pick:
-## the mode has one, and no track: the arena is made from the settings.
-func _open_sumo() -> void:
-	var menu := SumoMenu.new()
-	menu.name = "SumoMenu"
-	menu.picked.connect(func(e: RaceEvent) -> void: _open_players("official.sumo.standard", e))
-	_stack.push(menu, menu.grab_focus_first)
-
-
-## Drag Strip (D168): its settings (DragMenu), then the players. The class is one of its own
-## rows rather than the class picker, and there is no track: the strip is made from the settings.
-func _open_drag() -> void:
-	var menu := DragMenu.new()
-	menu.name = "DragMenu"
-	menu.picked.connect(func(e: RaceEvent, class_id: String) -> void: _open_players(class_id, e))
-	_stack.push(menu, menu.grab_focus_first)
-
-
-func _open_event(platform_id: String) -> void:
-	var menu := EventMenu.new()
-	menu.picked.connect(func(e: RaceEvent) -> void: _open_players(platform_id, e))
-	_stack.push(menu, menu.grab_focus_first)
-
-
-## The players, then the session (`start` instead, if given: a cup). Back goes to the screen
-## before (the stack's).
-func _open_players(platform_id: String, event: RaceEvent = null, track := "", start := Callable()) -> void:
-	var players := PlayersMenu.new()
-	players.platform_id = platform_id
-	players.started.connect(func() -> void:
-		if start.is_valid():
-			start.call()
-		elif event and event.kind != "free":
-			Game.start_event(event, platform_id, track)
-		else:
-			Game.start_free_drive("", platform_id, false, false, track, event))
-	_stack.push(players)
+## Dev --menu: a page opened straight away, those before it under it (game.gd lists them).
+func _open_dev_menu(menu: String) -> void:
+	const FLOWS := {
+		"regular": ["racing", "regular"], "stock-car": ["racing", "stock_car"], "kart": ["racing", "kart"],
+		"custom": ["racing", "custom"], "time-trial": ["racing", "regular", true], "class": ["racing", "regular"],
+		"players": ["racing", "regular"], "endless": ["endless", ""], "highway": ["highway", ""], "free": ["free", ""],
+		"sumo": ["mini", "sumo"], "drag": ["mini", "drag"], "kart-battle": ["mini", "kart_battle"],
+	}
+	match menu:
+		"local", "solo": _open_solo()
+		"racing": _open_solo().open_racing()
+		"mini-games": _open_solo().open_mini_games()
+		"settings": _open_settings()
+		"driving-settings":
+			_open_settings()
+			(_stack.top() as SettingsMenu)._open_player()
+		"online": _open_online()
+		"online-players":
+			_open_online()
+			_online._open_players()
+		_:
+			if FLOWS.has(menu):
+				var f: Array = FLOWS[menu]
+				var flow := EventFlow.make(f[0], f[1], f.size() > 2)
+				flow.recall()
+				_open_solo(false).open_flow(flow, menu if menu in ["class", "players"] else "settings")
 
 
 func _open_online() -> void:
