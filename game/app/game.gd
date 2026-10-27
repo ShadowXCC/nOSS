@@ -54,7 +54,8 @@ extends Node
 ##   --drag-debug         online: print what the pass is doing on this game, twice a second
 ##   --endless[=<code>]   an endless drive right away (a road code like FOREST-0000001, or a new road;
 ##                        --traffic=off|light|normal|heavy, --lanes=2|4, --side=right|left,
-##                        --garage-traffic=on|off, --traps, --police, --platform)
+##                        --garage-traffic=on|off, --traps, --police, --platform;
+##                        --endless-at=<m> starts that far along the road)
 ##   --heat=<1-5>         with --police: the players start with that much heat (police checks)
 ##   --kart-debug         online kart items: log every item more than 1 m off the server's
 ##   --time=<t>           any session's time of day (dawn, morning, noon, afternoon, dusk, night),

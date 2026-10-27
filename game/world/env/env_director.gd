@@ -2,8 +2,9 @@ class_name EnvDirector
 extends Node
 ## Puts a session's sky on the world (ENV-01…03, D153): the sun by day and the moon by night (one
 ## light), the sky's colours, clouds, stars and moon, fog, ambient light and exposure, the world
-## shaders' weather (env_wetness, env_snow, env_night), headlights and their beams, and each car's
-## grip in the wet and snow. A few times a second, from EnvState at the session's clock.
+## shaders' weather (env_wetness, env_snow, env_night, env_flicker), headlights and their beams,
+## and each car's grip in the wet and snow. A few times a second, from EnvState at the session's
+## clock, mixed with the biomes where the players are (D221).
 ## Every player view keeps its own copy of the environment (brightness, lightning), kept in step.
 
 ## How often the sky is worked out again (s), and the cars' lights and grip.
@@ -26,7 +27,10 @@ const FLOOD_AMBIENT := 0.6
 const FLOOD_FOG := Color(0.16, 0.15, 0.13)
 const FLOOD_SHADOW := 0.55
 
-var state: EnvState
+var state: EnvState:
+	set(value):
+		state = value
+		_odds.clear()
 ## The track has floodlights (its environment's "floodlit").
 var floodlit := false
 ## How far they're up now, 0..1 (off by day).
@@ -42,7 +46,7 @@ var local_vehicles := Callable()
 var snapshot := {}
 var lights_on := false
 var night := 0.0
-## The world shaders' weather as last set: {env_wetness, env_snow, env_night}.
+## The world shaders' weather as last set: {env_wetness, env_snow, env_night, env_flicker}.
 var globals := {}
 
 var _style: StyleProfile
@@ -58,11 +62,20 @@ var _cars_since := INF
 ## Rain, wind and thunder (none on a dedicated server).
 var ambience: Ambience
 var sound := true
-## Extra ambience on top of the weather's (endless: the biome's surf, birds, crickets), 0..1.
-var extra_ambience := {}
-## The local weather (endless: the biome's): {snowy (rain falls as snow), rain (how much of it
-## falls), fog (how thick)}; {} as the sky says.
-var biome_weather := {}
+## The biomes where the players are (D221): [a, b, w], two biomes' data (EndlessBiomes) and b's
+## weight 0..1; [] as the sky says. Their weather (snowy: rain falls as snow; rain: how much of it
+## falls; fog: how thick, fog_min: at least; odds: their own fronts when the weather changes),
+## sky (sun_elevation_deg, fog_color) and sounds (surf, birds by day, crickets at night, wind at
+## least, distant thunder) are mixed by weight, so they fade in and out.
+var biomes: Array = []
+## () -> [a, b, w], read each time the sky is worked out (endless: where P1 is).
+var biomes_here := Callable()
+## () -> true when a player here has Reduce flashing: lamps burn steady (env_flicker 0).
+var calm := Callable()
+## The ambience's levels as last worked out.
+var ambience_levels := {}
+var _odds := {} # odds (as text) -> EnvState: a biome's own fronts
+var _rumble := 0.0 # how often distant thunder rolls here, 0..1
 var _slot := -1
 var _strikes: Array = [] # [{at, distance, bearing}] still lighting the sky
 var _bolt: MeshInstance3D
@@ -97,7 +110,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	for g: StringName in [&"env_wetness", &"env_snow", &"env_night"]:
+	for g: StringName in [&"env_wetness", &"env_snow", &"env_night", &"env_flicker"]:
 		RenderingServer.global_shader_parameter_set(g, 0.0)
 
 
@@ -125,7 +138,10 @@ func _process(delta: float) -> void:
 func apply() -> void:
 	if state == null or _env == null:
 		return
-	snapshot = _local(state.at(now()))
+	if biomes_here.is_valid():
+		biomes = biomes_here.call()
+	var t := now()
+	snapshot = _local(state.at(t), t)
 	var el: float = snapshot.elevation
 	var cloud: float = snapshot.cloud
 	var precip: float = snapshot.precip
@@ -138,7 +154,7 @@ func apply() -> void:
 	var over_sky := (over.sky as Color) * lum
 	var over_cloud := ((over.cloud_color as Color) * lum).lerp((over.storm_cloud as Color) * lum, storm * 0.7)
 
-	var fog_color := (p.fog as Color).lerp((over.fog as Color) * lum, maxf(cloud * 0.7, fog))
+	var fog_color := _biome_fog((p.fog as Color).lerp((over.fog as Color) * lum, maxf(cloud * 0.7, fog)))
 	var fog_density: float = _base.fog_density * _fog_scale * (1.0 + 2.0 * precip + 9.0 * fog) * (1.6 if snapshot.snowing else 1.0)
 	var ambient: float = _base.ambient * float(p.ambient) * (1.0 - 0.15 * cloud)
 	var exposure: float = _base.exposure * float(p.exposure)
@@ -185,7 +201,8 @@ func apply() -> void:
 		_sky.set_shader_parameter("sun_disc", (1.0 - 0.95 * cloud) * smoothstep(-2.0, 1.0, el))
 		_sky.set_shader_parameter("night", night * (1.0 - 0.85 * cloud))
 
-	globals = { &"env_wetness": float(snapshot.wetness), &"env_snow": float(snapshot.snow), &"env_night": night }
+	var steady := calm.is_valid() and bool(calm.call())
+	globals = { &"env_wetness": float(snapshot.wetness), &"env_snow": float(snapshot.snow), &"env_night": night, &"env_flicker": 0.0 if steady else 1.0 }
 	for g: StringName in globals:
 		RenderingServer.global_shader_parameter_set(g, globals[g])
 	lights_on = el < LIGHTS_BELOW_DEG or fog > 0.5 or precip > 0.3
@@ -198,30 +215,111 @@ func apply() -> void:
 		box.set_weather(precip, bool(snapshot.snowing), lum, dry)
 		all_sheltered = all_sheltered and dry
 		any = true
+	var rain := 0.0 if snapshot.snowing else precip
+	if any and all_sheltered:
+		rain *= 0.2
+	var levels := { "rain": rain * 0.9, "wind": clampf(0.08 + 0.35 * cloud + 0.5 * storm + (0.3 * precip if snapshot.snowing else 0.0), 0.0, 1.0) }
+	var own := _biome_sounds(precip)
+	_rumble = float(own.get("thunder", 0.0))
+	own.erase("thunder")
+	for k: String in own:
+		levels[k] = maxf(float(levels.get(k, 0.0)), float(own[k])) # a biome's wind is a floor under a storm's
+	ambience_levels = levels
 	if ambience:
-		var rain := 0.0 if snapshot.snowing else precip
-		if any and all_sheltered:
-			rain *= 0.2
-		var levels := { "rain": rain * 0.9, "wind": clampf(0.08 + 0.35 * cloud + 0.5 * storm + (0.3 * precip if snapshot.snowing else 0.0), 0.0, 1.0) }
-		for k: String in extra_ambience:
-			levels[k] = float(extra_ambience[k])
 		ambience.set_levels(levels)
 
 
-## The sky's weather where the players are (endless: by biome): less rain in a desert, snow
-## instead of rain where it's cold, thicker fog on a coast.
-func _local(s: Dictionary) -> Dictionary:
-	if biome_weather.is_empty():
+## A track's setting (its environment's "biome", D221): that biome's sky and sounds throughout;
+## {} for none.
+func set_biome(data: Dictionary) -> void:
+	biomes = [] if data.is_empty() else [data, data, 1.0]
+
+
+## The sky's weather where the players are: each biome's own (_one), mixed by weight.
+func _local(s: Dictionary, t: float) -> Dictionary:
+	if biomes.size() < 3:
 		return s
+	var w := clampf(float(biomes[2]), 0.0, 1.0)
+	var a := _one(s, t, biomes[0])
+	if w <= 0.0:
+		return a
+	var b := _one(s, t, biomes[1])
+	if w >= 1.0:
+		return b
+	var out := a.duplicate()
+	for k: String in ["elevation", "cloud", "precip", "storm", "fog", "wetness", "snow"]:
+		out[k] = lerpf(float(a[k]), float(b[k]), w)
+	out.snowing = bool(b.snowing) if w >= 0.5 else bool(a.snowing)
+	return out
+
+
+## One biome's weather over the sky's: its own fronts when the weather changes, less rain in a
+## desert, snow instead of rain where it's cold, thicker fog on a coast (and at least fog_min),
+## its own sun.
+func _one(s: Dictionary, t: float, data: Dictionary) -> Dictionary:
+	if data.is_empty():
+		return s
+	var weather: Dictionary = data.get("weather", {})
 	var out := s.duplicate()
-	out.precip = float(s.precip) * float(biome_weather.get("rain", 1.0))
-	out.storm = float(s.storm) * float(biome_weather.get("rain", 1.0))
-	out.fog = clampf(float(s.fog) * float(biome_weather.get("fog", 1.0)), 0.0, 1.0)
-	out.wetness = float(s.wetness) * float(biome_weather.get("rain", 1.0))
-	if bool(biome_weather.get("snowy", false)):
-		out.snowing = float(out.precip) > 0.0 or bool(s.snowing)
-		out.snow = maxf(float(s.snow), float(out.wetness))
+	var front_odds: Variant = weather.get("odds")
+	if front_odds is Dictionary and state.weather == "changing":
+		var own := _own_sky(front_odds).at(t)
+		for k: String in ["cloud", "precip", "storm", "fog", "snowing", "wetness", "snow"]:
+			out[k] = own[k]
+	var rain := float(weather.get("rain", 1.0))
+	out.precip = float(out.precip) * rain
+	out.storm = float(out.storm) * rain
+	out.wetness = float(out.wetness) * rain
+	out.fog = clampf(maxf(float(out.fog) * float(weather.get("fog", 1.0)), float(weather.get("fog_min", 0.0))), 0.0, 1.0)
+	if bool(weather.get("snowy", false)):
+		out.snowing = float(out.precip) > 0.0 or bool(out.snowing)
+		out.snow = maxf(float(out.snow), float(out.wetness))
 		out.wetness = float(out.wetness) * 0.2
+	var sky: Dictionary = data.get("sky", {})
+	if sky.has("sun_elevation_deg"):
+		out.elevation = float(sky.sun_elevation_deg)
+	return out
+
+
+## The sky with a biome's odds: its fronts start and end with the sky's own (made once).
+func _own_sky(front_odds: Dictionary) -> EnvState:
+	var key := str(front_odds)
+	if not _odds.has(key):
+		_odds[key] = state.with_odds(front_odds)
+	return _odds[key]
+
+
+## The fog toward the biomes' own colour, by weight (a night's fog is near black: a mist needs
+## some moonlight in it).
+func _biome_fog(c: Color) -> Color:
+	if biomes.size() < 3:
+		return c
+	var w := clampf(float(biomes[2]), 0.0, 1.0)
+	var tint := Color(0, 0, 0, 0)
+	var weight := 0.0
+	for pair: Array in [[biomes[0], 1.0 - w], [biomes[1], w]]:
+		var sky: Dictionary = (pair[0] as Dictionary).get("sky", {})
+		if sky.has("fog_color") and float(pair[1]) > 0.0:
+			tint += Color.html(String(sky.fog_color)) * float(pair[1])
+			weight += float(pair[1])
+	return c if weight <= 0.0 else c.lerp(tint / weight, weight)
+
+
+## The biomes' own sounds by weight: birds by day out of the rain, crickets at night, surf, wind
+## (a floor under the weather's), and how often distant thunder rolls ("thunder").
+func _biome_sounds(precip: float) -> Dictionary:
+	if biomes.size() < 3:
+		return {}
+	var w := clampf(float(biomes[2]), 0.0, 1.0)
+	var out := { "birds": 0.0, "crickets": 0.0, "surf": 0.0, "wind": 0.0, "thunder": 0.0 }
+	for pair: Array in [[biomes[0], 1.0 - w], [biomes[1], w]]:
+		var amb: Dictionary = (pair[0] as Dictionary).get("ambience", {})
+		var share: float = pair[1]
+		out.birds += float(amb.get("birds", 0.0)) * share * (1.0 - night) * (1.0 - precip)
+		out.crickets += float(amb.get("crickets", 0.0)) * share * night
+		out.surf += float(amb.get("surf", 0.0)) * share
+		out.wind += float(amb.get("wind", 0.0)) * share
+		out.thunder += float(amb.get("thunder", 0.0)) * share
 	return out
 
 
@@ -273,7 +371,8 @@ func _update_cars() -> void:
 
 
 ## Storms: strikes from the sky's seed by the second; each view flashes (softly with Reduce
-## flashing), the bolt shows to those without it, and thunder follows.
+## flashing), the bolt shows to those without it, and thunder follows. A biome's distant rumbles
+## too.
 func _lightning() -> void:
 	if snapshot.is_empty():
 		return
@@ -285,6 +384,10 @@ func _lightning() -> void:
 		if not s.is_empty():
 			_strikes.append(s)
 			_strike_seen(s)
+		# A biome's distant thunder: sound only, no flash or bolt.
+		var r := Lightning.rumble(state.seed, slot, _rumble)
+		if ambience and not r.is_empty():
+			ambience.thunder(float(r.at) - t, clampf(1.4 - float(r.distance) / Lightning.FARTHEST_M, 0.15, 1.0))
 	var calm_flash := 0.0
 	var full_flash := 0.0
 	var keep: Array = []

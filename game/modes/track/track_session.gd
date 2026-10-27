@@ -274,8 +274,10 @@ func _load_drag() -> void:
 
 
 ## Where this game's players start: online, behind whoever's furthest along (D159; the server
-## stays at the start); otherwise near the road's start.
+## stays at the start); otherwise near the road's start (dev: --endless-at=<m>).
 func _endless_start() -> float:
+	if Game.dev.has("endless-at"):
+		return maxf(float(Game.dev["endless-at"]), EndlessControl.START_M)
 	var at: Variant = online.get("endless", {}).get("at", {})
 	var best := -INF
 	if at is Dictionary and not dedicated:
@@ -395,6 +397,10 @@ func _ready() -> void:
 	env.floodlit = track_env is Dictionary and bool(track_env.get("floodlit", false))
 	env.local_vehicles = func() -> Array:
 		return racers.filter(func(r: Racer) -> bool: return r is SessionPlayer and r.vehicle != null).map(func(r: Racer) -> Vehicle: return r.vehicle)
+	# Lamps burn steady for everyone here if any player has Reduce flashing (one world, D221).
+	env.calm = func() -> bool:
+		return bool(Settings.profile.get("reduce_flashing", false)) or players.any(func(p: SessionPlayer) -> bool:
+			return p.slot != null and bool(p.slot.profile.data.get("reduce_flashing", false)))
 	add_child(env)
 	env.apply()
 	if not dedicated and Vehicle.drawn and not Game.headless: # headless draws nothing (tests, checks)

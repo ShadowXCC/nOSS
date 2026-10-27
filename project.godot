@@ -88,3 +88,7 @@ env_night={
 "type": "float",
 "value": 0.0
 }
+env_flicker={
+"type": "float",
+"value": 0.0
+}

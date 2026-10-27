@@ -159,3 +159,22 @@ func test_players_far_apart_come_together() -> void:
 			assert_float(lead.distance).is_less(to - 2000.0) # the leader went back
 		s.queue_free()
 		await get_tree().process_frame
+
+
+## A Haunted start (D221) is night from the first frame, at noon: the sky follows the biome
+## under P1 (EnvDirector.biomes_here).
+func test_a_haunted_start_is_night_at_once() -> void:
+	Players.clear()
+	var s := TrackSession.new()
+	s.platform_id = "official.endless.cruiser"
+	s.event = RaceEvent.endless(1, EndlessBiomes.index_of("haunted"))
+	s.event.time = "noon"
+	s.event.weather = "clear"
+	s.event.endless_traffic = "off"
+	s.autodrive = true
+	add_child(s)
+	assert_float(s.env.night).is_greater(0.8)
+	assert_str(String((s.env.biomes[1] as Dictionary).get("id", ""))).is_equal("haunted")
+	assert_float(float(s.env.snapshot.fog)).is_greater_equal(0.45)
+	s.queue_free()
+	await get_tree().process_frame

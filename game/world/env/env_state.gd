@@ -39,6 +39,8 @@ var rate := 0.0
 ## A kind in KINDS, or "changing".
 var weather := "clear"
 var seed := 1
+## What a changing sky's fronts bring here, with their odds (a biome's own, D221).
+var odds: Dictionary = FRONT_ODDS
 var _fronts: Array = [] # [start s, length s, kind]
 var _rng := RandomNumberGenerator.new()
 
@@ -54,6 +56,20 @@ static func from_settings(time: String, time_rate: int, weather_pick: String, en
 	var w := weather_pick if weather_pick != "track" else String(track_env.get("weather", "clear"))
 	s.weather = w if KINDS.has(w) or w == "changing" else "clear"
 	s.seed = env_seed if env_seed > 0 else 1
+	return s
+
+
+## The same sky with fronts by `front_odds` (a biome's weather, D221): the same seed, so its
+## fronts start and end when this one's do.
+func with_odds(front_odds: Dictionary) -> EnvState:
+	var s := EnvState.new()
+	s.start_hour = start_hour
+	s.fixed_elevation = fixed_elevation
+	s.fixed_azimuth = fixed_azimuth
+	s.rate = rate
+	s.weather = weather
+	s.seed = seed
+	s.odds = front_odds
 	return s
 
 
@@ -146,10 +162,10 @@ func _ground_at(t: float) -> Vector2:
 func _front_index(t: float) -> int:
 	if _fronts.is_empty():
 		_rng.seed = seed
-		_fronts.append([0.0, _rng.randf_range(FRONT_MIN_S, FRONT_MAX_S), _pick(_rng, "")])
+		_fronts.append([0.0, _rng.randf_range(FRONT_MIN_S, FRONT_MAX_S), _pick(_rng, "", odds)])
 	while float(_fronts[-1][0]) + float(_fronts[-1][1]) <= t:
 		var last: Array = _fronts[-1]
-		_fronts.append([float(last[0]) + float(last[1]), _rng.randf_range(FRONT_MIN_S, FRONT_MAX_S), _pick(_rng, String(last[2]))])
+		_fronts.append([float(last[0]) + float(last[1]), _rng.randf_range(FRONT_MIN_S, FRONT_MAX_S), _pick(_rng, String(last[2]), odds)])
 	# Fronts are in order: the last one that has started.
 	for i in range(_fronts.size() - 1, -1, -1):
 		if float(_fronts[i][0]) <= t:
@@ -157,17 +173,22 @@ func _front_index(t: float) -> int:
 	return 0
 
 
-## A front's weather by FRONT_ODDS, never the same as the one before.
-static func _pick(rng: RandomNumberGenerator, not_this: String) -> String:
+## A front's weather by `front_odds` (kinds not in KINDS left out), never the same as the one
+## before unless it's the only one. One draw each, whatever the odds, so skies with other odds
+## keep the same fronts.
+static func _pick(rng: RandomNumberGenerator, not_this: String, front_odds: Dictionary = FRONT_ODDS) -> String:
 	var total := 0
-	for k: String in FRONT_ODDS:
-		if k != not_this:
-			total += int(FRONT_ODDS[k])
+	for k: String in front_odds:
+		if k != not_this and KINDS.has(k):
+			total += maxi(int(front_odds[k]), 0)
+	if total <= 0:
+		rng.randi()
+		return not_this if KINDS.has(not_this) else "clear"
 	var roll := rng.randi_range(0, total - 1)
-	for k: String in FRONT_ODDS:
-		if k == not_this:
+	for k: String in front_odds:
+		if k == not_this or not KINDS.has(k):
 			continue
-		roll -= int(FRONT_ODDS[k])
+		roll -= maxi(int(front_odds[k]), 0)
 		if roll < 0:
 			return k
 	return "clear"

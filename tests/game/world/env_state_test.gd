@@ -95,3 +95,24 @@ func test_the_road_soaks_and_dries() -> void:
 	# Over almost three hours some rain falls and dries again (for this seed).
 	assert_float(wettest).is_greater(0.6)
 	assert_bool(dried).is_true()
+
+
+## A biome's own odds (D221): its fronts start and end with the sky's, never clear or snowy with
+## odds that leave them out; the sky itself is unchanged; one kind alone doesn't hang.
+func test_a_biomes_odds_keep_the_fronts_times() -> void:
+	var base := _state("track", 0, "changing", 99)
+	var fresh := _state("track", 0, "changing", 99)
+	var own := base.with_odds({ "storm": 40, "fog": 45, "rain": 15 })
+	for i in 240: # two hours
+		var x := own.at(i * 30.0)
+		assert_bool(x.snowing).is_false()
+		assert_float(x.cloud).is_greater_equal(0.8) # rain, storm or fog, or between them: never clear
+		assert_dict(base.at(i * 30.0)).is_equal(fresh.at(i * 30.0))
+	assert_int(own._fronts.size()).is_equal(base._fronts.size())
+	for i in own._fronts.size():
+		assert_float(own._fronts[i][0]).is_equal(base._fronts[i][0])
+		assert_float(own._fronts[i][1]).is_equal(base._fronts[i][1])
+	assert_dict(base.odds).is_equal(EnvState.FRONT_ODDS)
+	var one := base.with_odds({ "fog": 10, "hail": 5 })
+	assert_float(one.at(7200.0).fog).is_equal(1.0)
+	assert_str(EnvState._pick(RandomNumberGenerator.new(), "fog", { "fog": 1 })).is_equal("fog")

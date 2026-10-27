@@ -73,3 +73,17 @@ func test_the_ambience_follows_its_levels() -> void:
 		assert_int(s.loop_mode).is_equal(AudioStreamWAV.LOOP_FORWARD)
 		assert_float(s.get_length()).is_greater(2.0)
 	assert_int(Ambience.stream("thunder").loop_mode).is_equal(AudioStreamWAV.LOOP_DISABLED)
+
+
+## A biome's distant thunder (D221): from the seed, far off, about RUMBLE_CHANCE a second at full.
+func test_rumbles_come_from_the_seed() -> void:
+	var count := 0
+	for slot in 2000:
+		var r := Lightning.rumble(42, slot, 1.0)
+		assert_dict(r).is_equal(Lightning.rumble(42, slot, 1.0))
+		assert_dict(Lightning.rumble(42, slot, 0.0)).is_empty()
+		if not r.is_empty():
+			count += 1
+			assert_float(r.at).is_between(float(slot), float(slot) + 1.0)
+			assert_float(r.distance).is_between(5000.0, 9000.0)
+	assert_int(count).is_between(60, 150)

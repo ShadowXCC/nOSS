@@ -20,6 +20,10 @@ const CHANCE := 0.12
 const NEAREST_M := 700.0
 const FARTHEST_M := 6000.0
 const SOUND_MPS := 343.0
+## Distant rumbles (no flash): a chance each second at full amount, and how far off.
+const RUMBLE_CHANCE := 0.05
+const RUMBLE_NEAREST_M := 5000.0
+const RUMBLE_FARTHEST_M := 9000.0
 
 
 ## The extra brightness of a view `t` seconds after a strike (0 before it).
@@ -46,6 +50,18 @@ static func strike(seed: int, slot: int, storm: float) -> Dictionary:
 	if rng.randf() >= storm * CHANCE:
 		return {}
 	return { "at": float(slot) + rng.randf(), "distance": rng.randf_range(NEAREST_M, FARTHEST_M), "bearing": rng.randf() * TAU }
+
+
+## Distant thunder with no strike to see (a biome's, D221) in second `slot`, at `amount` 0..1:
+## {} or {at (s), distance (m)}. The same everywhere.
+static func rumble(seed: int, slot: int, amount: float) -> Dictionary:
+	if amount <= 0.0:
+		return {}
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([seed, slot, "rumble"])
+	if rng.randf() >= amount * RUMBLE_CHANCE:
+		return {}
+	return { "at": float(slot) + rng.randf(), "distance": rng.randf_range(RUMBLE_NEAREST_M, RUMBLE_FARTHEST_M) }
 
 
 ## A jagged bolt from the cloud base down to the ground, `height` metres tall, made of two crossed
