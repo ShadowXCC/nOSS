@@ -28,6 +28,9 @@ const CAPTURE_KEYS := [
 	KEY_KP_PERIOD, KEY_F1, KEY_F2, KEY_F4, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10,
 	KEY_F11, KEY_F12,
 ]
+## Shortcuts that give way in a menu: there, an input also bound to a menu key does only the
+## menu's job. Change car closes the list it opens, and the standard pad has it on D-pad up.
+const MENU_YIELDS := ["hotswap_menu"]
 const PAD_BUTTON_COUNT := 21
 const PAD_AXIS_COUNT := 6
 
@@ -40,6 +43,7 @@ var wheel := WheelInput.new()
 static var test_sim := {}
 
 var _refs := {} # action -> [{kind, device, ref}]
+var _menu_refs := {} # MENU_YIELDS action -> its refs no menu key shares
 var _toggled := {} # action -> latched on
 var _down := {} # action -> pressed at the last poll
 var _edges := {} # action -> became pressed at the last poll
@@ -64,6 +68,10 @@ func rebuild() -> void:
 				if not _refs.has(action):
 					_refs[action] = []
 				_refs[action].append({ "kind": d.kind, "device": d.get("id", -1), "ref": r })
+	_menu_refs.clear()
+	for action: String in MENU_YIELDS:
+		_menu_refs[action] = _refs.get(action, []).filter(func(b: Dictionary) -> bool:
+			return Bindings.MENU.all(func(m: String) -> bool: return not _refs.get(m, []).has(b)))
 	wheel.configure(sims, profile.data.get("wheel", {}))
 	settle()
 
@@ -166,7 +174,7 @@ func poll_menu(delta: float) -> Array[String]:
 	var delay := maxf(float(profile.data.input.get("menu_delay", 0.45)), 0.05)
 	var period := 1.0 / clampf(float(profile.data.input.get("menu_rate", 10.0)), 1.0, 60.0)
 	for action: String in Bindings.MENU_EVENTS:
-		if value(action) <= PRESS:
+		if _menu_value(action) <= PRESS:
 			_menu_time.erase(action)
 			continue
 		if not _menu_time.has(action):
@@ -182,6 +190,16 @@ func poll_menu(delta: float) -> Array[String]:
 		if t1 >= delay and (t0 < delay or floori((t1 - delay) / period) > floori((t0 - delay) / period)):
 			out.append(action)
 	return out
+
+
+## value(), less the inputs a menu key shares for MENU_YIELDS.
+func _menu_value(action: String) -> float:
+	if not _menu_refs.has(action):
+		return value(action)
+	var best := 0.0
+	for b: Dictionary in _menu_refs[action]:
+		best = maxf(best, _read(b, action))
+	return best
 
 
 ## The device that fired this player's last menu action (their first until one has): their

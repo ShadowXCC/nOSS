@@ -521,6 +521,38 @@ static func focus_later(c: Control) -> void:
 			target.grab_focus()).call_deferred()
 
 
+## Scrolls `scroll` to the focused control in it, as MenuPage's body does: in the scroll's own
+## coordinates, so it works in a player's view too, where the menus are scaled and follow_focus
+## misses. The scroll comes the next frame, once the layout is done; and again if the scroll
+## resizes (a panel fitting its view).
+static func keep_in_view(scroll: ScrollContainer, margin := 12) -> void:
+	var want := [0] # the control to show, by id
+	var reveal := func() -> void:
+		var c := instance_from_id(want[0]) as Control
+		if not is_instance_valid(scroll) or c == null or not c.is_inside_tree() or not scroll.is_ancestor_of(c):
+			return
+		var xf := scroll.get_global_transform().affine_inverse() * c.get_global_transform()
+		var top := xf.origin.y
+		var bottom := top + c.size.y * xf.get_scale().y
+		if top < margin:
+			scroll.scroll_vertical += floori(top) - margin
+		elif bottom > scroll.size.y - margin:
+			scroll.scroll_vertical += ceili(bottom - scroll.size.y) + margin
+	var queue := func(c: Control) -> void:
+		if c == null or not scroll.is_ancestor_of(c):
+			return
+		want[0] = c.get_instance_id()
+		if not scroll.get_tree().process_frame.is_connected(reveal):
+			scroll.get_tree().process_frame.connect(reveal, CONNECT_ONE_SHOT)
+	scroll.tree_entered.connect(func() -> void: scroll.get_viewport().gui_focus_changed.connect(queue))
+	scroll.tree_exiting.connect(func() -> void: scroll.get_viewport().gui_focus_changed.disconnect(queue))
+	scroll.resized.connect(func() -> void:
+		if scroll.is_inside_tree():
+			queue.call(focus_owner(scroll)))
+	if scroll.is_inside_tree():
+		scroll.get_viewport().gui_focus_changed.connect(queue)
+
+
 ## A labelled row on a page (docs/UI_FLOW.md §2): its labels at the rows' text size (they're made
 ## at the menus' 30 px), and a slider's row outlined in the accent colour while the slider has the
 ## focus, as a button row is (in the window Godot draws no focus on a slider; it only brightens).

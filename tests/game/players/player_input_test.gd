@@ -159,6 +159,20 @@ func test_held_press_does_not_act_in_a_new_menu() -> void:
 	assert_array(input.poll_menu(0.01)).contains(["menu_confirm"])
 
 
+func test_change_car_on_a_menu_key_only_navigates_in_menus() -> void:
+	# The standard pad has Change car and Menu up both on D-pad up: in the list it opens, the
+	# press moves up and doesn't close it. Driving, it still opens the list.
+	var pad := _make_input([_pad(PAD)])
+	_button(PAD, JOY_BUTTON_DPAD_UP, true)
+	assert_array(pad.poll_menu(0.01)).contains(["menu_up"]).not_contains(["hotswap_menu"])
+	pad.poll()
+	assert_bool(pad.just_pressed("hotswap_menu")).is_true()
+	# Tab is no menu key: it still closes the list.
+	var kb := _make_input([_kb("full")])
+	_key(KEY_TAB, true)
+	assert_array(kb.poll_menu(0.01)).contains(["hotswap_menu"])
+
+
 func _make_input(devices: Array) -> PlayerInput:
 	var input := PlayerInput.new()
 	input.profile = _profile

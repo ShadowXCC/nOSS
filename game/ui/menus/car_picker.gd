@@ -1,7 +1,8 @@
 class_name CarPicker
 extends Control
 ## Lists the cars the player can drive: official content and the garage
-## (docs/VEHICLE_PACKAGE.md §8). Used before a session and for hotswap mid-drive.
+## (docs/VEHICLE_PACKAGE.md §8). Used before a session and for hotswap mid-drive. It opens on the
+## current car, and the list scrolls to follow the focus.
 
 signal picked(path: String)
 signal closed
@@ -22,10 +23,12 @@ func _ready() -> void:
 	scroll.custom_minimum_size = Vector2(0, 560)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	list.add_child(scroll)
+	UiKit.keep_in_view(scroll)
 	var rows := VBoxContainer.new()
 	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(rows)
 	var buttons: Array = []
+	var on_current: Button
 	var hidden := 0
 	for path in PackageLoader.list_available():
 		var m := PackageLoader.read_manifest(path)
@@ -45,6 +48,8 @@ func _ready() -> void:
 			b.custom_minimum_size = Vector2(0, 96)
 		rows.add_child(b)
 		buttons.append(b)
+		if path == current:
+			on_current = b
 	if buttons.is_empty():
 		rows.add_child(UiKit.label("No cars found"))
 	if hidden:
@@ -52,7 +57,8 @@ func _ready() -> void:
 	var back := UiKit.button("Back", func() -> void: closed.emit())
 	list.add_child(back)
 	buttons.append(back)
-	UiKit.chain_focus(buttons)
+	UiKit.chain_focus(buttons, false)
+	UiKit.focus_later(on_current if on_current else buttons[0])
 
 
 func _unhandled_input(event: InputEvent) -> void:
