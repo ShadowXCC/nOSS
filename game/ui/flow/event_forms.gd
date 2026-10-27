@@ -71,7 +71,7 @@ static func track_row(page: EventSettingsPage, label := "Track", then := Callabl
 	var flow := page.flow
 	var mixed := flow.track_type().is_empty()
 	var items := flow.tracks().map(func(e: Dictionary) -> Array:
-		return [e.path, TrackLibrary.label(e) + (" · Highway" if mixed and e.get("type") == "highway" else "")])
+		return [e.path, TrackLibrary.label(e, Settings.units == "imperial") + (" · Highway" if mixed and e.get("type") == "highway" else "")])
 	return UiKit.spinner(label, items, flow.track, func(path: String) -> void:
 		flow.track = path
 		page.show_track()
@@ -350,14 +350,15 @@ static func highway(page: EventSettingsPage) -> void:
 			"Which carriageway you start on; both ways: players take turns"))
 
 
-## [[id, "Name · 2.1 km, clockwise"]] for the highway's runs.
+## [[id, "Name · 2.1 km, clockwise"]] for the highway's runs (in the player's units).
 static func _runs(data: TrackData) -> Array:
 	var out := []
 	if data == null or data.highway == null:
 		return out
 	for r: Dictionary in data.highway.runs:
 		var length := fposmod(int(r.dir) * (float(r.to_m) - float(r.from_m)), data.length)
-		out.append([String(r.id), "%s · %.1f km, %s" % [r.name, length / 1000.0, _way(data, int(r.dir)).to_lower()]])
+		out.append([String(r.id), "%s · %s, %s" % [r.name, TrackLibrary.distance_text(length, Settings.units == "imperial"),
+			_way(data, int(r.dir)).to_lower()]])
 	return out
 
 

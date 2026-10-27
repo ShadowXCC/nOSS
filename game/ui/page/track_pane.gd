@@ -44,6 +44,7 @@ func show_track(track_path: String) -> void:
 	var e := TrackLibrary.entry(track_path) if track_path else {}
 	_name.text = String(e.get("name", ""))
 	_length.text = length_text(float(e.get("length_m", 0.0))) if float(e.get("length_m", 0.0)) > 0.0 and e.get("type") != "arena" else ""
+	_length.visible = not _length.text.is_empty() # an arena's: no gap where it would be
 	_kind.text = kind_text(e)
 	map.track = data(track_path)
 

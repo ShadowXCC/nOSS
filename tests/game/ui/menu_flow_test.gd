@@ -12,6 +12,7 @@ var _requested: Array = []
 
 func before() -> void:
 	Settings.use_folder("user://tests/menu_flow")
+	Settings.units = "metric" # the rows' lengths (this machine's own units carry over)
 	PlayersMenu.countdown_s = 0.0 # everyone Ready starts at once
 	Game.hold_events = true
 	Game.event_requested.connect(_on_event)

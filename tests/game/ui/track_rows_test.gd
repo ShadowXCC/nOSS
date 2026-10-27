@@ -10,6 +10,7 @@ var _holder: Control
 
 func before() -> void:
 	Settings.use_folder(DIR)
+	Settings.units = "metric" # the rows' lengths (this machine's own units carry over)
 	var files := TrackPackageTest.terrain_track()
 	var r := TrackWriter.write(TrackLibrary.user_dir.path_join("hills.nosstrack"), { "name": "Hills", "author": "Tester", "license": "CC0-1.0" }, files)
 	assert_str(String(r.error)).is_empty()
@@ -27,6 +28,7 @@ func before_test() -> void:
 
 
 func after_test() -> void:
+	Settings.units = "metric"
 	if is_instance_valid(_holder):
 		_holder.free()
 
@@ -73,6 +75,15 @@ func test_both_tracks_are_offered_and_the_pane_follows() -> void:
 	assert_str(page.pane.path).is_equal(flow.track)
 	assert_object(page.pane.map.track).is_not_null()
 	assert_str(page.pane.text()).contains("Your track")
+
+
+## The Track row gives the length in the player's units, as the pane beside it does.
+func test_the_row_follows_the_units() -> void:
+	Settings.units = "imperial"
+	var page := _page(EventFlow.racing("regular"))
+	await get_tree().process_frame
+	assert_str(String(page.row_named("Track").accessibility_name)).starts_with("Track: Proving Ground · 1.6 mi")
+	assert_str(page.pane.text()).contains("1.57 mi")
 
 
 ## Highway lists only highways (the built-in Lumen Ring, then the player's), Regular only circuits,

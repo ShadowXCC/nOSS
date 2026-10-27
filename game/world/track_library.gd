@@ -112,14 +112,19 @@ static func type_of(path: String) -> String:
 
 
 ## "Name · 2.5 km · author" for lists: "Gearworks · 1.5 km · Kart", "Crate Yard" (arenas have no
-## length).
-static func label(e: Dictionary) -> String:
-	var km := float(e.get("length_m", 0.0)) / 1000.0
+## length). Menus pass `imperial` from Settings.units: "Proving Ground · 1.6 mi".
+static func label(e: Dictionary, imperial := false) -> String:
+	var metres := float(e.get("length_m", 0.0))
 	var bits := [String(e.name)]
-	if km > 0.0 and String(e.get("type", "circuit")) != "arena":
-		bits.append("%.1f km" % km)
+	if metres > 0.0 and String(e.get("type", "circuit")) != "arena":
+		bits.append(distance_text(metres, imperial))
 	if "kart" in e.get("tags", []) and String(e.get("type", "circuit")) == "circuit":
 		bits.append("Kart") # made for karts (any class may race it)
 	if not e.get("builtin", false) and String(e.author):
 		bits.append(String(e.author))
 	return " · ".join(bits)
+
+
+## A length in lists, to a tenth: "2.5 km", or "1.6 mi" with `imperial`.
+static func distance_text(metres: float, imperial := false) -> String:
+	return "%.1f mi" % (metres / 1609.344) if imperial else "%.1f km" % (metres / 1000.0)

@@ -694,7 +694,7 @@ class FileTool:
 		var choices := []
 		for e in TrackLibrary.list():
 			var path: String = e.path
-			choices.append([TrackLibrary.label(e) + (" (a copy)" if e.builtin else ""), func() -> void:
+			choices.append([TrackLibrary.label(e, Settings.units == "imperial") + (" (a copy)" if e.builtin else ""), func() -> void:
 				editor._close_overlay()
 				var pkg := TrackLoader.load_package(path)
 				if not pkg.ok():

@@ -32,7 +32,7 @@ func _build() -> void:
 	# By id (it survives the track being changed), or by its content when the id won't do.
 	var plain := RegEx.create_from_string("^[a-z0-9_]{1,64}$")
 	var choices := tracks.map(func(e: Dictionary) -> Array:
-		return [String(e.id) if plain.search(String(e.id)) else String(e.hash), TrackLibrary.label(e)])
+		return [String(e.id) if plain.search(String(e.id)) else String(e.hash), TrackLibrary.label(e, Settings.units == "imperial")])
 	for i in 4:
 		var race: Dictionary = races[i]
 		var known := choices.any(func(c: Array) -> bool: return c[0] == race.track)
