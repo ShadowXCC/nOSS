@@ -24,6 +24,10 @@ const PANE_MIN_WIDTH := 1100.0
 ## The body's widest without a pane, centred.
 const BODY_MAX_WIDTH := 1100.0
 const MARGIN := 64
+## A page shorter than this (text bigger than 1.5, a small view) is short: margins of SHORT_MARGIN
+## above and below, and the header scrolls with the rows, so they get the room (docs/UI_FLOW.md §2).
+const SHORT_HEIGHT := 720.0
+const SHORT_MARGIN := 24
 ## Space kept round the focused row when scrolling to it.
 const REVEAL_MARGIN := 12
 
@@ -60,6 +64,12 @@ var _footer: MarginContainer
 var _actions: HBoxContainer
 var _action_list: Array[Control] = []
 var _pane: VBoxContainer
+var _margin: MarginContainer
+var _column: VBoxContainer
+## The crumbs, the step row, the title and what add_header() adds: over the content, or at the top
+## of the scroll on a short page.
+var _head: VBoxContainer
+var _rows_box: VBoxContainer
 var _title_label: Label
 var _crumb_label: Label
 var _step_label: RichTextLabel
@@ -76,20 +86,24 @@ func _ready() -> void:
 	bg.color = UiKit.BACKGROUND
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
-	var margin := MarginContainer.new()
-	margin.name = "Margin"
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_margin = MarginContainer.new()
+	_margin.name = "Margin"
+	_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, MARGIN)
-	add_child(margin)
+		_margin.add_theme_constant_override("margin_" + side, MARGIN)
+	add_child(_margin)
 	var column := VBoxContainer.new()
 	column.name = "Column"
-	margin.add_child(column)
+	_column = column
+	_margin.add_child(column)
+	_head = VBoxContainer.new()
+	_head.name = "Head"
+	column.add_child(_head)
 	_crumb_label = Label.new()
 	_crumb_label.name = "Crumbs"
 	_crumb_label.theme_type_variation = &"PageCrumb"
 	_crumb_label.clip_text = true
-	column.add_child(_crumb_label)
+	_head.add_child(_crumb_label)
 	_step_label = RichTextLabel.new()
 	_step_label.name = "Steps"
 	_step_label.bbcode_enabled = true
@@ -99,12 +113,12 @@ func _ready() -> void:
 	_step_label.add_theme_font_size_override(&"normal_font_size", 26)
 	_step_label.add_theme_color_override(&"default_color", UiKit.MUTED)
 	_step_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_child(_step_label)
+	_head.add_child(_step_label)
 	_title_label = Label.new()
 	_title_label.name = "Title"
 	_title_label.theme_type_variation = &"PageTitle"
 	_title_label.clip_text = true
-	column.add_child(_title_label)
+	_head.add_child(_title_label)
 	var content := HBoxContainer.new()
 	content.name = "Content"
 	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -136,6 +150,7 @@ func _ready() -> void:
 	_frame.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_scroll.add_child(_frame)
 	var rows := VBoxContainer.new()
+	_rows_box = rows
 	_frame.add_child(rows)
 	body = VBoxContainer.new()
 	body.name = "Body"
@@ -372,6 +387,16 @@ func _unhandled_input(event: InputEvent) -> void:
 func _fit() -> void:
 	if _scroll == null:
 		return
+	var short := size.y < SHORT_HEIGHT
+	_margin.add_theme_constant_override(&"margin_top", SHORT_MARGIN if short else MARGIN)
+	_margin.add_theme_constant_override(&"margin_bottom", SHORT_MARGIN if short else MARGIN)
+	var head_in := _rows_box if short else _column
+	if _head.get_parent() != head_in:
+		var had := UiKit.focus_owner(self) if is_inside_tree() else null # a tab
+		_head.reparent(head_in, false)
+		head_in.move_child(_head, 0)
+		if had and is_instance_valid(had) and had.is_inside_tree() and _head.is_ancestor_of(had):
+			had.grab_focus()
 	_pane.visible = _pane.get_child_count() > 0 and size.x >= PANE_MIN_WIDTH
 	var side := 8
 	if not _pane.visible:
