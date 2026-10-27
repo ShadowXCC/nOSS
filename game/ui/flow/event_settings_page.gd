@@ -19,6 +19,9 @@ var preset := ""
 func _ready() -> void:
 	title = flow.name()
 	crumbs = flow.crumbs("Settings")
+	if back_hint.is_empty(): # the page the type was picked on
+		back_hint = "Back to " + ({ "racing": "Racing", "mini": "Mini Games" } as Dictionary).get(flow.type,
+			"Local Drive" if flow.context == "local" else "the event types")
 	steps = flow.steps()
 	step = steps.find("Settings")
 	super._ready()

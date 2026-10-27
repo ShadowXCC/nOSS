@@ -272,13 +272,14 @@ static func text_field(text: String, value: String, on_changed: Callable, max_le
 
 
 ## Labelled colour: a picker button plus the hex value.
-static func color(text: String, value: Color, on_changed: Callable) -> HBoxContainer:
+static func color(text: String, value: Color, on_changed: Callable, description := "") -> HBoxContainer:
 	var row := HBoxContainer.new()
 	var l := label(text)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(l)
 	var b := ColorPickerButton.new()
-	b.accessibility_name = text
+	b.accessibility_name = text.strip_edges() # an indented row's name without its indent
+	b.accessibility_description = description
 	b.color = value
 	b.edit_alpha = false
 	b.custom_minimum_size = Vector2(160, 56)
@@ -512,6 +513,30 @@ static func focus_later(c: Control) -> void:
 		var target := instance_from_id(id) as Control
 		if target and target.is_inside_tree():
 			target.grab_focus()).call_deferred()
+
+
+## A labelled row on a page (docs/UI_FLOW.md §2): its labels at the rows' text size (they're made
+## at the menus' 30 px), and a slider's row outlined in the accent colour while the slider has the
+## focus, as a button row is (Godot draws no focus on a slider; it only brightens).
+static func page_row(row: HBoxContainer) -> void:
+	var labels := row.get_children().filter(func(c: Node) -> bool: return c is Label)
+	for l: Label in labels:
+		if l.get_theme_font_size(&"font_size") == FONT_SIZE:
+			l.add_theme_font_size_override(&"font_size", PAGE_FONT_SIZE)
+	var slider := _focus_target(row) as Slider
+	if slider == null:
+		return
+	var inset := StyleBoxEmpty.new() # inside the outline, as a button row's text is
+	inset.content_margin_left = 10
+	inset.content_margin_right = 10
+	for l: Label in labels:
+		l.add_theme_stylebox_override(&"normal", inset)
+	var outline := _box(Color(0, 0, 0, 0), ACCENT, 4, 0)
+	row.draw.connect(func() -> void:
+		if slider.has_focus():
+			row.draw_style_box(outline, Rect2(Vector2.ZERO, row.size)))
+	slider.focus_entered.connect(row.queue_redraw)
+	slider.focus_exited.connect(row.queue_redraw)
 
 
 static func _focus_target(c: Control) -> Control:

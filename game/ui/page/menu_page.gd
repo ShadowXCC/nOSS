@@ -36,7 +36,11 @@ var crumbs: PackedStringArray = []
 ## step row without them.
 var steps: PackedStringArray = []
 var step := -1
-## The Back row's text and description. Empty: no Back row (the page has its own ways out).
+## Crumbs Back's description names otherwise ("Back to the pause menu").
+const PLACES := { "Pause": "the pause menu", "Players": "the players", "Lobby": "the lobby" }
+
+## The Back row's text and description. Empty: no Back row (the page has its own ways out). No
+## description: the page before, by its crumb ("Back to Settings"; PLACES).
 var back_text := "Back"
 var back_hint := ""
 ## Prompt entries besides Select and Back: [what, label] (PromptBar).
@@ -148,6 +152,8 @@ func _ready() -> void:
 	refresh_header()
 	_build()
 	if back_text:
+		if back_hint.is_empty() and crumbs.size() >= 2:
+			back_hint = "Back to " + String(PLACES.get(crumbs[-2], crumbs[-2]))
 		back_button = UiKit.button(back_text, func() -> void: closed.emit(), back_hint)
 		back_button.name = "Back"
 		back_button.custom_minimum_size.y = UiKit.ROW_HEIGHT
@@ -197,10 +203,13 @@ func step_text() -> String:
 	return "Step %d of %d" % [step + 1, steps.size()] if not steps.is_empty() and step >= 0 else ""
 
 
-## Adds a row to the body: a focusable row is made 72 tall (UiKit.ROW_HEIGHT).
+## Adds a row to the body: a focusable row is made 72 tall (UiKit.ROW_HEIGHT); a labelled one (a
+## slider, a text field) gets the rows' text size too (UiKit.page_row()).
 func add_row(c: Control) -> Control:
 	if c is BaseButton or c is HBoxContainer:
 		c.custom_minimum_size.y = maxf(c.custom_minimum_size.y, UiKit.ROW_HEIGHT)
+	if c is HBoxContainer:
+		UiKit.page_row(c)
 	body.add_child(c)
 	_rows.append(c)
 	return c

@@ -20,6 +20,8 @@ var in_session := false
 func _ready() -> void:
 	title = "Settings"
 	crumbs = ["Pause", "Settings"] if in_session else ["Settings"]
+	if not in_session:
+		back_hint = "Back to the main menu"
 	tabs = ["Display", "Sound", "Splitscreen", "General"] if in_session else ["Display", "Sound", "Splitscreen", "General", "Players"]
 	super._ready()
 
@@ -29,22 +31,25 @@ func _build_tab(which: String) -> void:
 		"Display":
 			add_row(UiKit.spinner("Graphics", [["low", "Low"], ["medium", "Medium"], ["high", "High"]], Settings.graphics,
 				func(v: String) -> void: Settings.set_value("graphics", v), "Detail and smoothing. Low runs fastest"))
-			add_row(UiKit.check("Fullscreen", Settings.fullscreen, func(on: bool) -> void: Settings.set_value("fullscreen", on)))
+			add_row(UiKit.check("Fullscreen", Settings.fullscreen, func(on: bool) -> void: Settings.set_value("fullscreen", on),
+				"The whole screen, or a window"))
 		"Sound":
 			add_row(UiKit.slider("Volume", Settings.master_volume, func(v: float) -> void: Settings.set_value("master_volume", v), "Everything"))
-			for item: Array in [["vol_own_engine", "Own engine"], ["vol_other_engines", "Other engines"], ["vol_tires", "Tires and wind"],
-					["vol_effects", "Effects"], ["vol_ambience", "Ambience"], ["vol_music", "Music"], ["vol_ui", "Menus"],
-					["vol_spotter", "Spotter voice"], ["vol_narration", "Narration"]]:
+			for item: Array in [["vol_own_engine", "Own engine", "Your car's engine"], ["vol_other_engines", "Other engines", "Everyone else's"],
+					["vol_tires", "Tires and wind", "Tire squeal, skids and wind noise"], ["vol_effects", "Effects", "Start lights, horns, sirens, items"],
+					["vol_ambience", "Ambience", "Weather and the world round you"], ["vol_music", "Music", "Music on endless drives"],
+					["vol_ui", "Menus", "Menu sounds"], ["vol_spotter", "Spotter voice", "Car left, car right, clear"],
+					["vol_narration", "Narration", "Menus and race events read aloud"]]:
 				var key: String = item[0]
-				add_row(UiKit.slider(item[1], float(Settings.get(key)), func(v: float) -> void: Settings.set_value(key, v)))
+				add_row(UiKit.slider(item[1], float(Settings.get(key)), func(v: float) -> void: Settings.set_value(key, v), item[2]))
 			add_row(UiKit.check("Mono", Settings.mono, func(on: bool) -> void: Settings.set_value("mono", on), "Everything in both ears"))
 		"Splitscreen":
 			add_row(UiKit.spinner("2 players", [["stacked", "One above the other"], ["side", "Side by side"]], Settings.split_two,
-				func(v: String) -> void: Settings.set_value("split_two", v)))
+				func(v: String) -> void: Settings.set_value("split_two", v), "How two players' views are split"))
 			add_row(UiKit.spinner("3 players", [["wide", "Wide top"], ["map", "With track map"]], Settings.split_three,
-				func(v: String) -> void: Settings.set_value("split_three", v)))
+				func(v: String) -> void: Settings.set_value("split_three", v), "Three players: a wide view on top, or a track map in the fourth"))
 			add_row(UiKit.spinner("Sound from", [["all", "Every player"], ["p1", "P1 only"]], Settings.split_audio,
-				func(v: String) -> void: Settings.set_value("split_audio", v)))
+				func(v: String) -> void: Settings.set_value("split_audio", v), "Hear every player's car, or only P1's"))
 			add_row(UiKit.check("Auto resolution", Settings.auto_resolution, func(on: bool) -> void: Settings.set_value("auto_resolution", on),
 				"Lowers each view's detail to hold the frame rate"))
 		"General":
@@ -99,12 +104,13 @@ func _ask_clear() -> void:
 	open_over(confirm)
 
 
-func _open_player() -> void:
+func _open_player() -> PlayerSettingsMenu:
 	var menu := PlayerSettingsMenu.new()
 	menu.profile = Settings.primary
 	menu.slot = Players.slots[0] if not Players.slots.is_empty() and Players.slots[0].profile == Settings.primary else null
 	menu.crumbs = crumbs + PackedStringArray(["Driving Settings"])
 	open_over(menu)
+	return menu
 
 
 func _open_profiles() -> void:

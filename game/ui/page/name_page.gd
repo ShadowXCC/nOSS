@@ -14,6 +14,10 @@ var status: Label
 var _field: LineEdit
 
 
+func _init() -> void:
+	back_hint = "Without saving"
+
+
 func _build() -> void:
 	var row := UiKit.text_field("Name", value, func(t: String) -> void: value = t, 40, "", _submit)
 	row.name = "Name"
