@@ -81,9 +81,11 @@ func button(i := -1) -> Button:
 ## Makes tab `i` current, without `changed` (the page shows it itself).
 func select(i: int) -> void:
 	current = clampi(i, 0, maxi(tabs.size() - 1, 0))
+	# Without a signal the group doesn't let go of the tab before: each one is set here.
+	for j in _buttons.size():
+		_buttons[j].set_pressed_no_signal(j == current)
 	var b := button()
 	if b:
-		b.set_pressed_no_signal(true)
 		_show.call_deferred(b)
 
 

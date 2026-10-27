@@ -53,6 +53,15 @@ func _row_names(page: MenuPage) -> Array:
 	return out
 
 
+## The tabs shown as current (pressed).
+func _pressed_tabs(page: TabbedPage) -> Array:
+	var out := []
+	for i in page.tabs.size():
+		if page.tab_row.button(i).button_pressed:
+			out.append(page.tabs[i])
+	return out
+
+
 func test_settings_tabs_switch_by_action_and_by_key() -> void:
 	var menu := _open(SettingsMenu.new()) as SettingsMenu
 	await _frames()
@@ -67,7 +76,7 @@ func test_settings_tabs_switch_by_action_and_by_key() -> void:
 	await _frames()
 	assert_str(menu.tab_name()).is_equal("Sound")
 	assert_str(_focused_name()).is_equal("Volume")
-	assert_bool(menu.tab_row.button().button_pressed).is_true()
+	assert_array(_pressed_tabs(menu)).is_equal(["Sound"]) # only the current one underlined
 	assert_array(_row_names(menu)).is_equal(["Volume", "Own engine", "Other engines", "Tires and wind", "Effects", "Ambience", "Music",
 		"Menus", "Spotter voice", "Narration", "Mono", "Reset to defaults"])
 	# Q and E in the window, wrapping.
@@ -78,6 +87,7 @@ func test_settings_tabs_switch_by_action_and_by_key() -> void:
 	assert_array(_row_names(menu)).is_equal(["Driving Settings", "Profiles"]) # nothing to reset
 	await _key(KEY_E)
 	assert_str(menu.tab_name()).is_equal("Display")
+	assert_array(_pressed_tabs(menu)).is_equal(["Display"])
 	# On the row: up from the first row, then right and left switch, the focus staying on it.
 	_action(get_viewport(), "ui_up")
 	await _frames()
