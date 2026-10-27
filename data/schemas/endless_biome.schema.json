@@ -8,7 +8,7 @@
   "required": ["schema", "id", "name", "far_color", "scatter"],
   "properties": {
     "schema": { "const": "noss.endless_biome/1" },
-    "id": { "enum": ["coast", "forest", "farmland", "canyon", "alpine", "snow", "autumn"] },
+    "id": { "enum": ["coast", "forest", "farmland", "canyon", "alpine", "snow", "autumn", "haunted"] },
     "name": { "type": "string", "maxLength": 32 },
     "far_color": { "description": "The ground's colour far off.", "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
     "limit_kmh": { "description": "The speed limit on its road, km/h (EndlessLimits.TIERS; tight bends two tiers lower, D193).", "enum": [30, 40, 50, 60, 70, 80, 90, 100, 110, 120] },
@@ -33,7 +33,9 @@
       "properties": {
         "birds": { "type": "number", "minimum": 0, "maximum": 1 },
         "crickets": { "type": "number", "minimum": 0, "maximum": 1 },
-        "surf": { "type": "number", "minimum": 0, "maximum": 1 }
+        "surf": { "type": "number", "minimum": 0, "maximum": 1 },
+        "wind": { "description": "Wind at least this loud, whatever the weather.", "type": "number", "minimum": 0, "maximum": 1 },
+        "thunder": { "description": "Distant thunder now and then (no lightning), this loud.", "type": "number", "minimum": 0, "maximum": 1 }
       }
     },
     "weather": {
@@ -42,7 +44,31 @@
       "properties": {
         "snowy": { "description": "Rain falls as snow here.", "type": "boolean" },
         "rain": { "description": "How much of the rain falls here (a desert: little).", "type": "number", "minimum": 0, "maximum": 1 },
-        "fog": { "type": "number", "minimum": 0, "maximum": 2 }
+        "fog": { "type": "number", "minimum": 0, "maximum": 2 },
+        "fog_min": { "description": "Fog at least this thick, whatever the weather (0..1).", "type": "number", "minimum": 0, "maximum": 1 },
+        "odds": {
+          "description": "Its own fronts' weather and their odds, in place of the sky's own, when the weather is Changing (EnvState.FRONT_ODDS).",
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "clear": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "cloudy": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "rain": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "storm": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "fog": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "snow": { "type": "integer", "minimum": 0, "maximum": 100 }
+          }
+        }
+      }
+    },
+    "sky": {
+      "description": "Its own sky, whatever the time of day.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sun_elevation_deg": { "description": "The sun this high (below 0: night), degrees.", "type": "number", "minimum": -30, "maximum": 90 },
+        "fog_color": { "description": "The fog's colour here (a night's fog is near black).", "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
       }
     },
     "water": { "description": "The sea shows here.", "type": "boolean" }

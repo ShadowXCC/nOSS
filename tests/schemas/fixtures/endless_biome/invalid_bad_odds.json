@@ -1,0 +1,1 @@
+{ "schema": "noss.endless_biome/1", "id": "haunted", "name": "Haunted", "far_color": "#2c3328", "scatter": [], "weather": { "odds": { "storm": 40, "hail": 60 } } }

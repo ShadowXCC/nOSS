@@ -1,0 +1,8 @@
+{
+  "schema": "noss.endless_biome/1", "id": "haunted", "name": "Haunted", "far_color": "#2c3328", "limit_kmh": 60,
+  "scatter": [ { "prop": "dead_tree", "per_ha": 35 }, { "prop": "gravestone", "per_ha": 12 }, { "prop": "bush", "per_ha": 8 }, { "prop": "rock", "per_ha": 5 },
+    { "prop": "jack_o_lantern", "per_ha": 2, "near_road": 60 }, { "prop": "lamp_post", "per_ha": 0.6, "near_road": 30 }, { "prop": "iron_fence", "per_ha": 1.5, "near_road": 80 } ],
+  "ambience": { "crickets": 0.7, "wind": 0.5, "thunder": 0.4 },
+  "weather": { "rain": 1.0, "fog": 1.6, "fog_min": 0.45, "odds": { "storm": 40, "fog": 45, "rain": 15 } },
+  "sky": { "sun_elevation_deg": -10, "fog_color": "#3c4858" }
+}

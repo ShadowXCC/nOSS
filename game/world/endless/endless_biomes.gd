@@ -26,6 +26,12 @@ static func index_of(id: String) -> int:
 	return maxi(Array(NossRoadGen.biome_ids()).find(id), 0)
 
 
+## A biome's data by id; {} for none or an unknown one (a track's setting, D221).
+static func find(id: String) -> Dictionary:
+	var i := Array(NossRoadGen.biome_ids()).find(id)
+	return of(i) if i >= 0 else {}
+
+
 static func name_of(index: int) -> String:
 	return String(of(index).get("name", ""))
 
