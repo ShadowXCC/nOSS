@@ -45,7 +45,7 @@ extends Node
 ##   --cup[=<id>]         a cup right away (the Spark Cup, or <id>; --race-ai)
 ##   --sumo               a sumo match right away (--sumo-tiers=1-5, --sumo-hazard=lava|acid,
 ##                        --sumo-shrink=smooth|crumble|stepped, --sumo-secs=<s>, --sumo-pillar,
-##                        --sumo-drift=off|drift|boost, --sumo-garage-ai, --race-ai)
+##                        --sumo-drift=off|drift, --sumo-garage-ai, --race-ai)
 ##   --drag               a drag match right away (--drag-length=201|402|805, --drag-boost=0-3,
 ##                        --drag-class=street|pro|top_fuel, --drag-seed=<n> the ladder's draw,
 ##                        --drag-no-timing, --drag-no-qtes, --drag-no-tree, --drag-no-two-step,

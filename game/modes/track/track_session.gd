@@ -755,17 +755,14 @@ func _ready_battle() -> void:
 	race.standings_source = battle.standings
 
 
-## Sumo's drift setting (D181). The class's own numbers are already "drift, no boost" -- the mode
-## file zeroes `boost_s`, and KartLayer gives no boost for 0 s -- so only the other two modes have
-## anything to do here. "off" takes the button away rather than detuning the drift, because the hop
-## fires on a press whatever the minimum speed says.
+## Sumo's drift setting (D181, D219): Drift or Off. The class's own numbers are already the drift
+## -- a quick pivot with no boost (the mode file zeroes `boost_s`) -- so only "off" has anything to
+## do here. It takes the button away rather than detuning the drift, because the hop fires on a
+## press whatever the minimum speed says.
 func _apply_sumo_drift() -> void:
 	if arcade.is_empty():
 		return
-	var want := String(event.sumo_drift)
-	drift_allowed = want != "off"
-	if want == "boost":
-		(arcade.drift as Dictionary).boost_s = (GameModes.ARCADE_DEFAULTS.drift.boost_s as Array).duplicate()
+	drift_allowed = String(event.sumo_drift) != "off"
 
 
 ## Sumo (D162): the platforms' rules, their HUD and their sounds, and the standings RaceControl

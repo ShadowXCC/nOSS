@@ -387,8 +387,8 @@ func test_a_car_rolling_off_lands_and_drives_away() -> void:
 	assert_int(sumo.layout.standing_on(a.com())).is_equal(1)
 
 
-## The drift setting (D181). The Sumo class's own numbers are already the middle mode -- the kart
-## layer with the drift boost zeroed -- so this is what the other two do to them.
+## The drift setting (D181, D219). The Sumo class's own numbers are already Drift -- the kart
+## layer's slide with the boost zeroed -- so this is what Off does to them.
 func test_the_drift_setting_leaves_the_slide_and_takes_the_boost() -> void:
 	await _start(1, "lava", false, "drift")
 	assert_bool(s.drift_allowed).is_true()
@@ -397,10 +397,47 @@ func test_the_drift_setting_leaves_the_slide_and_takes_the_boost() -> void:
 		assert_float(seconds).override_failure_message("plain Drift should give no boost").is_equal(0.0)
 
 
-func test_the_drift_setting_can_give_the_boost_back() -> void:
-	await _start(1, "lava", false, "boost")
-	assert_bool(s.drift_allowed).is_true()
-	assert_array(s.arcade.drift.boost_s).is_equal(GameModes.ARCADE_DEFAULTS.drift.boost_s)
+## Drift + boost is gone: Drift and Off are left, and an event saved with the boost (a playlist,
+## an older server) reads as Drift.
+func test_the_drift_setting_is_drift_or_off() -> void:
+	assert_array(RaceEvent.CHOICES.sumo_drift).contains_exactly_in_any_order(["drift", "off"])
+	assert_array(EventForms.DRIFTS.map(func(d: Array) -> String: return d[0])).contains_exactly_in_any_order(["drift", "off"])
+	var e := RaceEvent.from_dict(RaceEvent.sumo().to_dict().merged({ "sumo_drift": "boost" }, true))
+	assert_str(e.sumo_drift).is_equal("drift")
+
+
+## Mean yaw rate (rad/s) over 0.8 s of full steer at 15 km/h, drifting or not; and whether the
+## drift took.
+func _turn(drifting: bool) -> Array:
+	var v := a.vehicle
+	v.reset_to(Transform3D(Basis.IDENTITY, Vector3(0.0, sumo.layout.floor_y_of(0) + 0.05, -8.0)), Vector3(0, 0, 15.0 / 3.6))
+	for i in 20:
+		v.throttle = clampf((15.0 / 3.6 - v.speed()) * 0.8 + 0.3, 0.0, 1.0)
+		await get_tree().physics_frame
+	v.steer = 1.0
+	v.drift = drifting
+	var yaw := 0.0
+	var took := false
+	for i in 96:
+		v.throttle = clampf((15.0 / 3.6 - v.speed()) * 0.8 + 0.3, 0.0, 1.0)
+		await get_tree().physics_frame
+		yaw += absf(v.angular_velocity.y) / 96.0
+		took = took or v.drifting()
+	v.drift = false
+	v.steer = 0.0
+	v.throttle = 0.0
+	return [yaw, took]
+
+
+## A quick pivot from 15 km/h (D219): the drift starts there, and turns far faster than the steering
+## alone does.
+func test_the_drift_pivots_from_15_kmh() -> void:
+	await _start()
+	await _running()
+	var plain := await _turn(false)
+	var drift := await _turn(true)
+	assert_bool(drift[1]).override_failure_message("the drift never started").is_true()
+	assert_float(float(drift[0])).override_failure_message("yaw %.2f drifting, %.2f plain" % [drift[0], plain[0]]).is_greater(3.0 * float(plain[0]))
 
 
 func test_the_drift_setting_can_take_the_button_away() -> void:

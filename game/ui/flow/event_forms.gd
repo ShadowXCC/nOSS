@@ -26,7 +26,7 @@ const TIERS := [[1, "1"], [2, "2"], [3, "3"], [4, "4"], [5, "5"]]
 const HAZARDS := [["lava", "Lava"], ["acid", "Acid"]]
 const SHRINKS := [["smooth", "Smooth"], ["crumble", "Crumbling"], ["stepped", "Stepped"]]
 const SUMO_LENGTHS := [[60, "Short"], [90, "Normal"], [150, "Long"]]
-const DRIFTS := [["off", "Off"], ["drift", "Drift"], ["boost", "Drift + boost"]]
+const DRIFTS := [["off", "Off"], ["drift", "Drift"]]
 ## Drag Strip: each length in metres, with its name in miles and in metres (Settings.units picks).
 const DRAG_LENGTHS := [[201, "1/8 mile", "201 m"], [402, "1/4 mile", "402 m"], [805, "1/2 mile", "805 m"]]
 const BOOSTS := [[0, "Off"], [1, "1"], [2, "2"], [3, "3"]]
@@ -383,7 +383,7 @@ static func sumo(page: EventSettingsPage) -> void:
 	page.add_row(UiKit.spinner("Sudden death", OFF, e.sumo_pillar, func(v: bool) -> void:
 		e.sumo_pillar = v, "The last platform stops at a pillar instead of going altogether"))
 	page.add_row(UiKit.spinner("Drift", DRIFTS, e.sumo_drift, func(v: String) -> void:
-		e.sumo_drift = v, "Hop and slide like a kart; boost rewards a long drift"))
+		e.sumo_drift = v, "Hop and slide to turn sharply"))
 	ai_rows(page, "AI cars", 11)
 	page.add_row(UiKit.spinner("AI models", [["garage", "Garage"], ["builtin", "Built-in"]], e.ai_cars, func(v: String) -> void:
 		e.ai_cars = v, "Garage: bots bring your own cars too"))

@@ -51,9 +51,9 @@ var battle_min := 5
 var battle_hits := 10
 ## Sumo (docs/GAMEMODES.md §5): how many platforms are stacked (1-5), what's underneath
 ## ("lava" or "acid"), how a platform shrinks ("smooth", "crumble" or "stepped"), how long one
-## takes to shrink away, whether the bottom one stops at a pillar instead of vanishing, and how
-## much of the kart drift the cars get ("drift": the hop and the slide, "boost": with the boost a
-## long drift charges, "off": neither, and the handbrake works again instead).
+## takes to shrink away, whether the bottom one stops at a pillar instead of vanishing, and
+## whether the cars get the kart drift ("drift": the hop and a quick pivot, D219; "off": not, and
+## the handbrake works again instead). The old "boost" reads as "drift".
 var sumo_tiers := 2
 var sumo_hazard := "lava"
 var sumo_shrink := "smooth"
@@ -107,7 +107,7 @@ const CHOICES := {
 	"track_limits": ["lenient", "off", "strict"], "ai_cars": ["garage", "builtin"], "sub": ["cruise", "score", "run", "loop"],
 	"battle_rule": ["standing", "hits"],
 	"sumo_hazard": ["lava", "acid"], "sumo_shrink": ["smooth", "crumble", "stepped"],
-	"sumo_drift": ["drift", "off", "boost"],
+	"sumo_drift": ["drift", "off"],
 	"time": ["track", "dawn", "morning", "noon", "afternoon", "dusk", "night"],
 	"weather": ["track", "clear", "cloudy", "rain", "storm", "fog", "snow", "changing"],
 	"endless_traffic": ["light", "normal", "heavy", "off"], "spread": ["bring", "hold"],
