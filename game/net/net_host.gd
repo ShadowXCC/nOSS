@@ -528,7 +528,8 @@ func _ai_entries() -> Array:
 
 
 ## An endless road's garage traffic (D191): up to EndlessTraffic.GARAGE_SHARED of this game's cars
-## that may be shared, each with the traffic types it drives as: [{car: hash, fits: [type id]}].
+## that may be shared and are left on in the Garage (D222), each with the traffic types it drives
+## as: [{car: hash, fits: [type id]}].
 func _endless_cars() -> Array:
 	var out := []
 	var e := event()
@@ -536,7 +537,8 @@ func _endless_cars() -> Array:
 		return out
 	var paths := PackedStringArray()
 	for path in PackageLoader.list_available():
-		if ContentIndex.shareable(PackageLoader.read_manifest(path)):
+		var manifest := PackageLoader.read_manifest(path)
+		if ContentIndex.shareable(manifest) and GarageFiles.in_traffic(String(manifest.get("id", ""))):
 			paths.append(path)
 	var types: Array[Dictionary] = []
 	for t: Dictionary in TrafficTypes.list():

@@ -10,6 +10,7 @@ extends GdUnitTestSuite
 
 func before() -> void:
 	Settings.use_folder("user://tests/endless_net")
+	Settings.reset_keys(["traffic_off"]) # every car in traffic
 
 
 func after() -> void:
@@ -190,6 +191,18 @@ func test_one_sky_and_one_road_for_everyone() -> void:
 	Net.host_logic.start_session()
 	assert_bool((Net.host_logic.session_dict().endless.traffic_cars as Array).is_empty()).is_true()
 	Net.leave()
+	# With it on but every car switched out of traffic in the Garage (D222), none either.
+	e.garage_traffic = true
+	cfg.rotation = [{ "track": "anything", "class": "official.endless.cruiser", "event": e.to_dict() }]
+	var ids := PackedStringArray()
+	for path in PackageLoader.list_available():
+		ids.append(String(PackageLoader.read_manifest(path).get("id", "")))
+	GarageFiles.set_in_traffic(ids, false)
+	assert_int(Net.host(cfg, [{ "name": "Host", "color": "00ff00" }])).is_equal(OK)
+	Net.host_logic.start_session()
+	assert_bool((Net.host_logic.session_dict().endless.traffic_cars as Array).is_empty()).is_true()
+	Net.leave()
+	Settings.reset_keys(["traffic_off"])
 	Game.hold_events = false
 
 

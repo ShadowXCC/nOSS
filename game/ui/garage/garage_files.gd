@@ -1,7 +1,7 @@
 class_name GarageFiles
 extends RefCounted
 ## Garage file operations (docs/VEHICLE_PACKAGE.md §8, PKG-05): list cars with their details,
-## duplicate, change files (paint, sound) and delete. Changes go through PackageWriter, so a
+## duplicate, change files (paint, sound) and delete; and which cars may drive in traffic (D222). Changes go through PackageWriter, so a
 ## car's version goes up and a bad write never replaces it.
 
 const INDEX := "user://cache/garage_index.json"
@@ -152,6 +152,41 @@ static func copy_sound(source: String, target: String) -> Dictionary:
 			old.erase(rel) # own recordings of the old sound go with it
 	old.merge(changes, true)
 	return PackageWriter.write(target, info_of(PackageLoader.read_manifest(target)), old)
+
+
+## Whether the car with manifest `id` may drive in traffic (D222): yes unless switched off in the
+## Garage's Traffic cars.
+static func in_traffic(id: String) -> bool:
+	return id not in Settings.traffic_off
+
+
+## Switches the cars with these manifest ids into traffic or out of it, and saves.
+static func set_in_traffic(ids: PackedStringArray, on: bool) -> void:
+	var off := Settings.traffic_off.duplicate()
+	for id in ids:
+		if on:
+			off.erase(id)
+		elif id not in off:
+			off.append(id)
+	Settings.set_value("traffic_off", off)
+
+
+## The cars of `paths` that may drive in traffic.
+static func traffic_paths(paths: PackedStringArray) -> PackedStringArray:
+	var out := PackedStringArray()
+	for path in paths:
+		if in_traffic(String(PackageLoader.read_manifest(path).get("id", ""))):
+			out.append(path)
+	return out
+
+
+## The cars of `paths` some traffic type takes as they are (EndlessTraffic.garage_pool's rule):
+## path -> true.
+static func traffic_fits(paths: PackedStringArray) -> Dictionary:
+	var out := {}
+	for g: Dictionary in EndlessTraffic.garage_pool(paths, 0, paths.size()):
+		out[String(g.path)] = true
+	return out
 
 
 static func _triangles(path: String) -> int:

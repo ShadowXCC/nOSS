@@ -15,7 +15,10 @@ func _ready() -> void:
 		Game.open_fitting_bay.call_deferred()
 	elif Game.dev.has("garage"):
 		var car := String(Game.dev.garage) if Game.dev.garage != "true" else ""
-		Game.open_garage.call_deferred(car, "car" if car else "")
+		if car == "traffic":
+			Game.open_garage.call_deferred("", "traffic")
+		else:
+			Game.open_garage.call_deferred(car, "car" if car else "")
 	elif Game.dev.has("editor"):
 		Game.open_dev_editor.call_deferred()
 	elif Game.dev.has("race") or Game.dev.has("time-trial") or Game.dev.has("highway") or Game.dev.has("endless") \

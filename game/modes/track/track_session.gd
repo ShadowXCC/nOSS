@@ -329,9 +329,10 @@ func _ready_endless() -> void:
 		traffic.oncoming = event.oncoming
 		endless_traffic = traffic
 		add_child(traffic)
-		# Garage cars in the traffic (D191): this game's own; online, the host's (_online_garage).
+		# Garage cars in the traffic (D191): this game's own, those left on in the Garage (D222);
+		# online, the host's (_online_garage).
 		if event.garage_traffic and not is_online():
-			traffic.set_garage(EndlessTraffic.garage_pool(PackageLoader.list_available(), event.road_seed))
+			traffic.set_garage(EndlessTraffic.garage_pool(GarageFiles.traffic_paths(PackageLoader.list_available()), event.road_seed))
 	if event.speed_traps and not dedicated:
 		endless_traps = EndlessTraps.new()
 		endless_traps.session = self

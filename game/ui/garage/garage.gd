@@ -1,9 +1,9 @@
 class_name Garage
 extends Control
 ## The garage (docs/VEHICLE_PACKAGE.md §8, PKG-05, docs/UI_FLOW.md §8): its pages on their own
-## MenuStack. The grid of cars first (GaragePage); a car's page over it (CarPage: drive, edit,
-## paint, sound, duplicate, copy sound, export, delete); Paint, Copy sound to and Delete over
-## that. One turntable shows the car, in the pane of whichever page is up.
+## MenuStack. The grid of cars first (GaragePage, with its Traffic cars mode); a car's page over
+## it (CarPage: drive, edit, paint, sound, duplicate, copy sound, export, delete); Paint, Copy
+## sound to and Delete over that. One turntable shows the car, in the pane of whichever page is up.
 
 ## Wait this long after the focus stops moving before loading a car for the turntable, so
 ## arrowing past big cars doesn't load each.
@@ -12,7 +12,8 @@ const FIT_DELAY := 0.15
 ## The car to pick when the garage opens (back from the Fitting Bay), on its tab; empty: the
 ## first of the player's own cars, or of the built-in ones when they have none.
 var start_car := ""
-## "car": open start_car's page over the grid (back from a bay that page's Edit or Sound opened).
+## "car": open start_car's page over the grid (back from a bay that page's Edit or Sound opened);
+## "traffic": open in Traffic cars (dev, --garage=traffic).
 var start_page := ""
 
 var stack: MenuStack
@@ -53,6 +54,8 @@ func _ready() -> void:
 	stack.push(grid)
 	if start_page == "car" and not car(start_car).is_empty():
 		grid.open_car(start_car)
+	elif start_page == "traffic":
+		grid.set_traffic_mode(true)
 
 
 func _exit_tree() -> void:

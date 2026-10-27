@@ -5,6 +5,9 @@ extends GdUnitTestSuite
 ## cars where the tab doesn't matter: they're small, quick on the turntable.
 
 const BOX := "res://content/cars/noss_box"
+const KART := "res://content/cars/noss_kart"
+## Traffic cars' tests keep the machine settings here, not in the real ones.
+const TRAFFIC_DIR := "user://tests/garage_traffic"
 
 var _made: Array[String] = []
 var _old_size: Vector2i
@@ -458,6 +461,106 @@ func test_copy_sound_lists_only_the_players_other_cars() -> void:
 	assert_object(g.stack.top()).is_same(car)
 	assert_str(car.status.text).is_equal("Sound copied to nOSS Box copy")
 	await _close(g)
+
+
+## Traffic cars (D222), a mode of the grid: each card shows whether its car drives in traffic, a
+## press switches it (kept by id in the machine's settings, so the endless pool leaves it out),
+## a car no traffic type takes is greyed and stays as it is, and Back leaves the mode, not the
+## Garage, the focus back on Traffic cars.
+func test_traffic_cars_switch_cars_in_and_out() -> void:
+	Settings.use_folder(TRAFFIC_DIR)
+	Settings.reset_keys(["traffic_off"])
+	var box_id := String(PackageLoader.read_manifest(BOX).id)
+	var g := await _garage(BOX)
+	var grid := g.grid
+	grid.traffic_button.grab_focus()
+	await _push("ui_accept")
+	assert_bool(grid.traffic_mode).is_true()
+	assert_str(grid.traffic_button.text).is_equal("Done")
+	for b: Button in [grid.new_card, grid.bay_button, grid.back_button]:
+		assert_bool(b.visible).override_failure_message(b.text).is_false()
+	assert_bool(grid.all_on_button.visible and grid.all_off_button.visible).is_true()
+	var box := _card_of(grid, BOX)
+	var kart := _card_of(grid, KART)
+	assert_object(_focused()).is_same(grid.cards[grid.selected])
+	assert_str(_tag(box).text).is_equal("In traffic")
+	assert_bool(box.toggle_mode and box.button_pressed).is_true()
+	assert_str(box.accessibility_description).ends_with("in traffic")
+	assert_str(_tag(kart).text).is_equal("Doesn't fit")
+	assert_bool(kart.toggle_mode).is_false()
+	var count := RegEx.create_from_string("^(\\d+) of (\\d+) in traffic$")
+	var was := count.search(grid.status.text)
+	assert_object(was).override_failure_message(grid.status.text).is_not_null()
+
+	box.grab_focus()
+	await _push("ui_accept")
+	assert_array(Settings.traffic_off).contains_exactly([box_id])
+	assert_str(_tag(box).text).is_equal("Out")
+	assert_bool(box.button_pressed).is_false()
+	assert_int(int(count.search(grid.status.text).get_string(1))).is_equal(int(was.get_string(1)) - 1)
+	assert_bool(GarageFiles.traffic_paths(PackedStringArray([BOX, KART])) == PackedStringArray([KART])).is_true()
+	await _push("ui_accept")
+	assert_array(Settings.traffic_off).is_empty()
+	assert_str(_tag(box).text).is_equal("In traffic")
+
+	kart.grab_focus()
+	await _push("ui_accept")
+	assert_str(grid.status.text).is_equal("Doesn't fit traffic")
+	assert_bool(kart.button_pressed).is_false()
+	assert_array(Settings.traffic_off).is_empty()
+
+	await _push("ui_cancel")
+	assert_bool(grid.traffic_mode).is_false()
+	assert_object(g.stack.top()).is_same(grid)
+	assert_bool(grid.new_card.visible and grid.back_button.visible).is_true()
+	assert_bool(_tag(box).visible or box.toggle_mode).is_false()
+	assert_str(grid.traffic_button.text).is_equal("Traffic cars")
+	await _frames(1)
+	assert_object(_focused()).is_same(grid.traffic_button)
+	await _close(g)
+	Settings.use_folder("user://")
+
+
+## Traffic cars' bar: All off and All on switch only the shown tab's cars that fit (a copy of the box
+## on My cars stays in); and the focus goes tabs → cards → All on → All off → Done → round.
+func test_traffic_cars_all_on_all_off_and_the_focus_ring() -> void:
+	Settings.use_folder(TRAFFIC_DIR)
+	Settings.reset_keys(["traffic_off"])
+	var copy := GarageFiles.copy_car(BOX)
+	_made.append(copy.path)
+	var g := await _garage(BOX) # on Built-in
+	var grid := g.grid
+	grid.set_traffic_mode(true)
+	await _frames(2)
+	grid.all_off_button.pressed.emit()
+	assert_array(Settings.traffic_off).contains_exactly([String(PackageLoader.read_manifest(BOX).id)])
+	assert_bool(GarageFiles.in_traffic(String(PackageLoader.read_manifest(copy.path).id))).is_true()
+	assert_str(_tag(_card_of(grid, BOX)).text).is_equal("Out")
+	grid.all_on_button.pressed.emit()
+	assert_array(Settings.traffic_off).is_empty()
+	assert_str(_tag(_card_of(grid, BOX)).text).is_equal("In traffic")
+
+	grid.cards[-1].grab_focus()
+	var seen: Array[Control] = []
+	for action in ["ui_down", "ui_right", "ui_down", "ui_down", "ui_down"]:
+		await _push(action)
+		seen.append(_focused())
+	assert_array(seen).contains_exactly([grid.all_on_button, grid.all_off_button, grid.traffic_button, grid.tab_row.button(), grid.cards[0]])
+	await _push("ui_up")
+	await _push("ui_up")
+	assert_object(_focused()).is_same(grid.traffic_button)
+	await _close(g)
+	Settings.use_folder("user://")
+
+
+## The card of the car at `path` on the shown tab.
+func _card_of(page: GaragePage, path: String) -> Button:
+	return page.cards[page.cars.find_custom(func(c: Dictionary) -> bool: return c.path == path)]
+
+
+## A card's Traffic cars tag.
+func _tag(card: Button) -> Label:
+	return card.get_node(^"Tag") as Label
 
 
 ## A Garage open on `start` (built-in cars: small and quick on the turntable).

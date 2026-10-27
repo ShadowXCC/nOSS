@@ -35,6 +35,7 @@ const MACHINE := {
 	"net_host": ["online", "host"],
 	"net_recent": ["online", "recent"],
 	"net_favourites": ["online", "favourites"],
+	"traffic_off": ["garage", "traffic_off"],
 }
 
 var graphics := "medium"
@@ -74,6 +75,9 @@ var net_host := {}
 ## player keeps, each {name, address}.
 var net_recent := []
 var net_favourites := []
+## The cars switched out of traffic in the Garage's Traffic cars, by manifest id (D222): every
+## other car that fits drives in endless traffic.
+var traffic_off := []
 
 var primary: PlayerProfile
 var profile := {}

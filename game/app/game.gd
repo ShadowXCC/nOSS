@@ -65,7 +65,8 @@ extends Node
 ##   --shot=<file.png>    save a screenshot at --shot-at=<s> (default 5; a list like 5,30,90 takes several), one per window
 ##   --quit-at=<s>        quit after this many seconds
 ##   --bay                open the Fitting Bay
-##   --garage[=<car>]     open the garage (on that car's page: a package path, res://content/cars/noss_box)
+##   --garage[=<car>]     open the garage (on that car's page: a package path, res://content/cars/noss_box;
+##                        "traffic": in Traffic cars)
 ##   --import=<path>      Fitting Bay: import this model
 ##   --bay-auto           Fitting Bay: save and drive as soon as the import is in (timed runs)
 ##   --bay-step=<step>    Fitting Bay: show this step after the import (screenshots)

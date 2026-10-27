@@ -456,9 +456,9 @@ def settings_menus():
 
 def garage_menus():
     """Main menu -> Garage -> its tabs (Built-in) -> nOSS Box's page (the grid hidden under it) ->
-    Drive -> the class page and back -> Back -> My cars -> Fitting Bay -> the Import step's "From
-    online games" list -> Exit -> the Garage again -> Back (UI overhaul P7, P7b, P11;
-    docs/UI_FLOW.md §5.6, §8)."""
+    Drive -> the class page and back -> Back -> Traffic cars (nOSS Box a switch) -> Done -> My cars
+    -> Fitting Bay -> the Import step's "From online games" list -> Exit -> the Garage again -> Back
+    (UI overhaul P7, P7b, P11, D222; docs/UI_FLOW.md §5.6, §8)."""
     log("Garage")
     ok = step("Main menu (garage)", "Garage")
     ok = ok and step("Garage: to Built-in", "Built-in", role="toggle button")
@@ -474,6 +474,17 @@ def garage_menus():
     ok = ok and hidden("nOSS Box: class", "Duplicate")
     ok = ok and back_from("nOSS Box: class", "Track GT")  # every class that takes the car, any mode's
     ok = ok and back_from("nOSS Box's page again", "Duplicate")
+    # Traffic cars (D222): the cards become switches (traffic takes nOSS Box), Fitting Bay goes from
+    # the bar, and Done brings it back.
+    ok = ok and step("Garage: Traffic cars", "Traffic cars")
+    if ok and find("nOSS Box", "toggle button", timeout=20.0) is None:
+        problems.append("Traffic cars: 'nOSS Box' is no switch")
+        ok = False
+    ok = ok and hidden("Traffic cars", "Fitting Bay")
+    ok = ok and step("Traffic cars", "Done")
+    if ok and find("Fitting Bay", "button", timeout=20.0) is None:
+        problems.append("Out of Traffic cars: no 'Fitting Bay'")
+        ok = False
     ok = ok and step("Garage: to My cars", "My cars", role="toggle button")
     end = time.time() + 20.0
     while ok and find("nOSS Box", "button", timeout=0.5) is not None:  # until the tab has switched
