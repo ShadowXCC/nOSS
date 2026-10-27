@@ -16,8 +16,12 @@ enum Biome : uint8_t {
 	BIOME_ALPINE,
 	BIOME_SNOW,
 	BIOME_AUTUMN,
+	BIOME_HAUNTED,
 	BIOME_COUNT,
 };
+
+// Most biomes that may follow one.
+constexpr int NEXT_MAX = 4;
 
 struct BiomeStyle {
 	const char *id;
@@ -37,7 +41,7 @@ struct BiomeStyle {
 	bool ridged;
 	int32_t regional_pm;
 	int32_t base_mm;
-	int8_t next[3]; // what may come after it (-1: none)
+	int8_t next[NEXT_MAX]; // what may come after it (-1: none, only at the end)
 };
 
 const BiomeStyle &biome_style(int p_biome);

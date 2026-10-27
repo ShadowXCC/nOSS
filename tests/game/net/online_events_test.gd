@@ -15,7 +15,7 @@ func after() -> void:
 
 
 func test_protocol_14() -> void:
-	assert_int(NetProtocol.VERSION).is_equal(14)
+	assert_int(NetProtocol.VERSION).is_greater_equal(14)
 	# Kinds are appended, never reordered: a run is the ninth.
 	assert_int(NetRace.KINDS.find("run")).is_equal(8)
 	assert_int(NetRace.KINDS.find("drag")).is_equal(7)

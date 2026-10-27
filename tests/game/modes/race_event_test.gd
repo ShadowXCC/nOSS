@@ -42,6 +42,14 @@ func test_the_rules_round_trip_and_clamp() -> void:
 	assert_bool(RaceEvent.highway().to_dict().has("draft")).is_false()
 
 
+func test_every_endless_biome_survives_and_others_clamp() -> void:
+	var last := NossRoadGen.biome_ids().size() - 1
+	assert_int(RaceEvent.from_dict(RaceEvent.endless(5, 7).to_dict()).biome).is_equal(7) # Haunted (D221)
+	var d := RaceEvent.endless(5, 1).to_dict()
+	d.biome = 99
+	assert_int(RaceEvent.from_dict(d).biome).is_equal(last)
+
+
 func test_track_rules_resolve_the_track_choices() -> void:
 	var oval := TrackLoader.load_package(OVAL).track
 	var plain := TrackLoader.load_package(PLAIN).track

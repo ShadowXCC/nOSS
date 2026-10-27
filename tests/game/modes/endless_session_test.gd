@@ -122,11 +122,15 @@ func test_autodrive_keeps_its_lane_and_a_reset_puts_it_back() -> void:
 
 func test_road_codes() -> void:
 	for seed_value in [0, 1, 7, 123456, 0x7FFFFFFF]:
-		for biome in 7:
+		for biome in NossRoadGen.biome_ids().size():
 			var code := EndlessCode.encode(seed_value, biome)
 			assert_dict(EndlessCode.decode(code)).is_equal({ "seed": seed_value, "biome": biome })
 			assert_dict(EndlessCode.decode(" " + code.to_lower() + " ")).is_equal({ "seed": seed_value, "biome": biome })
 	assert_str(EndlessCode.encode(7, 1)).is_equal("FOREST-0000007")
+	# Haunted (D221) is appended: the others keep their codes. Its roads change the protocol.
+	assert_str(EndlessCode.encode(1, EndlessBiomes.index_of("haunted"))).is_equal("HAUNTED-0000001")
+	assert_int(EndlessBiomes.index_of("haunted")).is_equal(7)
+	assert_int(NetProtocol.VERSION).is_equal(15)
 	assert_dict(EndlessCode.decode("FOREST-OOOOOO7")).is_equal({ "seed": 7, "biome": 1 }) # O for 0
 	for bad in ["", "forest", "MOON-0000001", "FOREST-", "FOREST-UUUU", "FOREST-ZZZZZZZZ"]:
 		assert_dict(EndlessCode.decode(bad)).is_empty()

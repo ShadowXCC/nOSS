@@ -287,7 +287,7 @@ static func from_dict(d: Dictionary) -> RaceEvent:
 	e.time_rate = clampi(e.time_rate, 0, 600)
 	e.env_seed = clampi(e.env_seed, 0, 0x7FFFFFFF)
 	e.road_seed = clampi(e.road_seed, 0, 0x7FFFFFFF)
-	e.biome = clampi(e.biome, 0, 6)
+	e.biome = clampi(e.biome, 0, NossRoadGen.biome_ids().size() - 1)
 	e.lanes = 4 if e.lanes >= 4 else 2
 	e.fuel_x = clampi(e.fuel_x, -1, WEAR_X_MAX)
 	e.tyre_x = clampi(e.tyre_x, -1, WEAR_X_MAX)

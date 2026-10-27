@@ -85,7 +85,7 @@ void Landscape::_extend_to(int64_t p_axis_mm) const {
 	while (_ends.back() < p_axis_mm + 2 * BLEND_MM) {
 		const BiomeStyle &last = biome_style(_biomes.back());
 		int options = 0;
-		while (options < 3 && last.next[options] >= 0) {
+		while (options < NEXT_MAX && last.next[options] >= 0) {
 			options++;
 		}
 		_biomes.push_back(uint8_t(last.next[rng.below(uint32_t(options))]));

@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
 
@@ -14,6 +15,10 @@ namespace {
 
 constexpr int64_t CONE = 894784853; // 75 degrees
 constexpr int64_t PINNED_SEED1 = 4068332388687893009;
+constexpr int64_t PINNED_HAUNTED = -7993603731218011089;
+constexpr int64_t PINNED_INTO_HAUNTED = -6517383681570269417;
+// A Forest start whose second biome is Haunted (D221).
+constexpr uint64_t INTO_HAUNTED_SEED = 2;
 
 // Every chunk up to p_km, joined (the shared sample between chunks once).
 std::vector<Sample> drive(RoadGen &p_gen, int64_t p_km) {
@@ -96,6 +101,23 @@ TEST_CASE("endless: pinned checksums") {
 	}
 	MESSAGE("seed 1, forest, 12 km: " << int64_t(h));
 	CHECK(int64_t(h) == PINNED_SEED1);
+	// Haunted (D221): a start there, and a Forest start that goes into it.
+	for (auto [seed, start, pinned] : { std::tuple{ uint64_t(1), int(BIOME_HAUNTED), PINNED_HAUNTED }, std::tuple{ INTO_HAUNTED_SEED, int(BIOME_FOREST), PINNED_INTO_HAUNTED } }) {
+		RoadGen r;
+		r.setup(seed, start);
+		uint64_t hr = 0xcbf29ce484222325ULL;
+		int haunted = 0; // samples where it's mostly Haunted
+		for (int k = 0; k < 50; k++) {
+			std::vector<Sample> c = r.chunk(k);
+			hr = RoadGen::checksum(c, hr);
+			for (const Sample &sm : c) {
+				haunted += BiomeMix{ sm.biome, sm.biome2, sm.blend }.dominant() == BIOME_HAUNTED ? 1 : 0;
+			}
+		}
+		MESSAGE("seed " << seed << ", biome " << start << ", 12 km: " << int64_t(hr) << ", " << haunted * 2 << " m of it Haunted");
+		CHECK(int64_t(hr) == pinned);
+		CHECK(haunted > 500);
+	}
 }
 
 TEST_CASE("endless: chunks made again from their checkpoints match") {
@@ -224,6 +246,44 @@ TEST_CASE("endless: biomes follow each other and blend") {
 		int64_t h0 = land.ground_mm(a, 0), h1 = land.ground_mm(a + 1000, 0);
 		REQUIRE(std::llabs(h1 - h0) < 3000);
 	}
+}
+
+// What may follow each biome: Haunted (D221) widened only Forest's and Autumn's choices, so
+// roads through the others are unchanged.
+TEST_CASE("endless: what follows each biome") {
+	const int want[BIOME_COUNT] = { 3, 4, 3, 3, 3, 2, 4, 3 };
+	for (int b = 0; b < BIOME_COUNT; b++) {
+		int n = 0;
+		while (n < NEXT_MAX && biome_style(b).next[n] >= 0) {
+			n++;
+		}
+		CAPTURE(biome_style(b).id);
+		CHECK(n == want[b]);
+	}
+	int seen = 0;
+	uint64_t first = 0;
+	for (uint64_t seed = 1; seed <= 200; seed++) {
+		Landscape land;
+		land.setup(seed, int(seed % BIOME_COUNT));
+		int prev = land.biome_at(0).a;
+		for (int64_t a = 0; a < 120000000; a += 250000) { // 120 km
+			int now = land.biome_at(a).a;
+			if (now == prev) {
+				continue;
+			}
+			if (now == BIOME_HAUNTED) {
+				seen++;
+				first = first ? first : seed;
+				CHECK((prev == BIOME_FOREST || prev == BIOME_AUTUMN));
+			}
+			if (prev == BIOME_HAUNTED) {
+				CHECK((now == BIOME_FOREST || now == BIOME_AUTUMN || now == BIOME_FARMLAND));
+			}
+			prev = now;
+		}
+	}
+	MESSAGE(seen << " times into Haunted over 200 seeds, first on seed " << first);
+	CHECK(seen > 0);
 }
 
 TEST_CASE("endless: a long drive's speed") {

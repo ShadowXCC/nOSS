@@ -175,6 +175,14 @@ void biome_paint(int p_biome, double p_h, double p_slope, double p_patch, double
 			r_w[0] = 0.55 - 0.2 * p_patch;
 			r_w[1] = 0.45 + 0.2 * p_patch;
 			break;
+		case BIOME_HAUNTED: { // bare dirt and gravel, grass in patches
+			double grass = smooth(0.55, 0.8, p_patch);
+			r_w[0] = 0.1 + 0.45 * grass;
+			r_w[1] = 0.65 - 0.35 * grass;
+			r_w[3] = 0.25 - 0.1 * grass;
+			steep = smooth(0.55, 0.85, p_slope);
+			break;
+		}
 		default:
 			r_w[0] = 1.0;
 	}
