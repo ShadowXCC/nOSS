@@ -317,10 +317,12 @@ static func spinner(text: String, items: Array, value: Variant, on_changed: Call
 	b.add_child(row)
 	var name_label := Label.new()
 	name_label.text = text
-	name_label.clip_text = true
-	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# The name keeps its width; a value too long for the rest ends in "…".
 	var value_label := Label.new()
 	value_label.name = "Value"
+	value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	value_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	for l: Label in [name_label, value_label]:
 		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -349,8 +351,12 @@ static func spinner(text: String, items: Array, value: Variant, on_changed: Call
 			if mb.pressed:
 				if not b.has_focus():
 					b.grab_focus()
-				var left := row.position.x + value_label.position.x
-				step.call(-1 if mb.position.x >= left and mb.position.x < left + value_label.size.x / 2.0 else 1)
+				# The value's text, right-aligned in its label: its left half steps back.
+				var shown := value_label.get_theme_font(&"font").get_string_size(value_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1,
+					value_label.get_theme_font_size(&"font_size")).x
+				var width := minf(shown, value_label.size.x)
+				var left := row.position.x + value_label.position.x + value_label.size.x - width
+				step.call(-1 if mb.position.x >= left and mb.position.x < left + width / 2.0 else 1)
 			b.accept_event()
 		elif e.is_action_pressed("ui_left", true):
 			step.call(-1)

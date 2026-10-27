@@ -39,15 +39,37 @@ func test_spinner_arrows_step_by_side() -> void:
 	await get_tree().process_frame
 	var value := b.get_node(^"Row/Value") as Label
 	var row := b.get_node(^"Row") as Control
-	var left := row.position.x + value.position.x
+	# The value's text sits at the right of its label.
+	var shown := value.get_theme_font(&"font").get_string_size(value.text, HORIZONTAL_ALIGNMENT_LEFT, -1, value.get_theme_font_size(&"font_size")).x
+	var left := row.position.x + value.position.x + value.size.x - shown
 	await _click(b, Vector2(left + 4.0, 32.0)) # ‹
-	await _click(b, Vector2(left + value.size.x - 4.0, 32.0)) # ›
-	await _click(b, Vector2(left + value.size.x - 4.0, 32.0))
+	await _click(b, Vector2(left + shown - 4.0, 32.0)) # ›
+	await _click(b, Vector2(left + shown - 4.0, 32.0))
 	await _click(b, Vector2(40.0, 32.0)) # on the name: forward, like confirm
 	assert_array(got).is_equal([1, 2, 3, 1])
 	assert_str(b.accessibility_name).is_equal("Laps: One")
 	assert_bool(b.has_focus()).is_true()
 	host.queue_free()
+
+
+## A value too long for the row ends in "…"; the name keeps its width (Stock Car's "Track" was
+## covered at text 1.5).
+func test_spinner_long_value_keeps_the_name() -> void:
+	var b := UiKit.spinner("Track", [["a", "Piedmont Speedway · 1.5 mi · Real-world · by someone"]], "a", func(_v: String) -> void: pass)
+	b.size = Vector2(420, 64)
+	add_child(b)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var row := b.get_node(^"Row") as Control
+	var name_label := row.get_child(0) as Label
+	var value := b.get_node(^"Row/Value") as Label
+	var font := name_label.get_theme_font(&"font")
+	var size := name_label.get_theme_font_size(&"font_size")
+	assert_float(name_label.size.x).is_greater_equal(font.get_string_size("Track", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x)
+	assert_float(row.size.x).is_less_equal(b.size.x - 28.0 + 0.5) # the row didn't grow past the button
+	assert_float(value.position.x + value.size.x).is_less_equal(row.size.x + 0.5)
+	assert_float(value.position.x).is_greater_equal(name_label.position.x + name_label.size.x)
+	b.queue_free()
 
 
 func test_spinner_steps_with_directions_and_confirm() -> void:

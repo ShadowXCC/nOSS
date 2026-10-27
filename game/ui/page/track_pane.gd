@@ -21,7 +21,7 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_theme_constant_override(&"separation", 8)
 	map = TrackMap.new()
-	map.custom_minimum_size = Vector2(0, 240)
+	map.custom_minimum_size = Vector2(0, 120) # it grows to the room; small, the pane fits at text 1.5
 	map.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_child(map)
 	_name = Label.new()
