@@ -102,7 +102,8 @@ func main_pieces(out: Dictionary, first: int, end: int) -> void:
 		for s in range(end - first + 1):
 			path.append(track.samples[(first + s) % n])
 		var size: Array = MEDIAN[kind]
-		road._batch(out, "median:" + kind).wall(path, size[0], size[1])
+		# It runs on into the pieces either side (D218); round the whole loop it closes.
+		road._batch(out, "median:" + kind).wall(path, size[0], size[1], 0.0, 4.0, track.closed or first > 0, track.closed or end < n - 1)
 	if not road.visual:
 		_tunnels(out, first, end)
 		return
@@ -135,16 +136,27 @@ func sheltered(k: int, j: int) -> bool:
 ## Tunnel shells over zones marked tunnel: a wall outside each barrier, a roof, light strips.
 func _tunnels(out: Dictionary, first: int, end: int) -> void:
 	var n := track.samples.size()
-	for i in range(first, end):
+	# Each side's wall, one run per stretch of tunnel (D218): from `from` (an index into the range).
+	var walls := { 1.0: PackedVector3Array(), -1.0: PackedVector3Array() }
+	var from := 0
+	for i in range(first, end + 1):
 		var k := i % n
 		var j := (i + 1) % n
-		if not sheltered(k, j):
+		if i == end or not sheltered(k, j):
+			var on_start := from == first and (track.closed or first > 0) and sheltered(posmod(first - 1, n), first % n)
+			var on_end := i == end and (track.closed or end < n - 1) and sheltered(end % n, (end + 1) % n)
+			for side: float in walls:
+				road._batch(out, "tunnel").wall(walls[side], TUNNEL_H, TUNNEL_WALL, 0.0, 4.0, on_start, on_end)
+				walls[side] = PackedVector3Array()
+			from = i + 1
 			continue
 		var tops := {}
 		for side: float in [1.0, -1.0]:
 			var out_i := road._edge(k, side, (track.runoff_l_m if side > 0.0 else track.runoff_r_m)[k] + TUNNEL_WALL)
 			var out_j := road._edge(j, side, (track.runoff_l_m if side > 0.0 else track.runoff_r_m)[j] + TUNNEL_WALL)
-			road._batch(out, "tunnel").wall(PackedVector3Array([out_i, out_j]), TUNNEL_H, TUNNEL_WALL)
+			if walls[side].is_empty():
+				walls[side].append(out_i)
+			walls[side].append(out_j)
 			tops[side] = [out_i + Vector3.UP * TUNNEL_H, out_j + Vector3.UP * TUNNEL_H]
 		var roof := road._batch(out, "tunnel")
 		var l: Array = tops[1.0]

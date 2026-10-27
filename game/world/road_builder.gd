@@ -42,6 +42,9 @@ var _ground_y := -0.03
 var markings: EndlessMarkings
 ## A highway's markings, median, mouths and extras (null on circuits).
 var _hw: HighwayBuilder
+## An open strip whose first and last samples are shared with strips built apart (an endless
+## chunk's): walls at its ends run on into theirs (D218).
+var joined_ends := false
 
 
 func _init(t: TrackData, ground: TerrainData = null) -> void:
@@ -401,47 +404,76 @@ func _deck(b: MeshBatch, i: int, j: int) -> void:
 
 ## Barrier runs, per side and type: auto ones are tyre walls on the outside of tight corners
 ## where the track isn't close by; lifted road gets concrete parapets. Runs take in the next
-## segment's first sample, so pieces built apart still meet.
+## segment's first sample, so pieces built apart still meet, and where a run carries on into
+## another piece its end runs on into that one's (D218).
 func _barriers(out: Dictionary, first: int, end: int) -> void:
-	var n := track.samples.size()
 	for side: float in [1.0, -1.0]:
-		var run := PackedVector3Array()
-		var run_type := 0
+		var barrier := func(k: int) -> int: return _barrier_at(k, side)
+		var parapet := func(k: int) -> int: return 4 if track.lifted[k] and not _gapped(k, side) else 0
 		var u := 0.0
-		var parapet := PackedVector3Array()
-		for s in range(end - first + 1):
-			var k := (first + s) % n
-			var kind := _barrier_at(k, side)
-			if kind != run_type or kind == 0:
-				u = _wall(out, run, run_type, u)
-				run.clear()
-				run_type = kind
-			if kind > 0:
-				run.append(_barrier_point(k, side))
-			if track.lifted[k] and not _gapped(k, side):
-				parapet.append(_edge(k, side, PARAPET[1] / 2.0))
-			else:
-				_wall(out, parapet, 4, 0.0, PARAPET)
-				parapet.clear()
-		_wall(out, run, run_type, u)
-		_wall(out, parapet, 4, 0.0, PARAPET)
+		for run: Dictionary in _runs(first, end, barrier, func(k: int) -> Vector3: return _barrier_point(k, side)):
+			u = _wall(out, run.path, run.kind, u, [], run.start and _runs_on(first, -1, barrier, run.kind), run.end and _runs_on(end, 1, barrier, run.kind))
+		for run: Dictionary in _runs(first, end, parapet, func(k: int) -> Vector3: return _edge(k, side, PARAPET[1] / 2.0)):
+			_wall(out, run.path, 4, 0.0, PARAPET, run.start and _runs_on(first, -1, parapet, 4), run.end and _runs_on(end, 1, parapet, 4))
 
 
-func _wall(out: Dictionary, path: PackedVector3Array, kind: int, u: float, size: Array = []) -> float:
+## The runs of wall over samples [first, end], `kind_at` a sample's kind (0: none) and `point_at`
+## where it stands: [{kind, path, start, end}], `start` and `end` true where the piece's range
+## stops it rather than the wall ending. Round a whole closed track, the run into its first sample
+## and the run from it are one.
+func _runs(first: int, end: int, kind_at: Callable, point_at: Callable) -> Array:
+	var n := track.samples.size()
+	var runs := []
+	var run := {}
+	for s in range(end - first + 1):
+		var k := (first + s) % n
+		var kind: int = kind_at.call(k)
+		if not run.is_empty() and kind != run.kind:
+			runs.append(run)
+			run = {}
+		if kind > 0:
+			if run.is_empty():
+				run = { "kind": kind, "path": PackedVector3Array(), "start": s == 0, "end": false }
+			run.path.append(point_at.call(k))
+	if not run.is_empty():
+		run.end = true
+		runs.append(run)
+	if track.closed and end - first >= n and runs.size() > 1 and runs[0].start and runs[-1].end and runs[0].kind == runs[-1].kind:
+		var last: Dictionary = runs.pop_back()
+		last.path.append_array(runs[0].path.slice(1))
+		last.end = runs[0].end
+		runs[0] = last
+	return runs
+
+
+## Whether a wall of `kind` carries on past sample `k`, a piece's end (`dir` -1: before it, +1:
+## after it), into another piece: on a closed track if the sample there has it too; on an open
+## one, the same inside it, and past its ends only if they join another strip (`joined_ends`).
+func _runs_on(k: int, dir: int, kind_at: Callable, kind: int) -> bool:
+	var n := track.samples.size()
+	var next := k + dir
+	if track.closed:
+		next = posmod(next, n)
+	elif next < 0 or next >= n:
+		return joined_ends
+	return int(kind_at.call(next)) == kind
+
+
+func _wall(out: Dictionary, path: PackedVector3Array, kind: int, u: float, size: Array = [], run_on_start := false, run_on_end := false) -> float:
 	if kind <= 0 or path.size() < 2:
 		return u
 	var dims: Array = size if not size.is_empty() else BARRIER_SIZE[kind]
 	if kind == TrackFormat.BARRIER_SAFER:
-		_catch_fence(out, path, dims[0], u)
-	return _batch(out, "barrier:%d" % kind).wall(path, dims[0], dims[1], u)
+		_catch_fence(out, path, dims[0], u, run_on_start, run_on_end)
+	return _batch(out, "barrier:%d" % kind).wall(path, dims[0], dims[1], u, 4.0, run_on_start, run_on_end)
 
 
 ## The chain-link fence on a SAFER wall's top, with posts.
-func _catch_fence(out: Dictionary, path: PackedVector3Array, on: float, u: float) -> void:
+func _catch_fence(out: Dictionary, path: PackedVector3Array, on: float, u: float, run_on_start: bool, run_on_end: bool) -> void:
 	var top := PackedVector3Array()
 	for p in path:
 		top.append(p + Vector3.UP * on)
-	_batch(out, "catch_fence").wall(top, CATCH_FENCE[0], CATCH_FENCE[1], u)
+	_batch(out, "catch_fence").wall(top, CATCH_FENCE[0], CATCH_FENCE[1], u, 4.0, run_on_start, run_on_end)
 	var posts := _batch(out, "barrier:posts")
 	var along := 0.0
 	for k in top.size() - 1:
@@ -511,20 +543,19 @@ func _perimeter() -> MeshBatch:
 			box = box.expand(p)
 		box = box.grow(SITE_WALL_M)
 		var corners := [Vector3(box.position.x, 0, box.position.z), Vector3(box.end.x, 0, box.position.z), Vector3(box.end.x, 0, box.end.z), Vector3(box.position.x, 0, box.end.z)]
-		for i in 4:
-			b.wall(PackedVector3Array([corners[i], corners[(i + 1) % 4]]), 1.6, 1.0)
+		b.wall(PackedVector3Array(corners + [corners[0]]), 1.6, 1.0) # one closed loop: no ends
 		return b
 	var a := terrain.area().grow(-2.0)
 	var corners := [a.position, Vector2(a.end.x, a.position.y), a.end, Vector2(a.position.x, a.end.y)]
+	var path := PackedVector3Array()
 	for i in 4:
 		var from: Vector2 = corners[i]
 		var to: Vector2 = corners[(i + 1) % 4]
 		var steps := maxi(1, int(from.distance_to(to) / 16.0))
-		var path := PackedVector3Array()
-		for s in steps + 1:
+		for s in range(0 if i == 0 else 1, steps + 1):
 			var p := from.lerp(to, float(s) / steps)
 			path.append(Vector3(p.x, terrain.height_at(p.x, p.y) - 1.0, p.y))
-		b.wall(path, 4.0, 1.0)
+	b.wall(path, 4.0, 1.0)
 	return b
 
 

@@ -96,6 +96,73 @@ func test_a_bridge_stands_on_pillars() -> void:
 	root.free()
 
 
+## A wall is one strip (D218): nothing on it faces along it (no block ends for a car sliding on it
+## to catch), only the 2 cm noses where an open one ends; a closed one has none. Its ends narrow,
+## and an end that runs on goes on past its last point.
+func test_a_wall_is_one_strip_with_narrow_ends() -> void:
+	var path := PackedVector3Array()
+	for i in 31:
+		var a := i * 2.0 / 120.0
+		path.append(Vector3(120.0 * (1.0 - cos(a)), 0.0, 120.0 * sin(a))) # a 120 m radius bend
+	for run_on: bool in [false, true]:
+		var b := MeshBatch.new()
+		b.wall(path, 1.0, 0.5, 0.0, 4.0, false, run_on)
+		var ends := _faces_along(b.faces(), path)
+		assert_int(ends.size()).is_equal(4) # two noses, two triangles each
+		for area: float in ends:
+			assert_float(area).is_less(MeshBatch.WALL_NOSE * 1.0 / 2.0 + 0.001)
+		var end_dir := (path[-1] - path[-2]).normalized()
+		var reach := -INF
+		for p in b.faces():
+			reach = maxf(reach, (p - path[-1]).dot(end_dir))
+		assert_float(reach).is_equal_approx((0.5 - MeshBatch.WALL_NOSE) / 2.0 * MeshBatch.RUN_ON_SLOPE if run_on else 0.0, 0.01)
+	var ring := PackedVector3Array()
+	for i in 41:
+		ring.append(Vector3(cos(TAU * i / 40.0), 0.0, sin(TAU * i / 40.0)) * 30.0)
+	var loop := MeshBatch.new()
+	loop.wall(ring, 1.0, 0.5)
+	assert_array(_faces_along(loop.faces(), ring)).is_empty()
+
+
+## On the endless road a bridge's parapet that reaches a chunk's end runs on into the next chunk.
+func test_endless_parapets_run_on_between_chunks() -> void:
+	var gen := EndlessGen.make(2024, 1)
+	var checked := 0
+	for k in 120:
+		var c := RoadWindow.chunk_track(gen.chunk(k), 0.0, 0.0, k)
+		var last := c.samples.size() - 1
+		if not c.lifted[last] or not c.lifted[last - 1]:
+			continue
+		var rb := RoadBuilder.new(c, EndlessGround.of(gen, 0.0, 0.0))
+		rb.visual = false
+		rb.joined_ends = true
+		var walls: MeshBatch = rb._batches(0, last)["barrier:4"]
+		var reach := -INF
+		for p in walls.faces():
+			reach = maxf(reach, (p - c.samples[last]).dot(c.tangents[last]))
+		assert_float(reach).is_greater(4.0)
+		checked += 1
+		if checked >= 3:
+			break
+	assert_int(checked).is_greater(0)
+
+
+## The areas of the triangles in `faces` that face along `path` (the nearest of its segments).
+static func _faces_along(faces: PackedVector3Array, path: PackedVector3Array) -> Array:
+	var out := []
+	for f in range(0, faces.size(), 3):
+		var n := (faces[f + 1] - faces[f]).cross(faces[f + 2] - faces[f])
+		var centre := (faces[f] + faces[f + 1] + faces[f + 2]) / 3.0
+		var best := 0
+		for i in path.size() - 1:
+			if centre.distance_squared_to(path[i]) < centre.distance_squared_to(path[best]):
+				best = i
+		var along := (path[best + 1] - path[best]).normalized()
+		if n.length() > 0.0 and absf(n.normalized().dot(along)) > 0.5:
+			out.append(n.length() / 2.0)
+	return out
+
+
 func test_a_terrain_track_follows_its_ground() -> void:
 	var terrain := TerrainData.around(Rect2(-500, -300, 1000, 600), 200.0)
 	terrain.field.brush(0, Vector2(590, 0), 200.0, 15.0, 0.8, 0.0, 0.0, 0) # a hill under the right end

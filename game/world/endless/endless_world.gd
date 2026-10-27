@@ -242,6 +242,7 @@ func _build_road(job: Job) -> void:
 	var track: RoadWindow = job.input.track
 	var rb := RoadBuilder.new(track, job.input.ground)
 	rb.visual = visual
+	rb.joined_ends = true # each chunk shares its end samples with the next and the last
 	rb.markings = EndlessMarkings.new(track, lanes)
 	var batches := rb._batches(0, track.samples.size() - 1)
 	if visual:
