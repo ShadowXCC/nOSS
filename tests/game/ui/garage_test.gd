@@ -8,11 +8,13 @@ const BOX := "res://content/cars/noss_box"
 
 var _made: Array[String] = []
 var _old_size: Vector2i
+var _old_text := 1.0
 var _on_scene := Callable()
 
 
 func before_test() -> void:
 	_old_size = get_tree().root.size
+	_old_text = float(Settings.primary.data.get("text_scale", 1.0))
 	get_tree().root.size = Vector2i(1280, 720) # headless windows start at 64 x 64
 
 
@@ -23,6 +25,7 @@ func after_test() -> void:
 	_made.clear()
 	get_tree().root.size = _old_size
 	get_tree().root.content_scale_factor = 1.0
+	Settings.primary.data.text_scale = _old_text
 	Game.hold_scenes = false
 	if _on_scene.is_valid() and Game.scene_requested.is_connected(_on_scene):
 		Game.scene_requested.disconnect(_on_scene)
@@ -237,7 +240,7 @@ func test_the_tabs_split_my_cars_from_the_built_in_ones() -> void:
 ## beside it) and at 2.0 (no pane), and no card goes past the body's right edge.
 func test_the_grid_has_as_many_columns_as_fit() -> void:
 	for scale: float in [1.0, 1.5, 2.0]:
-		get_tree().root.content_scale_factor = scale
+		Settings.primary.data.text_scale = scale # the Garage takes P1's menu text
 		var g := await _garage(BOX)
 		await _frames(3)
 		var want := 3 if scale == 1.0 else 2
@@ -253,7 +256,7 @@ func test_the_grid_has_as_many_columns_as_fit() -> void:
 ## one row of cars.
 func test_the_grid_scrolls_to_follow_the_focus() -> void:
 	get_tree().root.size = Vector2i(1280, 900)
-	get_tree().root.content_scale_factor = 1.5
+	Settings.primary.data.text_scale = 1.5
 	var g := await _garage(BOX)
 	var grid := g.grid
 	await _frames(3)

@@ -29,6 +29,7 @@ var _timer: Timer
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	get_tree().root.content_scale_factor = Players.menu_text_scale() # Menu text, as on the main menu
 	var bg := ColorRect.new()
 	bg.color = UiKit.BACKGROUND
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -52,6 +53,10 @@ func _ready() -> void:
 	stack.push(grid)
 	if start_page == "car" and not car(start_car).is_empty():
 		grid.open_car(start_car)
+
+
+func _exit_tree() -> void:
+	get_tree().root.content_scale_factor = 1.0
 
 
 ## The cars again, from the files.
