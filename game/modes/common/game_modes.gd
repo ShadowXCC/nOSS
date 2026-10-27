@@ -19,6 +19,7 @@ const ARCADE_DEFAULTS := {
 	"stick": { "min_speed": 7.0, "hold_s": 0.25 },
 	"right_after_s": 1.5,
 	"bounce": { "wall": 0.6, "kart": 0.3, "min_dv": 1.0 },
+	"land": { "min_fall": 0.0, "rebound": 2.0, "keep": 1.0, "settle_s": 0.0 }, # off (sumo's, D218)
 	"spin": { "s": 1.2, "grip": 0.35, "yaw_rate": 7.0, "brake": 10.0 },
 	"slow": { "power": 0.0 },
 	"slipstream": { "range_m": 30.0, "half_width_m": 1.5, "drag_cut": 0.3 },

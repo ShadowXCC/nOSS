@@ -145,6 +145,15 @@
             "min_dv": { "type": "number", "minimum": 0, "maximum": 10 }
           }
         },
+        "land": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "min_fall": { "type": "number", "minimum": 0, "maximum": 50 },
+            "rebound": { "type": "number", "minimum": 0, "maximum": 20 },
+            "keep": { "type": "number", "minimum": 0, "maximum": 1 },
+            "settle_s": { "type": "number", "minimum": 0, "maximum": 5 }
+          }
+        },
         "spin": {
           "type": "object", "additionalProperties": false,
           "properties": {

@@ -273,6 +273,120 @@ func test_a_sumo_match_hides_the_race_hud_and_flies_no_flags() -> void:
 	for r in s.racers:
 		assert_str(r.flag).is_equal("")
 		assert_bool(r.laps).is_false()
+## Launches `a` off the edge of the top platform, cut to `top_r`, going `out` m/s outward and
+## `round` m/s round the edge, pitching at `pitch` rad/s (and facing in, rolling backwards, with
+## `backwards`); brakes once it lands (a driver would), and reports the fall: the tier it ends on,
+## its rebounds and how soon it is planted (D218).
+func _fall(top_r: float, out: float, round := 0.0, pitch := 0.0, settle_s := 3.0, backwards := false) -> Dictionary:
+	var lay := sumo.layout
+	lay.secs = 1e6 # nothing shrinks under the test
+	lay.tiers[0].start = top_r
+	lay.tiers[0].radius = top_r
+	sumo.builder.refresh()
+	for r: Racer in [b, c, d]:
+		r.vehicle.reset_to(Transform3D(Basis.IDENTITY, Vector3(-4.0 + 4.0 * [b, c, d].find(r), lay.floor_y_of(0) + 0.1, -6.0)))
+	var d0 := Vector3.RIGHT
+	var face := (-d0 if backwards else d0) if round == 0.0 else Vector3.BACK
+	var basis := Basis(Vector3.UP.cross(face), Vector3.UP, face)
+	var v := a.vehicle
+	v.reset_to(Transform3D(basis, d0 * (top_r - 0.2) + Vector3.UP * (lay.floor_y_of(0) + 0.15)), d0 * out + Vector3.BACK * round)
+	v.angular_velocity = basis.x * pitch
+	v.throttle = 0.0
+	v.steer = 0.0
+	var landed := -1.0
+	var t := 0.0
+	var rises: Array[float] = []
+	var lift := INF
+	var planted := 0
+	var planted_at := -1.0
+	var travel := float(v.platform.suspension.front.travel_m)
+	while t < 8.0:
+		await get_tree().physics_frame
+		t += 1.0 / Engine.physics_ticks_per_second
+		var com := a.com()
+		var wheels := 0
+		for w: Dictionary in v.sim.get_telemetry().wheels:
+			wheels += 1 if w.contact else 0
+		if landed < 0.0:
+			if wheels > 0 and com.y < lay.floor_y_of(1) + 2.0:
+				landed = t
+			continue
+		if t - landed > 0.25:
+			var moving := absf(v.speed()) > 0.8 # at a stop the brake would reverse
+			v.brake = 1.0 if moving else 0.0
+			v.handbrake = 0.0 if moving else 1.0
+		# A rebound: off every wheel, as high as it rises.
+		if wheels == 0 and v.wall_impulse == 0.0:
+			lift = minf(lift, com.y)
+			if rises.size() == 0 or rises[-1] < 0.0:
+				rises.append(0.0)
+			rises[-1] = maxf(rises[-1], com.y - lift)
+		elif lift < INF:
+			lift = INF
+			rises[-1] = rises[-1] if rises[-1] > 0.02 else -1.0
+		if wheels == 4 and absf(v.linear_velocity.y) < 0.3:
+			planted += 1
+			if planted == 12 and planted_at < 0.0:
+				planted_at = t - landed - 11.0 / Engine.physics_ticks_per_second
+		else:
+			planted = 0
+		if planted_at >= 0.0 and t - landed > settle_s:
+			break
+	return { "landed": landed >= 0.0, "tier": lay.standing_on(a.com()), "rises": rises.filter(func(h: float) -> bool: return h > 0.02),
+		"planted": planted_at, "travel": travel }
+
+
+func _check_caught(f: Dictionary, what: String) -> void:
+	assert_bool(f.landed).override_failure_message("%s: never landed" % what).is_true()
+	assert_int(int(f.tier)).override_failure_message("%s: ended on tier %d" % [what, int(f.tier) + 1]).is_equal(1)
+	assert_bool(a.out).is_false()
+	var rises: Array = f.rises
+	assert_int(rises.size()).override_failure_message("%s: rebounds %s" % [what, rises]).is_less_equal(3)
+	for i in rises.size():
+		assert_float(float(rises[i])).override_failure_message("%s: rebounds %s" % [what, rises]).is_less(0.4)
+		if i > 0:
+			assert_float(float(rises[i])).override_failure_message("%s: rebounds %s" % [what, rises]).is_less_equal(float(rises[i - 1]))
+	assert_float(float(f.planted)).override_failure_message("%s: planted after %.2f s" % [what, float(f.planted)]).is_between(0.0, 1.5)
+
+
+## One fall, one tier (D218): the platform below catches a car shoved off the one above. A hard
+## hit plus a ram off a shrunken top platform, one that leaves it nose down, and one going round
+## when the ring goes from under it: each lands on the next tier and stays there.
+func test_the_platform_below_catches_a_hard_shove() -> void:
+	await _start(3)
+	await _running()
+	_check_caught(await _fall(16.0, 9.0), "hit plus ram")
+
+
+func test_the_platform_below_catches_a_car_falling_nose_down() -> void:
+	await _start(3)
+	await _running()
+	_check_caught(await _fall(16.0, 7.0, 0.0, -2.0), "nose down")
+
+
+func test_the_platform_below_catches_a_car_the_ring_went_from_under() -> void:
+	await _start(3)
+	await _running()
+	_check_caught(await _fall(24.0, 0.3, 8.0), "ring went")
+
+
+## A gentle roll off the edge (backwards, as a car shoved off nose first would) still lands, and
+## the car drives away as it would anywhere.
+func test_a_car_rolling_off_lands_and_drives_away() -> void:
+	await _start(3)
+	await _running()
+	var f := await _fall(24.0, 3.0, 0.0, 0.0, 1.0, true)
+	_check_caught(f, "roll off")
+	var v := a.vehicle
+	v.handbrake = 0.0
+	v.brake = 0.0
+	v.throttle = 1.0
+	for i in 120 * 2:
+		await get_tree().physics_frame
+	assert_float(absf(v.speed())).override_failure_message("speed %.1f" % v.speed()).is_greater(4.0)
+	assert_int(sumo.layout.standing_on(a.com())).is_equal(1)
+
+
 ## The drift setting (D181). The Sumo class's own numbers are already the middle mode -- the kart
 ## layer with the drift boost zeroed -- so this is what the other two do to them.
 func test_the_drift_setting_leaves_the_slide_and_takes_the_boost() -> void:

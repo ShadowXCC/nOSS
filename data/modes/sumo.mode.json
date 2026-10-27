@@ -19,6 +19,7 @@
     },
     "boost": { "pad_s": 0.0 },
     "bounce": { "wall": 0.5, "kart": 0.85, "min_dv": 0.8 },
+    "land": { "min_fall": 6.0, "rebound": 2.0, "keep": 0.35, "settle_s": 0.5 },
     "slipstream": { "range_m": 0.0 },
     "right_after_s": 2.0
   }

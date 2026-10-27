@@ -53,6 +53,11 @@ static var _horn_stream: AudioStreamWAV
 var _horn_player: AudioStreamPlayer3D
 var wall_impulse := 0.0
 var last_hit: Vehicle
+## Sumo's landing catch (D218): the fastest fall since a wheel or the body last touched the
+## ground, and how long the catch after a hard landing still holds.
+var _fall := 0.0
+var _catch := 0.0
+var _catch_flat := 0.0
 ## Each reset_to() counts up (network states flag the car as placed, not moved).
 var reset_count := 0
 ## Flat tyres (a spike strip, D192): bit i for physics wheel i, for this much longer.
@@ -356,6 +361,8 @@ func reset_to(xform: Transform3D, velocity := Vector3.ZERO) -> void:
 		sim.roll_at(velocity.dot(t.basis.z))
 	reset_physics_interpolation()
 	reset_count += 1
+	_fall = 0.0
+	_catch = 0.0
 
 
 ## Makes this a remote car (D84): kinematic, moved by move_remote().
@@ -501,6 +508,8 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 			wall_impulse += impulse
 		if not arcade.is_empty() and impulse > 0.0:
 			_kart_bounce(state, felt, other)
+	if float(arcade.get("land", {}).get("min_fall", 0.0)) > 0.0:
+		_land_catch(state)
 	if (car_impulse + wall_impulse) / mass > KNOCK_DV:
 		knocked_at = Time.get_ticks_msec() / 1000.0
 
@@ -521,6 +530,34 @@ func _kart_bounce(state: PhysicsDirectBodyState3D, j: Vector3, other: Object) ->
 	if j.length() / mass < float(b.min_dv) * 1.1 or e <= 0.1:
 		return
 	state.apply_central_impulse(j * ((e - 0.1) / 1.1))
+
+
+## The platform below catches a falling car (sumo, D218). On the first touchdown after a fall
+## faster than `min_fall` it keeps only `keep` of its speed across the ground, and for `settle_s`
+## rises no faster than `rebound` and gathers no more speed across the ground: a few small hops,
+## not a bounce off the far side as well. The kart layer's righting flip gets the same hold, as it
+## would otherwise throw a car lying on its roof clean off the platform.
+func _land_catch(state: PhysicsDirectBodyState3D) -> void:
+	var c: Dictionary = arcade.land
+	var v := state.linear_velocity
+	var flat := Vector3(v.x, 0.0, v.z)
+	var down := wall_impulse > 0.0 or sim.get_kart_flags() & VehicleSim.KART_FLAG_AIRBORNE == 0
+	if not down:
+		_fall = maxf(_fall, -v.y)
+	elif _fall > 0.0:
+		if _fall >= float(c.min_fall):
+			_catch = float(c.settle_s)
+			flat *= float(c.keep)
+			_catch_flat = flat.length()
+		_fall = 0.0
+	if _catch <= 0.0 and state.transform.basis.y.y < 0.5 and float(sim.get_kart_state().righting) > 0.0:
+		_catch = float(c.settle_s)
+		_catch_flat = flat.length()
+	if _catch > 0.0:
+		_catch -= state.step
+		v.y = minf(v.y, float(c.rebound))
+		flat = flat.limit_length(_catch_flat)
+	state.linear_velocity = Vector3(flat.x, v.y, flat.z)
 
 
 ## The kart's flags (CarState's kart word, D142): the sim's drift, tier, boost, spin, slow, trick
