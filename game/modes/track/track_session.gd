@@ -1621,6 +1621,7 @@ func _open_pause(p: SessionPlayer) -> void:
 	menu.editor_return = editor_return
 	menu.can_leave = p.slot.index > 0 and not is_online()
 	menu.can_change_car = hotswap_allowed
+	menu.can_reset = sumo == null
 	menu.can_end_session = race.kind in ["practice", "qualifying"]
 	menu.allowed_assists = AssistRules.allowed(platform.platform, mode)
 	menu.can_restart = race.kind in ["race", "practice", "qualifying", "drag", "run"] and not race.mirror

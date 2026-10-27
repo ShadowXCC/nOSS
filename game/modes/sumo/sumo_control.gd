@@ -4,8 +4,9 @@ extends Node
 ## of a match. A platform starts shrinking once a car is on it; the top one at the green light.
 ## When a platform has gone, whoever was on it falls to the next one down, or into the lava or
 ## acid. Touching the goo puts a car out, timed at the moment it touched: so with the floor
-## vanishing under the last two, whoever holds on a fraction longer wins. No lives and no
-## respawns -- the lower tiers are the second and third chances.
+## vanishing under the last two, whoever holds on a fraction longer wins. No lives, no respawns
+## and no Reset (D218): the lower tiers are the second and third chances, and a car on its roof
+## rights itself (the kart layer's `right_after_s`).
 ## The authority decides (offline: this game); RaceControl runs the lights and the results.
 
 signal pushed_out(r: Racer)
@@ -22,8 +23,6 @@ const RAM_MIN_SPEED := 2.0
 ## Rising or falling faster than this it is passing through, not standing on anything: a car
 ## dropping between platforms crosses the one above's height band on its way down.
 const LAND_VY := 2.0
-## A car set down again after a Reset has no contact for this long.
-const GHOST_AFTER_RESET := 1.0
 ## HUD elements a sumo match never shows: it has no laps, no sectors and no racing line.
 const HUD_HIDDEN := ["timing", "delta", "position", "standings", "flags"]
 
@@ -283,20 +282,9 @@ func _set_out(r: Racer, on: bool) -> void:
 	r.set_ghost(session.ghosted) # an out car stays a ghost (Racer.set_ghost)
 
 
-## Nothing tows a car back onto a platform it was shoved off: that is the whole game. A Reset
-## while still over one only sets the car down again, upright, where it last stood; off the
-## platforms there is nowhere to put it, so it goes in.
+## Nothing tows a car back onto a platform it was shoved off: that is the whole game. Sumo has no
+## Reset (D218), so only the safety net below the whole pit calls this: the car goes in.
 func recover(r: Racer) -> void:
-	if r.out:
-		return
-	var tier := layout.tier_at(r.com())
-	if tier >= 0 and r.vehicle and is_instance_valid(r.vehicle) and not r.vehicle.remote:
-		var at := r.last_valid_xform
-		if layout.tier_at(at.origin) != tier:
-			at = Transform3D(at.basis, Vector3(r.com().x, layout.floor_y_of(tier), r.com().z))
-		r.vehicle.reset_to(at)
-		r.ghost_for(GHOST_AFTER_RESET)
-		return
 	_knock_out(r)
 
 

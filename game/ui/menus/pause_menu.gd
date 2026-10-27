@@ -27,6 +27,8 @@ var bay_return := false
 var editor_return := false
 ## Players other than P1 can drop out.
 var can_leave := false
+## The car can be reset (not in sumo, where a stuck car waits for its own righting).
+var can_reset := true
 ## Hotswap is allowed (not in a race).
 var can_change_car := true
 ## Practice and qualifying can be ended early; sessions can be restarted.
@@ -46,7 +48,7 @@ var ghost_current := ""
 var leaderboard: Array = []
 var leaderboard_title := ""
 var leaderboard_scores := false
-## The mode's own items, after Reset car: [[text, callable, description]] (highways: Change
+## The mode's own items, after Resume and Reset car: [[text, callable, description]] (highways: Change
 ## direction).
 var extra_items: Array = []
 ## Rows the session adds after those (Track: the pit service asked for, D210).
@@ -72,10 +74,9 @@ func _ready() -> void:
 	var rows := VBoxContainer.new()
 	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(rows)
-	_buttons = [
-		UiKit.button("Resume", func() -> void: resumed.emit()),
-		UiKit.button("Reset car", func() -> void: reset_car.emit()),
-	]
+	_buttons = [UiKit.button("Resume", func() -> void: resumed.emit())]
+	if can_reset:
+		_buttons.append(UiKit.button("Reset car", func() -> void: reset_car.emit()))
 	for item: Array in extra_items:
 		_buttons.append(UiKit.button(String(item[0]), item[1], String(item[2]) if item.size() > 2 else ""))
 	_buttons.append_array(extra_rows)

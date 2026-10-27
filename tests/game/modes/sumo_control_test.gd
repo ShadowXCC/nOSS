@@ -202,19 +202,39 @@ func test_results_carry_the_tier_and_how_long_each_lasted() -> void:
 	assert_float(float(first_in.lasted)).is_greater(0.0)
 
 
-func test_a_reset_on_a_platform_sets_the_car_down_again() -> void:
+## No Reset in sumo (D218): the key does nothing, so a car on its roof waits for its own righting.
+func test_a_reset_request_does_nothing_in_sumo() -> void:
 	await _start()
 	await _running()
-	# Still on a platform (stuck, or on its roof): put it back, don't put it out.
-	a.reset_car()
+	var at := Vector3(4.0, sumo.layout.floor_y_of(0) + 1.5, 0.0)
+	a.vehicle.reset_to(Transform3D(Basis(Vector3.FORWARD, PI), at))
+	for i in 30:
+		await get_tree().physics_frame
+	var was := a.vehicle.global_position
+	(a as SessionPlayer).controller.reset_requested.emit()
+	await get_tree().physics_frame
 	assert_bool(a.out).is_false()
-	assert_int(sumo.layout.tier_at(a.com())).is_equal(0)
+	assert_float(a.vehicle.global_basis.y.y).override_failure_message("it was set upright").is_less(0.0)
+	assert_float(a.vehicle.global_position.distance_to(was)).is_less(0.5)
 
 
+func test_the_pause_menu_has_no_reset_row() -> void:
+	await _start()
+	await _running()
+	var p := a as SessionPlayer
+	s._open_pause(p)
+	var menu := p.overlay as PauseMenu
+	var texts: Array = menu._buttons.filter(func(b: Control) -> bool: return b is Button).map(func(b: Button) -> String: return b.text)
+	menu.resumed.emit()
+	assert_bool(texts.has("Resume")).is_true()
+	assert_bool(texts.has("Reset car")).is_false()
+
+
+## Only the safety net below the whole pit calls reset_car() now, and off the platforms there is
+## nowhere to put a car back: it goes in.
 func test_nothing_tows_a_car_that_was_shoved_off() -> void:
 	await _start()
 	await _running()
-	# Off the platforms there is nowhere to put it back: a reset puts it in the goo.
 	a.vehicle.reset_to(Transform3D(Basis.IDENTITY, Vector3(0.0, sumo.layout.hazard_y + 2.0, 0.0)))
 	for i in 2:
 		await get_tree().physics_frame

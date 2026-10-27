@@ -377,16 +377,13 @@ func _update_pit(com: Vector3) -> void:
 
 
 ## Sumo (D162): no laps, no limits and no wrong way. Falling is the game, so nothing resets a
-## car here — the goo is what puts it out. Only a car somehow below the whole pit is recovered.
+## car here (there is no Reset either, D218) — the goo is what puts it out. Only a car somehow
+## below the whole pit is caught, and that puts it out too.
 func _update_sumo(com: Vector3) -> void:
 	speed = vehicle.speed()
 	var a := track.arena as SumoLayout
 	var tier := a.tier_at(com)
 	on_track = tier >= 0 and a.inside(com, 0.5) and vehicle.global_basis.y.y > 0.8
-	if on_track:
-		var fwd := vehicle.global_basis.z.slide(Vector3.UP).normalized()
-		if fwd.length() > 0.5:
-			last_valid_xform = Transform3D(Basis(Vector3.UP.cross(fwd), Vector3.UP, fwd), Vector3(com.x, a.floor_y_of(tier), com.z))
 	if com.y < track.kill_y and not waiting:
 		reset_car()
 

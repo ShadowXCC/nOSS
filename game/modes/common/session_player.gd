@@ -134,11 +134,17 @@ func _make_driver() -> Node:
 	controller.mode = session.mode
 	slot.input.wheel.platform_lock_deg = float(platform.platform.steering.wheel_rotation_deg)
 	slot.input.wheel.apply_ffb_settings(float(platform.platform.get("ffb", {}).get("reference_rack_nm", 9.0)))
-	controller.reset_requested.connect(reset_car)
+	controller.reset_requested.connect(_reset_pressed)
 	controller.camera_next_requested.connect(_next_camera)
 	controller.autodrive_requested.connect(toggle_autodrive)
 	slot.profile.changed.connect(_on_profile_changed)
 	return controller
+
+
+## The Reset key. Sumo has none: a stuck car waits for its own righting (D218).
+func _reset_pressed() -> void:
+	if session.sumo == null:
+		reset_car()
 
 
 func _spawned() -> void:
