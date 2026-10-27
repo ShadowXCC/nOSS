@@ -377,7 +377,7 @@ func _update_pit(com: Vector3) -> void:
 
 
 ## Sumo (D162): no laps, no limits and no wrong way. Falling is the game, so nothing resets a
-## car here (there is no Reset either, D218) — the goo is what puts it out. Only a car somehow
+## car here (there is no Reset either, D219) — the goo is what puts it out. Only a car somehow
 ## below the whole pit is caught, and that puts it out too.
 func _update_sumo(com: Vector3) -> void:
 	speed = vehicle.speed()

@@ -141,7 +141,7 @@ func _make_driver() -> Node:
 	return controller
 
 
-## The Reset key. Sumo has none: a stuck car waits for its own righting (D218).
+## The Reset key. Sumo has none: a stuck car waits for its own righting (D219).
 func _reset_pressed() -> void:
 	if session.sumo == null:
 		reset_car()

@@ -151,7 +151,7 @@ func _press_ram(who: SessionPlayer) -> void:
 		await get_tree().process_frame
 
 
-## Fast-forward (D219): only once every player is out, only offline, and not after the end.
+## Fast-forward (D220): only once every player is out, only offline, and not after the end.
 func test_fast_forward_waits_for_every_player_to_be_out() -> void:
 	await _start()
 	assert_bool(sumo.can_fast_forward()).override_failure_message("a player is still in").is_false()

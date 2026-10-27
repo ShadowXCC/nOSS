@@ -755,7 +755,7 @@ func _ready_battle() -> void:
 	race.standings_source = battle.standings
 
 
-## Sumo's drift setting (D181, D219): Drift or Off. The class's own numbers are already the drift
+## Sumo's drift setting (D181, D220): Drift or Off. The class's own numbers are already the drift
 ## -- a quick pivot with no boost (the mode file zeroes `boost_s`) -- so only "off" has anything to
 ## do here. It takes the button away rather than detuning the drift, because the hop fires on a
 ## press whatever the minimum speed says.
@@ -1326,7 +1326,7 @@ func apply_game_speed() -> void:
 	var speed := 1.0
 	if humans.size() == 1 and not is_online():
 		speed = clampf(float(humans[0].slot.profile.data.get("game_speed", 1.0)), 0.5, 1.0)
-	# A pass of bots being hurried along (D178), or a sumo match with every player out (D219),
+	# A pass of bots being hurried along (D178), or a sumo match with every player out (D220),
 	# takes the clock with it, and only the clock: the tick rate stays, so the sim steps the same
 	# slice of game time a driven one does.
 	var hurry := DragControl.SKIP_SPEED if drag and drag.skipping else SumoControl.FF_SPEED if sumo and sumo.fast_forward else 1.0

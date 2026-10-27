@@ -41,7 +41,7 @@ func _init() -> void:
 ## the air or gone), of `tiers`. `shrink`: how much of that platform is left, 0..1. `charge`: the
 ## ram boost, 0..1. `warn`: the platform is about to lose a ring. `out`: this car is out.
 ## `watching`: what an out car is being shown instead of its own (D185). `prompt`: what an out
-## player can do, on the ram line (the fast-forward, D219).
+## player can do, on the ram line (the fast-forward, D220).
 func show_sumo(left: int, total: int, tier: int, tiers: int, shrink: float, charge: float, warn: bool, out: bool, watching := "", prompt := "") -> void:
 	# Out, how many are left still matters: that is the match you are watching.
 	_cars.text = ("Out  ·  %d left" % left) if out else "%d left" % left

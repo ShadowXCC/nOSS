@@ -8,7 +8,7 @@ extends Node
 ## The car is left exactly where SumoControl put it -- out, frozen, ghosted, under the goo --
 ## because `out`, the KART_OUT bit on the wire and the authority's word all rest on that (D166).
 ## Only the camera moves, as a waiting drag driver's does (D176). Nothing here goes on the wire.
-## Out, the Ram button runs the rest of the match on faster and back (D219), offline.
+## Out, the Ram button runs the rest of the match on faster and back (D220), offline.
 
 ## The arena from outside and above, as a fraction of the platform in play: far enough back and
 ## high enough up that the whole of it is in frame, whichever platform the fight is down to.

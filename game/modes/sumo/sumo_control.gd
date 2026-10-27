@@ -5,7 +5,7 @@ extends Node
 ## When a platform has gone, whoever was on it falls to the next one down, or into the lava or
 ## acid. Touching the goo puts a car out, timed at the moment it touched: so with the floor
 ## vanishing under the last two, whoever holds on a fraction longer wins. No lives, no respawns
-## and no Reset (D218): the lower tiers are the second and third chances, and a car on its roof
+## and no Reset (D219): the lower tiers are the second and third chances, and a car on its roof
 ## rights itself (the kart layer's `right_after_s`).
 ## The authority decides (offline: this game); RaceControl runs the lights and the results.
 
@@ -23,7 +23,7 @@ const RAM_MIN_SPEED := 2.0
 ## Rising or falling faster than this it is passing through, not standing on anything: a car
 ## dropping between platforms crosses the one above's height band on its way down.
 const LAND_VY := 2.0
-## Once every player is out, the rest of the match may run this many times faster (D219), as a
+## Once every player is out, the rest of the match may run this many times faster (D220), as a
 ## drag pass of bots can (D178): the clock only, so the bots fight it out as they would have.
 const FF_SPEED := 4.0
 ## HUD elements a sumo match never shows: it has no laps, no sectors and no racing line.
@@ -53,7 +53,7 @@ var _charge := {}
 ## tier -> what set it going ("start" for the top one at the green light, else a car's name).
 ## Recorded as it happens, so the soak check reads a fact rather than sampling for it.
 var armed_by := {}
-## The match running on at FF_SPEED (D219).
+## The match running on at FF_SPEED (D220).
 var fast_forward := false
 var _started := false
 
@@ -166,7 +166,7 @@ func _physics_process(delta: float) -> void:
 		session.race.end_session()
 
 
-## Every player is out and the match goes on without them: they may run it on faster (D219).
+## Every player is out and the match goes on without them: they may run it on faster (D220).
 ## Offline only: online the clock is the server's, and every car on the wire keeps it.
 func can_fast_forward() -> bool:
 	if not authority or session.is_online() or ended or session.race.phase != RaceControl.Phase.RUNNING:
@@ -306,7 +306,7 @@ func _set_out(r: Racer, on: bool) -> void:
 
 
 ## Nothing tows a car back onto a platform it was shoved off: that is the whole game. Sumo has no
-## Reset (D218), so only the safety net below the whole pit calls this: the car goes in.
+## Reset (D219), so only the safety net below the whole pit calls this: the car goes in.
 func recover(r: Racer) -> void:
 	_knock_out(r)
 

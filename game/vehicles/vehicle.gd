@@ -53,7 +53,7 @@ static var _horn_stream: AudioStreamWAV
 var _horn_player: AudioStreamPlayer3D
 var wall_impulse := 0.0
 var last_hit: Vehicle
-## Sumo's landing catch (D218): the fastest fall since a wheel or the body last touched the
+## Sumo's landing catch (D219): the fastest fall since a wheel or the body last touched the
 ## ground, and how long the catch after a hard landing still holds.
 var _fall := 0.0
 var _catch := 0.0
@@ -532,7 +532,7 @@ func _kart_bounce(state: PhysicsDirectBodyState3D, j: Vector3, other: Object) ->
 	state.apply_central_impulse(j * ((e - 0.1) / 1.1))
 
 
-## The platform below catches a falling car (sumo, D218). On the first touchdown after a fall
+## The platform below catches a falling car (sumo, D219). On the first touchdown after a fall
 ## faster than `min_fall` it keeps only `keep` of its speed across the ground, and for `settle_s`
 ## rises no faster than `rebound` and gathers no more speed across the ground: a few small hops,
 ## not a bounce off the far side as well. The kart layer's righting flip gets the same hold, as it

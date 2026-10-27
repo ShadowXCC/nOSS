@@ -52,7 +52,7 @@ var battle_hits := 10
 ## Sumo (docs/GAMEMODES.md §5): how many platforms are stacked (1-5), what's underneath
 ## ("lava" or "acid"), how a platform shrinks ("smooth", "crumble" or "stepped"), how long one
 ## takes to shrink away, whether the bottom one stops at a pillar instead of vanishing, and
-## whether the cars get the kart drift ("drift": the hop and a quick pivot, D219; "off": not, and
+## whether the cars get the kart drift ("drift": the hop and a quick pivot, D220; "off": not, and
 ## the handbrake works again instead). The old "boost" reads as "drift".
 var sumo_tiers := 2
 var sumo_hazard := "lava"

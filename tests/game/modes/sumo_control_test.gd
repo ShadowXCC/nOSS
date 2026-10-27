@@ -202,7 +202,7 @@ func test_results_carry_the_tier_and_how_long_each_lasted() -> void:
 	assert_float(float(first_in.lasted)).is_greater(0.0)
 
 
-## No Reset in sumo (D218): the key does nothing, so a car on its roof waits for its own righting.
+## No Reset in sumo (D219): the key does nothing, so a car on its roof waits for its own righting.
 func test_a_reset_request_does_nothing_in_sumo() -> void:
 	await _start()
 	await _running()
@@ -276,7 +276,7 @@ func test_a_sumo_match_hides_the_race_hud_and_flies_no_flags() -> void:
 ## Launches `a` off the edge of the top platform, cut to `top_r`, going `out` m/s outward and
 ## `round` m/s round the edge, pitching at `pitch` rad/s (and facing in, rolling backwards, with
 ## `backwards`); brakes once it lands (a driver would), and reports the fall: the tier it ends on,
-## its rebounds and how soon it is planted (D218).
+## its rebounds and how soon it is planted (D219).
 func _fall(top_r: float, out: float, round := 0.0, pitch := 0.0, settle_s := 3.0, backwards := false) -> Dictionary:
 	var lay := sumo.layout
 	lay.secs = 1e6 # nothing shrinks under the test
@@ -349,7 +349,7 @@ func _check_caught(f: Dictionary, what: String) -> void:
 	assert_float(float(f.planted)).override_failure_message("%s: planted after %.2f s" % [what, float(f.planted)]).is_between(0.0, 1.5)
 
 
-## One fall, one tier (D218): the platform below catches a car shoved off the one above. A hard
+## One fall, one tier (D219): the platform below catches a car shoved off the one above. A hard
 ## hit plus a ram off a shrunken top platform, one that leaves it nose down, and one going round
 ## when the ring goes from under it: each lands on the next tier and stays there.
 func test_the_platform_below_catches_a_hard_shove() -> void:
@@ -387,7 +387,7 @@ func test_a_car_rolling_off_lands_and_drives_away() -> void:
 	assert_int(sumo.layout.standing_on(a.com())).is_equal(1)
 
 
-## The drift setting (D181, D219). The Sumo class's own numbers are already Drift -- the kart
+## The drift setting (D181, D220). The Sumo class's own numbers are already Drift -- the kart
 ## layer's slide with the boost zeroed -- so this is what Off does to them.
 func test_the_drift_setting_leaves_the_slide_and_takes_the_boost() -> void:
 	await _start(1, "lava", false, "drift")
@@ -429,7 +429,7 @@ func _turn(drifting: bool) -> Array:
 	return [yaw, took]
 
 
-## A quick pivot from 15 km/h (D219): the drift starts there, and turns far faster than the steering
+## A quick pivot from 15 km/h (D220): the drift starts there, and turns far faster than the steering
 ## alone does.
 func test_the_drift_pivots_from_15_kmh() -> void:
 	await _start()
@@ -459,7 +459,7 @@ func _bot_pivots(at: Vector3) -> bool:
 	return false
 
 
-## Bots drift too (D219): one with its target behind it swings round in a pivot; one near the edge
+## Bots drift too (D220): one with its target behind it swings round in a pivot; one near the edge
 ## heads in instead.
 func test_a_bot_pivots_round_to_a_car_behind_it() -> void:
 	await _start()

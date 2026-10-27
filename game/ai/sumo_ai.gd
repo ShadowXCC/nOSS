@@ -4,7 +4,7 @@ extends Node
 ## A disc needs no pathfinding, so this steers straight at its target rather than through
 ## ArenaNav, whose grid is built once per session and a shrinking platform would invalidate every
 ## tick. Skill sets its speed, how late it dares turn away from the edge, how well it times its
-## ram and how often it pivot-drifts round to a car behind it (D219). Out, or falling, it stops
+## ram and how often it pivot-drifts round to a car behind it (D220). Out, or falling, it stops
 ## trying. As a guide it works out controls for a player's assists.
 
 const PLAN_HZ := 5.0
@@ -19,7 +19,7 @@ const RAM_CONE_DEG := 26.0
 ## Backing out of a shove that has gone nowhere.
 const STUCK_S := 0.8
 const REVERSE_S := 1.5
-## The pivot drift (D219): never below this skill; at each plan, this chance of being ready for
+## The pivot drift (D220): never below this skill; at each plan, this chance of being ready for
 ## one (skill 25 -> 100). It starts one at a target this far off its nose, going this much over the
 ## drift's minimum speed, with the edge this many times its usual margin away (the better it is,
 ## the closer it dares); and holds full steer until the target is this near its nose, or for this
@@ -117,7 +117,7 @@ func controls(delta: float) -> Dictionary:
 	elif speed > want + 1.5:
 		out.brake = clampf((speed - want) * 0.15, 0.0, 0.8)
 	if _pivot(angle, tier, delta):
-		# Round on the spot: full lock toward it, on the power (D219).
+		# Round on the spot: full lock toward it, on the power (D220).
 		out.drift = true
 		out.steer = -signf(angle)
 		out.throttle = maxf(out.throttle, 0.8)
@@ -134,7 +134,7 @@ func _plan(tier: int) -> void:
 	_may_drift = skill >= DRIFT_SKILL and _rng.randf() < lerpf(DRIFT_CHANCE.x, DRIFT_CHANCE.y, k)
 
 
-## A pivot drift round to a target well off its nose (D219): only hunting, quick enough for the
+## A pivot drift round to a target well off its nose (D220): only hunting, quick enough for the
 ## drift to take, with the drift allowed, and well clear of the edge. Held until the nose is on the
 ## target. True while it lasts.
 func _pivot(angle: float, tier: int, delta: float) -> bool:

@@ -228,7 +228,7 @@ func _apply_access_assists(delta: float) -> void:
 		vehicle.throttle = g.throttle
 		vehicle.brake = g.brake
 		if g.has("drift"):
-			vehicle.drift = bool(g.drift) and vehicle.drift_allowed # sumo's pivot (D219)
+			vehicle.drift = bool(g.drift) and vehicle.drift_allowed # sumo's pivot (D220)
 		return
 	var steer_mix: float = assists.steering_assist
 	vehicle.steer = lerpf(vehicle.steer, g.steer, steer_mix)

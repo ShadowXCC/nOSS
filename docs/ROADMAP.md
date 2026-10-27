@@ -178,6 +178,9 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
   setting with three modes, Crumbling comes off a wedge at a time instead of a ring, the floor
   about to go lights up (and the mark travels, which is what finally made the stepped warning work
   online), a player in the goo watches the rest of the match, and the stack goes to five.
+- **After playing it again** (D219-D220, v0.12.1): the platform below catches a fall (one fall,
+  one platform), no Reset car, the drift a quick pivot from 15 km/h with Drift + boost gone, bots
+  that drift, and a 4x fast-forward once every player is out, offline.
 
 **Acceptance (the second pass):**
 - [x] Crumbling loses its floor unevenly and never leaves a platform unfair. *`sumo_layout_test`
