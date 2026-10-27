@@ -440,6 +440,45 @@ func test_the_drift_pivots_from_15_kmh() -> void:
 	assert_float(float(drift[0])).override_failure_message("yaw %.2f drifting, %.2f plain" % [drift[0], plain[0]]).is_greater(3.0 * float(plain[0]))
 
 
+## Bot `b`, at its best, going 8 m/s at `at` heading +z with `a` 7 m behind it and the other two
+## parked well ahead: whether it pivot-drifts round within 0.75 s.
+func _bot_pivots(at: Vector3) -> bool:
+	var lay := sumo.layout
+	lay.secs = 1e6
+	var y := lay.floor_y_of(0) + 0.05
+	(b.driver as SumoAI).skill = 100.0
+	b.driver.process_mode = Node.PROCESS_MODE_INHERIT
+	b.vehicle.reset_to(Transform3D(Basis.IDENTITY, Vector3(at.x, y, at.z)), Vector3(0, 0, 8.0))
+	a.vehicle.reset_to(Transform3D(Basis.IDENTITY, Vector3(at.x, y, at.z - 7.0)))
+	c.vehicle.reset_to(Transform3D(Basis.IDENTITY, Vector3(-at.x - 3.0, y, at.z + 18.0)))
+	d.vehicle.reset_to(Transform3D(Basis.IDENTITY, Vector3(-at.x + 3.0, y, at.z + 18.0)))
+	for i in 90:
+		await get_tree().physics_frame
+		if b.vehicle.drifting():
+			return true
+	return false
+
+
+## Bots drift too (D219): one with its target behind it swings round in a pivot; one near the edge
+## heads in instead.
+func test_a_bot_pivots_round_to_a_car_behind_it() -> void:
+	await _start()
+	await _running()
+	assert_bool(await _bot_pivots(Vector3(0.0, 0.0, -2.0))).override_failure_message("no drift").is_true()
+
+
+func test_a_bot_near_the_edge_does_not_drift() -> void:
+	await _start()
+	await _running()
+	assert_bool(await _bot_pivots(Vector3(17.0, 0.0, -2.0))).override_failure_message("drifted by the edge").is_false()
+
+
+func test_a_bot_does_not_drift_with_the_drift_off() -> void:
+	await _start(2, "lava", false, "off")
+	await _running()
+	assert_bool(await _bot_pivots(Vector3(0.0, 0.0, -2.0))).is_false()
+
+
 func test_the_drift_setting_can_take_the_button_away() -> void:
 	await _start(1, "lava", false, "off")
 	# The layer stays on -- the shove, the bounce and the righting are the class's -- but no car

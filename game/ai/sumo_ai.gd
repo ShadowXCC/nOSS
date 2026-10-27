@@ -3,9 +3,9 @@ extends Node
 ## The sumo AI (D165): shoves the nearest car toward the edge, and keeps itself away from it.
 ## A disc needs no pathfinding, so this steers straight at its target rather than through
 ## ArenaNav, whose grid is built once per session and a shrinking platform would invalidate every
-## tick. Skill sets its speed, how late it dares turn away from the edge, and how well it times
-## its ram. Out, or falling, it stops trying. As a guide it works out controls for a player's
-## assists.
+## tick. Skill sets its speed, how late it dares turn away from the edge, how well it times its
+## ram and how often it pivot-drifts round to a car behind it (D219). Out, or falling, it stops
+## trying. As a guide it works out controls for a player's assists.
 
 const PLAN_HZ := 5.0
 ## Speed it chases at (m/s), skill 0 -> 100, and when it is turning hard.
@@ -19,6 +19,18 @@ const RAM_CONE_DEG := 26.0
 ## Backing out of a shove that has gone nowhere.
 const STUCK_S := 0.8
 const REVERSE_S := 1.5
+## The pivot drift (D219): never below this skill; at each plan, this chance of being ready for
+## one (skill 25 -> 100). It starts one at a target this far off its nose, going this much over the
+## drift's minimum speed, with the edge this many times its usual margin away (the better it is,
+## the closer it dares); and holds full steer until the target is this near its nose, or for this
+## long at most.
+const DRIFT_SKILL := 25.0
+const DRIFT_CHANCE := Vector2(0.3, 1.0)
+const DRIFT_ANGLE_DEG := Vector2(95.0, 65.0)
+const DRIFT_OVER := 1.0
+const DRIFT_EDGE := Vector2(2.0, 1.3)
+const DRIFT_DONE_DEG := 20.0
+const DRIFT_MAX_S := 1.0
 
 var racer: Racer
 var skill := 80.0
@@ -30,6 +42,9 @@ var _target: Racer
 var _plan_time := 0.0
 var _stuck := 0.0
 var _reverse := 0.0
+## Seconds of the pivot drift left, and whether it may start one now.
+var _drift := 0.0
+var _may_drift := false
 var _rng := RandomNumberGenerator.new()
 
 
@@ -59,28 +74,30 @@ func _physics_process(delta: float) -> void:
 	v.throttle = c.throttle
 	v.brake = c.brake
 	v.handbrake = c.handbrake
-	v.drift = false
+	v.drift = c.drift
 	if bool(c.get("ram", false)):
 		racer.session.sumo.ram(racer)
 
 
-## This tick's controls: {steer, throttle, brake, handbrake, ram}, or {} without a car.
+## This tick's controls: {steer, throttle, brake, handbrake, drift, ram}, or {} without a car.
 func controls(delta: float) -> Dictionary:
 	var v := racer.vehicle
 	var sumo: SumoControl = racer.session.sumo
 	if v == null or not is_instance_valid(v) or sumo == null:
 		return {}
-	var out := { "steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": 0.0, "ram": false }
+	var out := { "steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": 0.0, "drift": false, "ram": false }
 	if racer.held or racer.waiting or racer.out:
 		out.handbrake = 1.0 if racer.held else 0.0
 		intent = "wait"
 		_stuck = 0.0
+		_drift = 0.0
 		return out
 	var layout := sumo.layout
 	var tier := layout.tier_at(racer.com())
 	if tier < 0:
 		# In the air between platforms: nothing to steer for, ride it out.
 		intent = "wait"
+		_drift = 0.0
 		return out
 	_plan_time -= delta
 	if _plan_time <= 0.0:
@@ -99,6 +116,12 @@ func controls(delta: float) -> Dictionary:
 		out.throttle = clampf(0.4 + (want - speed) * 0.3, 0.0, 1.0)
 	elif speed > want + 1.5:
 		out.brake = clampf((speed - want) * 0.15, 0.0, 0.8)
+	if _pivot(angle, tier, delta):
+		# Round on the spot: full lock toward it, on the power (D219).
+		out.drift = true
+		out.steer = -signf(angle)
+		out.throttle = maxf(out.throttle, 0.8)
+		out.brake = 0.0
 	out.ram = intent == "hunt" and _should_ram(angle)
 	return out
 
@@ -107,6 +130,33 @@ func controls(delta: float) -> Dictionary:
 func _plan(tier: int) -> void:
 	_target = _nearest()
 	intent = "edge" if _near_edge(tier) else ("hunt" if _target else "edge")
+	var k := clampf((skill - DRIFT_SKILL) / (100.0 - DRIFT_SKILL), 0.0, 1.0)
+	_may_drift = skill >= DRIFT_SKILL and _rng.randf() < lerpf(DRIFT_CHANCE.x, DRIFT_CHANCE.y, k)
+
+
+## A pivot drift round to a target well off its nose (D219): only hunting, quick enough for the
+## drift to take, with the drift allowed, and well clear of the edge. Held until the nose is on the
+## target. True while it lasts.
+func _pivot(angle: float, tier: int, delta: float) -> bool:
+	if _drift > 0.0:
+		_drift -= delta
+		if _drift <= 0.0 or intent != "hunt" or absf(angle) < deg_to_rad(DRIFT_DONE_DEG):
+			_drift = 0.0
+			_may_drift = false # not straight into another: wait for the next plan
+		return _drift > 0.0
+	var v := racer.vehicle
+	if not _may_drift or intent != "hunt" or not v.drift_allowed or v.arcade.is_empty():
+		return false
+	var k := clampf((skill - DRIFT_SKILL) / (100.0 - DRIFT_SKILL), 0.0, 1.0)
+	if absf(angle) < deg_to_rad(lerpf(DRIFT_ANGLE_DEG.x, DRIFT_ANGLE_DEG.y, k)):
+		return false
+	if racer.speed < float(v.arcade.drift.min_speed) + DRIFT_OVER:
+		return false
+	var layout: SumoLayout = racer.session.sumo.layout
+	if layout.edge_distance(racer.com()) < _edge_needed(tier) * lerpf(DRIFT_EDGE.x, DRIFT_EDGE.y, k):
+		return false
+	_drift = DRIFT_MAX_S
+	return true
 
 
 ## Where it is heading: a little ahead of its target, or back toward the middle.
@@ -122,17 +172,17 @@ func _goal(tier: int) -> Vector3:
 ## Too near the edge for the speed it is doing to pull away from it. The better the driver, the
 ## closer it will run.
 func _near_edge(tier: int) -> bool:
-	var layout: SumoLayout = racer.session.sumo.layout
-	var radius := layout.radius_of(tier)
 	# The nearest edge of all: on a crumbling platform that counts the hole beside it, which is how
 	# a bot keeps off a wedge bitten back under it instead of driving along the drop.
-	var margin := layout.edge_distance(racer.com())
+	return racer.session.sumo.layout.edge_distance(racer.com()) < _edge_needed(tier)
+
+
+## Roughly how far from the edge it needs to be to turn away at this speed, with a floor for a
+## standing car. Never more than part of the platform, or on a shrunken one every spot would count
+## as the edge and it would circle the middle instead of fighting.
+func _edge_needed(tier: int) -> float:
 	var safety := lerpf(EDGE_SAFETY.x, EDGE_SAFETY.y, clampf(skill / 100.0, 0.0, 1.0))
-	# Roughly how far it needs to turn away at this speed, with a floor for a standing car. Never
-	# more than part of the platform, or on a shrunken one every spot would count as the edge and
-	# it would circle the middle instead of fighting.
-	var needed := minf(maxf(absf(racer.speed) * safety, 4.0), radius * 0.45)
-	return margin < needed
+	return minf(maxf(absf(racer.speed) * safety, 4.0), racer.session.sumo.layout.radius_of(tier) * 0.45)
 
 
 ## Worth spending the ram: the target is close, nearly straight ahead, and nearer the edge than
