@@ -346,7 +346,9 @@ v0.12.3).*
   traffic"), out ("Out") or greyed ("Doesn't fit"); a press switches it; All on and All off switch
   the tab; the status line counts them. Every car is in until switched off; online, the host's list
   counts.
-- **The Fitting Bay's panel follows the focus**, so a pad reaches every control of a long step.
+- **The Fitting Bay's panel follows the focus**, so a pad reaches every control of a long step. A
+  change that builds the step again (a Paint dropdown, Lift clear, the Sound step's recordings)
+  keeps the focus on its row, so the panel stays put (v0.12.4).
 
 **Acceptance:**
 - [x] A switched-off car stays out of traffic, offline and as host. *`garage_test`: pressing nOSS
@@ -362,6 +364,9 @@ v0.12.3).*
 - [x] The bay's panel scrolls. *`fitting_bay_test`: the last control of the Wheels step comes into
   view when focused and the first again after. `UiKit.keep_in_view` no longer captures the scroll,
   so a bay freed mid-frame logs nothing.*
+- [x] A change keeps the place (v0.12.4). *`fitting_bay_test`: a pick from the last of 15 Paint
+  dropdowns, made through its popup, leaves the focus on that row and the panel no higher; Lift
+  clear, which goes away once pressed, hands the focus to Ride height.*
 
 ## M10+: Backlog (order to be decided)
 

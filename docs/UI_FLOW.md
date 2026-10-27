@@ -600,7 +600,9 @@ up; it waits about 150 ms after the focus stops before loading a car.
 - **The bay** stays its own screen, with a breadcrumb ("Garage › Fitting Bay", or "Fitting Bay"
   when not opened from the Garage) and a prompt bar (Select, "Steps", Back): LB/RB (Q/E) go to the
   previous or next step that's on, wrapping (only Import before a car is in), not while a field is
-  being typed in. The step's panel scrolls to follow the focus, on a pad too. `Game.open_fitting_bay(..., from)` sets `Game.bay_from`: "garage" from the grid
+  being typed in. The step's panel scrolls to follow the focus, on a pad too; a change that builds
+  the step again (a Paint dropdown, Lift clear) leaves the focus on its row, or the row above if
+  that went. `Game.open_fitting_bay(..., from)` sets `Game.bay_from`: "garage" from the grid
   (New car, Fitting Bay), "car" from a car's page (Edit, Sound; `Game.bay_car`). **"Exit" and Back
   return to the Garage** ("Back to the Garage"): on the car being fitted, on its page when a car's
   page opened the bay (the car it came from when nothing was saved). A test drive's "Back to
