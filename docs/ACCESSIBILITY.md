@@ -160,7 +160,7 @@ Each new local player who joins (press-to-join, [INPUT.md §3](INPUT.md#3-joinin
 | online | Drive Online → Host → the event pages (a time trial's Minutes too) → the class, which hosts → the lobby: Change event, Playlist, P1's roster row to This PC's rows, Driving Settings → Leave; Join's tabs, Official off ("Coming soon") | M5, P8-P10 |
 | highway, kart, endless, sumo, drag, free | each type's Settings page → the class (where there is one) → Players, and back out a page at a time; Kart's cup and Cup builder, Mini Games' Kart Battle | M7-M9, P5 |
 | settings | every tab of Settings and Driving Settings; Reset to defaults and Clear downloads asking first (Keep); Profiles | P3, P11 |
-| garage | the tabs, a car's page and its Drive's class page, the Fitting Bay's Import step ("From online games"), Exit back to the Garage | P7, P7b, P11 |
+| garage | the tabs, a car's page and its Drive's class page, Traffic cars (a car a switch) and Done, the Fitting Bay's Import step ("From online games"), Exit back to the Garage | P7, P7b, P11, D222 |
 | editor | every tool, a new oval's race setup and checks, a highway loop and its Ramps tool, the Stunts tool on a kart circuit and an arena | M6-M8 |
 | pause | a highway session's pause menu in a player's view (opened with `--pause-at`: no keys on Wayland): its Driving Settings, then Join a friend | M7, P11 |
 | first-boot | the Accessibility screen (§7), its Driving Settings, Done | P11 |

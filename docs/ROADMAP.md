@@ -337,6 +337,32 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
   `tools/endless_determinism.sh`: Linux and Windows (under Wine) make the same 200 km of road and
   ground on four seeds, FOREST-0000002 among them.*
 
+## Garage: Traffic cars
+
+*Pick which garage cars drive in endless traffic, and a Fitting Bay that scrolls with a pad (D222,
+v0.12.3).*
+
+- **Traffic cars:** a mode of the Garage grid. Each card shows its car in traffic (good colour, "In
+  traffic"), out ("Out") or greyed ("Doesn't fit"); a press switches it; All on and All off switch
+  the tab; the status line counts them. Every car is in until switched off; online, the host's list
+  counts.
+- **The Fitting Bay's panel follows the focus**, so a pad reaches every control of a long step.
+
+**Acceptance:**
+- [x] A switched-off car stays out of traffic, offline and as host. *`garage_test`: pressing nOSS
+  Box puts its id in `Settings.traffic_off`, `GarageFiles.traffic_paths` leaves it out, and pressing
+  again brings it back; `endless_net_test`: with every car off the host shares none.*
+- [x] The mode reads at every text size and to a screen reader. *Windowed shots of `--garage=traffic`
+  at text 1.0, 1.5 and 2.0, and with a car off (red "Out", "33 of 34 in traffic"). An AT-SPI probe:
+  nOSS Box is a toggle button described "…, in traffic", the hidden Fitting Bay drops out of the
+  tree, and Done puts the focus back on Traffic cars; the leg is in `tools/a11y_check.py
+  --garage-only`.*
+- [x] Pads get round it. *`garage_test`: tabs → cards → All on → All off → Done → tabs, Back
+  leaving the mode and not the Garage; the old ring with Traffic cars in the bar.*
+- [x] The bay's panel scrolls. *`fitting_bay_test`: the last control of the Wheels step comes into
+  view when focused and the first again after. `UiKit.keep_in_view` no longer captures the scroll,
+  so a bay freed mid-frame logs nothing.*
+
 ## M10+: Backlog (order to be decided)
 
 | Item | IDs |

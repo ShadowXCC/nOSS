@@ -564,7 +564,8 @@ up; it waits about 150 ms after the focus stops before loading a car.
 
 | Page | Title; breadcrumb | Rows | Pane | Bar; prompts |
 |---|---|---|---|---|
-| Grid | "Garage"; "Garage" | tabs "My cars", "Built-in"; the cards; a status line | the turntable, the focused car's name, "By GTA V · version 1", "Car · Unknown · 85,721 triangles" | "Fitting Bay" ("Import and fit your own car"), "Back" ("Back to the main menu"); Select, Tabs, Back |
+| Grid | "Garage"; "Garage" | tabs "My cars", "Built-in"; the cards; a status line | the turntable, the focused car's name, "By GTA V · version 1", "Car · Unknown · 85,721 triangles" | "Fitting Bay" ("Import and fit your own car"), "Traffic cars" ("Pick which cars drive in traffic"), "Back" ("Back to the main menu"); Select, Tabs, Back |
+| Grid in Traffic cars | as the grid | tabs; the cards, no New car; the status line "33 of 34 in traffic" | as the grid, and "In traffic", "Out of traffic" or "Doesn't fit traffic" | "All on" ("Every car on this tab in traffic"), "All off" ("No car on this tab in traffic"), "Done" ("Back to the cars"); Select, Tabs, Back |
 | A car | its name; "Garage › <car>" | "Drive" ("Pick a class and drive this car"), "Edit" ("Open in the Fitting Bay", " as a copy" for a built-in car), "Paint" ("Change its colours"), "Sound" ("Tune its engine and tire sounds"), "Duplicate" ("Make a copy in the garage"), "Copy sound to…" ("Give another car these sounds"), "Export…" ("Write this car out as a .noss file"), "Delete" ("Delete this car"); a status line | the turntable, "By …", "Car · …" | "Back" ("Back to the Garage") |
 | Class | "Choose class"; "Garage › <car> › Class" | §5.6 | its own turntable | "Back" ("Back to <car>") |
 | Paint | "Paint"; "Garage › <car> › Paint" | its presets ("Its colours on every slot"), then per slot "Primary colour" and "Primary finish" (a spinner), and so on | the turntable, as the colours change | "Save" ("Save the paint"), "Back" ("Without saving") |
@@ -581,8 +582,17 @@ up; it waits about 150 ms after the focus stops before loading a car.
   row; not while a page is over the grid). The Garage opens on My cars, or on Built-in when the
   player has no cars of their own. Each tab comes back to the car last picked on it.
 - **Focus:** up from the grid's top row reaches the tabs; down from its last row, "Fitting Bay",
-  then "Back" (left of it in the bar), then round to the tabs. Confirm on a car opens its page;
+  then "Traffic cars", then "Back" (left of them in the bar), then round to the tabs. Confirm on a car opens its page;
   cancel there comes back to its card. A built-in car's Paint, Sound and Delete are off.
+- **Traffic cars** (D222) is a mode of the grid, for picking which cars drive in endless traffic.
+  Each card shows its state: a border in the player's palette's good colour and an "In traffic"
+  tag, its bad colour and "Out", or greyed with "Doesn't fit" (no traffic type takes it as it is).
+  The yellow focus ring sits outside the border. Confirm on a car that fits switches it (it's a
+  toggle button: screen readers say on or off); on one that doesn't, the status line says
+  "Doesn't fit traffic". "All on" and "All off" switch the shown tab's cars. The status line counts
+  every car that fits, on both tabs. Back (or "Done") leaves the mode, the focus on "Traffic
+  cars"; a second Back leaves the Garage. Focus goes tabs → cards → All on → All off → Done →
+  tabs. Every car is in until switched off; the list is this PC's (online, the host's counts).
 - **After an action:** Duplicate goes back to the grid on the copy (My cars), "Copy made"; Delete
   (once asked) back to the grid, "Deleted"; Paint's Save back to the car's page, "Paint saved";
   Copy sound to back to it, "Sound copied to <car>"; Export… stays, "Exported to <file>". Paint's
@@ -590,7 +600,7 @@ up; it waits about 150 ms after the focus stops before loading a car.
 - **The bay** stays its own screen, with a breadcrumb ("Garage › Fitting Bay", or "Fitting Bay"
   when not opened from the Garage) and a prompt bar (Select, "Steps", Back): LB/RB (Q/E) go to the
   previous or next step that's on, wrapping (only Import before a car is in), not while a field is
-  being typed in. `Game.open_fitting_bay(..., from)` sets `Game.bay_from`: "garage" from the grid
+  being typed in. The step's panel scrolls to follow the focus, on a pad too. `Game.open_fitting_bay(..., from)` sets `Game.bay_from`: "garage" from the grid
   (New car, Fitting Bay), "car" from a car's page (Edit, Sound; `Game.bay_car`). **"Exit" and Back
   return to the Garage** ("Back to the Garage"): on the car being fitted, on its page when a car's
   page opened the bay (the car it came from when nothing was saved). A test drive's "Back to
