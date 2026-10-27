@@ -31,6 +31,7 @@ var auto := false
 var start_step := ""
 
 var _preview: BayPreview
+var _scroll: ScrollContainer
 var _content: VBoxContainer
 var _status: Label
 var _step := "Import"
@@ -102,13 +103,14 @@ func _ready() -> void:
 		steps.add_child(b)
 		_step_buttons[step] = b
 	side.add_child(steps)
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	side.add_child(scroll)
+	_scroll = ScrollContainer.new()
+	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	side.add_child(_scroll)
+	UiKit.keep_in_view(_scroll) # the step's controls follow the focus, on a pad too
 	_content = VBoxContainer.new()
 	_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_content)
+	_scroll.add_child(_content)
 	_progress = UiKit.progress()
 	_progress.visible = false
 	side.add_child(_progress)

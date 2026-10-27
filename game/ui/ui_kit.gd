@@ -527,17 +527,19 @@ static func focus_later(c: Control) -> void:
 ## resizes (a panel fitting its view).
 static func keep_in_view(scroll: ScrollContainer, margin := 12) -> void:
 	var want := [0] # the control to show, by id
+	var scroll_id := scroll.get_instance_id() # not `scroll`: it may be freed before the frame ends
 	var reveal := func() -> void:
 		var c := instance_from_id(want[0]) as Control
-		if not is_instance_valid(scroll) or c == null or not c.is_inside_tree() or not scroll.is_ancestor_of(c):
+		var s := instance_from_id(scroll_id) as ScrollContainer
+		if s == null or c == null or not c.is_inside_tree() or not s.is_ancestor_of(c):
 			return
-		var xf := scroll.get_global_transform().affine_inverse() * c.get_global_transform()
+		var xf := s.get_global_transform().affine_inverse() * c.get_global_transform()
 		var top := xf.origin.y
 		var bottom := top + c.size.y * xf.get_scale().y
 		if top < margin:
-			scroll.scroll_vertical += floori(top) - margin
-		elif bottom > scroll.size.y - margin:
-			scroll.scroll_vertical += ceili(bottom - scroll.size.y) + margin
+			s.scroll_vertical += floori(top) - margin
+		elif bottom > s.size.y - margin:
+			s.scroll_vertical += ceili(bottom - s.size.y) + margin
 	var queue := func(c: Control) -> void:
 		if c == null or not scroll.is_ancestor_of(c):
 			return

@@ -194,6 +194,33 @@ func test_the_tab_actions_step_through_the_steps() -> void:
 	assert_array(bar.extra).contains_exactly([["tabs", "Steps"]])
 
 
+## Moving down a long step with a pad (no mouse to scroll) brings each control into view.
+func test_the_panel_follows_the_focus() -> void:
+	var old_size := get_tree().root.size
+	get_tree().root.size = Vector2i(1280, 720) # headless windows start at 64 x 64
+	_bay._wheel_id = "LF"
+	_bay._show_step("Wheels")
+	for i in 3:
+		await get_tree().process_frame
+	var scroll := _bay._scroll
+	assert_float(_bay._content.size.y).override_failure_message("a step that fits would never scroll").is_greater(scroll.size.y)
+	var targets: Array = _bay._content.get_children().map(func(c: Control) -> Control: return UiKit._focus_target(c)) \
+		.filter(func(c: Control) -> bool: return c != null)
+	(targets[-1] as Control).grab_focus()
+	for i in 3:
+		await get_tree().process_frame
+	assert_int(scroll.scroll_vertical).override_failure_message("the panel did not follow the focus").is_greater(0)
+	assert_bool(scroll.get_global_rect().encloses((targets[-1] as Control).get_global_rect())) \
+		.override_failure_message("the focused control is not in view").is_true()
+	var down := scroll.scroll_vertical
+	(targets[0] as Control).grab_focus()
+	for i in 3:
+		await get_tree().process_frame
+	assert_int(scroll.scroll_vertical).is_less(down)
+	assert_bool(scroll.get_global_rect().encloses((targets[0] as Control).get_global_rect())).is_true()
+	get_tree().root.size = old_size
+
+
 ## Without a car only Import is on: LB/RB stay there.
 func test_the_tab_actions_wait_for_a_car() -> void:
 	var empty := FittingBay.new()
