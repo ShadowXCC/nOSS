@@ -191,6 +191,8 @@ class FocusCursor:
 
 	func _process(_delta: float) -> void:
 		var c := Players.focus_of(viewport)
+		if c and c.has_meta(&"focus_box"): # a page's slider: round its whole row (UiKit.page_row)
+			c = c.get_meta(&"focus_box") as Control
 		var r := c.get_global_rect() if c and not c is LineEdit else Rect2()
 		if r != _rect:
 			_rect = r

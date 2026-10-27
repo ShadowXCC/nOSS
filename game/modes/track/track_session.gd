@@ -1311,7 +1311,7 @@ func _process(delta: float) -> void:
 			if pause and sub == "setup":
 				pause._open_setup()
 			elif pause and sub.get_slice("/", 0) == "driving-settings":
-				pause._open_settings().show_tab_slug(sub.get_slice("/", 1) if sub.contains("/") else "")
+				pause._open_settings().show_tab_slug.call_deferred(sub.get_slice("/", 1) if sub.contains("/") else "") # once it has the focus
 	if Game.dev.has("fps"):
 		_fps_time += delta
 		_fps_frames += 1

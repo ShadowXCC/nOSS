@@ -24,9 +24,9 @@ const PANE_MIN_WIDTH := 1100.0
 ## The body's widest without a pane, centred.
 const BODY_MAX_WIDTH := 1100.0
 const MARGIN := 64
-## A page shorter than this (text bigger than 1.5, a small view) is short: margins of SHORT_MARGIN
-## above and below, and the header scrolls with the rows, so they get the room (docs/UI_FLOW.md §2).
-const SHORT_HEIGHT := 720.0
+## A page shorter than this (text 1.5 and up, a small view) is short: margins of SHORT_MARGIN above
+## and below, and the header scrolls with the rows, so they get the room (docs/UI_FLOW.md §2).
+const SHORT_HEIGHT := 800.0
 const SHORT_MARGIN := 24
 ## Space kept round the focused row when scrolling to it.
 const REVEAL_MARGIN := 12

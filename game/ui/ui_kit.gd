@@ -523,7 +523,7 @@ static func focus_later(c: Control) -> void:
 
 ## A labelled row on a page (docs/UI_FLOW.md §2): its labels at the rows' text size (they're made
 ## at the menus' 30 px), and a slider's row outlined in the accent colour while the slider has the
-## focus, as a button row is (Godot draws no focus on a slider; it only brightens).
+## focus, as a button row is (in the window Godot draws no focus on a slider; it only brightens).
 static func page_row(row: HBoxContainer) -> void:
 	var labels := row.get_children().filter(func(c: Node) -> bool: return c is Label)
 	for l: Label in labels:
@@ -537,6 +537,7 @@ static func page_row(row: HBoxContainer) -> void:
 	inset.content_margin_right = 10
 	for l: Label in labels:
 		l.add_theme_stylebox_override(&"normal", inset)
+	slider.set_meta(&"focus_box", row) # a player's view rings the row too, not the slider alone
 	var outline := _box(Color(0, 0, 0, 0), ACCENT, 4, 0)
 	row.draw.connect(func() -> void:
 		if slider.has_focus():
