@@ -69,7 +69,7 @@ Everyone should be able to drive. This doc covers options for vision, hearing, m
 | Horizon lock | Chase and cockpit cameras keep the horizon level (no roll) |
 | Speed FOV | Speed-based FOV change can be turned off. FOV is fixed per camera. |
 | Motion blur | None in `retro_ps2`. Every future style profile must have an off switch. |
-| Reduce flashing | Caps flashes at 3 per second and lowers their contrast (WCAG 2.3.1). Covers police lights, lightning, boost and item effects (EMP, Shield), countdown lights and the sumo warning band (D182: it pulses twice a second, and holds steady and dimmer with this on). An endless road's speed cameras (D193) don't flash at all while any player on the PC has it on. Lightning (M9, D153) becomes one soft pulse at most a third as bright (at most one a second) and its bolt isn't drawn; it's per view, so a splitscreen player without the option still sees the full flicker. |
+| Reduce flashing | Caps flashes at 3 per second and lowers their contrast (WCAG 2.3.1). Covers police lights, lightning, boost and item effects (EMP, Shield), countdown lights and the sumo warning band (D182: it pulses twice a second, and holds steady and dimmer with this on). An endless road's speed cameras (D193) don't flash at all while any player on the PC has it on. Lightning (M9, D153) becomes one soft pulse at most a third as bright (at most one a second) and its bolt isn't drawn; it's per view, so a splitscreen player without the option still sees the full flicker. Old lamps (Haunted, D221) dip at most once a second to no less than half their glow, and burn steady for everyone while any player on the PC has it on. |
 
 The first-boot screen includes a short photosensitivity notice.
 

@@ -718,7 +718,7 @@ menus Q and E don't shift (menus don't drive).
 
 ## 11. Network protocol
 
-Protocol 14 today (P10).
+Protocol 15 today (D221: Haunted changed roads through the forest and autumn; nothing in the menus).
 
 - **13 (P9), the lobby:** READY is `{player, ready}` (Ready per player); PLAYER_INFO carries
   `{player, device, assists, name, color}` per local player; the lobby's players carry `device`,

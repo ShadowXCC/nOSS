@@ -307,6 +307,36 @@ The GitHub repo is public at `git@github.com:ShadowXCC/nOSS.git` since M1.
 - [x] P10: new online events (time trials, highway runs, kart cups), protocol 14. *Every event type hosts now: the Racing page's Race | Time Trial switch, Kart's Play (a cup) and Highway's Mode are on the host's pages too. **Time trials** online are a timed session (a new Minutes row, 5-30; RaceEvent `tt_min`): RaceControl ends them as practice ends, and `TimeTrialNet` keeps the server's live board of best laps (BOARD "live"), shown as the HUD's standings ("P1/3", your row marked) and the pause menu's Leaderboard; players drop in; each new best goes on the server's board. **A highway run** is its own "run" session (appended to `NetRace.KINDS`), offline too: each game lines up only its own cars by the session's grid, and the server (`RunControl.authority`) times every car, counting one only once it's been seen behind the line, and ends the session with the run's results ("Run results"); joiners wait for the next; a run on a highway with no runs drives as a cruise. **Kart cups**: the cup's races are the playlist, each item marked `cup` (the server schema takes it); `NetHost` keeps the standings (players by id, AI by name, the AI field and reversed grids as offline; a restarted race's results replace the first go's) and the lobby shows them ("After race 1 of 4: …", "Spark Cup final: 1st …"). D216. Tests: new `online_events_test` (protocol 14 and the kinds, `tt_min`, the server schema and configs, the event pages making the playlist, a timed time trial ending with its results, the live board through the wire), `lobby_test` (a cup's standings on the server, restarts, the AI field, the final), `highway_session_test` (the run's results as the session's and Restart; the line-up by the grid; a car not seen behind the line doesn't start), `online_menu_test` (hosting a cup, a run and a time trial through the pages; the lobby's lines), the schema fixtures. `tools/net_check.py --event tt` and `--sub run`, both in `run_tests.sh`: 3 bots at 150 ms, every bot on the live board and in the results; every bot through the run (4 of 5 runs passed first time: one bot resynced its traffic, which a plain cruise does too, now in the known flakes). Full run_tests.sh: gdUnit 962 cases, 2 failures, both tests that used `time_trial` as a kind servers refuse (fixed, 13/13), orphans only from `drag_control_test` and `endless_police_net_test`; the schemas step's same fixture (fixed); conformance red only from engine_check's known crash; the endless net check's known ENet throttle on its late joiner (side by side with a worktree of the commit before P10, each failed 1 of 2 the same way); every other race, mode, net and track check passed, the two new ones too. `tools/a11y_check.py --online-only` walks the host's Time Trial switch to Minutes and back (it waits for the switch to rebuild the types). Dev `--menu=host-time-trial`. Played: a windowed client in a 2-minute time trial with two bots, the live board and the countdown on its HUD.*
 - [x] P11: the docs and accessibility sweep. *Screenshots of all 38 pages at text 1.0, 1.5 and 2.0, Driving Settings in a four-way split (each tab; text 1.0 to 2.0) and `tools/cvd_shots.gd` on seven of them found, and P11 fixed: at text 2.0 the event pages had no room for rows (Regular race none), at 1.5 two, with the track map pushing the prompt bar off the bottom; now a short page (under 800 logical px, D217) has 24 px margins above and below and its header scrolls with the rows, and the track pane's map shrinks to 120 px. The Garage didn't follow Menu text (it does now; the Fitting Bay and the track editor still don't, ACCESSIBILITY §10). Tabs switched with LB/RB or Q/E stayed underlined (`set_pressed_no_signal` doesn't release a ButtonGroup). Track rows said km beside a pane in miles (`TrackLibrary.label(e, imperial)`; highway runs too). A long spinner value covered its name (now "…"). Rows with no description (Camera shake, HUD size, the volume sliders and more) and Backs without one: all described now, the new `descriptions_test` walking every Settings and Driving Settings tab and each event page, local and hosted; a Back names the crumb before. A focused slider had no outline (`UiKit.page_row()` outlines its row; a player's view rings the row too). The arena pane had an empty line. The colour-blind versions keep the accent apart from the rows. `tools/a11y_check.py`: one route table and a docstring listing the routes; the race goes on to the results' Event menu and to Drive again; Settings' questions (Keep) and Profiles; the Garage's class page; the pause menu's Driving Settings in a player's view; new `--first-boot-only`. The full walk passes. Docs: README, GAMEMODES, ACCESSIBILITY (§9's routes as a table), INPUT (§1.2 menu prompts), ARCHITECTURE, DECISIONS (D217; D160 marked superseded), UI_FLOW. Dev: the `--menu` names tidied (`<type>[-tt][/class|/players]`, `host-<type>`, `settings/<tab>`, `driving-settings/<tab>`, `access`), `--pause-menu=driving-settings[/<tab>]`. gdUnit `tests/game/ui` 166/166, `tests/game/world` 193/193, `tests/game/editor` 69/69, no orphans.*
 
+## Endless: Haunted
+
+*An eighth biome, and a setting a track can use (D221, v0.12.2).*
+
+- **Haunted:** a twisty, rolling road at 60 km/h through dead trees, gravestones, iron railings,
+  jack-o'-lanterns and old lamps that flicker. Always a misty night; its own storm and fog fronts
+  with Changing weather; wind, crickets and thunder far off. It can follow the forest or autumn, so
+  roads through those changed (protocol 15).
+- **A biome's sky fades:** its sun, fog, weather and sounds mix by the blend's weight instead of
+  switching halfway through it, for every biome.
+- **Tracks:** `environment.biome` and the Race tool's Setting row, for a graveyard circuit later.
+
+**Acceptance:**
+- [x] Only roads through the forest and autumn change. *`road_gen_test.cpp`: what may follow each
+  biome is exactly {3,4,3,3,3,2,4,3}; over 200 seeds Haunted came 429 times, always after the
+  forest or autumn and always followed by the forest, autumn or farmland; `PINNED_SEED1` didn't
+  move; two new pins (a Haunted start, FOREST-0000002 into it from 7.6 km).*
+- [x] Night at noon, with a mist, lamps lit. *`env_director_test`: Haunted at noon in clear weather
+  is night (0.9), the lights on, fog at least 0.45 and not black; its weight sweeps night and fog
+  up monotonically, and at weight 0 it's as if there were none; its own fronts only with Changing
+  weather. Windowed screenshots at noon in clear, Changing and Storm weather.*
+- [x] Lamps flicker gently, and not with Reduce flashing. *`weather_test`: at most 2 dips in any
+  second and never below half; `env_director_test`: `env_flicker` 0 with Reduce flashing. A burst
+  of 39 frames 50 ms apart showed single lamps dimmed at different times in 9 of them, and none with
+  the option on.*
+- [x] It holds up. *`tools/endless_check.sh --minutes=10` on HAUNTED-0000001 and FOREST-0000002:
+  PASS, flat memory. Windowed for 3 minutes: 6.68 ms a frame against the forest's 6.62.
+  `tools/endless_determinism.sh`: Linux and Windows (under Wine) make the same 200 km of road and
+  ground on four seeds, FOREST-0000002 among them.*
+
 ## M10+: Backlog (order to be decided)
 
 | Item | IDs |
