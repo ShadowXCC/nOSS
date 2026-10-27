@@ -57,6 +57,15 @@ func show_tab(i: int, focus := "first") -> void:
 	scroll().scroll_vertical = 0
 
 
+## Dev (--menu, --pause-menu): shows the tab named `slug`, its name in lower case with "&" left
+## out and "-" for spaces ("hud-display"). Any other name leaves the tab as it is.
+func show_tab_slug(slug: String) -> void:
+	for i in tabs.size():
+		if tabs[i].to_lower().replace(" & ", " ").replace(" ", "-") == slug:
+			show_tab(i)
+			return
+
+
 ## The current tab's name.
 func tab_name() -> String:
 	return tabs[tab] if tab < tabs.size() else ""

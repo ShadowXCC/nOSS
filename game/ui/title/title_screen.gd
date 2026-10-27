@@ -107,22 +107,27 @@ func _open_solo(autofocus := true) -> LocalDrivePage:
 	return _solo
 
 
-## Dev --menu: a page opened straight away, those before it under it (game.gd lists them).
+## Dev --menu (game.gd lists the names): a page opened straight away, those before it under it.
+## An event type's name opens its Settings page: "-tt" after it its time trial, "/class" or
+## "/players" the page after, "host-" before it the hosting one ("host-regular-tt"). Settings and
+## Driving Settings take a tab after "/" ("driving-settings/hud-display").
 func _open_dev_menu(menu: String) -> void:
-	const FLOWS := {
+	const TYPES := {
 		"regular": ["racing", "regular"], "stock-car": ["racing", "stock_car"], "kart": ["racing", "kart"],
-		"custom": ["racing", "custom"], "time-trial": ["racing", "regular", true], "class": ["racing", "regular"],
-		"players": ["racing", "regular"], "endless": ["endless", ""], "highway": ["highway", ""], "free": ["free", ""],
+		"custom": ["racing", "custom"], "endless": ["endless", ""], "highway": ["highway", ""], "free": ["free", ""],
 		"sumo": ["mini", "sumo"], "drag": ["mini", "drag"], "kart-battle": ["mini", "kart_battle"],
 	}
-	match menu:
-		"local", "solo": _open_solo()
+	var page := menu.get_slice("/", 0)
+	var then := menu.get_slice("/", 1) if menu.contains("/") else ""
+	match page:
+		"", "access": pass # access: first boot's screen, opened in _ready
+		"local": _open_solo()
 		"racing": _open_solo().open_racing()
 		"mini-games": _open_solo().open_mini_games()
-		"settings": _open_settings()
+		"settings":
+			_open_settings().show_tab_slug.call_deferred(then) # once the page has its focus
 		"driving-settings":
-			_open_settings()
-			(_stack.top() as SettingsMenu)._open_player()
+			_open_settings()._open_player().show_tab_slug.call_deferred(then)
 		"online": _open_online()
 		"host":
 			_open_online()
@@ -130,18 +135,28 @@ func _open_dev_menu(menu: String) -> void:
 		"host-event":
 			_open_online()
 			_online.open_host().open_event()
-		"host-time-trial":
-			_open_online()
-			_online.open_host().open_event().open_racing(true)._pick("regular")
 		"join":
 			_open_online()
 			_online.open_join()
 		_:
-			if FLOWS.has(menu):
-				var f: Array = FLOWS[menu]
-				var flow := EventFlow.make(f[0], f[1], f.size() > 2)
-				flow.recall()
-				_open_solo(false).open_flow(flow, menu if menu in ["class", "players"] else "settings")
+			var key := page.trim_prefix("host-").trim_suffix("-tt")
+			if not TYPES.has(key):
+				print("No such --menu: ", menu)
+				return
+			var type: String = TYPES[key][0]
+			var variant: String = TYPES[key][1]
+			var tt := page.ends_with("-tt")
+			if page.begins_with("host-"):
+				_open_online()
+				var event := _online.open_host().open_event()
+				match type:
+					"racing": event.open_racing(tt)._pick(variant)
+					"mini": event.open_mini_games()._pick(variant)
+					_: event._pick(type)
+				return
+			var flow := EventFlow.make(type, variant, tt)
+			flow.recall()
+			_open_solo(false).open_flow(flow, then if then in ["class", "players"] else "settings")
 
 
 ## Drive Online (DriveOnlinePage, docs/UI_FLOW.md §7).
@@ -168,8 +183,10 @@ func _open_lobby() -> void:
 	_stack.push(_lobby)
 
 
-func _open_settings() -> void:
-	_stack.push(SettingsMenu.new())
+func _open_settings() -> SettingsMenu:
+	var settings := SettingsMenu.new()
+	_stack.push(settings)
+	return settings
 
 
 ## Menu text size (docs/ACCESSIBILITY.md §2): the whole menu screen scales.

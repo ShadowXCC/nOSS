@@ -1305,8 +1305,13 @@ func _process(delta: float) -> void:
 		if _dev_time >= float(Game.dev["pause-at"]):
 			Game.dev.erase("pause-at")
 			_open_pause(players[-1])
-			if Game.dev.get("pause-menu", "") == "setup" and players[-1].overlay is PauseMenu: # dev: screenshots
-				(players[-1].overlay as PauseMenu)._open_setup()
+			# --pause-menu=setup or driving-settings[/<tab>] (screenshots)
+			var sub := String(Game.dev.get("pause-menu", ""))
+			var pause := players[-1].overlay as PauseMenu
+			if pause and sub == "setup":
+				pause._open_setup()
+			elif pause and sub.get_slice("/", 0) == "driving-settings":
+				pause._open_settings().show_tab_slug(sub.get_slice("/", 1) if sub.contains("/") else "")
 	if Game.dev.has("fps"):
 		_fps_time += delta
 		_fps_frames += 1

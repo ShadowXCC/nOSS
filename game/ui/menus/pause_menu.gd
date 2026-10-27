@@ -116,12 +116,13 @@ func _ready() -> void:
 var allowed_assists: Array = []
 
 
-func _open_settings() -> void:
+func _open_settings() -> PlayerSettingsMenu:
 	var menu := PlayerSettingsMenu.new()
 	menu.slot = slot
 	menu.allowed_assists = allowed_assists
 	menu.crumbs = ["Pause", "Driving Settings"]
 	UiKit.open_sub(self, menu, _ready_focus)
+	return menu
 
 
 func _open_setup() -> void:

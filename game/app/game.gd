@@ -26,12 +26,16 @@ extends Node
 ##   --perf-log           a summary line (frame time average, p95, p99; physics; traffic cars driven)
 ##                        every 30 s and at exit (M7 acceptance runs)
 ##   --fullscreen         fullscreen for this run; --no-vsync: no vsync (measurements)
-##   --pause-at=<s>       open the last player's pause menu
-##   --menu=<m>           main menu: open local (or solo), racing, mini-games, a Settings page (regular,
-##                        stock-car, kart, custom, time-trial (Regular's), endless, highway, free, sumo, drag,
-##                        kart-battle), class or players (Regular's; --join=<n>: n devices join), settings,
-##                        driving-settings, online, host, host-event (Host's event types), host-time-trial
-##                        (Host's Regular time trial Settings page) or join
+##   --pause-at=<s>       open the last player's pause menu; --pause-menu=setup or driving-settings[/<tab>]
+##                        opens that over it
+##   --menu=<m>           open a page from the main menu, the pages before it under it:
+##                        local, racing, mini-games; an event type's Settings page: regular, stock-car, kart,
+##                        custom, endless, highway, free, sumo, drag, kart-battle, with -tt for a Racing
+##                        type's time trial (regular-tt) and /class or /players for the page after
+##                        (regular/players; --join=<n>: n devices join there); online, host, host-event (its
+##                        event types), host-<type> (hosting's Settings page, host-regular-tt), join;
+##                        settings[/<tab>], driving-settings[/<tab>] (a tab: sound, vision-hearing,
+##                        hud-display); access (the first-boot screen)
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
 ##   --track=<ref>        the track for --drive, --race and --time-trial: an id, a path or a hash
 ##   --highway            a highway session right away (the first highway, or --track): --sub=cruise|score|run|loop,
