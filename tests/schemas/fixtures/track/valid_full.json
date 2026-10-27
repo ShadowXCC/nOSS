@@ -22,6 +22,6 @@
     "items": [ { "prop": "grandstand", "p": [120, 0, 14], "yaw_deg": 90, "scale": 1, "size": [110, 10, 12], "ground": true } ],
     "scatter": [ { "prop": "tree_pine", "xf": [12.5, 40.0, 1.2, 1.0, 13.0, 44.1, 0.3, 0.9] } ]
   },
-  "environment": { "sun_elevation_deg": 38, "sun_azimuth_deg": 140, "fog": "normal" },
+  "environment": { "sun_elevation_deg": 38, "sun_azimuth_deg": 140, "fog": "normal", "biome": "haunted" },
   "scene": null
 }

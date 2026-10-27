@@ -395,6 +395,9 @@ func _ready() -> void:
 	env.setup(style, world_env, sun, _env_state(style), _fog_scale())
 	var track_env: Variant = track.raw.get("environment", {})
 	env.floodlit = track_env is Dictionary and bool(track_env.get("floodlit", false))
+	# A setting (D221): a biome's sky and sounds throughout. Its mist adds to the track's own fog.
+	if track_env is Dictionary:
+		env.set_biome(EndlessBiomes.find(String(track_env.get("biome", ""))))
 	env.local_vehicles = func() -> Array:
 		return racers.filter(func(r: Racer) -> bool: return r is SessionPlayer and r.vehicle != null).map(func(r: Racer) -> Vehicle: return r.vehicle)
 	# Lamps burn steady for everyone here if any player has Reduce flashing (one world, D221).

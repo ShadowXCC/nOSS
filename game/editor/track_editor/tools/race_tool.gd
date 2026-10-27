@@ -284,12 +284,17 @@ func _sky_rows() -> Array:
 	var env: Dictionary = draft.layout.get("environment", {})
 	var times := [["", "Fixed sun"]] + SkyRows.TIMES.slice(1)
 	var weathers := [["", "Clear"]] + SkyRows.WEATHERS.slice(2)
+	var settings := [["", "None"]]
+	for id: String in NossRoadGen.biome_ids():
+		settings.append([id, String(EndlessBiomes.find(id).get("name", id.capitalize()))])
 	return [
 		UiKit.label("Sky", 26),
 		UiKit.spinner("Time", times, String(env.get("time", "")), func(v: String) -> void: draft.set_env("time", v),
 			"The track's own time of day; events can pick another"),
 		UiKit.spinner("Weather", weathers, String(env.get("weather", "")), func(v: String) -> void: draft.set_env("weather", v),
 			"The track's own weather; events can pick another"),
+		UiKit.spinner("Setting", settings, String(env.get("biome", "")), func(v: String) -> void: draft.set_env("biome", v),
+			"A biome's sky and sounds: Haunted is always a misty night"),
 	]
 
 

@@ -168,3 +168,29 @@ func test_the_sky_rows_set_the_tracks_own_time_and_weather() -> void:
 	for c: Node in rows:
 		c.free()
 	e.queue_free()
+
+
+## A setting (D221): the Race tool's Setting row writes the environment's biome, the track still
+## validates, and None takes the key out.
+func test_the_setting_row_sets_the_tracks_biome() -> void:
+	var d := TrackTemplates.make("oval")
+	var e := _editor(d)
+	await get_tree().process_frame
+	e.show_tool("Race")
+	var rows: Array = (e.tool as EditorTool).panel()
+	var setting: Button
+	for c in rows:
+		if c is Button and String(c.accessibility_name).begins_with("Setting: "):
+			setting = c
+	assert_object(setting).is_not_null()
+	assert_str(String(setting.accessibility_name)).is_equal("Setting: None")
+	d.set_env("biome", "haunted")
+	assert_str(String(d.layout.environment.biome)).is_equal("haunted")
+	assert_str(TrackFormat.validate(d.layout)).is_empty()
+	assert_str(d.undo()).is_equal("Set biome")
+	d.set_env("biome", "haunted")
+	d.set_env("biome", "")
+	assert_bool(d.layout.environment.has("biome")).is_false()
+	for c: Node in rows:
+		c.free()
+	e.queue_free()

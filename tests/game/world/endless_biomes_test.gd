@@ -1,7 +1,7 @@
 extends GdUnitTestSuite
 ## The endless biomes' registry (D156, D221): a data file for every native biome, every prop they
 ## scatter offered by the editor's scatter brush (unknown ones would be left out without a word),
-## the schema's biome list in step with the road generator's, and every global a shader
+## the schemas' biome lists in step with the road generator's, and every global a shader
 ## reads declared in project.godot (or no world material would compile).
 
 
@@ -25,6 +25,8 @@ func test_the_schemas_list_every_biome() -> void:
 	var ids := Array(NossRoadGen.biome_ids())
 	var biome: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/schemas/endless_biome.schema.json"))
 	assert_array(biome.properties.id.enum).is_equal(ids)
+	var track: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/schemas/track.schema.json"))
+	assert_array(track.properties.environment.properties.biome.enum).is_equal(ids)
 
 
 func test_every_shader_global_is_declared() -> void:

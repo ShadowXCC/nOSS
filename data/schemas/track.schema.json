@@ -349,7 +349,8 @@
         "fog": { "enum": ["light", "normal", "heavy"] },
         "floodlit": { "description": "Light towers: after dark the track is lit (D205).", "type": "boolean" },
         "time": { "description": "The track's own time of day (absent: its fixed sun). M9.", "enum": ["dawn", "morning", "noon", "afternoon", "dusk", "night"] },
-        "weather": { "description": "The track's own weather (absent: clear). M9.", "enum": ["clear", "cloudy", "rain", "storm", "fog", "snow", "changing"] }
+        "weather": { "description": "The track's own weather (absent: clear). M9.", "enum": ["clear", "cloudy", "rain", "storm", "fog", "snow", "changing"] },
+        "biome": { "description": "A setting: an endless biome's sky and sounds throughout (D221; a graveyard circuit: haunted).", "enum": ["coast", "forest", "farmland", "canyon", "alpine", "snow", "autumn", "haunted"] }
       }
     },
     "scene": {
