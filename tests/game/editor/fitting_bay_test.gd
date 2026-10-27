@@ -71,9 +71,14 @@ func test_lift_clear() -> void:
 	assert_object(lift).is_not_null()
 	if lift == null:
 		return
+	lift.grab_focus()
 	lift.pressed.emit()
 	assert_float(_bay._clip_depth()).is_between(-0.03, 0.0)
 	assert_str(_bay._status.text).not_contains("in the ground")
+	await get_tree().process_frame
+	var focus := UiKit.focus_owner(_bay)
+	assert_str(focus.accessibility_name if focus else "").override_failure_message("the button went: the focus goes to the row above") \
+		.is_equal("Ride height")
 
 
 ## A wheel off the ground (an older import's roof part) is shown and can be removed.
@@ -218,6 +223,50 @@ func test_the_panel_follows_the_focus() -> void:
 		await get_tree().process_frame
 	assert_int(scroll.scroll_vertical).is_less(down)
 	assert_bool(scroll.get_global_rect().encloses((targets[0] as Control).get_global_rect())).is_true()
+	get_tree().root.size = old_size
+
+
+## A pick from a Paint dropdown far down the list builds the step again: the focus stays on that
+## row, and the panel where it was, rather than both going back to the top.
+func test_a_paint_pick_keeps_the_place() -> void:
+	var old_size := get_tree().root.size
+	get_tree().root.size = Vector2i(1280, 720)
+	for i in 14: # the fixture has one material; a real car has many
+		var box := BoxMesh.new()
+		box.size = Vector3.ONE * 0.01
+		box.material = StandardMaterial3D.new()
+		box.material.resource_name = "part_%02d" % i
+		var mi := MeshInstance3D.new()
+		mi.mesh = box
+		_bay.draft.scene.add_child(mi)
+	_bay._show_step("Paint")
+	for i in 3:
+		await get_tree().process_frame
+	var scroll := _bay._scroll
+	assert_float(_bay._content.size.y).override_failure_message("a step that fits would never scroll").is_greater(scroll.size.y)
+	var picks: Array = _bay._content.get_children().map(func(c: Control) -> Control: return UiKit._focus_target(c)) \
+		.filter(func(c: Variant) -> bool: return c is OptionButton)
+	var pick := picks[-1] as OptionButton
+	var row := pick.accessibility_name
+	pick.grab_focus()
+	for i in 3:
+		await get_tree().process_frame
+	var down := scroll.scroll_vertical
+	assert_int(down).is_greater(0)
+	pick.show_popup() # as a pad does: open it, move to Primary and accept
+	await get_tree().process_frame
+	pick.get_popup().set_focused_item(1)
+	var accept := InputEventAction.new()
+	accept.action = &"ui_accept"
+	accept.pressed = true
+	get_tree().root.push_input(accept)
+	for i in 3:
+		await get_tree().process_frame
+	assert_str(_bay.draft.paint.slots.primary.materials[0]).is_equal(row)
+	var focus := UiKit.focus_owner(_bay)
+	assert_str(focus.accessibility_name if focus else "").override_failure_message("the focus left the row").is_equal(row)
+	assert_int(scroll.scroll_vertical).override_failure_message("the panel scrolled back").is_greater_equal(down)
+	assert_bool(scroll.get_global_rect().encloses(focus.get_global_rect())).override_failure_message("the row is out of view").is_true()
 	get_tree().root.size = old_size
 
 

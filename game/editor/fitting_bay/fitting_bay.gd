@@ -151,7 +151,8 @@ func _ready() -> void:
 
 
 ## Shows `step`. With `keep_focus` the focus stays where it was in the list (the step built
-## again after a change made from it) rather than going to the top.
+## again after a change made from it) rather than going to the top; on its last control if the
+## list got shorter (a button that went away with the change).
 func _show_step(step: String, keep_focus := false) -> void:
 	if draft == null and step != "Import":
 		step = "Import"
@@ -179,7 +180,7 @@ func _show_step(step: String, keep_focus := false) -> void:
 	UiKit.chain_focus(chain, focus_at < 0)
 	if focus_at >= 0:
 		var targets := chain.map(func(c: Control) -> Control: return UiKit._focus_target(c)).filter(func(c: Control) -> bool: return c != null)
-		UiKit.focus_later(targets[mini(focus_at, targets.size() - 1)])
+		UiKit.focus_later(targets[mini(focus_at, maxi(targets.size() - 4, 0))]) # not the 3 buttons after the step's
 	_sync_wheel_view()
 	_refresh(false)
 	_update_actions()
@@ -283,7 +284,7 @@ func _step_wheels() -> Array:
 	out.append(UiKit.option("Wheels", modes, mode, func(v: String) -> void:
 		draft.fit.wheel_mode = v
 		_refresh()
-		_show_step("Wheels")))
+		_show_step("Wheels", true)))
 	out.append(UiKit.button("Find wheels again", _find_wheels, "Run the wheel finder on the model again"))
 	if mode != "model":
 		var a := _anchors()
@@ -521,7 +522,7 @@ func _own_recordings() -> Array:
 		["limiter", "Limiter"], ["backfire", "Backfire"], ["turbo", "Turbo"], ["blowoff", "Blow-off"], ["tires", "Tires"]]
 	out.append(UiKit.spinner("For", targets, _rec_target, func(v: String) -> void:
 		_rec_target = v
-		_show_step("Sound"), "An emitter's loop, or an extra sound"))
+		_show_step("Sound", true), "An emitter's loop, or an extra sound"))
 	if _rec_target in EngineSound.EMITTERS:
 		out.append(UiKit.number("At rpm", _rec_rpm, 500.0, 12000.0, 100.0, "%d rpm", func(v: float) -> void: _rec_rpm = v))
 		out.append(UiKit.spinner("Load", [["on", "On-load (throttle)"], ["off", "Off-load (lifting)"]], _rec_kind, func(v: String) -> void: _rec_kind = v))
@@ -536,12 +537,12 @@ func _own_recordings() -> Array:
 		out.append(UiKit.button("%s: %s" % [item[0], rel], func() -> void:
 			draft.remove_recording(rel)
 			_refresh()
-			_show_step("Sound"), "Press to remove"))
+			_show_step("Sound", true), "Press to remove"))
 	if not draft.sound_files.is_empty():
 		out.append(UiKit.button("Remove all recordings", func() -> void:
 			draft.clear_recordings()
 			_refresh()
-			_show_step("Sound")))
+			_show_step("Sound", true)))
 	return out
 
 
@@ -565,7 +566,7 @@ func add_recording(path: String) -> void:
 		_set_status("%s: %s" % [path.get_file(), err])
 		return
 	_refresh()
-	_show_step("Sound")
+	_show_step("Sound", true)
 	_set_status("Added " + path.get_file())
 
 
@@ -951,7 +952,7 @@ func _lift_clear() -> void:
 	var lift := float(draft.fit.get("body_lift_m", 0.0)) + clip / _preview.fitted.scale + 0.01
 	draft.fit.body_lift_m = minf(ceilf(lift / 0.005 - 1e-6) * 0.005, LIFT_MAX)
 	_refresh()
-	_show_step("Wheels")
+	_show_step("Wheels", true)
 
 
 ## Takes wheels out of the fit (their parts stay on the body), and moves the ground to the rest.
@@ -960,7 +961,7 @@ func _remove_wheels(ids: PackedStringArray) -> void:
 	var r: Array = draft.fit.model_transform.rotation_deg
 	draft.fit.ground_y = ModelAnalysis.ground_of(draft.fit.wheels, Basis.from_euler(Vector3(deg_to_rad(r[0]), deg_to_rad(r[1]), deg_to_rad(r[2]))))
 	_refresh()
-	_show_step("Wheels")
+	_show_step("Wheels", true)
 
 
 func _assign_material(slot: String, material: String) -> void:
@@ -975,7 +976,7 @@ func _assign_material(slot: String, material: String) -> void:
 			slots[slot] = { "materials": [], "color": "#E8B71A" if slot == "primary" else "#1B1D22", "finish": "metallic" if slot == "primary" else "solid" }
 		slots[slot].materials.append(material)
 	_refresh()
-	_show_step("Paint")
+	_show_step("Paint", true)
 
 
 # --- geometry helpers ------------------------------------------------------------
