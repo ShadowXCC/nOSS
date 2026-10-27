@@ -1,43 +1,47 @@
 #!/usr/bin/env python3
 """Screen-reader check (ACC-03; M4 acceptance: boot -> race -> results with a screen reader).
 
-Runs the game with accessibility on and walks main menu -> Local Drive -> Racing -> Regular ->
-its Settings page -> the class -> Players -> a 1-lap race -> results -> main menu (on the way, the
-screen under the top one isn't showing: UI overhaul P2's page stack), then Racing again: Stock Car
-(no Class step), the Time Trial switch (Regular's and Kart's time trials to their Players pages),
-and Custom with its Save preset page, and back out (UI overhaul P4-P6), then Drive Online -> Host -> the event
-pages (the Time Trial switch too, P10) -> the class -> the lobby (This PC's rows, Driving Settings,
-Change event, Playlist) -> Leave, and Join's tabs (M5, UI overhaul P8-P10), then each Local Drive
-type's pages (UI overhaul P5): Highway -> its Settings page -> the class -> Players and back out
-(M7); Racing -> Kart -> a race, a cup and the cup builder, then Mini Games -> Kart Battle ->
-Players and back out (M8); Endless -> the class -> Players (M9); Mini Games -> Sumo Wrestling and
-Drag Strip (its class) -> Players; Free Drive -> the class -> Players, each backed out of, then
-Settings and Driving Settings, every tab (P3), then the Garage: its tabs, the Fitting Bay's Import
-step with its "From online games" list, and back through the Garage (P7; a car's page, P7b), then the track editor: every
-tool, a new oval, its race setup and checks, a new highway loop and its ramps, the Stunts tool on
-a kart circuit and an arena, and out (M6-M8);
-then, in a second run, a highway session's pause menu (opened with --pause-at: keys can't be
-sent on Wayland) and joining a friend from it (M7), through AT-SPI,
-the interface screen readers (Orca) use: it finds controls by their accessible names, presses
-them with their accessibility actions, and checks that every focusable control on each screen
-has a name and that something has focus.
+Walks the menus through AT-SPI, the interface screen readers (Orca) use: it finds controls by
+their accessible names, presses them with their accessibility actions, and on each screen checks
+that every focusable control has a name and that something has focus. On the way it checks that
+the page under the top one isn't showing (UI overhaul P2: only the top page shows). The routes,
+in the order the full walk runs them (docs/UI_FLOW.md §12):
+
+  race      Local Drive -> Racing -> Regular -> its Settings -> the class -> Players -> a 1-lap
+            race -> the results: Event menu (that Settings page again) and back out, then Drive
+            again -> Players and back out a page at a time (M4; P4)
+  racing    Stock Car (no Class step) to Players; the Time Trial switch: Regular's and Kart's
+            time trials to Players; Custom and its Save preset page (P4-P6)
+  online    Drive Online -> Host -> the event pages (a time trial's Minutes too) -> the class,
+            which hosts -> the lobby: Change event, Playlist, This PC's rows, Driving Settings ->
+            Leave; Join's tabs, Official off (M5; P8-P10)
+  highway   Highway -> its Settings -> the class -> Players and back out (M7; P5)
+  kart      Kart's race, cup and cup builder; Mini Games -> Kart Battle -> Players (M8; P5)
+  endless   Endless -> its Settings -> the class -> Players (M9; P5)
+  sumo      Mini Games -> Sumo Wrestling -> its Settings -> Players (P5)
+  drag      Mini Games -> Drag Strip -> its Settings -> the class -> Players (P5)
+  free      Free Drive -> its Settings -> the class -> Players (P5)
+  settings  Settings: every tab, Reset to defaults and Clear downloads asking first (Keep),
+            Profiles; Driving Settings: every tab, Comfort's reset asking first (P3, P11)
+  garage    the Garage's tabs, a car's page and its Drive's class page, the Fitting Bay's Import
+            step ("From online games"), Exit back to the Garage (P7, P7b, P11)
+  editor    the track editor: every tool, a new oval, a highway loop and its ramps, the Stunts
+            tool on a kart circuit and an arena (M6-M8)
+Then each in a game of its own:
+  pause      a highway session with two players, the last one's pause menu (--pause-at: keys
+             can't be sent on Wayland): its Driving Settings and back, then joining the other
+             player from it (M7, P11)
+  first boot the first-boot Accessibility screen: its Driving Settings and back, then Done to
+             the main menu (ACC-09, P11)
 
 Runs in a private D-Bus session with the accessibility bus switched on in memory, so the
-desktop's settings are left alone. Needs python3-gi with Atspi (on GNOME by default) and a
-display. Writes no settings or profiles (--no-save).
+desktop's settings are left alone. Needs python3-gi with Atspi (on GNOME by default; the system
+python3, not the venv) and a display that's awake. Writes no settings or profiles (--no-save).
 
-    tools/a11y_check.py                # exit code 0 = pass
-    tools/a11y_check.py --editor-only  # just the track editor
-    tools/a11y_check.py --highway-only # just Highway's pages and a highway session's pause
-    tools/a11y_check.py --kart-only    # just Kart's pages (race, cup, cup builder) and Kart Battle's
-    tools/a11y_check.py --endless-only # just Endless's pages
-    tools/a11y_check.py --sumo-only    # just Mini Games and Sumo Wrestling's pages
-    tools/a11y_check.py --drag-only    # just Mini Games and Drag Strip's pages
-    tools/a11y_check.py --free-only    # just Free Drive's pages
-    tools/a11y_check.py --settings-only  # just Settings and Driving Settings, every tab
-    tools/a11y_check.py --racing-only  # just Racing: Stock Car, the time trials, Custom
-    tools/a11y_check.py --garage-only  # just the Garage and the Fitting Bay's Import step
-    tools/a11y_check.py --online-only  # just Drive Online: hosting through the event pages, the lobby, Join's tabs
+    tools/a11y_check.py                    # every route; exit code 0 = pass
+    tools/a11y_check.py --<route>-only     # one route (several flags: those), e.g. --garage-only;
+                                           # --highway-only adds the pause run
+    tools/a11y_check.py --first-boot-only  # just the first-boot screen
 """
 import os
 import subprocess
@@ -417,17 +421,30 @@ def free_menus():
 
 
 def settings_menus():
-    """Main menu -> Settings -> every tab -> Players -> Driving Settings -> every tab, and back out
-    (UI overhaul P3, docs/UI_FLOW.md §9). The tabs are toggle buttons; each tab's screen is checked
-    as the next one is pressed."""
+    """Main menu -> Settings -> every tab (Display's Reset to defaults and General's Clear downloads
+    asking first: Keep) -> Players -> Profiles and back -> Driving Settings -> every tab (Comfort's
+    Reset to defaults asking first), and back out (UI overhaul P3, P11; docs/UI_FLOW.md §9). The
+    tabs are toggle buttons; each tab's screen is checked as the next one is pressed. The rows a
+    long tab starts below the fold (Controls' Buttons and keys) are out of the screen-reader tree
+    until focused (ARCHITECTURE §1): the tests open those pages."""
     log("Settings")
     ok = step("Main menu (settings)", "Settings")
     ok = ok and hidden("Settings", "Local Drive")
-    for tab in ("Sound", "Splitscreen", "General", "Players"):  # Display is open first
+    ok = ok and asks("Settings: Display", "Reset to defaults", "Graphics: ")  # Display is open first
+    for tab in ("Sound", "Splitscreen", "General"):
         ok = ok and step(f"Settings: to {tab}", tab, role="toggle button")
-    ok = ok and step("Settings: Players", "Driving Settings")
+    ok = ok and asks("Settings: General", "Clear downloads", "Units: ", prefix=True)
+    ok = ok and step("Settings: to Players", "Players", role="toggle button")
+    ok = ok and step("Settings: Players", "Profiles")
+    ok = ok and back_from("Profiles", "New profile")
+    if ok and find("Profiles", "button", timeout=20.0) is None:  # Profiles has its own Driving Settings
+        problems.append("Out of Profiles: no Players tab")
+        ok = False
+    ok = ok and step("Settings: Players again", "Driving Settings")
     ok = ok and hidden("Driving Settings", "Profiles")
-    for tab in ("Comfort", "Vision & Hearing", "HUD & Display", "Controls", "Assists"):
+    ok = ok and step("Driving Settings: to Comfort", "Comfort", role="toggle button")
+    ok = ok and asks("Driving Settings: Comfort", "Reset to defaults", "Reset to defaults")
+    for tab in ("Vision & Hearing", "HUD & Display", "Controls", "Assists"):
         ok = ok and step(f"Driving Settings: to {tab}", tab, role="toggle button")
     ok = ok and back_from("Driving Settings: Assists", "Auto gearbox")
     ok = ok and back_from("Settings: Players again", "Profiles")
@@ -439,8 +456,9 @@ def settings_menus():
 
 def garage_menus():
     """Main menu -> Garage -> its tabs (Built-in) -> nOSS Box's page (the grid hidden under it) ->
-    Back -> My cars -> Fitting Bay -> the Import step's "From online games" list -> Exit -> the
-    Garage again -> Back (UI overhaul P7, P7b; docs/UI_FLOW.md §8)."""
+    Drive -> the class page and back -> Back -> My cars -> Fitting Bay -> the Import step's "From
+    online games" list -> Exit -> the Garage again -> Back (UI overhaul P7, P7b, P11;
+    docs/UI_FLOW.md §5.6, §8)."""
     log("Garage")
     ok = step("Main menu (garage)", "Garage")
     ok = ok and step("Garage: to Built-in", "Built-in", role="toggle button")
@@ -452,7 +470,10 @@ def garage_menus():
         problems.append("nOSS Box's page: no 'Drive'")
         ok = False
     ok = ok and hidden("nOSS Box's page", "New car")
-    ok = ok and step("nOSS Box's page", "Back")
+    ok = ok and step("nOSS Box's page", "Drive")
+    ok = ok and hidden("nOSS Box: class", "Duplicate")
+    ok = ok and back_from("nOSS Box: class", "Track GT")  # every class that takes the car, any mode's
+    ok = ok and back_from("nOSS Box's page again", "Duplicate")
     ok = ok and step("Garage: to My cars", "My cars", role="toggle button")
     end = time.time() + 20.0
     while ok and find("nOSS Box", "button", timeout=0.5) is not None:  # until the tab has switched
@@ -549,11 +570,23 @@ def online_menus():
     return ok
 
 
-def hidden(label, name):
+def asks(label, name, anchor, prefix=False):
+    """Presses `name`, which asks first (a ConfirmPage: docs/UI_FLOW.md §4), checks the question
+    and answers "Keep"; the screen with `anchor` (a name prefix) comes back."""
+    ok = step(label, name, prefix=prefix)
+    ok = ok and hidden(f"{label}: the question", anchor, prefix=True)
+    ok = ok and step(f"{label}: the question", "Keep")
+    if ok and find(anchor, "button", timeout=20.0, prefix=True) is None:
+        problems.append(f"{label}: no '{anchor}' after Keep")
+        return False
+    return ok
+
+
+def hidden(label, name, prefix=False):
     """Only the top page shows (docs/UI_FLOW.md §4): `name`, a button of the screen under it,
     isn't showing, so a screen reader can't reach it."""
     time.sleep(1.0)  # the new page is up a frame after the press
-    if find(name, "button", timeout=2.0) is not None:
+    if find(name, "button", timeout=2.0, prefix=prefix) is not None:
         problems.append(f"{label}: '{name}' from the screen under it is still showing")
         return False
     log(f"  '{name}' is hidden under it")
@@ -570,18 +603,44 @@ def back_from(label, anchor):
 
 
 def highway_pause_walk():
-    """A highway session with two players (one autodriven), the last one's pause menu open: its
-    controls, then joining the other player from it (M7)."""
+    """A highway session with two players (one autodriven), the last one's pause menu open in their
+    view: its controls, its Driving Settings and back (P11), then joining the other player from it
+    (M7)."""
     log("Highway session: pause")
     game, _ = start_game(["--highway", "--players=2", "--pause-at=12"], "noss_a11y_highway.log")
     try:
         if find("Change direction", "button", timeout=120.0) is None:
             problems.append("Highway pause: no 'Change direction' button")
             return
+        if step("Highway pause", "Driving Settings"):
+            hidden("Pause: Driving Settings", "Change direction")
+            back_from("Pause: Driving Settings", "Auto gearbox")
+            if find("Change direction", "button", timeout=20.0) is None:
+                problems.append("Out of the pause's Driving Settings: no pause menu")
+                return
         step("Highway pause", "Join ", prefix=True)
         time.sleep(2.0)
         if find("Change direction", "button", timeout=2.0) is not None:
             problems.append("Highway pause: still open after joining a friend")
+    finally:
+        stop_game(game)
+
+
+def first_boot_walk():
+    """The first-boot Accessibility screen (ACC-09, docs/ACCESSIBILITY.md §7; --menu=access opens it
+    though this run skips first boot): its Driving Settings and back, then Done to the main menu."""
+    log("First boot")
+    game, _ = start_game(["--menu=access"], "noss_a11y_first_boot.log")
+    try:
+        if find("Done", "button", timeout=60.0) is None:
+            problems.append("First boot: no 'Done' button")
+            return
+        ok = step("First boot", "Driving Settings")
+        ok = ok and hidden("First boot: Driving Settings", "Done")
+        ok = ok and back_from("First boot: Driving Settings", "Auto gearbox")
+        ok = ok and step("First boot again", "Done")
+        if ok and find("Local Drive", "button", timeout=20.0) is None:
+            problems.append("After first boot: no main menu")
     finally:
         stop_game(game)
 
@@ -606,7 +665,7 @@ def stop_game(game):
 def editor_walk():
     """The track editor (M6): each tool's panel, a new oval's race setup and checks, then out."""
     log("Track editor")
-    if not step("Title (editor)", "Track Editor"):
+    if not step("Main menu (editor)", "Track Editor"):
         return
     if find("Start new", "button", timeout=3.0) is not None:  # an autosave from another run
         step("Restore prompt", "Start new")
@@ -645,131 +704,97 @@ def editor_walk():
     if find("Don't save", "button", timeout=3.0) is not None:
         step("Unsaved prompt", "Don't save")
     if find("Local Drive", "button", timeout=20.0) is None:
-        problems.append("Out of the editor: no title")
+        problems.append("Out of the editor: no main menu")
+
+
+def race_walk():
+    """Main menu -> Local Drive -> Racing -> Regular -> its Settings page -> the class -> Players ->
+    a 1-lap race (autodriven) -> the results, which have "Main menu"; their "Event menu" -> that
+    event's Settings page and back out to Local Drive -> Drive again -> Players, and back out a page
+    at a time to the main menu (M4 acceptance; UI overhaul P4, P11; docs/UI_FLOW.md §5.2, §5.9).
+    Each page on the way in hides the one under it (P2)."""
+    log("Race")
+    ok = step("Main menu", "Local Drive")
+    ok = ok and hidden("Local Drive", "Drive Online")
+    ok = ok and step("Local Drive", "Racing")
+    ok = ok and hidden("Racing", "Mini Games")
+    ok = ok and step("Racing", "Regular")
+    ok = ok and hidden("Settings", "Stock Car")
+    ok = ok and step("Settings", "Next")
+    ok = ok and step("Class", "Track GT", prefix=True)
+    ok = ok and step("Players", "Ready", timeout=30.0)
+    if not ok:
+        return False
+    log("Race (1 lap, autodrive)")
+    row = find("P1, ", "button", timeout=240.0, prefix=True)
+    if row is None:
+        problems.append("Results: no result rows (the race didn't finish?)")
+        return False
+    rows = [n for n in walk(app()) if (n.get_name() or "").startswith("P") and ", " in (n.get_name() or "") and showing(n)]
+    log(f"  {len(rows)} result rows, e.g. '{row.get_name()}'")
+    if find("Main menu", "button", timeout=5.0) is None:
+        problems.append("Results: no 'Main menu' button")
+    ok = step("Results", "Event menu")
+    ok = ok and back_from("Settings (Event menu)", "Laps: ")
+    ok = ok and back_from("Racing (Event menu)", "Custom")
+    ok = ok and step("Local Drive (Drive again)", "Drive again")
+    for label, anchor in (("Drive again: players", "Ready"), ("Drive again: settings", "Laps: "),
+                          ("Drive again: racing", "Custom"), ("Local Drive (after Drive again)", "Highway")):
+        ok = ok and back_from(label, anchor)
+    if ok and find("Local Drive", "button", timeout=20.0) is None:
+        problems.append("Out of Drive again: no main menu")
+        return False
+    return ok
+
+
+# The routes from the main menu, in the full walk's order after the race: each starts and ends
+# there. --<name>-only runs just those named.
+ROUTES = [
+    ("racing", racing_menus),
+    ("online", online_menus),
+    ("highway", highway_menus),
+    ("kart", kart_menus),
+    ("endless", endless_menus),
+    ("sumo", sumo_menus),
+    ("drag", drag_menus),
+    ("free", free_menus),
+    ("settings", settings_menus),
+    ("garage", garage_menus),
+    ("editor", editor_walk),
+]
+# Walks in a game of their own, after the main one; --highway-only runs the pause one too.
+OWN_GAME = [
+    ("highway", highway_pause_walk),
+    ("first-boot", first_boot_walk),
+]
 
 
 def main():
     subprocess.run(["busctl", "--user", "set-property", "org.a11y.Bus", "/org/a11y/bus", "org.a11y.Status", "IsEnabled", "b", "true"],
                    check=False, capture_output=True)
-    game, _ = start_game([], "noss_a11y_check.log")
-    try:
-        if "--editor-only" in sys.argv:
-            if find("Track Editor", "button", timeout=60.0) is not None:
-                editor_walk()
-            raise SystemExit(report())
-        if "--highway-only" in sys.argv:
-            if find("Local Drive", "button", timeout=60.0) is not None:
-                highway_menus()
-            stop_game(game)  # before the second run starts
-            return finish()
-        if "--kart-only" in sys.argv:
-            if find("Local Drive", "button", timeout=60.0) is not None:
-                kart_menus()
-            raise SystemExit(report())
-        if "--endless-only" in sys.argv:
-            if find("Local Drive", "button", timeout=60.0) is not None:
-                endless_menus()
-            raise SystemExit(report())
-        if "--sumo-only" in sys.argv:
-            if find("Local Drive", "button", timeout=60.0) is not None:
-                sumo_menus()
-            raise SystemExit(report())
-        if "--drag-only" in sys.argv:
-            if find("Local Drive", "button", timeout=60.0) is not None:
-                drag_menus()
-            raise SystemExit(report())
-        if "--free-only" in sys.argv:
-            if find("Local Drive", "button", timeout=60.0) is not None:
-                free_menus()
-            raise SystemExit(report())
-        if "--settings-only" in sys.argv:
-            if find("Local Drive", "button", timeout=60.0) is not None:
-                settings_menus()
-            raise SystemExit(report())
-        if "--racing-only" in sys.argv:
-            if find("Local Drive", "button", timeout=60.0) is not None:
-                racing_menus()
-            raise SystemExit(report())
-        if "--garage-only" in sys.argv:
-            if find("Local Drive", "button", timeout=60.0) is not None:
-                garage_menus()
-            raise SystemExit(report())
-        if "--online-only" in sys.argv:
-            if find("Local Drive", "button", timeout=60.0) is not None:
-                online_menus()
-            raise SystemExit(report())
-        log("Title")
-        ok = step("Title", "Local Drive")
-        ok = ok and hidden("Local Drive", "Drive Online")
-        ok = ok and step("Local Drive", "Racing")
-        ok = ok and hidden("Racing", "Mini Games")
-        ok = ok and step("Racing", "Regular")
-        ok = ok and hidden("Settings", "Stock Car")
-        ok = ok and step("Settings", "Next")
-        ok = ok and step("Class", "Track GT", prefix=True)
-        ok = ok and step("Players", "Ready", timeout=30.0)
-        if ok:
-            log("Race (1 lap, autodrive)")
-            row = find("P1, ", "button", timeout=240.0, prefix=True)
-            if row is None:
-                problems.append("Results: no result rows (the race didn't finish?)")
-            else:
-                rows = [n for n in walk(app()) if (n.get_name() or "").startswith("P") and ", " in (n.get_name() or "") and showing(n)]
-                log(f"  {len(rows)} result rows, e.g. '{row.get_name()}'")
-                step("Results", "Main menu")
-                if find("Local Drive", "button", timeout=20.0) is None:
-                    problems.append("Back at the title: no Local Drive button")
-                else:
-                    racing_menus()
-                if find("Local Drive", "button", timeout=20.0) is not None:
-                    online_menus()
-                else:
-                    problems.append("Back at the title: no Local Drive button")
-                if find("Local Drive", "button", timeout=20.0) is not None:
-                    highway_menus()
-                else:
-                    problems.append("Back at the title: no Local Drive button")
-                if find("Local Drive", "button", timeout=20.0) is not None:
-                    kart_menus()
-                else:
-                    problems.append("Back at the title: no Local Drive button")
-                if find("Local Drive", "button", timeout=20.0) is not None:
-                    endless_menus()
-                else:
-                    problems.append("Back at the title: no Local Drive button")
-                if find("Local Drive", "button", timeout=20.0) is not None:
-                    sumo_menus()
-                else:
-                    problems.append("Back at the title: no Local Drive button")
-                if find("Local Drive", "button", timeout=20.0) is not None:
-                    drag_menus()
-                else:
-                    problems.append("Back at the title: no Local Drive button")
-                if find("Local Drive", "button", timeout=20.0) is not None:
-                    free_menus()
-                else:
-                    problems.append("Back at the title: no Local Drive button")
-                if find("Local Drive", "button", timeout=20.0) is not None:
-                    settings_menus()
-                else:
-                    problems.append("Back at the title: no Local Drive button")
-                if find("Local Drive", "button", timeout=20.0) is not None:
-                    garage_menus()
-                else:
-                    problems.append("Back at the title: no Local Drive button")
-                if find("Track Editor", "button", timeout=20.0) is not None:
-                    editor_walk()
-                else:
-                    problems.append("Back at the title: no Track Editor button")
-    finally:
-        stop_game(game)
-    return finish()
-
-
-def finish():
-    if not any(f in sys.argv for f in ("--editor-only", "--kart-only", "--endless-only", "--sumo-only", "--drag-only", "--free-only",
-                                       "--settings-only", "--racing-only", "--garage-only", "--online-only")):
-        highway_pause_walk()
+    names = {name for name, _ in ROUTES + OWN_GAME}
+    only = {a[2:-5] for a in sys.argv[1:] if a.startswith("--") and a.endswith("-only") and a[2:-5] in names}
+    unknown = [a for a in sys.argv[1:] if a.startswith("--") and a[2:-5] not in names]
+    if unknown:
+        log(f"Unknown: {' '.join(unknown)} (routes: {', '.join(sorted(names))})")
+        return 2
+    routes = [w for name, w in ROUTES if not only or name in only]
+    if routes:
+        game, _ = start_game([], "noss_a11y_check.log")
+        try:
+            if find("Local Drive", "button", timeout=60.0) is None:
+                problems.append("No main menu")
+            elif only or race_walk():
+                for w in routes:
+                    if find("Local Drive", "button", timeout=20.0) is None:
+                        problems.append(f"Before the {w.__name__} route: no main menu")
+                        break
+                    w()
+        finally:
+            stop_game(game)
+    for name, w in OWN_GAME:
+        if not only or name in only:
+            w()
     return report()
 
 
