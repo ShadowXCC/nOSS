@@ -7,6 +7,7 @@ extends Node
 var session: TrackSession
 var _panels := {} # SessionPlayer -> SumoPanel
 var _warned := {} # SessionPlayer -> the tier it was last warned about
+var _labels := {} # "player|device|on" -> the fast-forward prompt
 
 
 func _ready() -> void:
@@ -43,12 +44,26 @@ func _process(_delta: float) -> void:
 		var shrink := 1.0 if tier < 0 else layout.shrink_of(tier)
 		var warn := tier >= 0 and layout.stepping(tier)
 		var watching := session.sumo_watch.watching_text(p) if session.sumo_watch else ""
-		panel.show_sumo(left, session.racers.size(), tier, layout.count(), shrink, sumo.charge(p), warn, p.out, watching)
+		var prompt := ""
+		if p.out and (sumo.fast_forward or sumo.can_fast_forward()):
+			prompt = _fast_forward_text(p, sumo.fast_forward)
+		panel.show_sumo(left, session.racers.size(), tier, layout.count(), shrink, sumo.charge(p), warn, p.out, watching, prompt)
 		if warn and int(_warned.get(p, -2)) != tier:
 			_warned[p] = tier
 			_news(p, "Shrinking")
 		elif not warn and int(_warned.get(p, -2)) == tier:
 			_warned.erase(p)
+
+
+## What an out player can do about the wait (D219), naming their Ram input as a drag prompt does
+## (DragPrompts): "Fast forward: Shift", then "4x · Normal: Shift". Worked out once per device.
+func _fast_forward_text(p: SessionPlayer, on: bool) -> String:
+	var key := "%d|%s|%s" % [p.get_instance_id(), DragPrompts.device_of(p), on]
+	if not _labels.has(key):
+		var b := DragPrompts.label(p, "ram")
+		var normal := "Normal: %s" % b if b else "Normal speed"
+		_labels[key] = "%dx  ·  %s" % [roundi(SumoControl.FF_SPEED), normal] if on else ("Fast forward: %s" % b if b else "Fast forward")
+	return String(_labels[key])
 
 
 func _on_out(r: Racer) -> void:

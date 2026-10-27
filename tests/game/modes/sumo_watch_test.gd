@@ -23,6 +23,7 @@ func after_test() -> void:
 	if s and is_instance_valid(s):
 		s.queue_free()
 	await get_tree().process_frame
+	Engine.time_scale = 1.0 # a failed fast-forward test mustn't hurry the rest
 
 
 ## A match of four on one platform, with the player in the goo and three bots still fighting.
@@ -139,3 +140,68 @@ func test_a_new_match_gives_them_their_own_car_back() -> void:
 	assert_bool(p.out).is_false()
 	assert_bool(p.cameras.watching).is_false()
 	assert_object(p.cameras.vehicle).is_equal(p.vehicle)
+
+
+## The Ram button, pressed by `who` this tick (what PlayerInput.poll would have seen).
+func _press_ram(who: SessionPlayer) -> void:
+	who.slot.input._edges["ram"] = true
+	s.sumo_watch._fast_forward(who, sumo)
+	who.slot.input._edges["ram"] = false
+	for i in 3:
+		await get_tree().process_frame
+
+
+## Fast-forward (D219): only once every player is out, only offline, and not after the end.
+func test_fast_forward_waits_for_every_player_to_be_out() -> void:
+	await _start()
+	assert_bool(sumo.can_fast_forward()).override_failure_message("a player is still in").is_false()
+	sumo.fast_forward_on(true)
+	assert_bool(sumo.fast_forward).is_false()
+	await _goo(p)
+	assert_bool(sumo.can_fast_forward()).is_true()
+	s.online = { "test": true }
+	var online := sumo.can_fast_forward()
+	s.online = {}
+	assert_bool(online).override_failure_message("online the clock is the server's").is_false()
+	sumo.ended = true
+	assert_bool(sumo.can_fast_forward()).override_failure_message("after the end").is_false()
+
+
+## Out, Ram runs the match at 4x and back, and the ram line says so with the key to press.
+func test_ram_runs_the_match_on_at_4x_and_back() -> void:
+	await _start()
+	await _goo(p)
+	var panel: SumoPanel = p.hud.get_node("SumoPanel")
+	assert_str(panel.ram_text()).starts_with("Fast forward")
+	await _press_ram(p)
+	assert_bool(sumo.fast_forward).is_true()
+	assert_float(Engine.time_scale).is_equal_approx(SumoControl.FF_SPEED, 0.001)
+	assert_float(float(Engine.physics_ticks_per_second)).is_equal(float(TrackSession.PHYSICS_HZ))
+	assert_str(panel.ram_text()).starts_with("4x")
+	assert_str(panel.accessibility_name).contains(panel.ram_text())
+	await _press_ram(p)
+	assert_bool(sumo.fast_forward).is_false()
+	assert_float(Engine.time_scale).is_equal_approx(1.0, 0.001)
+
+
+## The results and the cool-down run at 1x: the end of the match turns it off, and so does a restart.
+func test_fast_forward_stops_at_the_end_and_on_a_restart() -> void:
+	await _start()
+	await _goo(p)
+	sumo.fast_forward_on(true)
+	await _goo(bots[0])
+	await _goo(bots[1])
+	for i in 4:
+		await get_tree().physics_frame
+	assert_bool(sumo.ended).is_true()
+	assert_bool(sumo.fast_forward).is_false()
+	assert_float(Engine.time_scale).is_equal_approx(1.0, 0.001)
+	# And a restarted match, if it was on when the match restarted (the pause menu's Restart).
+	sumo.fast_forward = true
+	s.apply_game_speed()
+	assert_float(Engine.time_scale).is_equal_approx(SumoControl.FF_SPEED, 0.001)
+	s.race.restart_session()
+	for i in 4:
+		await get_tree().physics_frame
+	assert_bool(sumo.fast_forward).is_false()
+	assert_float(Engine.time_scale).is_equal_approx(1.0, 0.001)

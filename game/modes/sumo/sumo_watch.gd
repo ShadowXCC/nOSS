@@ -8,6 +8,7 @@ extends Node
 ## The car is left exactly where SumoControl put it -- out, frozen, ghosted, under the goo --
 ## because `out`, the KART_OUT bit on the wire and the authority's word all rest on that (D166).
 ## Only the camera moves, as a waiting drag driver's does (D176). Nothing here goes on the wire.
+## Out, the Ram button runs the rest of the match on faster and back (D219), offline.
 
 ## The arena from outside and above, as a fraction of the platform in play: far enough back and
 ## high enough up that the whole of it is in frame, whichever platform the fight is down to.
@@ -64,6 +65,29 @@ func _process(delta: float) -> void:
 		if int(_views.get(p, 0)) > standing.size():
 			_views[p] = 0
 		_watch(p, standing)
+
+
+## The fast-forward reads an input edge, and edges are polled once a physics tick: in `_process`
+## the same press would be seen twice on a game drawing faster than the sim steps (DragWatch).
+func _physics_process(_delta: float) -> void:
+	var sumo := session.sumo
+	if sumo == null:
+		return
+	for r in session.racers:
+		var p := r as SessionPlayer
+		if p != null and p.out:
+			_fast_forward(p, sumo)
+
+
+func _fast_forward(p: SessionPlayer, sumo: SumoControl) -> void:
+	if p.slot.ai or p.overlay != null or not p.slot.input.just_pressed("ram"):
+		return
+	if sumo.fast_forward:
+		sumo.fast_forward_on(false)
+		p.notify("Normal speed", 1.5)
+	elif sumo.can_fast_forward():
+		sumo.fast_forward_on(true)
+		p.notify("Fast forward", 1.5)
 
 
 ## Keeps the view with the fight: the middle of whoever is left, over the widest platform any of

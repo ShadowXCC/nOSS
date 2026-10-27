@@ -23,6 +23,9 @@ const RAM_MIN_SPEED := 2.0
 ## Rising or falling faster than this it is passing through, not standing on anything: a car
 ## dropping between platforms crosses the one above's height band on its way down.
 const LAND_VY := 2.0
+## Once every player is out, the rest of the match may run this many times faster (D219), as a
+## drag pass of bots can (D178): the clock only, so the bots fight it out as they would have.
+const FF_SPEED := 4.0
 ## HUD elements a sumo match never shows: it has no laps, no sectors and no racing line.
 const HUD_HIDDEN := ["timing", "delta", "position", "standings", "flags"]
 
@@ -50,6 +53,8 @@ var _charge := {}
 ## tier -> what set it going ("start" for the top one at the green light, else a car's name).
 ## Recorded as it happens, so the soak check reads a fact rather than sampling for it.
 var armed_by := {}
+## The match running on at FF_SPEED (D219).
+var fast_forward := false
 var _started := false
 
 
@@ -60,6 +65,7 @@ func _ready() -> void:
 
 ## A new match: everyone back on the top platform, every platform its full size.
 func reset() -> void:
+	fast_forward_on(false)
 	ended = false
 	_started = false
 	_tier.clear()
@@ -153,10 +159,27 @@ func _physics_process(delta: float) -> void:
 	# One car left (or none: the goo took the last of them on the same tick).
 	if session.racers.size() > 1 and standing().size() <= 1:
 		ended = true
+		fast_forward_on(false) # the results and the cool-down at 1x
 		var order := standings()
 		if not order.is_empty() and not order[0].out:
 			order[0].notify("Winner", 4.0)
 		session.race.end_session()
+
+
+## Every player is out and the match goes on without them: they may run it on faster (D219).
+## Offline only: online the clock is the server's, and every car on the wire keeps it.
+func can_fast_forward() -> bool:
+	if not authority or session.is_online() or ended or session.race.phase != RaceControl.Phase.RUNNING:
+		return false
+	var humans := session.racers.filter(func(r: Racer) -> bool: return r.is_human)
+	return not humans.is_empty() and humans.all(func(r: Racer) -> bool: return r.out)
+
+
+func fast_forward_on(on: bool) -> void:
+	if fast_forward == on or (on and not can_fast_forward()):
+		return
+	fast_forward = on
+	session.apply_game_speed()
 
 
 ## The authority's word stands. A remote car takes its `out` from the states its own game sends

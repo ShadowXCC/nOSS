@@ -1326,9 +1326,11 @@ func apply_game_speed() -> void:
 	var speed := 1.0
 	if humans.size() == 1 and not is_online():
 		speed = clampf(float(humans[0].slot.profile.data.get("game_speed", 1.0)), 0.5, 1.0)
-	# A pass of bots being hurried along (D178) takes the clock with it, and only the clock: the
-	# tick rate stays, so the sim steps the same slice of game time a driven pass does.
-	Engine.time_scale = speed * (DragControl.SKIP_SPEED if drag and drag.skipping else 1.0)
+	# A pass of bots being hurried along (D178), or a sumo match with every player out (D219),
+	# takes the clock with it, and only the clock: the tick rate stays, so the sim steps the same
+	# slice of game time a driven one does.
+	var hurry := DragControl.SKIP_SPEED if drag and drag.skipping else SumoControl.FF_SPEED if sumo and sumo.fast_forward else 1.0
+	Engine.time_scale = speed * hurry
 	Engine.physics_ticks_per_second = roundi(PHYSICS_HZ * speed)
 	if speed < 1.0:
 		for p: SessionPlayer in humans:
