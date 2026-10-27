@@ -87,3 +87,19 @@ func test_rumbles_come_from_the_seed() -> void:
 			assert_float(r.at).is_between(float(slot), float(slot) + 1.0)
 			assert_float(r.distance).is_between(5000.0, 9000.0)
 	assert_int(count).is_between(60, 150)
+
+
+## An old lamp's flicker (D221, ACC-04): at most two dips in any second, never below half, and
+## lamps with other seeds out of step.
+func test_a_lamps_flicker_stays_gentle() -> void:
+	for seed in [0.0, 3.0, 41.5, 200.0]:
+		var f := func(t: float) -> float: return WorldMaterials.flicker(t, seed)
+		assert_int(Flash.most_per_second(f, 30.0)).is_less_equal(2)
+		var lowest := 1.0
+		for ms in 30000:
+			lowest = minf(lowest, WorldMaterials.flicker(ms / 1000.0, seed))
+		assert_float(lowest).is_between(0.5, 0.8)
+	var same := 0
+	for ms in 30000:
+		same += 1 if WorldMaterials.flicker(ms / 1000.0, 3.0) == WorldMaterials.flicker(ms / 1000.0, 41.5) else 0
+	assert_int(same).is_less(30000)

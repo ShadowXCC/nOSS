@@ -112,3 +112,41 @@ func test_a_light_tower_glows_at_night() -> void:
 	assert_int(int(parts[0].surface)).is_equal(VehicleSim.SURFACE_CONCRETE)
 	var lamps := PropLibrary.material(String(parts[1].material)) as ShaderMaterial
 	assert_bool(bool(lamps.get_shader_parameter("night_glow"))).is_true()
+
+
+## Haunted's props (D221): the lantern's face and the old lamp's glass glow after dark, the glass
+## flickers; the fence stretches; placed lamps merged into one mesh each flicker in their own time.
+func test_haunted_props() -> void:
+	var face := _part_named("jack_o_lantern", "Face")
+	var glass := _part_named("lamp_post", "Glass")
+	for part: Dictionary in [face, glass]:
+		var m := PropLibrary.material(String(part.material)) as ShaderMaterial
+		assert_bool(bool(m.get_shader_parameter("night_glow"))).is_true()
+	assert_bool(bool((PropLibrary.material(String(glass.material)) as ShaderMaterial).get_shader_parameter("flicker"))).is_true()
+	assert_bool(bool(glass.flicker)).is_true()
+	assert_bool(bool((PropLibrary.material(String(face.material)) as ShaderMaterial).get_shader_parameter("flicker"))).is_false()
+	var short := AABB()
+	var long := AABB()
+	for v in (PropLibrary.parts("iron_fence")[0].batch as MeshBatch).verts:
+		short = short.expand(v)
+	for v in (PropLibrary.parts("iron_fence", Vector3(0, 0, 20))[0].batch as MeshBatch).verts:
+		long = long.expand(v)
+	assert_float(short.size.z).is_between(6.0, 6.2) # its end posts stand a little past
+	assert_float(long.size.z).is_between(20.0, 20.2)
+	var t := _square({ "items": [{ "prop": "lamp_post", "p": [200, 0, 150] }, { "prop": "lamp_post", "p": [208, 0, 150] }, { "prop": "iron_fence", "p": [200, 0, 160] }] })
+	var root: Node3D = auto_free(Node3D.new())
+	PropBuilder.new(t).build(root)
+	var lit := root.get_node("OldLampGlass") as MeshInstance3D
+	var alphas := {}
+	for c: Color in lit.mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR]:
+		alphas[snappedf(c.a, 0.001)] = true
+	assert_int(alphas.size()).is_equal(2)
+	for c: Color in (root.get_node("IronFence") as MeshInstance3D).mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR]:
+		assert_float(c.a).is_equal(1.0) # the rest untouched
+
+
+func _part_named(id: String, suffix: String) -> Dictionary:
+	for part: Dictionary in PropLibrary.parts(id):
+		if part.suffix == suffix:
+			return part
+	return {}

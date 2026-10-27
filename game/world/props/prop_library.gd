@@ -54,6 +54,12 @@ const TYPES := {
 	# The endless road's limit signs (D193): its number is a Label3D the road puts on (not placeable).
 	"speed_sign": { "name": "Speed limit sign", "category": "trackside", "collide": true, "hidden": true },
 	"speed_camera": { "name": "Speed camera", "category": "trackside", "collide": true, "hidden": true },
+	# Haunted (D221).
+	"dead_tree": { "name": "Dead tree", "category": "nature", "collide": true, "scatter": true, "slope": 0.7, "spacing": 5.0 },
+	"gravestone": { "name": "Gravestone", "category": "nature", "collide": true, "scatter": true, "slope": 0.4, "spacing": 2.0 },
+	"jack_o_lantern": { "name": "Jack-o'-lantern", "category": "trackside", "collide": false, "scatter": true, "slope": 0.4, "spacing": 3.0 },
+	"iron_fence": { "name": "Iron fence", "category": "trackside", "collide": true, "scatter": true, "slope": 0.3, "spacing": 8.0, "size": [0.0, 0.0, 6.0] },
+	"lamp_post": { "name": "Old lamp", "category": "trackside", "collide": true, "scatter": true, "slope": 0.4, "spacing": 12.0 },
 }
 const CATEGORIES := ["nature", "buildings", "city", "trackside", "ground"]
 
@@ -77,7 +83,8 @@ static func size_of(id: String, size := Vector3.ZERO) -> Vector3:
 	return Vector3(d[0], d[1], d[2])
 
 
-## The prop's parts: [{suffix, material, surface (-1: not solid), batch: MeshBatch}], in its own space.
+## The prop's parts: [{suffix, material, surface (-1: not solid), batch: MeshBatch, flicker (a lamp
+## that flickers: each placed one gets its own time, D221)}], in its own space.
 static func parts(id: String, size := Vector3.ZERO) -> Array:
 	var s := size_of(id, size)
 	match id:
@@ -270,6 +277,16 @@ static func parts(id: String, size := Vector3.ZERO) -> Array:
 			line.quad([Vector3(-s.x / 2 + 0.2, 0.03, -s.z / 2), Vector3(-s.x / 2 + 0.2, 0.03, s.z / 2), Vector3(-s.x / 2 + 0.4, 0.03, s.z / 2), Vector3(-s.x / 2 + 0.4, 0.03, -s.z / 2)],
 				[Vector2(0, 0), Vector2(0, 1), Vector2(1, 1), Vector2(1, 0)])
 			return [_part("", "concrete", pad, VehicleSim.SURFACE_CONCRETE), _part("Line", "paint", line, -1)]
+		"dead_tree":
+			return _dead_tree()
+		"gravestone":
+			return [_part("", "gravestone", _gravestone(0.6, 1.0, 0.16), VehicleSim.SURFACE_CONCRETE)]
+		"jack_o_lantern":
+			return _jack_o_lantern()
+		"iron_fence":
+			return [_part("", "iron", _iron_fence(s.z), VehicleSim.SURFACE_CONCRETE)]
+		"lamp_post":
+			return _old_lamp()
 	return []
 
 
@@ -292,12 +309,12 @@ static func scatter_shape(id: String) -> Dictionary:
 	if not TYPES.get(id, {}).get("collide", false):
 		return {}
 	match id:
-		"tree_pine", "tree_round", "tree_autumn", "tree_pine_snow", "palm", "cypress", "cactus":
+		"tree_pine", "tree_round", "tree_autumn", "tree_pine_snow", "palm", "cypress", "cactus", "dead_tree":
 			var c := CylinderShape3D.new()
 			c.radius = 0.35
 			c.height = 4.0
 			return { "shape": c, "offset": Vector3(0, 2.0, 0) }
-		"tower_slim", "tower_block", "tower_wide", "tower_tall", "barn", "chalet", "hay_bale":
+		"tower_slim", "tower_block", "tower_wide", "tower_tall", "barn", "chalet", "hay_bale", "gravestone", "iron_fence":
 			var box := AABB()
 			for part: Dictionary in parts(id):
 				for v in (part.batch as MeshBatch).verts:
@@ -309,6 +326,11 @@ static func scatter_shape(id: String) -> Dictionary:
 			var b := BoxShape3D.new()
 			b.size = Vector3(1.9, 1.2, 1.5)
 			return { "shape": b, "offset": Vector3(0, 0.6, 0) }
+		"lamp_post":
+			var c := CylinderShape3D.new()
+			c.radius = 0.12
+			c.height = 3.6
+			return { "shape": c, "offset": Vector3(0, 1.8, 0) }
 	var box := BoxShape3D.new()
 	box.size = Vector3.ONE
 	return { "shape": box, "offset": Vector3(0, 0.5, 0) }
@@ -413,6 +435,18 @@ static func material(key: String) -> Material:
 			return WorldMaterials.get_material("camera_yellow", null, 0.5, 0.3, false, Vector2.ONE, Color(0.95, 0.75, 0.1))
 		"camera_lens":
 			return WorldMaterials.get_material("camera_lens", null, 0.1, 0.8, false, Vector2.ONE, Color(0.05, 0.05, 0.07))
+		"bark_dead":
+			return WorldMaterials.get_material("bark_dead", RetroTextures.dirt(), 1.0, 0.05, false, Vector2(1, 3), Color(0.4, 0.36, 0.33))
+		"gravestone":
+			return WorldMaterials.get_material("gravestone", RetroTextures.rock(), 0.95, 0.1, false, Vector2.ONE, Color(0.7, 0.71, 0.7))
+		"pumpkin":
+			return WorldMaterials.get_material("pumpkin", null, 0.7, 0.2, false, Vector2.ONE, Color(0.92, 0.45, 0.08))
+		"pumpkin_face":
+			return WorldMaterials.glowing("pumpkin_face", Color(1.0, 0.62, 0.16), 2.2, true)
+		"iron":
+			return WorldMaterials.get_material("iron", null, 0.5, 0.5, false, Vector2.ONE, Color(0.1, 0.1, 0.11))
+		"lamp_glass":
+			return WorldMaterials.glowing("lamp_glass", Color(1.0, 0.8, 0.48), 2.0, true, true)
 	return WorldMaterials.get_material("concrete_world", RetroTextures.concrete(), 0.8, 0.25, true, Vector2.ONE / 6.0)
 
 
@@ -432,8 +466,146 @@ static func _disc(at: Vector3, radius: float, sides := 20) -> MeshBatch:
 	return b
 
 
-static func _part(suffix: String, material_key: String, batch: MeshBatch, surface: int) -> Dictionary:
-	return { "suffix": suffix, "material": material_key, "batch": batch, "surface": surface }
+static func _part(suffix: String, material_key: String, batch: MeshBatch, surface: int, flicker := false) -> Dictionary:
+	return { "suffix": suffix, "material": material_key, "batch": batch, "surface": surface, "flicker": flicker }
+
+
+## A triangle, turned to face `out`.
+static func _tri(b: MeshBatch, p0: Vector3, p1: Vector3, p2: Vector3, out: Vector3) -> void:
+	var n := (p1 - p0).cross(p2 - p0).normalized()
+	if n.dot(out) < 0.0:
+		var t := p1
+		p1 = p2
+		p2 = t
+		n = -n
+	var first := b.vertex(p0, n, Vector2(0, 1))
+	b.vertex(p1, n, Vector2(1, 1))
+	b.vertex(p2, n, Vector2(0.5, 0))
+	b.index.append_array([first, first + 2, first + 1]) # Godot's fronts are clockwise
+
+
+# --- Haunted (D221) ------------------------------------------------------------------------------
+
+
+## A bare tree: a tapering trunk and crooked branches, each bending up again partway.
+static func _dead_tree() -> Array:
+	var b := MeshBatch.new()
+	_cone(b, Vector3.ZERO, 0.3, 6.5, 6)
+	# [height, yaw, tilt from upright (deg), length, thickness]
+	for br: Array in [[2.4, 0.3, 62.0, 2.0, 0.15], [3.2, 2.5, 55.0, 1.8, 0.13], [4.1, 4.4, 48.0, 1.5, 0.11], [3.7, 1.4, 70.0, 1.2, 0.09], [4.9, 3.5, 40.0, 1.1, 0.08]]:
+		var at := Vector3(0, float(br[0]), 0)
+		var tilt := deg_to_rad(float(br[2]))
+		var length := float(br[3])
+		var thick := float(br[4])
+		for k in 2:
+			var dir := Vector3(sin(tilt) * cos(float(br[1])), cos(tilt), sin(tilt) * sin(float(br[1])))
+			var axis := Vector3.UP.cross(dir)
+			var turn := Basis(axis.normalized(), Vector3.UP.angle_to(dir)) if axis.length() > 1e-4 else Basis()
+			var seg := length * (0.6 if k == 0 else 0.5)
+			b.box(at + dir * seg / 2.0, turn, Vector3(thick, seg, thick), Vector2(1, seg))
+			at += dir * seg
+			tilt *= 0.55 # the crook: the outer part bends up
+			thick *= 0.7
+	return [_part("", "bark_dead", b, -1)]
+
+
+## A headstone `w` wide and `h` tall (its rounded top included), `t` thick, facing ±z, on a plinth.
+static func _gravestone(w: float, h: float, t: float) -> MeshBatch:
+	var b := MeshBatch.new()
+	var r := w / 2.0
+	var body := h - r
+	b.box(Vector3(0, body / 2.0, 0), Basis(), Vector3(w, body, t))
+	b.box(Vector3(0, 0.06, 0), Basis(), Vector3(w + 0.16, 0.12, t + 0.16))
+	var steps := 8
+	for i in steps:
+		var a0 := PI * i / steps
+		var a1 := PI * (i + 1) / steps
+		var e0 := Vector3(cos(a0) * r, body + sin(a0) * r, 0.0)
+		var e1 := Vector3(cos(a1) * r, body + sin(a1) * r, 0.0)
+		for side: float in [1.0, -1.0]:
+			var z := Vector3(0, 0, side * t / 2.0)
+			_tri(b, Vector3(0, body, 0) + z, e0 + z, e1 + z, z)
+		var zt := Vector3(0, 0, t / 2.0)
+		b.quad([e0 + zt, e0 - zt, e1 - zt, e1 + zt], [Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)])
+	return b
+
+
+## A carved pumpkin: eight ribs round, a stem, and a face on the rib facing +z that glows after
+## dark (it lies on that rib, so it doesn't float).
+static func _jack_o_lantern() -> Array:
+	var rings := [[0.0, 0.1], [0.07, 0.24], [0.2, 0.3], [0.33, 0.24], [0.4, 0.08]] # [y, radius]
+	var sides := 8
+	var shell := MeshBatch.new()
+	var p := func(ring: Array, a: float) -> Vector3: return Vector3(sin(a) * float(ring[1]), float(ring[0]), cos(a) * float(ring[1]))
+	for k in rings.size() - 1:
+		for j in sides:
+			var t0 := TAU * (j - 0.5) / sides
+			var t1 := TAU * (j + 0.5) / sides
+			var lo: Array = rings[k]
+			var hi: Array = rings[k + 1]
+			shell.quad([p.call(lo, t0), p.call(lo, t1), p.call(hi, t1), p.call(hi, t0)], [Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)])
+	var top: Array = rings[-1]
+	for j in sides:
+		var a0 := TAU * (j - 0.5) / sides
+		var a1 := TAU * (j + 0.5) / sides
+		_tri(shell, Vector3(0, float(top[0]) + 0.01, 0), Vector3(sin(a0), 0, cos(a0)) * float(top[1]) + Vector3(0, float(top[0]), 0),
+			Vector3(sin(a1), 0, cos(a1)) * float(top[1]) + Vector3(0, float(top[0]), 0), Vector3.UP)
+	var stem := MeshBatch.new()
+	_cylinder(stem, Vector3(0, 0.45, 0), 0.03, 0.1, 5)
+	# The face's points as (x, y) on the front rib, where the rib is at z = cos(half a rib) * radius.
+	var on_rib := func(x: float, y: float) -> Vector3:
+		var k := 0
+		while k < rings.size() - 2 and y > float(rings[k + 1][0]):
+			k += 1
+		var f := inverse_lerp(float(rings[k][0]), float(rings[k + 1][0]), y)
+		return Vector3(x, y, cos(PI / sides) * lerpf(float(rings[k][1]), float(rings[k + 1][1]), f) + 0.006)
+	var face := MeshBatch.new()
+	for side: float in [-1.0, 1.0]: # eyes
+		_tri(face, on_rib.call(side * 0.085, 0.225), on_rib.call(side * 0.02, 0.225), on_rib.call(side * 0.055, 0.29), Vector3.BACK)
+	var mouth_top := [[-0.085, 0.175], [-0.042, 0.155], [0.0, 0.175], [0.042, 0.155], [0.085, 0.175]]
+	var mouth_low := [[-0.06, 0.13], [-0.03, 0.105], [0.0, 0.1], [0.03, 0.105], [0.06, 0.13]]
+	for i in 4:
+		var a: Vector3 = on_rib.call(mouth_top[i][0], mouth_top[i][1])
+		var b: Vector3 = on_rib.call(mouth_top[i + 1][0], mouth_top[i + 1][1])
+		var c: Vector3 = on_rib.call(mouth_low[i + 1][0], mouth_low[i + 1][1])
+		var d: Vector3 = on_rib.call(mouth_low[i][0], mouth_low[i][1])
+		_tri(face, a, b, c, Vector3.BACK)
+		_tri(face, a, c, d, Vector3.BACK)
+	return [_part("", "pumpkin", shell, -1), _part("Stem", "bark", stem, -1), _part("Face", "pumpkin_face", face, -1)]
+
+
+## Wrought iron railings `length` along z: bars every 0.2 m with pointed tips, two rails, a post at
+## each end and every 2 m.
+static func _iron_fence(length: float) -> MeshBatch:
+	var b := MeshBatch.new()
+	var half := length / 2.0
+	var bars := maxi(roundi(length / 0.2), 1)
+	for i in bars + 1:
+		var z := -half + length * i / bars
+		b.box(Vector3(0, 0.62, z), Basis(), Vector3(0.025, 1.24, 0.025), Vector2(1, 1))
+		_cone(b, Vector3(0, 1.24, z), 0.035, 0.12, 4)
+	for y: float in [0.22, 1.08]:
+		b.box(Vector3(0, y, 0), Basis(), Vector3(0.03, 0.05, length), Vector2(length / 2.0, 1))
+	var posts := maxi(ceili(length / 2.0), 1)
+	for i in posts + 1:
+		var z := -half + length * i / posts
+		b.box(Vector3(0, 0.72, z), Basis(), Vector3(0.08, 1.44, 0.08), Vector2(1, 1))
+		_cone(b, Vector3(0, 1.44, z), 0.06, 0.12, 4)
+	return b
+
+
+## An old street lamp: an iron post and a lantern on top, its glass lit after dark and flickering.
+static func _old_lamp() -> Array:
+	var iron := MeshBatch.new()
+	iron.box(Vector3(0, 0.15, 0), Basis(), Vector3(0.3, 0.3, 0.3))
+	_cylinder(iron, Vector3(0, 1.65, 0), 0.06, 3.0, 6)
+	iron.box(Vector3(0, 3.18, 0), Basis(), Vector3(0.3, 0.06, 0.3))
+	for c: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
+		iron.box(Vector3(c.x * 0.14, 3.42, c.y * 0.14), Basis(), Vector3(0.03, 0.44, 0.03))
+	_cone(iron, Vector3(0, 3.64, 0), 0.24, 0.22, 4)
+	var glass := MeshBatch.new()
+	glass.box(Vector3(0, 3.42, 0), Basis(), Vector3(0.24, 0.42, 0.24))
+	return [_part("", "iron", iron, VehicleSim.SURFACE_CONCRETE), _part("Glass", "lamp_glass", glass, -1, true)]
 
 
 ## Stepped rows rising away from the track (+x), a roof over them, as the first tracks had.

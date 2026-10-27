@@ -44,7 +44,7 @@ func build(root: Node3D, per_item := false) -> void:
 			var node := Node3D.new()
 			node.name = "Item_%d" % i
 			node.set_meta(&"item", i)
-			_add_parts(node, [items[i]])
+			_add_parts(node, [items[i]], i)
 			root.add_child(node)
 	else:
 		_add_parts(root, items)
@@ -52,10 +52,12 @@ func build(root: Node3D, per_item := false) -> void:
 		_scatter(root, group)
 
 
-## The items' parts merged per prop and part, in world space.
-func _add_parts(parent: Node3D, items: Array) -> void:
+## The items' parts merged per prop and part, in world space. A flickering part gets its item's own
+## colour alpha (flicker_alpha), so each lamp flickers in its own time (D221).
+func _add_parts(parent: Node3D, items: Array, first := 0) -> void:
 	var merged := {} # node name -> {batch, material, surface}
-	for item: Dictionary in items:
+	for k in items.size():
+		var item: Dictionary = items[k]
 		var id := String(item.prop)
 		if not PropLibrary.TYPES.has(id):
 			continue
@@ -65,7 +67,7 @@ func _add_parts(parent: Node3D, items: Array) -> void:
 			var node_name := String(PropLibrary.TYPES[id].name).to_pascal_case() + String(part.suffix)
 			if not merged.has(node_name):
 				merged[node_name] = { "batch": MeshBatch.new(), "material": part.material, "surface": part.surface }
-			_append(merged[node_name].batch, part.batch, xf)
+			_append(merged[node_name].batch, part.batch, xf, flicker_alpha(first + k) if part.get("flicker", false) else -1.0)
 	for node_name: String in merged:
 		var m: Dictionary = merged[node_name]
 		var b: MeshBatch = m.batch
@@ -85,13 +87,22 @@ func _add_parts(parent: Node3D, items: Array) -> void:
 			parent.add_child(body)
 
 
-static func _append(to: MeshBatch, part: MeshBatch, xf: Transform3D) -> void:
+## A flickering part's colour alpha for item `i`: 8 bits, neighbours far apart.
+static func flicker_alpha(i: int) -> float:
+	return float((i * 97) % 251 + 4) / 255.0
+
+
+static func _append(to: MeshBatch, part: MeshBatch, xf: Transform3D, alpha := -1.0) -> void:
 	var offset := to.verts.size()
 	for k in part.verts.size():
 		to.verts.append(xf * part.verts[k])
 		to.normals.append((xf.basis * part.normals[k]).normalized())
 	to.uvs.append_array(part.uvs)
-	to.colors.append_array(part.colors)
+	if alpha < 0.0:
+		to.colors.append_array(part.colors)
+	else:
+		for c in part.colors:
+			to.colors.append(Color(c.r, c.g, c.b, alpha))
 	for i in part.index:
 		to.index.append(i + offset)
 

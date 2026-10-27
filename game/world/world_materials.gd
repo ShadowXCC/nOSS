@@ -5,6 +5,10 @@ extends RefCounted
 
 const WORLD_SHADER := preload("res://game/world/noss_world.gdshader")
 
+## A flickering lamp's chance of a dip each second, and how long one lasts (s).
+const FLICKER_CHANCE := 0.4
+const FLICKER_DIP_S := Vector2(0.06, 0.14)
+
 static var _cache := {}
 
 
@@ -25,15 +29,36 @@ static func get_material(key: String, texture: Texture2D, roughness: float, spec
 
 
 ## A lit-up material (lamp heads, tunnel lights): `color`, glowing at `glow` of it; with
-## `night_only`, only after dark (D153). Snow never settles on it.
-static func glowing(key: String, color: Color, glow := 1.0, night_only := false) -> ShaderMaterial:
+## `night_only`, only after dark (D153); with `flickers`, dipping now and then (flicker(), D221).
+## Snow never settles on it.
+static func glowing(key: String, color: Color, glow := 1.0, night_only := false, flickers := false) -> ShaderMaterial:
 	if _cache.has(key):
 		return _cache[key]
 	var m := get_material(key, null, 0.5, 0.3, false, Vector2.ONE, color)
 	m.set_shader_parameter("emission", color * glow)
 	m.set_shader_parameter("night_glow", night_only)
+	m.set_shader_parameter("flicker", flickers)
 	m.set_shader_parameter("snow_settle", 0.0)
 	return m
+
+
+## A flickering lamp's glow at `t` seconds for its `seed` (the world shader's flicker_at, its twin):
+## at most one dip a second, FLICKER_DIP_S long, down to between 0.5 and 0.8, never below half
+## (ACC-04: well under three flashes a second). Reduce flashing holds it at 1 (env_flicker 0).
+static func flicker(t: float, seed: float) -> float:
+	var sec := floorf(t)
+	if _hash(sec, seed, 0.0) > FLICKER_CHANCE:
+		return 1.0
+	var length := lerpf(FLICKER_DIP_S.x, FLICKER_DIP_S.y, _hash(sec, seed, 1.0))
+	var start := _hash(sec, seed, 2.0) * (1.0 - length)
+	var x := t - sec
+	if x < start or x > start + length:
+		return 1.0
+	return lerpf(0.5, 0.8, _hash(sec, seed, 3.0))
+
+
+static func _hash(a: float, b: float, k: float) -> float:
+	return fposmod(sin(a * 12.9898 + b * 78.233 + k * 37.719) * 43758.5453, 1.0)
 
 
 ## A cut-out material (`texture`'s clear pixels are holes): a catch fence's chain link.
