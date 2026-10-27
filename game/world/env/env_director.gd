@@ -76,6 +76,7 @@ var calm := Callable()
 var ambience_levels := {}
 var _odds := {} # odds (as text) -> EnvState: a biome's own fronts
 var _rumble := 0.0 # how often distant thunder rolls here, 0..1
+var _mist := 0.0 # how much of the fog is the biomes' own colour, 0..1
 var _slot := -1
 var _strikes: Array = [] # [{at, distance, bearing}] still lighting the sky
 var _bolt: MeshInstance3D
@@ -189,7 +190,8 @@ func apply() -> void:
 	if _sky:
 		var sun_dir := Basis.from_euler(Vector3(-deg_to_rad(el), deg_to_rad(az), 0.0)).z
 		_sky.set_shader_parameter("top_color", (p.top as Color).lerp(over_sky, cloud * 0.7))
-		_sky.set_shader_parameter("horizon_color", (p.horizon as Color).lerp(over_sky * 1.05, cloud * 0.6))
+		# A biome's mist meets the sky: its horizon goes halfway to the fog's colour.
+		_sky.set_shader_parameter("horizon_color", (p.horizon as Color).lerp(over_sky * 1.05, cloud * 0.6).lerp(fog_color, 0.5 * _mist))
 		_sky.set_shader_parameter("ground_color", p.ground)
 		_sky.set_shader_parameter("cloud_color", (p.cloud_color as Color).lerp(over_cloud, cloud))
 		_sky.set_shader_parameter("mountain_color", p.mountains)
@@ -292,6 +294,7 @@ func _own_sky(front_odds: Dictionary) -> EnvState:
 ## The fog toward the biomes' own colour, by weight (a night's fog is near black: a mist needs
 ## some moonlight in it).
 func _biome_fog(c: Color) -> Color:
+	_mist = 0.0
 	if biomes.size() < 3:
 		return c
 	var w := clampf(float(biomes[2]), 0.0, 1.0)
@@ -302,6 +305,7 @@ func _biome_fog(c: Color) -> Color:
 		if sky.has("fog_color") and float(pair[1]) > 0.0:
 			tint += Color.html(String(sky.fog_color)) * float(pair[1])
 			weight += float(pair[1])
+	_mist = weight
 	return c if weight <= 0.0 else c.lerp(tint / weight, weight)
 
 
