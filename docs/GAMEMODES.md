@@ -56,7 +56,7 @@ Rules and flow for each mode. Every mode uses the same vehicle core ([PHYSICS.md
 - **Collisions:** on, or **ghosted** (no car-to-car contact), set per event; online the event comes from the server's rotation.
 - **Online (M5):** the server runs the weekend: its grid, lights, flags, penalties and results; each game drives its own cars and follows the server's state. The server fills the grid with AI up to the event's count (16 cars at most). Players who join during a race weekend wait in the lobby for the next one; a player who leaves is out of the results until the next session. Nobody can pause.
 - **Results:** position, total time, best lap, gaps, laps, penalties and the assists each player drove with (ACC-07). Championship points in career events.
-- **Pit lane, repairs, tire wear:** later (M10).
+- **Repairs:** later, with a damage system (M10+); pit stops already fill up and fit tires (D210).
 
 ## 2. Kart
 

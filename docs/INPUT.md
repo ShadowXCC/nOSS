@@ -59,6 +59,15 @@ So the Drag Strip's launch prompt reads "Release Space" on a keyboard, "Release 
 
 The **track editor** has its own controls for its view (mouse, keyboard or controller with a crosshair; [TRACK_EDITOR.md §2](TRACK_EDITOR.md#2-editor-tools)). They can't be rebound yet (D103).
 
+## 1.2 Menu prompts (UI overhaul)
+
+Every page ends in a prompt bar: what confirm, back, left and right, and the tab keys do there, as
+the glyphs of the device in hand (Kenney's Input Prompts, CC0). The main window shows the family of
+the device last used (keyboard, Xbox or PlayStation: Sony pads by USB vendor or name, every other
+pad Xbox); a player's view shows the device that player last used in a menu, with their own
+preset's buttons, so a left-hand pad shows LB for confirm. A wheel's buttons, or any input without
+a glyph, show as their name in a box ("Button 3"). Details: [UI_FLOW.md](UI_FLOW.md) §10.2.
+
 ## 2. Input sources
 
 | Devices | Path |
@@ -96,7 +105,7 @@ The **track editor** has its own controls for its view (mouse, keyboard or contr
 - **Sticks:** inner and outer deadzone, linearity curve, speed-sensitive steering reduction, steering smoothing.
 - **Triggers:** throttle and brake, with their own deadzones and curves.
 - **Rumble** (Godot `start_joy_vibration`): tire slip, ABS, curbs, collisions. Strength per player (Driving Settings → Controls → Controller rumble), M4.
-- **Shared menus** (title, results) take the D-pad or stick, A to confirm and B to go back (D77).
+- **Shared menus** (the main menu's pages, results) take the D-pad or stick, A to confirm and B to go back (D77).
 
 ## 5. Wheels, pedals, shifters
 

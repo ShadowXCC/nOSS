@@ -1,9 +1,9 @@
 # UI flow
 
 The menus and how players move through them: the spec for the UI overhaul (D214, which supersedes
-D160). The overhaul is built in phases P0-P11, each in its own session; every phase reads this file
-first and builds on the pages the phases before it made. Progress is in
-[ROADMAP.md](ROADMAP.md#ui-overhaul).
+D160). The overhaul was built in phases P0-P11 (done 2026-10-26), each in its own session; every
+phase read this file first and built on the pages the phases before it made. Progress is in
+[ROADMAP.md](ROADMAP.md#ui-overhaul). Changes since go here first, as before.
 
 The text in quotes here is the exact text in the game. Tests and `tools/a11y_check.py` find
 controls by it, so a change to a string starts here, then goes to the code and the tests together.
@@ -57,6 +57,14 @@ whole canvas as today (`Players.menu_text_scale()`).
 - The page background is the main menu's (`Color(0.07, 0.07, 0.09)`), full screen: no dimmed
   backdrop.
 - With the pane hidden (text scale 2.0, a small splitscreen view), the body takes the whole width.
+- **A short page** (under 800 logical px tall: text 1.5 and up, a small view; D217) keeps room for
+  its rows: 24 px margins above and below, and the header (crumbs, step row, title, tabs) at the top
+  of the scroll, so it scrolls away with the rows. The action bar, help line and prompt bar stay.
+- A labelled row (a slider, a text field) has its labels at the rows' 34 px; a slider's row is
+  outlined in the accent colour while it has the focus, as a button row is.
+- A spinner's value too long for its row ends in "…"; the row's name keeps its width. The track
+  pane's map shrinks to as little as 120 px, so the pane fits beside the rows at text 1.5.
+- The Garage follows the menu text size too; the Fitting Bay and the track editor don't yet.
 - The page theme is a variation in `UiKit` (bigger fonts, the row height); the base theme stays as
   it is for menus not yet moved to pages.
 
@@ -91,6 +99,11 @@ Built in P2 (`game/ui/page/`) and P3 (tabs).
   it, then Back; left and right go along the bar. Godot 4.7.2 leaves a row that starts out of the
   scroll's view out of the screen-reader tree until it has the focus, so a Next at the end of a long
   body was out of reach of the checks (which can't send keys) and of a screen reader's review.
+- **Back's description:** a page's own ("Back to the main menu"), or else "Back to" the crumb before
+  this page's ("Back to Settings"; "Pause", "Players" and "Lobby" read "the pause menu", "the
+  players", "the lobby"). An event's Settings page says the page its type was picked on ("Back to
+  Racing", "Back to Mini Games", "Back to Local Drive", hosting "Back to the event types"). Every
+  control on a settings page has a description (`descriptions_test`).
 - **`MenuStack`:** push and pop. Only the top page is visible. Popping gives the focus back to the
   control that had it. Drive Online's old menus ran on the main menu's stack too (P2) until P8 made
   them pages.
@@ -196,7 +209,8 @@ Title "Mini Games", breadcrumb "Local Drive › Mini Games".
 
 Title: the event's name (§6), breadcrumb ending "› Settings". The rows on the left (each one a
 spinner, check, text field or button as today), the `TrackPane` on the right for types with a
-track. The **Track** row steps through the tracks in place: there is no separate track picker.
+track. The **Track** row steps through the tracks in place: there is no separate track picker. Its
+lengths are in the player's units, as the pane's ("Proving Ground · 1.6 mi").
 
 Under the rows, in the action bar: "Back" and "Next". Next is off until the event can go: a kart
 race needs a track, a battle an arena, a cup every one of its tracks. A line under the rows says what
@@ -740,7 +754,7 @@ AT-SPI. Each phase updates its routes:
 | P8 | The online route (also `--online-only`): Drive Online → Host → "Next" → Racing → Regular → Settings → Class → the lobby → "Leave"; Join → each tab → Back. Official can't take the focus and says "Coming soon" (Godot 4.7.2 doesn't tell AT-SPI a button is disabled). |
 | P9 | The online route's lobby: "Ready" (not pressed: the countdown would start), "Change event", "Playlist" and "Force start"; Change event (the lobby hidden under it) and back, Playlist (its events) and back; P1's own roster row to This PC's "Profile", "Car", "Controls" and "Driving Settings" (rows that start below the fold are out of the screen-reader tree until focused: the row press makes them again in view); Driving Settings and back, then "Leave". |
 | P10 | The online route: on the host's Racing page, the "Time Trial" switch → Regular → its Settings page has "Minutes" → back, "Race" again → Regular as before. |
-| P11 | The final routes and the docstring. |
+| P11 | The final routes, one table in the script (`ROUTES`, then the own-game walks): the race adds the results' "Event menu" back to the Settings page and out, then Drive again → Players and out; `--settings-only` adds Reset to defaults and Clear downloads asking first (Keep) and Profiles; `--garage-only` adds a car's Drive → the class page; the pause walk adds the pause menu's Driving Settings in a player's view; new `--first-boot-only`: the Accessibility screen, its Driving Settings, Done. `--<route>-only` takes any route's name. |
 
 ## 13. Phases
 
