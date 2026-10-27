@@ -56,7 +56,7 @@ func _process(_delta: float) -> void:
 
 
 ## What an out player can do about the wait (D220), naming their Ram input as a drag prompt does
-## (DragPrompts): "Fast forward: Shift", then "4x · Normal: Shift". Worked out once per device.
+## (DragPrompts): "Fast forward: E", then "4x · Normal: E". Worked out once per device.
 func _fast_forward_text(p: SessionPlayer, on: bool) -> String:
 	var key := "%d|%s|%s" % [p.get_instance_id(), DragPrompts.device_of(p), on]
 	if not _labels.has(key):
