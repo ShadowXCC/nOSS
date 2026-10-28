@@ -170,7 +170,8 @@ my_track.nosstrack
 - A track can suggest Track-mode rules (D207) in a `rules` section, used by events that keep "Track's"; it isn't part of the layout. The Race tool's "Suggested rules" sets it:
 
 ```jsonc
-"rules": { "start":"rolling", "draft":true, "fuel_x":5, "tyre_x":5, "pack":true, "plate":"medium" }   // plate: off, light, medium, heavy (D226)
+"rules": { "start":"rolling", "draft":true, "fuel_x":5, "tyre_x":5, "pack":true, "plate":"medium", "yellow_line":true }
+// plate: off, light, medium, heavy (D226); yellow_line: passing on the apron is a penalty (D227)
 ```
 
 - A pit lane (D203) goes in a `pit` section on circuits:

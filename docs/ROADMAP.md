@@ -380,8 +380,10 @@ first (D223-).*
 - **Stadium stand and camper** props (D225, v0.12.7).
 - **Restrictor plate** (D226, v0.12.8): a track-suggested rule, Off, Light, Medium or Heavy: every
   car's power cut (86%, 75%, 65%).
-- Still to come: the yellow line rule, line, side and bump drafting, skill-based mistakes in a
-  pack, Halifax Speedway and the Halifax Road Course.
+- **The yellow line** (D227, v0.12.9): a place gained with four wheels on the apron is a warning,
+  then +5 s; dodging trouble below it is free.
+- Still to come: line, side and bump drafting, skill-based mistakes in a pack, Halifax Speedway and
+  the Halifax Road Course.
 
 **Acceptance:**
 - [x] Banking to 45° builds and races. *`road_builder_test`: a 45° oval stands on its inner edge
@@ -404,6 +406,10 @@ first (D223-).*
   Custom page shows "Restrictor: Track's (Off)". A lone Stock Car flat out on 2 km straights: 199
   mph unplated, then 190, 181 and 172 mph. The screen-reader walk reads the new row (`--racing-only`
   stops later, at Custom's class page, as it did before this work).*
+- [x] Passing below the yellow line warns, then costs 5 s; dodging a knocked car doesn't.
+  *`yellow_line_test`: on Piedmont's apron, down behind a car, past it and back up is one place,
+  past a car knocked just before is none; on only where the track suggests it and track limits
+  are on; `race_control_test`: a warning, then 5 s, nothing in practice.*
 - [x] A car in a lake is sent back to the road. *`water_test` (on the old collision mask it stayed
   in); `track_fitting_test`: a fitted scene's water looks at cars too.*
 
