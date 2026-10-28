@@ -257,6 +257,11 @@ func _rule_rows() -> Array:
 	out.append(UiKit.spinner("Tire wear", times, int(rules.tyre_x), func(v: int) -> void: draft.set_rule("tyre_x", v)))
 	out.append(UiKit.spinner("Pack racing", [[false, "Off"], [true, "On"]], bool(rules.pack), func(v: bool) -> void: draft.set_rule("pack", v),
 		"With drafting on, the AI run in grooves and draft each other"))
+	var plates := [["off", "Off"]]
+	for p: String in RaceEvent.PLATES:
+		plates.append([p, p.capitalize()])
+	out.append(UiKit.spinner("Restrictor plate", plates, String(rules.plate), func(v: String) -> void: draft.set_rule("plate", v),
+		"Less power for every car (D226)"))
 	return out
 
 

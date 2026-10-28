@@ -222,6 +222,7 @@ func _car_changed() -> void:
 func _spawn(pkg: VehiclePackage) -> void:
 	vehicle = Vehicle.create(platform, pkg, session.fitting_mode)
 	vehicle.name = "Vehicle%d" % number
+	vehicle.power_cap = session.plate_share # a restrictor plate (D226)
 	if not session.arcade.is_empty():
 		vehicle.set_arcade(session.arcade, session.drift_allowed) # kart (D130), sumo's drift (D181)
 	session.add_child(vehicle)
@@ -440,7 +441,7 @@ func _check_track_limits() -> void:
 	elif not out and out_of_bounds:
 		out_of_bounds = false
 		var line := RacingLine.for_track(track)
-		var best := line.time_between(line.speed_profile(vehicle.platform, 1.0), _out_from, distance)
+		var best := line.time_between(line.speed_profile(vehicle.platform, 1.0, 1.0, true, vehicle.power_cap), _out_from, distance)
 		cut_track.emit(_clock - _out_since < best * 0.98)
 
 
@@ -533,7 +534,7 @@ func _place_rejoin() -> void:
 	vehicle.freeze = false
 	vehicle.visible = true
 	var line_v := RacingLine.for_track(track)
-	var pace := line_v.speed_at(line_v.speed_profile(vehicle.base_platform, 1.0), _rejoin_at) if not vehicle.base_platform.is_empty() else 0.0
+	var pace := line_v.speed_at(line_v.speed_profile(vehicle.base_platform, 1.0, 1.0, true, vehicle.power_cap), _rejoin_at) if not vehicle.base_platform.is_empty() else 0.0
 	vehicle.reset_to(at, at.basis.z * pace * REJOIN_SPEED_SHARE)
 	timer.teleported(track.from_start(_rejoin_at))
 	distance = _rejoin_at

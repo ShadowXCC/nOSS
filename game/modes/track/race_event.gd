@@ -37,10 +37,13 @@ var track_limits := "lenient"
 ## AI cars: "garage" (garage and built-in cars the class takes) or "builtin".
 var ai_cars := "garage"
 ## Track-mode rules a track may suggest (its `rules`, D207): drafting ("track", "off" or "on"),
-## and fuel use and tire wear (-1: the track's, 0: off, 1-10: times the platform's own rate).
+## and fuel use and tire wear (-1: the track's, 0: off, 1-10: times the platform's own rate); a
+## restrictor plate ("track", "off", "light", "medium" or "heavy", D226): every car's power cut
+## to the Track mode's `plate` share for it.
 var draft := "track"
 var fuel_x := -1
 var tyre_x := -1
+var plate := "track"
 ## Pack racing for the AI: the track's `rules.pack` with drafting on. Set by resolved() only.
 var pack := false
 ## Kart (D139, D144): item boxes on; a battle's rule ("standing": last one standing, "hits": most
@@ -103,7 +106,7 @@ var speed_traps := false
 ## The values each text field may take; the first is the default.
 const CHOICES := {
 	"kind": ["free", "race", "time_trial", "highway", "battle", "endless", "sumo", "drag"], "start": ["track", "standing", "rolling"], "grid": ["qualifying", "reverse", "random"],
-	"draft": ["track", "off", "on"],
+	"draft": ["track", "off", "on"], "plate": ["track", "off", "light", "medium", "heavy"],
 	"track_limits": ["lenient", "off", "strict"], "ai_cars": ["garage", "builtin"], "sub": ["cruise", "score", "run", "loop"],
 	"battle_rule": ["standing", "hits"],
 	"sumo_hazard": ["lava", "acid"], "sumo_shrink": ["smooth", "crumble", "stepped"],
@@ -116,7 +119,7 @@ const CHOICES := {
 ## Time rates offered in menus (game minutes per real minute).
 const TIME_RATES := [0, 1, 10, 30, 60, 120]
 const KEYS := ["kind", "practice_min", "qualifying_min", "tt_min", "race_laps", "race_min", "ai_count", "ai_skill",
-	"start", "grid", "collisions", "track_limits", "ai_cars", "draft", "fuel_x", "tyre_x", "sub", "police", "traffic", "run", "direction",
+	"start", "grid", "collisions", "track_limits", "ai_cars", "draft", "fuel_x", "tyre_x", "plate", "sub", "police", "traffic", "run", "direction",
 	"items", "battle_rule", "battle_min", "battle_hits",
 	"sumo_tiers", "sumo_hazard", "sumo_shrink", "sumo_secs", "sumo_pillar", "sumo_drift",
 	"drag_length_m", "drag_boost", "drag_timing", "drag_qtes", "drag_tree", "drag_two_step",
@@ -126,13 +129,15 @@ const KEYS := ["kind", "practice_min", "qualifying_min", "tt_min", "race_laps", 
 ## Written only for highway events (circuit events stay as older games and servers know them).
 const HIGHWAY_KEYS := ["sub", "police", "traffic", "run", "direction"]
 ## Written only for circuit events (free drive, time trial, race weekends).
-const TRACK_KEYS := ["draft", "fuel_x", "tyre_x"]
+const TRACK_KEYS := ["draft", "fuel_x", "tyre_x", "plate"]
 ## Written only for time trials.
 const TT_KEYS := ["tt_min"]
 ## A time trial's minutes at most.
 const TT_MAX := 60
 ## Fuel and tire multipliers at most.
 const WEAR_X_MAX := 10
+## Restrictor plates, lightest first (D226).
+const PLATES := ["light", "medium", "heavy"]
 ## Written only for battles, or with items off.
 const KART_KEYS := ["items", "battle_rule", "battle_min", "battle_hits"]
 ## Written only for sumo matches.
@@ -299,14 +304,14 @@ static func from_dict(d: Dictionary) -> RaceEvent:
 
 
 ## The track's suggested rules (its `rules`, D207), every key there: a track without any races
-## as tracks always have (standing start, no drafting, no fuel use or tire wear).
+## as tracks always have (standing start, no drafting, no fuel use or tire wear, no plate).
 static func track_rules(track: TrackData) -> Dictionary:
 	return rules_of(track.raw.get("rules", {}) if track else {})
 
 
 ## A track file's `rules` with every key filled in.
 static func rules_of(own: Variant) -> Dictionary:
-	var out := { "start": "standing", "draft": false, "fuel_x": 0, "tyre_x": 0, "pack": false }
+	var out := { "start": "standing", "draft": false, "fuel_x": 0, "tyre_x": 0, "pack": false, "plate": "off" }
 	if own is Dictionary:
 		for key: String in out:
 			if (own as Dictionary).has(key):
@@ -330,7 +335,14 @@ func resolved(track: TrackData) -> RaceEvent:
 	if e.tyre_x < 0:
 		e.tyre_x = clampi(int(rules.tyre_x), 0, WEAR_X_MAX)
 	e.pack = e.draft == "on" and bool(rules.pack)
+	if e.plate == "track":
+		e.plate = String(rules.plate) if String(rules.plate) in PLATES else "off"
 	return e
+
+
+## A plate's share of the power left (1: no plate), from the Track mode's `plate` (D226).
+static func plate_share(plate_: String, mode: Dictionary) -> float:
+	return clampf(float(mode.get("plate", {}).get(plate_, 1.0)), 0.1, 1.0) if plate_ in PLATES else 1.0
 
 
 ## "5 laps" or "20 min".

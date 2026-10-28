@@ -10,7 +10,8 @@ extends Node
 ##   --ai=<n>             add n AI racers (no views); --ai-skill=<0-100>, --ai-builtin: built-in cars only
 ##   --race               start a race right away (the last race set up); --race-laps=<n>, --race-ai=<n>,
 ##                        --race-start=track|standing|rolling, --race-draft=track|off|on,
-##                        --race-fuel=<-1-10>, --race-tyres=<-1-10> (-1: the track's; 0: off)
+##                        --race-fuel=<-1-10>, --race-tyres=<-1-10> (-1: the track's; 0: off),
+##                        --race-plate=track|off|light|medium|heavy
 ##   --quit-after-results quit when a session's results come up (timed runs, checks)
 ##   --auto-continue      go straight on to the next session when results come up; quit after the last
 ##   --voices             print the text-to-speech voices
@@ -332,6 +333,8 @@ func apply_dev_event(e: RaceEvent) -> void:
 		e.fuel_x = clampi(int(dev["race-fuel"]), -1, RaceEvent.WEAR_X_MAX)
 	if dev.has("race-tyres"):
 		e.tyre_x = clampi(int(dev["race-tyres"]), -1, RaceEvent.WEAR_X_MAX)
+	if dev.has("race-plate"):
+		e.plate = String(dev["race-plate"]) if String(dev["race-plate"]) in RaceEvent.CHOICES.plate else "track"
 
 
 ## The track to drive: --track, else the last one picked, else the Proving Ground (or the first

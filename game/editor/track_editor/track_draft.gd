@@ -272,7 +272,7 @@ static func _flip_pit(pit: Dictionary, mirror: Callable) -> void:
 
 
 ## A rule the track suggests to events that keep "Track's" (D207): start ("standing" or
-## "rolling"), draft, fuel_x, tyre_x (0-10) or pack; null: back to the plain default.
+## "rolling"), draft, fuel_x, tyre_x (0-10), pack or plate (D226); null: back to the plain default.
 func set_rule(key: String, value: Variant) -> void:
 	_edit("Set " + key.trim_suffix("_x").replace("_", " "), "rules", func() -> void:
 		var rules: Dictionary = layout.get("rules", {})

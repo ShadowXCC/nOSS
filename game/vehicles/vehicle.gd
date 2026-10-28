@@ -36,6 +36,12 @@ var drift := false
 var drift_allowed := true
 ## Kart flags the game keeps (shield, magnet, towed, out); the sim adds its own (kart_flags()).
 var kart_bits := 0
+## The share of its engine's power the car has (a restrictor plate, D226; 1: all of it). It holds
+## through a swap or a setup change; running out of fuel (WearControl) cuts the rest.
+var power_cap := 1.0:
+	set(value):
+		power_cap = clampf(value, 0.0, 1.0)
+		sim.set_power_scale(power_cap)
 
 var steer := 0.0
 var throttle := 0.0
@@ -293,6 +299,7 @@ func mount(pkg: VehiclePackage) -> void:
 	var geometry := { "ground_y": fitted.ground_y, "wheels": fitted.physics_wheels }
 	if not sim.configure(platform, geometry):
 		push_error("Vehicle sim: " + sim.get_error())
+	sim.set_power_scale(power_cap)
 	var body := sim.get_body_params()
 	mass = body.mass
 	center_of_mass = body.center_of_mass
@@ -321,6 +328,7 @@ func apply_setup(setup: Setup) -> void:
 	platform = setup.apply(base_platform) if setup else base_platform
 	if fitted and not sim.configure(platform, { "ground_y": fitted.ground_y, "wheels": fitted.physics_wheels }):
 		push_error("Vehicle sim: " + sim.get_error())
+	sim.set_power_scale(power_cap)
 
 
 ## False if `pkg`'s collision envelope would overlap the world where the car is now (a swap

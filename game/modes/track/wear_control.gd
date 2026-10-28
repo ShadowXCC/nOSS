@@ -44,6 +44,6 @@ func _physics_process(delta: float) -> void:
 		if w.burn(float(done.engine_j)):
 			r.notify("Out of fuel", 3.0)
 		w.scrub(done.slide_j)
-		v.sim.set_power_scale(1.0 if not w.uses_fuel() or w.fuel_l > 0.0 else 0.0)
+		v.sim.set_power_scale(v.power_cap if not w.uses_fuel() or w.fuel_l > 0.0 else 0.0)
 		for i in w.wear.size():
 			v.sim.set_wheel_grip(i, w.grip_of(i))

@@ -120,6 +120,8 @@ var kart: KartControl
 var draft: DraftControl
 ## Fuel use and tire wear (D209): with either on in the event, in Track mode.
 var wear: WearControl
+## The share of its power every car has (the event's restrictor plate, D226; 1: none). Track mode.
+var plate_share := 1.0
 ## Pit stops (D210): on a track with a pit lane, in Track mode.
 var pits: PitControl
 ## Battles (D144): lives and hits. Null otherwise.
@@ -483,6 +485,7 @@ func _ready() -> void:
 		_ready_kart()
 		if event.kind == "battle":
 			_ready_battle()
+	plate_share = RaceEvent.plate_share(event.plate, mode) if mode.get("id") == "track" else 1.0
 	if event.draft == "on" and mode.get("id") == "track" and event.kind != "time_trial":
 		draft = DraftControl.new()
 		draft.session = self

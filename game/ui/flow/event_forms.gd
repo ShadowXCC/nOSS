@@ -242,8 +242,8 @@ static func preset_rows(page: EventSettingsPage) -> void:
 	page.add_row(delete)
 
 
-## Start, drafting, fuel use and tire wear (D207): each "Track's" or the event's own, `track`'s
-## shown beside it.
+## Start, drafting, fuel use and tire wear (D207) and the restrictor plate (D226): each "Track's"
+## or the event's own, `track`'s shown beside it.
 static func rule_rows(e: RaceEvent, track: String) -> Array[Control]:
 	var rules := RaceEvent.rules_of(TrackLibrary.rules(track))
 	var times := func(x: int) -> String: return "Off" if x <= 0 else "%dx" % x
@@ -261,6 +261,11 @@ static func rule_rows(e: RaceEvent, track: String) -> Array[Control]:
 		"Times the car's own: more means more pit stops"))
 	out.append(UiKit.spinner("Tire wear", multipliers.call(int(rules.tyre_x)), e.tyre_x, func(v: int) -> void: e.tyre_x = v,
 		"Times the car's own: worn tires grip less"))
+	var plates := [["track", "Track's (%s)" % String(rules.plate).capitalize()], ["off", "Off"]]
+	for p: String in RaceEvent.PLATES:
+		plates.append([p, p.capitalize()])
+	out.append(UiKit.spinner("Restrictor", plates, e.plate, func(v: String) -> void: e.plate = v,
+		"Less power for every car, so the field runs in a pack"))
 	return out
 
 

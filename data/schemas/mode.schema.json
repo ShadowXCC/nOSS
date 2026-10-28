@@ -29,6 +29,15 @@
         "min_speed": { "type": "number", "minimum": 0, "maximum": 100 }
       }
     },
+    "plate": {
+      "description": "Restrictor plates (Track, D226): the share of its power each leaves a car.",
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "light": { "type": "number", "minimum": 0.1, "maximum": 1 },
+        "medium": { "type": "number", "minimum": 0.1, "maximum": 1 },
+        "heavy": { "type": "number", "minimum": 0.1, "maximum": 1 }
+      }
+    },
     "police_class": {
       "description": "The platform police drive in this mode (highway: AI only for now).",
       "type": "string",

@@ -175,8 +175,9 @@ func _base_grip() -> float:
 ## Speeds from the line for its grip on this road (wet or snowy roads are slower, D153).
 func _make_profiles() -> void:
 	var grip := _base_grip() * _road_grip
-	_profile = _line.speed_profile(racer.vehicle.base_platform, grip)
-	_caution_profile = _line.speed_profile(racer.vehicle.base_platform, grip * CAUTION_GRIP)
+	var power := racer.vehicle.power_cap # a restrictor plate (D226)
+	_profile = _line.speed_profile(racer.vehicle.base_platform, grip, 1.0, true, power)
+	_caution_profile = _line.speed_profile(racer.vehicle.base_platform, grip * CAUTION_GRIP, 1.0, true, power)
 	var drafting := racer.session != null and racer.session.draft != null and DraftControl.drafts(racer.vehicle.base_platform)
 	_ceiling = _line.ceiling(racer.vehicle.base_platform, grip) if drafting else PackedFloat32Array()
 

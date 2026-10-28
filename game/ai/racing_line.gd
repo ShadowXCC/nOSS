@@ -173,12 +173,15 @@ static func _limit(t: TrackData, i: int, side: float) -> float:
 
 
 ## Speeds along the line for `platform` using `grip` (0-1] of what the profile counts on, its
-## drag times `drag_scale` (in a slipstream, D208). Without `power_limited` it's the ceiling: how
-## fast the corners and the braking for them allow, however much power there is. Cached.
-func speed_profile(platform: Dictionary, grip := 1.0, drag_scale := 1.0, power_limited := true) -> PackedFloat32Array:
+## drag times `drag_scale` (in a slipstream, D208) and `power_share` of its power (a restrictor
+## plate, D226). Without `power_limited` it's the ceiling: how fast the corners and the braking
+## for them allow, however much power there is. Cached.
+func speed_profile(platform: Dictionary, grip := 1.0, drag_scale := 1.0, power_limited := true, power_share := 1.0) -> PackedFloat32Array:
 	var key := "%s|%s|%.3f" % [platform.get("id", ""), platform.get("version", ""), grip]
 	if drag_scale != 1.0 or not power_limited:
 		key += "|%.3f|%s" % [drag_scale, power_limited]
+	if power_share != 1.0 and power_limited:
+		key += "|p%.3f" % power_share
 	if _profiles.has(key):
 		return _profiles[key]
 	var n := points.size()
@@ -187,7 +190,7 @@ func speed_profile(platform: Dictionary, grip := 1.0, drag_scale := 1.0, power_l
 	var aero: Dictionary = platform.get("aero", {})
 	var downforce := 0.5 * AIR_DENSITY * maxf(-(float(aero.get("cl_a_front", 0.0)) + float(aero.get("cl_a_rear", 0.0))), 0.0) / mass
 	var drag := 0.5 * AIR_DENSITY * float(aero.get("cd_a", 0.8)) / mass * drag_scale
-	var power := GameModes.peak_power_kw(platform) * 1000.0 * POWER_SHARE / mass
+	var power := GameModes.peak_power_kw(platform) * 1000.0 * POWER_SHARE * power_share / mass
 	var front := float(platform.mass.front_weight)
 	var drive := String(platform.layout.drive)
 	var driven := front if drive == "fwd" else (1.0 - front if drive == "rwd" else 1.0)
