@@ -384,7 +384,9 @@ first (D223-).*
   then +5 s; dodging trouble below it is free.
 - **Pack drafting** (D228, v0.12.10): in a pack, a longer line goes faster, a car alongside takes air
   off another's side, and a straight push from behind doesn't turn the car pushed. Piedmont too.
-- Still to come: skill-based mistakes in a pack, Halifax Speedway and the Halifax Road Course.
+- **Mistakes in a pack** (D229, v0.12.11): AI under skill 90 block late, pull out without looking
+  and misjudge gaps, more the lower their skill. Every pack track.
+- Still to come: Halifax Speedway and the Halifax Road Course.
 
 **Acceptance:**
 - [x] Banking to 45° builds and races. *`road_builder_test`: a 45° oval stands on its inner edge
@@ -416,6 +418,12 @@ first (D223-).*
   two; a car alongside at the rear quarter adds drag to the other only; a gentle off-centre push
   turns the car in front a seventh as much, a hard hit the same. Piedmont, 16 Stock Cars, 10
   laps, three seeds: no pile-ups or resets, best laps as before.*
+- [x] Only weaker AI make mistakes, and a late block moves over on a car alongside.
+  *`pack_racing_test`. Piedmont, 16 Stock Cars, 10 laps: a skill 30-50 field makes every kind (25
+  runs unseen, 7 moved over on, 8 chops in one race), contacts up to 3400 N·s, but no pile-ups in
+  eight races; a 92-98 field none in four.*
+- [ ] A big one now and then in a weak field. *Not on Piedmont yet (see above): to look at again on
+  Halifax's plated packs.*
 - [x] A car in a lake is sent back to the road. *`water_test` (on the old collision mask it stayed
   in); `track_fitting_test`: a fitted scene's water looks at cars too.*
 
