@@ -190,6 +190,12 @@ my_track.nosstrack
   "points":[{ "p":[x,y,z], "bank_deg":-24 }, …] }]                // two or more
 ```
 
+- Water (D224) goes in a `water` list: lakes off the road, each a flat surface at height `y` over its outline on the map (`[x, z]` corners in order, not crossing themselves; 16 at most). Under each surface is a catch volume 6 m deep: a car that goes in is sent back to the road ("In the water"), as from a fitted scene's water. It counts in the layout hash. The ground under a lake is the track's own (a generator lowers it); the editor shows the water and keeps it, with no tool to draw it yet. Water on the road or its pit lane is an error; a prop in it is a warning.
+
+```jsonc
+"water": [{ "name":"Lake Lloyd", "y":1.5, "points":[[x,z], [x,z], [x,z], …] }]   // three corners or more
+```
+
 - Kart pieces (D136) go in a `kart` section on circuits and arenas; an arena (`"type":"arena"`, D138) adds an `arena` section:
 
 ```jsonc
@@ -236,6 +242,8 @@ my_track.nosstrack
 | The grid takes more than 40% of the lap | Grid too long | error |
 | Sector lines out of order or under 100 m apart | Sector 2 out of order | error |
 | A prop (that cars hit) on the road / blocking it | Prop on the road / Road blocked at 300 m | warning / error |
+| Water over the road or its pit lane (D224) | Water on the road / Water on the pit lane | error |
+| A prop standing in water | Prop in the water | warning |
 | The road within 50 m of the terrain's edge | Road leaves the terrain at 2.4 km | error |
 | The AI line out of the road, kinked, or slower than a walk | AI line error at 2.1 km | error |
 | A fitted scene: nothing drivable tagged; the road under the line untagged; no ground under the grid or a checkpoint | No surfaces tagged / Road surface not tagged / Grid off the road / Checkpoint blocked | error |

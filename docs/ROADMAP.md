@@ -375,9 +375,11 @@ first (D223-).*
 
 - **Steeper banking** (D223, v0.12.5): tracks bank up to 45° (the editor's Banking row too), and a
   grid may stand on banking up to 20°. The AI finds a banked corner's speed exactly.
-- Still to come: water in track files (Lake Lloyd), a stadium stand and campers, a restrictor plate
-  rule, the yellow line rule, line, side and bump drafting, skill-based mistakes in a pack, Halifax
-  Speedway and the Halifax Road Course.
+- **Water** in track files (D224, v0.12.6): lakes off the road; a car that goes in is sent back to
+  the road, from a fitted scene's water too now.
+- Still to come: a stadium stand and campers, a restrictor plate rule, the yellow line rule, line,
+  side and bump drafting, skill-based mistakes in a pack, Halifax Speedway and the Halifax Road
+  Course.
 
 **Acceptance:**
 - [x] Banking to 45° builds and races. *`road_builder_test`: a 45° oval stands on its inner edge
@@ -388,6 +390,12 @@ first (D223-).*
 - [x] Piedmont races as before. *16 Stock Cars, 10 laps, the track's rules, three seeds: no
   pile-ups, best laps 36.55-36.98 s (36.50-36.73 s before).*
 - [x] A grid stands on 18° banking, not on 22°. *`track_validator_test`.*
+- [x] A lake is read, hashed, built and kept, and the checks keep it off the road. *`water_test`:
+  an L-shaped pond is four triangles facing up over a 4-shape catch volume; with no water the
+  oval template hashes as before; flipping the direction keeps it; water out over the road is an
+  error and a billboard in it a warning.*
+- [x] A car in a lake is sent back to the road. *`water_test` (on the old collision mask it stayed
+  in); `track_fitting_test`: a fitted scene's water looks at cars too.*
 
 ## M10+: Backlog (order to be decided)
 
