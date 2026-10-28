@@ -2,7 +2,8 @@ extends GdUnitTestSuite
 ## Pack racing (D213): with drafting on a track that suggests it, the AI runs in grooves (lanes a
 ## car and some room apart, the middle one a line solved with room for the others); a car in the
 ## draft makes a run into a free groove and passes; two cars side by side hold their grooves
-## without touching.
+## without touching. Below MISTAKE_SKILL the AI makes mistakes (D229), one being a block made
+## late, onto a car already alongside.
 
 const OVAL := "res://content/tracks/piedmont_speedway"
 
@@ -135,3 +136,48 @@ func test_two_cars_side_by_side_hold_their_grooves() -> void:
 	assert_float(closest).is_greater(RacingAI.CAR_WIDTH + 0.3)
 	s.queue_free()
 	await get_tree().process_frame
+
+
+## Mistakes (D229): none from MISTAKE_SKILL up, more the lower the skill.
+func test_only_the_less_skilled_make_mistakes() -> void:
+	var s := _session(1)
+	await _wait(s, 2)
+	var ai := _ais(s)[0].driver as RacingAI
+	ai.skill = 95.0
+	assert_float(ai._blunder()).is_equal(0.0)
+	ai.skill = RacingAI.MISTAKE_SKILL * 100.0
+	assert_float(ai._blunder()).is_equal(0.0)
+	ai.skill = 60.0
+	var some := ai._blunder()
+	ai.skill = 20.0
+	assert_float(ai._blunder()).is_greater(some)
+	assert_float(some).is_greater(0.0)
+	s.queue_free()
+	await get_tree().physics_frame
+
+
+## A run it didn't see coming: once the car's alongside, it moves over on it anyway; a car that saw
+## it coming would have blocked early or let it go, and doesn't move over on a car alongside.
+func test_a_late_block_moves_over_on_a_car_alongside() -> void:
+	var s := _session(2)
+	await _wait(s, 3)
+	var cars := _ais(s)
+	var me: Racer = cars[0]
+	var them: Racer = cars[1]
+	var mine := me.driver as RacingAI
+	var middle := RacingLine.GROOVES_EACH_SIDE
+	var d := s.track.start_m + s.track.length / 2.0
+	for late in [false, true]:
+		mine._block_wait = 0.0
+		mine._run = null
+		await _place(s, me, d, middle, 40.0)
+		await _place(s, them, d - 2.0, middle + 1, 44.0) # its nose 2.6 m past our tail
+		mine._late_block = them if late else null
+		var moved := false
+		for i in 12:
+			await get_tree().physics_frame
+			moved = moved or mine._groove == middle + 1 # into its groove (side by side says so after)
+		assert_bool(moved).override_failure_message("late %s" % late).is_equal(late)
+	s.queue_free()
+	await get_tree().physics_frame
+

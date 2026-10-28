@@ -64,6 +64,23 @@ const RUN_DEAD_S := 1.5
 const RUN_RETRY_S := Vector2(3.0, 8.0)
 const BLOCK_RANGE_M := 20.0
 const BLOCK_COOLDOWN_S := 5.0
+## Mistakes in a pack (D229), by how far the skill is under MISTAKE_SKILL (none at it or over; the
+## most at 0): a run coming from behind not seen until it's LATE_OVERLAP_M alongside, then moved
+## over on (LATE_BLOCK, a chance per run); a run pulled out for without looking behind in that groove
+## (CHOP, a chance per run set up); and the gap in the draft misjudged, tucking right up to the
+## bumper and closing at up to SHORT_CLOSE m/s for SHORT_GAP_S (SHORT_GAP_RATE, a chance a second).
+## A late block or a run pulled out for without looking leaves the cars behind unseen for
+## MISTAKE_BLIND_S: it doesn't keep to its side of one alongside (they may still give way), and
+## it moves over MISTAKE_LUNGE times as fast as it would.
+const MISTAKE_SKILL := 0.9
+const LATE_BLOCK := 0.3
+const LATE_OVERLAP_M := 2.5
+const CHOP := 0.2
+const SHORT_GAP_RATE := 0.03
+const SHORT_GAP_S := Vector2(2.0, 4.0)
+const SHORT_CLOSE := 6.0
+const MISTAKE_BLIND_S := 1.0
+const MISTAKE_LUNGE := 1.8
 ## Skill 0 -> 100.
 const GRIP := Vector2(0.78, 0.95)
 const GAP_TIME := Vector2(1.1, 0.55)
@@ -104,6 +121,12 @@ var _run: Racer
 var _run_dead := 0.0
 var _run_wait := 0.0
 var _block_wait := 0.0
+## Mistakes (D229): the run it hasn't seen coming yet, whether the next run is pulled out for
+## without looking, and how much longer it's misjudging the gap.
+var _late_block: Racer
+var _chop := false
+var _short_gap := 0.0
+var _blind := 0.0
 ## Deceleration at full brake pedal, m/s² (before the tires' limit).
 var _brake_full := 14.0
 ## What emergency braking counts on, m/s² (the brake balance's limit, with margin).
@@ -246,7 +269,7 @@ func controls(delta: float) -> Dictionary:
 		_plan_time += 1.0 / PLAN_HZ
 		_plan()
 	var line_now := _line.offset_at(racer.distance)
-	var step := OFFSET_RATE * delta
+	var step := OFFSET_RATE * delta * (MISTAKE_LUNGE if _blind > 0.0 else 1.0)
 	var shift := line_now - _line_was
 	if absf(shift) < 1.0 and signf(_want - offset) == -signf(shift):
 		step += absf(shift)
@@ -507,7 +530,7 @@ func _plan() -> void:
 	var squeeze_ahead: Racer = null
 	for c: Dictionary in cars:
 		var other: Racer = c.racer
-		if _ignore(other):
+		if _ignore(other) or (_blind > 0.0 and c.gap < 0.0): # a mistake: not looking behind (D229)
 			continue
 		var along := absf(c.gap)
 		var overlap := along < CAR_LENGTH + 1.0
@@ -615,7 +638,13 @@ func _groove_of(r: Racer) -> int:
 
 ## A few seconds before setting up the next run.
 func _retry() -> float:
+	_chop = _rng.randf() < _blunder() * CHOP # the next run's
 	return _rng.randf_range(RUN_RETRY_S.x, RUN_RETRY_S.y)
+
+
+## How prone to mistakes in a pack (D229): 0 from MISTAKE_SKILL up, 1 at skill 0.
+func _blunder() -> float:
+	return clampf((MISTAKE_SKILL - _skill()) / MISTAKE_SKILL, 0.0, 1.0)
 
 
 ## True if `r` is in groove `g` where it is: within half a groove of its middle, or with `room`
@@ -645,6 +674,13 @@ func _plan_pack(cars: Array[Dictionary], v: float, s: float, formation: bool) ->
 	var dt := 1.0 / PLAN_HZ
 	_block_wait = maxf(_block_wait - dt, 0.0)
 	_run_wait = maxf(_run_wait - dt, 0.0)
+	_short_gap = maxf(_short_gap - dt, 0.0)
+	_blind = maxf(_blind - dt, 0.0)
+	if _short_gap <= 0.0 and _rng.randf() < _blunder() * SHORT_GAP_RATE * dt:
+		_short_gap = _rng.randf_range(SHORT_GAP_S.x, SHORT_GAP_S.y)
+	if _late_block and (not is_instance_valid(_late_block) or _ignore(_late_block) or field_gap(_late_block) >= 0.0 \
+			or field_gap(_late_block) < -BLOCK_RANGE_M * 2.0):
+		_late_block = null
 	intent = "groove"
 	if _run and (not is_instance_valid(_run) or _ignore(_run)):
 		_run = null
@@ -683,37 +719,54 @@ func _plan_pack(cars: Array[Dictionary], v: float, s: float, formation: bool) ->
 				var sides := [_groove - 1, _groove + 1]
 				sides.sort_custom(func(a: int, b: int) -> bool: return absf(a - middle) < absf(b - middle))
 				for g: int in sides:
-					if _groove_free(g, cars, CAR_LENGTH + 6.0, lead.gap + CAR_LENGTH + 15.0, other):
+					if _groove_free(g, cars, 0.0 if _chop else CAR_LENGTH + 6.0, lead.gap + CAR_LENGTH + 15.0, other):
 						side = g
 						break
+			# Misjudging the gap (D229): right up to its bumper.
 			var gap_s := RUN_GAP_S if side >= 0 else lerpf(PACK_GAP_S.x, PACK_GAP_S.y, s)
+			if _short_gap > 0.0:
+				gap_s = -2.0 / maxf(v, 1.0)
 			_follow(other, bumper, v, gap_s)
-			if side >= 0: # closing up in its draft: faster than a safe follow would
-				_speed_cap = maxf(_speed_cap, maxf(other.speed, 0.0) + clampf((bumper - 2.0 - v * gap_s) * RUN_CLOSE, 0.0, 4.0))
+			if side >= 0 or _short_gap > 0.0: # closing up in its draft: faster than a safe follow would
+				_speed_cap = maxf(_speed_cap, maxf(other.speed, 0.0) + clampf((bumper - 2.0 - v * gap_s) * RUN_CLOSE, 0.0,
+					SHORT_CLOSE if _short_gap > 0.0 else 4.0))
 			# Close behind it and held up (or still closing): pull out.
 			var held := _speed_cap < maxf(v, _line.speed_at(_profile, racer.distance)) + 0.5
 			if side >= 0 and bumper < 2.0 + v * RUN_GAP_S + 4.0 and (closing > RUN_SPEED or held):
 				_to_groove(side)
+				if _chop:
+					_blind = MISTAKE_BLIND_S
 				_run = other
 				_run_dead = 0.0
 				_speed_cap = INF # out of its way now
 				intent = "run"
 			else:
 				intent = "draft"
-	# A run on us from behind, in a groove beside ours: into it, in front of them.
+	# A run on us from behind, in a groove beside ours: into it, in front of them. One not seen
+	# coming (D229) is moved over on once it's alongside.
 	if not _run and not formation and _block_wait <= 0.0:
 		for c: Dictionary in cars:
 			var other: Racer = c.racer
 			var behind: float = -c.gap - CAR_LENGTH
-			if c.gap >= 0.0 or _ignore(other) or behind < 8.0 or behind > BLOCK_RANGE_M or other.speed < v + RUN_SPEED:
+			var late := other == _late_block
+			if c.gap >= 0.0 or _ignore(other) or behind > BLOCK_RANGE_M or other.speed < v + RUN_SPEED or (behind < 8.0 if not late else behind > -LATE_OVERLAP_M):
 				continue
 			for g: int in [_groove - 1, _groove + 1]:
 				if g >= 0 and g < _grooves.size() and _in_groove(other, g) and not _in_groove(other, _groove) \
 						and _groove_free(g, cars, 0.0, CAR_LENGTH + 8.0, other):
-					_block_wait = BLOCK_COOLDOWN_S
-					if _rng.randf() < s:
+					if late:
+						_late_block = null
+						_block_wait = BLOCK_COOLDOWN_S
+						_blind = MISTAKE_BLIND_S
 						_to_groove(g)
 						intent = "block"
+					elif _rng.randf() < _blunder() * LATE_BLOCK:
+						_late_block = other # not seen yet
+					else:
+						_block_wait = BLOCK_COOLDOWN_S
+						if _rng.randf() < s:
+							_to_groove(g)
+							intent = "block"
 					break
 			if intent == "block" or _block_wait > 0.0:
 				break
