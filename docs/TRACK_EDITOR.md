@@ -21,7 +21,7 @@ Endless mode generates its roads procedurally and doesn't use editor tracks. It 
 
 | Tool | What it does |
 |---|---|
-| **Road** | Click to add control points (on the road: into it), drag to move, Alt+drag for height. Per point: widths left and right, banking, an apron each side (width and slope), height (on the ground or set). Per segment (to the next point): surface, lanes, lines, curbs, barriers (sound walls too) and run-off each side. "Use these everywhere", Flip direction, Track type. On a highway the points are the median's line, and instead of widths: lanes each way (2–4), lane width, median width and barrier, shoulders, speed limit and the outer barriers (the widths follow). On a fitted scene: the centreline only (§7.1). |
+| **Road** | Click to add control points (on the road: into it), drag to move, Alt+drag for height. Per point: widths left and right, banking (±45°; ±10° on a highway), an apron each side (width and slope), height (on the ground or set). Per segment (to the next point): surface, lanes, lines, curbs, barriers (sound walls too) and run-off each side. "Use these everywhere", Flip direction, Track type. On a highway the points are the median's line, and instead of widths: lanes each way (2–4), lane width, median width and barrier, shoulders, speed limit and the outer barriers (the widths follow). On a fitted scene: the centreline only (§7.1). |
 | **Ramps** | Highways only (D122). Add at the cursor, on the carriageway it's on: an exit and an entry (an interchange), an exit, an entry, or a crossover (a flyover to the other carriageway). Click a ramp to pick it; drag its points (Alt+drag: height) or set them by field; insert and delete points; move it along the road; name, lanes (1–2), speed limit, whether traffic uses it, its portal's name; delete it (and its portal). A drag rebuilds only that ramp. |
 | **Surfaces** | Fitted scenes only (§7.1): what each material is to a car, rules by name, style, Measure widths. |
 | **Terrain** | Raise, lower, smooth, flatten (with "Pick height") and noise brushes; size, strength, falloff. "Fit terrain to track". |
@@ -99,7 +99,7 @@ The checks add: piece off the road, pieces overlapping, a loop round a corner or
 - **Rolling start** distance, the start **gantry**, and how far the AI drives carefully on lap 1 (auto, or set).
 - **AI racing line:**
   - Solved automatically by **minimum curvature** inside the road (wide entry, apex, wide exit).
-  - Speeds from the class's grip, power, braking and downforce, and the track's banking, grade and crests: banking into a turn lets it go faster, a crest takes load off the tires (the AI lifts so it keeps 75% of the car's weight on them), climbs slow the car (D93). The grade and crests are the line's own (on banking it runs above or below the centreline); banking presses the car into the road, and loaded tires grip a little less (D206).
+  - Speeds from the class's grip, power, braking and downforce, and the track's banking, grade and crests: banking into a turn lets it go faster, a crest takes load off the tires (the AI lifts so it keeps 75% of the car's weight on them), climbs slow the car (D93). The grade and crests are the line's own (on banking it runs above or below the centreline); banking presses the car into the road, and loaded tires grip a little less (D206); a corner's speed is where that grip stops covering the turn, found by halving (D223).
   - A wall within 2 m of the edge (an oval's) keeps the line 0.6 m further in.
   - **Pins:** drag the line sideways to pin it there; it bends through the pin and stays inside the road. Pins don't change the layout (records stay, D97).
   - "AI lap" shows the reference car's lap on the line (Track GT).
@@ -138,7 +138,7 @@ my_track.nosstrack
     "defaults": { "width_l":6, "width_r":6, "bank_deg":0, "height":"ground", "lanes":1, "lines":"edges",
                   "surface":"asphalt", "curb_l":"auto", "curb_r":"auto", "runoff_l":"grass", "runoff_r":"grass",
                   "runoff_l_m":16, "runoff_r_m":16, "barrier_l":"auto", "barrier_r":"auto" },
-                  // optional (D202): "apron_l_m", "apron_r_m" (0-30), "apron_l_deg", "apron_r_deg" (±30); barrier "safer"
+                  // bank_deg ±45 (D223); optional (D202): "apron_l_m", "apron_r_m" (0-30), "apron_l_deg", "apron_r_deg" (±30); barrier "safer"
     "points": [ { "p":[x,y,z] }, { "p":[…], "width_l":7.5, "bank_deg":5, "height":"set", "barrier_l":"armco" } ] },
   "race": { "start_m":150, "sectors_m":[880,1690], "checkpoint_spacing_m":100,
             "grid":{ "slots":20, "front_m":12, "row_m":13, "stagger":0.5, "pole":"left" },
@@ -232,7 +232,7 @@ my_track.nosstrack
 | A height step past what driving can take | Gap at 2.1 km | error |
 | Steeper than 25% | Too steep at 900 m | warning |
 | Fewer than 2 slots / fewer than 12 | Grid too small | error / warning |
-| A slot on a road too narrow or banked over 6° | Grid off the road | error |
+| A slot on a road too narrow or banked over 20° (D223) | Grid off the road | error |
 | The grid takes more than 40% of the lap | Grid too long | error |
 | Sector lines out of order or under 100 m apart | Sector 2 out of order | error |
 | A prop (that cars hit) on the road / blocking it | Prop on the road / Road blocked at 300 m | warning / error |

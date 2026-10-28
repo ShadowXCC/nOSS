@@ -1,3 +1,3 @@
 { "schema": "noss.track/1", "id": "loop", "name": "Loop", "type": "circuit",
-  "road": { "points": [ { "p": [0, 0, 0], "bank_deg": 75 }, { "p": [300, 0, 0] }, { "p": [300, 0, 300] } ] },
+  "road": { "points": [ { "p": [0, 0, 0], "bank_deg": 46 }, { "p": [300, 0, 0] }, { "p": [300, 0, 300] } ] },
   "race": {} }

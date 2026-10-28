@@ -73,27 +73,51 @@ static func _oval(defaults: Dictionary) -> TrackData:
 
 
 ## On banking, a move along the road is a shorter move across the map (cos(bank)). The line on a
-## 24° oval must be the line a flat oval of the same plan-view width gets.
+## 24°, 31° or 45° oval must be the line a flat oval of the same plan-view width gets.
 func test_banked_line_matches_the_flat_line_seen_from_above() -> void:
-	var bank := deg_to_rad(24.0)
-	var half := 8.0
-	var flat_half := (half - RacingLine.EDGE_MARGIN) * cos(bank) + RacingLine.EDGE_MARGIN
-	var banked := _oval({ "width_l": half, "width_r": half, "bank_deg": -24.0 })
-	var flat := _oval({ "width_l": flat_half, "width_r": flat_half })
-	var mean := 0.0
-	for c in banked.curvature:
-		mean += c
-	assert_float(mean).is_greater(0.0) # turning left
-	var a := RacingLine.solve(banked)
-	var b := RacingLine.solve(flat)
-	assert_bool(a.flat).is_false()
-	var worst := 0.0
-	for i in banked.samples.size():
-		var pa := Vector2(a.points[i].x, a.points[i].z)
-		var pb := Vector2(b.points[i].x, b.points[i].z)
-		worst = maxf(worst, pa.distance_to(pb))
-		assert_float(absf(a.offsets[i])).is_less_equal(half - RacingLine.EDGE_MARGIN + 0.001)
-	assert_float(worst).is_less(0.02)
+	for deg in [24.0, 31.0, 45.0]:
+		var bank := deg_to_rad(deg)
+		var half := 8.0
+		var flat_half := (half - RacingLine.EDGE_MARGIN) * cos(bank) + RacingLine.EDGE_MARGIN
+		var banked := _oval({ "width_l": half, "width_r": half, "bank_deg": -deg })
+		var flat := _oval({ "width_l": flat_half, "width_r": flat_half })
+		var mean := 0.0
+		for c in banked.curvature:
+			mean += c
+		assert_float(mean).is_greater(0.0) # turning left
+		var a := RacingLine.solve(banked)
+		var b := RacingLine.solve(flat)
+		assert_bool(a.flat).is_false()
+		var worst := 0.0
+		for i in banked.samples.size():
+			var pa := Vector2(a.points[i].x, a.points[i].z)
+			var pb := Vector2(b.points[i].x, b.points[i].z)
+			worst = maxf(worst, pa.distance_to(pb))
+			assert_float(absf(a.offsets[i])).is_less_equal(half - RacingLine.EDGE_MARGIN + 0.001)
+		assert_float(worst).override_failure_message("%.0f°: %.3f m off" % [deg, worst]).is_less(0.02)
+
+
+## Steeper banking in the turns holds a car in them at more speed, all the way to the 45° cap,
+## and the speed found is the corner's limit: grip to spare just under it, none just over. (Loaded
+## tires grip less; passing the load to the grip and back three times once swung past the answer,
+## so 38° came out slower than 31°.)
+func test_steeper_banking_corners_faster() -> void:
+	var car := PlatformLoader.load_official("official.track.stock_car").platform
+	var mu := float(car.tires.mu_peak) * RacingLine.GRIP_SHARE
+	var sensitivity := float(car.tires.load_sensitivity) * RacingLine.LOAD_SPREAD
+	var downforce := 0.5 * RacingLine.AIR_DENSITY * -(float(car.aero.cl_a_front) + float(car.aero.cl_a_rear)) / float(car.mass.kg)
+	for radius: float in [150.0, 300.0]:
+		var k := 1.0 / radius
+		var last := 0.0
+		for deg in range(0, 46):
+			var b := deg_to_rad(deg)
+			var v := RacingLine._corner_speed(k, b, mu, sensitivity, downforce)
+			assert_float(v).override_failure_message("%.0f m, %d°: %.1f m/s after %.1f" % [radius, deg, v, last]).is_greater_equal(last)
+			last = v
+			if v < RacingLine.MAX_SPEED:
+				var spare := func(u: float) -> float: return RacingLine._corner_spare(u, k, cos(b), sin(b), mu, sensitivity, downforce)
+				assert_float(spare.call(v - 0.05)).is_greater_equal(0.0)
+				assert_float(spare.call(v + 0.05)).is_less(0.0)
 
 
 ## Drafting (D208): less drag laps faster; the ceiling (corners and braking only) is never under

@@ -80,7 +80,10 @@ func test_grid_checks() -> void:
 	d.set_race("grid/row_m", 30.0)
 	assert_array(_texts(d, "error")).contains(["Grid too long"])
 	d.set_race("grid/row_m", 13.0)
-	d.copy_to_all("bank_deg", 10.0)
+	# A superspeedway's tri-oval (18°) takes a grid; steeper banking doesn't.
+	d.copy_to_all("bank_deg", 18.0)
+	assert_bool(_has(_texts(d, "error"), "Grid off the road")).is_false()
+	d.copy_to_all("bank_deg", 22.0)
 	assert_array(_texts(d, "error")).contains(["Grid off the road"])
 
 

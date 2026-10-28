@@ -43,9 +43,13 @@ const CREST_LOAD := 0.75
 ## axle cornering at its limit that's about LOAD_SPREAD times the sensitivity per g of load. Only
 ## the change from 1 g counts (GRIP_SHARE has the rest): banking and dips lose grip, crests gain.
 ## Past 1 g it's HEAVY_SPREAD times that again: held at its limit on Piedmont's banking (near 2 g)
-## a Stock Car gets far less than a straight line of the loss says (D213).
+## a Stock Car gets far less than a straight line of the loss says (D213). It was 2.5 while the
+## corner speeds came from three passes that overshot; with the speed found exactly, 2.1 keeps
+## Piedmont's AI laps within 0.3 s of what was raced then.
 const LOAD_SPREAD := 1.36
-const HEAVY_SPREAD := 2.5
+const HEAVY_SPREAD := 2.1
+## Halvings that find a banked corner's speed (MAX_SPEED / 2^12: about 3 cm/s).
+const CORNER_STEPS := 12
 
 ## Lines solved lately (track layout -> RacingLine), oldest first.
 static var _cache := {}
@@ -237,21 +241,9 @@ func _profile_3d(mu: float, downforce: float, drag: float, power: float, driven:
 	var n := points.size()
 	var v := PackedFloat32Array()
 	v.resize(n)
-	# The grip at a load of `normal` (m/s² pressing the car into the road).
-	var mu_at := func(normal: float) -> float:
-		var over := normal / GRAVITY - 1.0
-		return mu * maxf(1.0 - sensitivity * over * (HEAVY_SPREAD if over > 0.0 else 1.0), 0.5)
+	var mu_at := func(normal: float) -> float: return _loaded_mu(mu, sensitivity, normal)
 	for i in n:
-		var k := absf(curvature[i])
-		var c := cos(bank_in[i])
-		var s := sin(bank_in[i])
-		v[i] = MAX_SPEED
-		var m := mu
-		for pass_i in 3: # the corner's load sets the grip, which sets the speed
-			var denom := k * (c - m * s) - m * downforce
-			var num := GRAVITY * (m * c + s)
-			v[i] = MAX_SPEED if denom <= 1e-6 or num <= 0.0 else minf(sqrt(num / denom), MAX_SPEED)
-			m = mu_at.call(GRAVITY * c + v[i] * v[i] * k * s)
+		v[i] = _corner_speed(absf(curvature[i]), bank_in[i], mu, sensitivity, downforce)
 		if crest[i] > 1e-5: # over a crest, slow enough that the tires keep some load
 			v[i] = minf(v[i], sqrt(GRAVITY * cos(atan(grade[i])) * CREST_LOAD / crest[i]))
 	var slowest := 0
@@ -283,6 +275,39 @@ func _profile_3d(mu: float, downforce: float, drag: float, power: float, driven:
 			var b := g.x * minf(BRAKE_SHARE, brake_cap) * spare + drag * u * u + ROLLING * GRAVITY + GRAVITY * sin(atan(grade[i]))
 			v[i] = minf(v[i], sqrt(maxf(u * u + 2.0 * b * steps[i], 0.0)))
 	return v
+
+
+## The grip at a load of `normal` (m/s² pressing the car into the road).
+static func _loaded_mu(mu: float, sensitivity: float, normal: float) -> float:
+	var over := normal / GRAVITY - 1.0
+	return mu * maxf(1.0 - sensitivity * over * (HEAVY_SPREAD if over > 0.0 else 1.0), 0.5)
+
+
+## How fast a corner of curvature `k` banked `bank` (rad) into it can be taken: the speed where the
+## grip its load gives stops covering what the turn asks. The load sets the grip and the speed the
+## load, so it's found by halving (passing one to the other swings past the answer on steep
+## banking, where loaded tires lose the most). With the cap at 45° what's left over only falls
+## as the speed rises, so there's one answer. Banking a car can't even stand on: no limit here.
+static func _corner_speed(k: float, bank: float, mu: float, sensitivity: float, downforce: float) -> float:
+	var c := cos(bank)
+	var s := sin(bank)
+	if GRAVITY * (mu * c + s) <= 0.0 or _corner_spare(MAX_SPEED, k, c, s, mu, sensitivity, downforce) >= 0.0:
+		return MAX_SPEED
+	var lo := 0.0
+	var hi := MAX_SPEED
+	for step in CORNER_STEPS:
+		var mid := (lo + hi) / 2.0
+		if _corner_spare(mid, k, c, s, mu, sensitivity, downforce) >= 0.0:
+			lo = mid
+		else:
+			hi = mid
+	return lo
+
+
+## Grip left over at speed `u` in that corner (m/s²): what the load gives less what the turn asks.
+static func _corner_spare(u: float, k: float, c: float, s: float, mu: float, sensitivity: float, downforce: float) -> float:
+	var normal := maxf(GRAVITY * c + u * u * k * s, 0.0)
+	return _loaded_mu(mu, sensitivity, normal) * (normal + downforce * u * u) - (u * u * k * c - GRAVITY * s)
 
 
 ## The ceiling: how fast the corners and the braking for them allow (speed_profile without the

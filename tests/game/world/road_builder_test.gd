@@ -238,3 +238,27 @@ func test_an_oval_has_an_apron_and_a_safer_wall() -> void:
 	var gantry := root.get_node("Gantry") as MeshInstance3D
 	assert_float(gantry.mesh.get_aabb().position.y).is_less(0.5)
 	root.free()
+
+
+## The steepest banking a track may have (45°, a superspeedway's 31° and then some): on its inner
+## edge, the ground under the road everywhere, the wall and fence along the top.
+func test_a_45_degree_oval_builds_like_a_gentler_one() -> void:
+	var terrain := TerrainData.around(Rect2(-400, -200, 800, 400), 100.0)
+	var t := TrackData.from_dict(oval_track(9.0, -45.0), terrain.ground_height())
+	terrain.conform(t)
+	assert_int(Array(t.lifted).count(1)).is_equal(0)
+	var k := t.segment_samples(7).x
+	assert_float(rad_to_deg(absf(t.bank[k]))).is_equal_approx(45.0, 0.1)
+	assert_float(t.cross_point(k, 1.0, 0.0).y).is_equal_approx(0.0, 0.05)
+	var outer := t.cross_point(k, -1.0, 0.0)
+	assert_float(outer.y).is_equal_approx(18.0 * sin(deg_to_rad(45.0)), 0.1)
+	for step in 40: # across the bend from the apron up the banking
+		var p := t.cross_point(k, 1.0, -1.5 + step * 0.1)
+		assert_float(terrain.height_at(p.x, p.z)).is_less(p.y)
+	for step in 19: # and up the banking to the wall
+		var p := t.cross_point(k, -1.0, step * 1.0)
+		assert_float(terrain.height_at(p.x, p.z)).is_less(p.y)
+	var root := TrackBuilder.build(t, terrain)
+	var wall := root.get_node("SaferWalls") as MeshInstance3D
+	assert_float(wall.mesh.get_aabb().end.y).is_greater(outer.y)
+	root.free()

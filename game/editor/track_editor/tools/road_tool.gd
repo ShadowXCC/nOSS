@@ -312,7 +312,7 @@ func _attr_rows(idx: PackedInt32Array, i: int, point: bool, widths_only := false
 		out.append(UiKit.number("Width right", float(TrackFormat.attr(road, i, "width_r")), 2.0, 30.0, 0.5, "%.1f m", set_attr.bind("width_r"), "Centreline to the right edge"))
 		if widths_only:
 			return out
-		out.append(UiKit.number("Banking", float(TrackFormat.attr(road, i, "bank_deg")), -25.0, 25.0, 0.5, "%.1f°", set_attr.bind("bank_deg"), "Positive raises the left edge"))
+		out.append(UiKit.number("Banking", float(TrackFormat.attr(road, i, "bank_deg")), -45.0, 45.0, 0.5, "%.1f°", set_attr.bind("bank_deg"), "Positive raises the left edge"))
 		# An apron (D202): paved past the edge at its own slope, like an oval's flat inside.
 		for side: Array in [["l", "left"], ["r", "right"]]:
 			out.append(UiKit.number("Apron %s" % side[1], float(TrackFormat.attr(road, i, "apron_%s_m" % side[0])), 0.0, 30.0, 0.5, "%.1f m",

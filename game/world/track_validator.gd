@@ -14,7 +14,8 @@ const FOLD := 0.95
 const GAP_M := 0.5
 const STEEP := 0.25
 const STEEP_RUN_M := 10.0
-const GRID_BANK_DEG := 6.0
+## The steepest banking a grid slot may stand on: a superspeedway's start line is in its 18° tri-oval.
+const GRID_BANK_DEG := 20.0
 ## Two grid columns side by side need this much road each side of the centreline.
 const GRID_HALF_M := 2.3
 const GRID_MIN := 2
