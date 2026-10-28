@@ -242,6 +242,7 @@ func _spawn(pkg: VehiclePackage) -> void:
 	vehicle = Vehicle.create(platform, pkg, session.fitting_mode)
 	vehicle.name = "Vehicle%d" % number
 	vehicle.power_cap = session.plate_share # a restrictor plate (D226)
+	vehicle.bump_draft = session.event.pack # bump drafting in a pack (D228)
 	if not session.arcade.is_empty():
 		vehicle.set_arcade(session.arcade, session.drift_allowed) # kart (D130), sumo's drift (D181)
 	session.add_child(vehicle)

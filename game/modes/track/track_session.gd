@@ -490,6 +490,7 @@ func _ready() -> void:
 		draft = DraftControl.new()
 		draft.session = self
 		draft.tuning = DraftControl.tuning_for(mode)
+		draft.pack = event.pack
 		add_child(draft)
 	if (event.fuel_x > 0 or event.tyre_x > 0) and mode.get("id") == "track" and event.kind != "time_trial":
 		wear = WearControl.new()

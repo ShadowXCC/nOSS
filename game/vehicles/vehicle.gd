@@ -16,6 +16,10 @@ const KART_CLEARANCE := 0.3
 ## A knock that changes the car's speed this much in one tick (m/s) counts (knocked_at).
 const KNOCK_DV := 0.5
 const CHAMFER := 0.18
+## Bump drafting (bump_draft, D228): lined up within this much, closing slower than this (m/s).
+const BUMP_ALIGN_DEG := 8.0
+const BUMP_OFFSET_M := 0.7
+const BUMP_CLOSING := 4.0
 
 var platform := {}
 ## The platform before any setup (its official values).
@@ -36,6 +40,11 @@ var drift := false
 var drift_allowed := true
 ## Kart flags the game keeps (shield, magnet, towed, out); the sim adds its own (kart_flags()).
 var kart_bits := 0
+## Bump drafting (D228, pack racing): a push nose to tail between cars lined up within
+## BUMP_ALIGN_DEG and BUMP_OFFSET_M of each other, closing under BUMP_CLOSING m/s, doesn't turn
+## either car: the twist the contact gives it about its up is taken back out. Harder or
+## off-centre hits turn it as ever.
+var bump_draft := false
 ## The share of its engine's power the car has (a restrictor plate, D226; 1: all of it). It holds
 ## through a swap or a setup change; running out of fuel (WearControl) cuts the rest.
 var power_cap := 1.0:
@@ -491,6 +500,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	wall_impulse = 0.0
 	traffic_impulse = 0.0
 	remote_contacts.clear()
+	var bumps := {} # bump drafting: other car -> [the knock from it, its twist about this car's up]
 	for i in state.get_contact_count():
 		var j := state.get_contact_impulse(i)
 		var impulse := j.length()
@@ -509,6 +519,11 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 				state.apply_impulse(-j * (1.0 - keep), point - state.transform.origin)
 				remote_contacts.append([other, j * keep, point])
 				felt = j * keep
+			if bump_draft and impulse > 0.0:
+				var at := state.get_contact_local_position(i) - (state.transform.origin + state.center_of_mass)
+				var up := state.transform.basis.y
+				var b: Array = bumps.get(other, [Vector3.ZERO, Vector3.ZERO])
+				bumps[other] = [b[0] + felt, b[1] + at.cross(felt).dot(up) * up]
 		elif other is Node and (other as Node).has_meta(&"noss_traffic"):
 			traffic_impulse += impulse
 			car_impulse += impulse
@@ -516,10 +531,25 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 			wall_impulse += impulse
 		if not arcade.is_empty() and impulse > 0.0:
 			_kart_bounce(state, felt, other)
+	# A bump draft takes back the twist of every contact with that car together, or none: the
+	# points of one knock balance each other out.
+	for o: Vehicle in bumps:
+		if _bump(o, (bumps[o][0] as Vector3).length()):
+			state.apply_torque_impulse(-(bumps[o][1] as Vector3))
 	if float(arcade.get("land", {}).get("min_fall", 0.0)) > 0.0:
 		_land_catch(state)
 	if (car_impulse + wall_impulse) / mass > KNOCK_DV:
 		knocked_at = Time.get_ticks_msec() / 1000.0
+
+
+## A bump draft (D228): `other` lined up nose to tail with this car, closing slowly. The contact
+## has already evened their speeds out by now, so how fast they were closing is read from the
+## knock (`impulse`): the speed it took out between them.
+func _bump(other: Vehicle, impulse: float) -> bool:
+	var fwd := global_basis.z
+	var rel := other.global_position - global_position
+	return fwd.dot(other.global_basis.z) > cos(deg_to_rad(BUMP_ALIGN_DEG)) and absf(rel.dot(global_basis.x)) < BUMP_OFFSET_M \
+		and absf(rel.dot(fwd)) > Slipstream.HALF_LENGTH and impulse * (1.0 / mass + 1.0 / other.mass) < BUMP_CLOSING
 
 
 ## Kart walls and bumps bounce (D132). Jolt gives every contact a bounce of 0.1; a kart adds the
