@@ -262,6 +262,8 @@ func _rule_rows() -> Array:
 		plates.append([p, p.capitalize()])
 	out.append(UiKit.spinner("Restrictor plate", plates, String(rules.plate), func(v: String) -> void: draft.set_rule("plate", v),
 		"Less power for every car (D226)"))
+	out.append(UiKit.spinner("Yellow line", [[false, "Off"], [true, "On"]], bool(rules.yellow_line), func(v: bool) -> void: draft.set_rule("yellow_line", v),
+		"Passing on the apron is a penalty"))
 	return out
 
 

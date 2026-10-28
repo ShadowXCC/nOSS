@@ -88,7 +88,8 @@
         "fuel_x": { "type": "integer", "minimum": 0, "maximum": 10 },
         "tyre_x": { "type": "integer", "minimum": 0, "maximum": 10 },
         "pack": { "description": "Pack racing for the AI, with drafting on.", "type": "boolean" },
-        "plate": { "description": "A restrictor plate (D226): every car's power cut to the Track mode's share for it.", "enum": ["off", "light", "medium", "heavy"] }
+        "plate": { "description": "A restrictor plate (D226): every car's power cut to the Track mode's share for it.", "enum": ["off", "light", "medium", "heavy"] },
+        "yellow_line": { "description": "The yellow line (D227): with track limits on, a place gained with all four wheels on the apron is a warning, then a penalty.", "type": "boolean" }
       }
     },
     "pit": {

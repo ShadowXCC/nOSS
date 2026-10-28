@@ -37,6 +37,8 @@ const FLAG_UPDATE_S := 0.1
 ## Practice and qualifying release the AI one by one this far apart, so they spread out.
 const RELEASE_GAP_S := 2.0
 const PENALTY_S := { "lenient": 2.0, "strict": 5.0 }
+## Each place gained below the yellow line after the first warning (D227).
+const YELLOW_PENALTY_S := 5.0
 
 var session: TrackSession
 var event: RaceEvent
@@ -123,6 +125,7 @@ func restart_session() -> void:
 ## A racer joined (or dropped in): listen for its track-limit cuts.
 func watch(r: Racer) -> void:
 	r.cut_track.connect(_on_cut.bind(r))
+	r.below_line.connect(_on_below_line.bind(r))
 	_laps[r] = 0
 
 
@@ -639,14 +642,9 @@ func _completed(r: Racer) -> int:
 	return maxi(r.timer.lap - 1, 0)
 
 
-## Distance along the race: laps plus the way round this one. Before the first crossing the
-## car is just behind the line, so it's a little below zero.
+## Distance along the race (Racer.race_progress).
 func _progress(r: Racer) -> float:
-	var t := session.track
-	var from_line := t.from_start(r.distance)
-	if r.timer.lap == 0:
-		return from_line - t.length
-	return (r.timer.lap - 1) * t.length + from_line
+	return r.race_progress()
 
 
 ## Gap in seconds from `r` to the car `ahead` of it (by distance and speed).
@@ -708,6 +706,19 @@ func _on_cut(gained: bool, r: Racer) -> void:
 		var add: float = PENALTY_S.get(event.track_limits, 2.0)
 		r.penalty_s += add
 		r.notify("Track limits: +%d s" % roundi(add), 3.0)
+
+
+## A place gained below the yellow line (D227): in a race, a warning (shared with track limits),
+## then YELLOW_PENALTY_S each time. The server rules online.
+func _on_below_line(_passed: int, r: Racer) -> void:
+	if mirror or kind != "race" or (phase != Phase.RUNNING and phase != Phase.CHECKERED):
+		return
+	if r.warnings == 0:
+		r.warnings = 1
+		r.notify("Below the line: warning", 3.0)
+	else:
+		r.penalty_s += YELLOW_PENALTY_S
+		r.notify("Below the line: +%d s" % roundi(YELLOW_PENALTY_S), 3.0)
 
 
 static func _clock_text(seconds: float) -> String:

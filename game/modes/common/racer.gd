@@ -6,6 +6,8 @@ extends Node
 ## (track, platform, grid, RaceField) and asks this for spawns, swaps and resets.
 
 signal cut_track(gained: bool)
+## Back above the yellow line (D227) having got past `passed` of the cars it had just ahead.
+signal below_line(passed: int)
 
 const PENDING_SWAP_S := 2.0
 ## Wrong way for this long: back on the track the right way round.
@@ -17,6 +19,16 @@ const REJOIN_MAX_WAIT_S := 10.0
 ## the AI line's speed there (a car put down at rest on an oval is in the way of the whole field).
 const REJOIN_GHOST_S := 3.0
 const REJOIN_SPEED_SHARE := 0.6
+## The yellow line (D227): going below it the cars this far ahead are noted; out of the pit lane a
+## car may run below it this long; a car it gets past that's going under this share of its speed,
+## or was knocked this recently, is in trouble and doesn't count.
+const YELLOW_AHEAD_M := 150.0
+const YELLOW_PIT_EXIT_S := 10.0
+const YELLOW_SLOW_SHARE := 0.5
+const YELLOW_KNOCK_S := 3.0
+## A trip below the line ends once the car has been back above it this long (a wheel brushing the
+## line on the way up doesn't end it).
+const YELLOW_UP_S := 0.5
 ## Kart: this far below the road where it is, the kart is towed (D132).
 const KART_FALL_M := 6.0
 
@@ -99,6 +111,11 @@ var finish_time := -1.0
 var dnf := false
 ## All four wheels are past the road and curbs.
 var out_of_bounds := false
+## All four wheels on an apron, below the yellow line (D227; only where the event has it on).
+var below := false
+var _below_ahead: Array[Racer] = []
+var _pit_left_at := -INF
+var _up_time := 0.0
 ## In a circuit's pit lane (D203): on track, clear of track limits and the flags; its laps still
 ## count along the main road. Where it is along the lane and across it (m, + = left), and the
 ## lane's nearest sample.
@@ -148,6 +165,8 @@ func new_session() -> void:
 	warnings = 0
 	finish_time = -1.0
 	out_of_bounds = false
+	below = false
+	_below_ahead.clear()
 	pace_limit = 0.0
 	_wrong_way_time = 0.0
 	if vehicle:
@@ -348,6 +367,8 @@ func update_track(delta: float) -> void:
 		last_valid = distance
 	if limits and not in_pit:
 		_check_track_limits()
+	if limits and session.event.yellow_line:
+		_check_yellow_line()
 	# Fallen off the world (off a bridge, into water): back on the road. A kart is also towed
 	# from well below the road where it is (off a jump or a loop, D132).
 	if (com.y < track.kill_y or (session.kart and com.y < track.point_at(distance).y - KART_FALL_M)
@@ -443,6 +464,71 @@ func _check_track_limits() -> void:
 		var line := RacingLine.for_track(track)
 		var best := line.time_between(line.speed_profile(vehicle.platform, 1.0, 1.0, true, vehicle.power_cap), _out_from, distance)
 		cut_track.emit(_clock - _out_since < best * 0.98)
+
+
+## The yellow line (D227): all four wheels past the racing surface and its curb onto an apron.
+## Going down, it notes the cars within YELLOW_AHEAD_M ahead; back up for YELLOW_UP_S, any of
+## them now behind it, still racing and not in trouble, is a place gained below the line. Going
+## into the pit lane is no pass, and nor is the run down from its exit.
+func _check_yellow_line() -> void:
+	if in_pit:
+		_pit_left_at = _clock
+		below = false
+		_below_ahead.clear()
+		return
+	if waiting or vehicle.fitted == null:
+		return
+	var i := maxi(track_index, 0)
+	var left := track.lefts[i]
+	var com_world := com()
+	var side := 0.0
+	var down := true
+	for w: Dictionary in vehicle.fitted.physics_wheels:
+		var lat := lateral + (vehicle.global_transform * (w.center as Vector3) - com_world).dot(left)
+		var s := 1.0 if lat >= 0.0 else -1.0
+		var curb := TrackData.CURB_WIDTH if (track.curb_l[i] if s > 0.0 else track.curb_r[i]) else 0.0
+		if absf(lat) <= track.half_width(distance, s) + curb or track.apron(i, s) <= 0.0 or (side != 0.0 and s != side):
+			down = false
+			break
+		side = s
+	var mine := race_progress()
+	if down:
+		_up_time = 0.0
+		if not below:
+			below = true
+			_below_ahead.clear()
+			if _clock - _pit_left_at > YELLOW_PIT_EXIT_S:
+				for o: Racer in session.racers:
+					var gap := o.race_progress() - mine
+					if o != self and not o.waiting and not o.in_pit and gap > 0.0 and gap < YELLOW_AHEAD_M:
+						_below_ahead.append(o)
+		return
+	if not below:
+		return
+	_up_time += get_physics_process_delta_time()
+	if _up_time < YELLOW_UP_S:
+		return
+	below = false
+	var passed := 0
+	var now := Time.get_ticks_msec() / 1000.0
+	for o: Racer in _below_ahead:
+		if not is_instance_valid(o) or o.vehicle == null or o.waiting or o.in_pit or o.finished or o.race_progress() >= mine:
+			continue
+		if absf(o.speed) < absf(speed) * YELLOW_SLOW_SHARE or now - o.vehicle.knocked_at < YELLOW_KNOCK_S:
+			continue # dodging a car in trouble
+		passed += 1
+	_below_ahead.clear()
+	if passed > 0:
+		below_line.emit(passed)
+
+
+## Distance along the race: laps plus the way round this one. Before the first crossing the car
+## is just behind the line, so it's a little below zero.
+func race_progress() -> float:
+	var from_line := track.from_start(distance)
+	if timer.lap == 0:
+		return from_line - track.length
+	return (timer.lap - 1) * track.length + from_line
 
 
 ## Back on the track at the last valid spot, at rest. The current lap stops counting. With

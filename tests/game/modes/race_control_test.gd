@@ -148,6 +148,24 @@ func test_track_limits_warn_then_penalise_cuts_that_gain() -> void:
 	assert_float(a.penalty_s).is_equal(7.0)
 
 
+## The yellow line (D227): a place gained below it warns first (with track limits' warning), then
+## costs 5 s each time; practice doesn't care.
+func test_a_pass_below_the_yellow_line_warns_then_penalises() -> void:
+	var a := _racer(1)
+	_race.begin("race")
+	_race.phase = RaceControl.Phase.RUNNING
+	a.below_line.emit(1)
+	assert_int(a.warnings).is_equal(1)
+	assert_float(a.penalty_s).is_equal(0.0)
+	a.below_line.emit(2)
+	assert_float(a.penalty_s).is_equal(RaceControl.YELLOW_PENALTY_S)
+	var b := _racer(2)
+	_race.event.practice_min = 10
+	_race.begin("practice")
+	b.below_line.emit(1)
+	assert_int(b.warnings).is_equal(0)
+
+
 func test_track_limits_invalidate_practice_laps() -> void:
 	var a := _racer(1)
 	_race.event.practice_min = 10

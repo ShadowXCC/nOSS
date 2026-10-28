@@ -46,6 +46,9 @@ var tyre_x := -1
 var plate := "track"
 ## Pack racing for the AI: the track's `rules.pack` with drafting on. Set by resolved() only.
 var pack := false
+## The yellow line (D227): the track's `rules.yellow_line` with track limits on: a place gained
+## with all four wheels on the apron is a warning, then a penalty. Set by resolved() only.
+var yellow_line := false
 ## Kart (D139, D144): item boxes on; a battle's rule ("standing": last one standing, "hits": most
 ## hits), its length in minutes, and a most-hits match's target (first to it wins; 0: time only).
 var items := true
@@ -311,7 +314,7 @@ static func track_rules(track: TrackData) -> Dictionary:
 
 ## A track file's `rules` with every key filled in.
 static func rules_of(own: Variant) -> Dictionary:
-	var out := { "start": "standing", "draft": false, "fuel_x": 0, "tyre_x": 0, "pack": false, "plate": "off" }
+	var out := { "start": "standing", "draft": false, "fuel_x": 0, "tyre_x": 0, "pack": false, "plate": "off", "yellow_line": false }
 	if own is Dictionary:
 		for key: String in out:
 			if (own as Dictionary).has(key):
@@ -337,6 +340,7 @@ func resolved(track: TrackData) -> RaceEvent:
 	e.pack = e.draft == "on" and bool(rules.pack)
 	if e.plate == "track":
 		e.plate = String(rules.plate) if String(rules.plate) in PLATES else "off"
+	e.yellow_line = bool(rules.yellow_line) and e.track_limits != "off"
 	return e
 
 
