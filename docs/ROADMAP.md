@@ -368,6 +368,27 @@ v0.12.3).*
   dropdowns, made through its popup, leaves the focus on that row and the panel no higher; Lift
   clear, which goes away once pressed, hands the focus to Ride height.*
 
+## Halifax: a superspeedway
+
+*A 2.5-mile superspeedway on the real Daytona layout under a name of its own, and what it needs
+first (D223-).*
+
+- **Steeper banking** (D223, v0.12.5): tracks bank up to 45° (the editor's Banking row too), and a
+  grid may stand on banking up to 20°. The AI finds a banked corner's speed exactly.
+- Still to come: water in track files (Lake Lloyd), a stadium stand and campers, a restrictor plate
+  rule, the yellow line rule, line, side and bump drafting, skill-based mistakes in a pack, Halifax
+  Speedway and the Halifax Road Course.
+
+**Acceptance:**
+- [x] Banking to 45° builds and races. *`road_builder_test`: a 45° oval stands on its inner edge
+  with the ground under it everywhere and its wall along the top; `racing_line_test`: the line on
+  24°, 31° and 45° banking is the flat line seen from above, and a corner's speed rises with banking
+  from 0° to 45° and is its limit. `race_check` on ovals with 300 m turns at 31° and at 45°, 3°
+  straights, 12 Stock Cars, 5 laps, two seeds each: 45° clean, 31° one 3-car pile-up in one run.*
+- [x] Piedmont races as before. *16 Stock Cars, 10 laps, the track's rules, three seeds: no
+  pile-ups, best laps 36.55-36.98 s (36.50-36.73 s before).*
+- [x] A grid stands on 18° banking, not on 22°. *`track_validator_test`.*
+
 ## M10+: Backlog (order to be decided)
 
 | Item | IDs |
