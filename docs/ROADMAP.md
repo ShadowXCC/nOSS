@@ -377,9 +377,9 @@ first (D223-).*
   grid may stand on banking up to 20°. The AI finds a banked corner's speed exactly.
 - **Water** in track files (D224, v0.12.6): lakes off the road; a car that goes in is sent back to
   the road, from a fitted scene's water too now.
-- Still to come: a stadium stand and campers, a restrictor plate rule, the yellow line rule, line,
-  side and bump drafting, skill-based mistakes in a pack, Halifax Speedway and the Halifax Road
-  Course.
+- **Stadium stand and camper** props (D225, v0.12.7).
+- Still to come: a restrictor plate rule, the yellow line rule, line, side and bump drafting,
+  skill-based mistakes in a pack, Halifax Speedway and the Halifax Road Course.
 
 **Acceptance:**
 - [x] Banking to 45° builds and races. *`road_builder_test`: a 45° oval stands on its inner edge
@@ -394,6 +394,8 @@ first (D223-).*
   an L-shaped pond is four triangles facing up over a 4-shape catch volume; with no water the
   oval template hashes as before; flipping the direction keeps it; water out over the road is an
   error and a billboard in it a warning.*
+- [x] The stadium stand and camper build, collide and show in the Props tool. *`props_test`,
+  `props_tool_test`; shots on the bare test track at noon and at night.*
 - [x] A car in a lake is sent back to the road. *`water_test` (on the old collision mask it stayed
   in); `track_fitting_test`: a fitted scene's water looks at cars too.*
 

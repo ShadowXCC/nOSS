@@ -73,7 +73,7 @@ Our own, not the Terrain3D addon (D91, closes Q4).
 
 ### Props
 
-- Original low-poly pieces in the retro style, made in code (D100): pine, tree, flat tree, bush, rock; grandstand and pit building (with a length), tent, marshal post; billboard, light pole, light tower (30 m, its lamps lit after dark), crowd, cone, tyre stack; skidpad (drivable concrete). For a graveyard (D221): dead tree and gravestone (nature); jack-o'-lantern (its face glows after dark), iron fence (with a length) and old lamp (its glass glows after dark and flickers, steady with Reduce flashing) (trackside).
+- Original low-poly pieces in the retro style, made in code (D100): pine, tree, flat tree, bush, rock; grandstand and pit building (with a length), tent, marshal post; billboard, light pole, light tower (30 m, its lamps lit after dark), crowd, cone, tyre stack; skidpad (drivable concrete). For a graveyard (D221): dead tree and gravestone (nature); jack-o'-lantern (its face glows after dark), iron fence (with a length) and old lamp (its glass glows after dark and flickers, steady with Reduce flashing) (trackside). For a superspeedway (D225): stadium stand (38 m deep and 34 m tall: a lower bowl, glass suites, an upper deck and a canopy, with a length) and camper (a motorhome, scattered too) (buildings).
 - Placed items are baked into the world; scattered ones are `MultiMeshInstance3D`s per 256 m chunk, seen to 1500 m, with simple collision where the type has it.
 
 ## 3. Stunt pieces (Kart, M8)
