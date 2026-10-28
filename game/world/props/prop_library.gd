@@ -16,8 +16,10 @@ const TYPES := {
 	"bush": { "name": "Bush", "category": "nature", "collide": false, "scatter": true, "slope": 0.8, "spacing": 2.0 },
 	"rock": { "name": "Rock", "category": "nature", "collide": true, "scatter": true, "slope": 1.2, "spacing": 3.0 },
 	"grandstand": { "name": "Grandstand", "category": "buildings", "collide": true, "size": [13.0, 9.9, 110.0] },
+	"stadium_stand": { "name": "Stadium stand", "category": "buildings", "collide": true, "size": [38.0, 34.0, 120.0] },
 	"pit_building": { "name": "Pit building", "category": "buildings", "collide": true, "size": [12.0, 9.0, 120.0] },
 	"tent": { "name": "Tent", "category": "buildings", "collide": true },
+	"camper": { "name": "Camper", "category": "buildings", "collide": true, "scatter": true, "slope": 0.15, "spacing": 12.0 },
 	"marshal_post": { "name": "Marshal post", "category": "buildings", "collide": true },
 	"billboard": { "name": "Billboard", "category": "trackside", "collide": true },
 	"light_pole": { "name": "Light pole", "category": "trackside", "collide": true },
@@ -90,6 +92,10 @@ static func parts(id: String, size := Vector3.ZERO) -> Array:
 	match id:
 		"grandstand":
 			return _grandstand(s.z)
+		"stadium_stand":
+			return _stadium_stand(s.z)
+		"camper":
+			return _camper()
 		"pit_building":
 			var b := MeshBatch.new()
 			b.box(Vector3(0, 4.5, 0), Basis(), Vector3(12.0, 9.0, s.z), Vector2(s.z / 12.0, 1.0))
@@ -314,7 +320,7 @@ static func scatter_shape(id: String) -> Dictionary:
 			c.radius = 0.35
 			c.height = 4.0
 			return { "shape": c, "offset": Vector3(0, 2.0, 0) }
-		"tower_slim", "tower_block", "tower_wide", "tower_tall", "barn", "chalet", "hay_bale", "gravestone", "iron_fence":
+		"tower_slim", "tower_block", "tower_wide", "tower_tall", "barn", "chalet", "hay_bale", "gravestone", "iron_fence", "camper":
 			var box := AABB()
 			for part: Dictionary in parts(id):
 				for v in (part.batch as MeshBatch).verts:
@@ -377,6 +383,8 @@ static func material(key: String) -> Material:
 			return WorldMaterials.get_material("rock", RetroTextures.rock(), 0.95, 0.1, true, Vector2.ONE / 2.0)
 		"canvas":
 			return WorldMaterials.get_material("canvas", null, 0.9, 0.1, false, Vector2.ONE, Color(0.92, 0.9, 0.86))
+		"camper":
+			return WorldMaterials.get_material("camper", null, 0.5, 0.4, false, Vector2.ONE, Color(0.9, 0.87, 0.79))
 		"marshal":
 			return WorldMaterials.get_material("marshal", null, 0.8, 0.2, false, Vector2.ONE, Color(0.95, 0.55, 0.12))
 		"metal":
@@ -617,6 +625,53 @@ static func _grandstand(length: float) -> Array:
 	var roof := MeshBatch.new()
 	roof.box(Vector3(6.0, 9.5, 0), Basis(), Vector3(13.0, 0.4, length + 4.0))
 	return [_part("", "crowd", rows, VehicleSim.SURFACE_CONCRETE), _part("Roof", "roof", roof, VehicleSim.SURFACE_CONCRETE)]
+
+
+## A superspeedway's frontstretch stadium (D225), facing -x like the grandstand: a lower bowl of
+## LOWER rows, a level of suites behind glass, an upper deck of UPPER rows over it, the structure
+## behind and a canopy over the top.
+static func _stadium_stand(length: float) -> Array:
+	const LOWER := 22
+	const UPPER := 18
+	var rows := MeshBatch.new()
+	for row in LOWER:
+		var rise := row * 0.55 + 0.8
+		rows.box(Vector3(row + 0.5, rise / 2.0, 0), Basis(), Vector3(1.0, rise, length), Vector2(length / 8.0, 1.0))
+	var deck := 19.0 # the upper deck's foot
+	for row in UPPER:
+		var rise := row * 0.62 + 0.6
+		rows.box(Vector3(18.5 + row, deck + rise / 2.0, 0), Basis(), Vector3(1.0, rise, length), Vector2(length / 8.0, 1.0))
+	var suites := MeshBatch.new()
+	suites.box(Vector3(20.0, 15.9, 0), Basis(), Vector3(4.0, 6.0, length), Vector2(length / 6.0, 1.0))
+	var frame := MeshBatch.new()
+	frame.box(Vector3(30.0, deck / 2.0, 0), Basis(), Vector3(16.0, deck, length), Vector2(length / 12.0, 2.0))
+	frame.box(Vector3(37.5, 26.5, 0), Basis(), Vector3(1.0, 15.0, length), Vector2(length / 12.0, 1.0))
+	var roof := MeshBatch.new()
+	roof.box(Vector3(26.0, 33.7, 0), Basis(), Vector3(24.0, 0.6, length + 2.0))
+	return [_part("", "crowd", rows, VehicleSim.SURFACE_CONCRETE), _part("Suites", "glass", suites, VehicleSim.SURFACE_CONCRETE),
+		_part("Frame", "building", frame, VehicleSim.SURFACE_CONCRETE), _part("Roof", "roof", roof, VehicleSim.SURFACE_CONCRETE)]
+
+
+## A motorhome along z (front at +z), camped in an oval's infield (D225): a cream body, a stripe,
+## windows, an awning out on its right side and its wheels.
+static func _camper() -> Array:
+	var body := MeshBatch.new()
+	body.box(Vector3(0, 2.1, 0), Basis(), Vector3(2.5, 3.0, 10.0), Vector2(2.0, 1.0))
+	var trim := MeshBatch.new()
+	for x: float in [-1.27, 1.27]:
+		trim.box(Vector3(x, 1.5, 0), Basis(), Vector3(0.04, 0.35, 9.6))
+	var glass := MeshBatch.new()
+	glass.box(Vector3(0, 2.6, 5.01), Basis(), Vector3(2.2, 1.1, 0.04))
+	for x: float in [-1.27, 1.27]:
+		glass.box(Vector3(x, 2.7, -0.5), Basis(), Vector3(0.04, 0.8, 6.0))
+	var awning := MeshBatch.new()
+	awning.box(Vector3(1.95, 3.0, -0.5), Basis(), Vector3(1.4, 0.06, 4.0))
+	var wheels := MeshBatch.new()
+	for x: float in [-1.1, 1.1]:
+		for z: float in [-3.2, 3.2]:
+			wheels.box(Vector3(x, 0.45, z), Basis(), Vector3(0.32, 0.9, 0.9))
+	return [_part("", "camper", body, VehicleSim.SURFACE_CONCRETE), _part("Trim", "roof_dark", trim, -1), _part("Glass", "glass", glass, -1),
+		_part("Awning", "canvas", awning, -1), _part("Wheels", "roof_dark", wheels, VehicleSim.SURFACE_CONCRETE)]
 
 
 ## Stacked blocks (`blocks`: [[size, material]], each on the last) with a roof cap and, if
