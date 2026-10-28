@@ -335,7 +335,7 @@ The sky rows are "Time", "Time runs" and "Weather" (`SkyRows`), at the end of ev
 | Regular, Stock Car TT | "Track", sky. Hosting adds "Minutes" (§7.7). |
 | Kart | "Play" ("Race" or "Cup"), then for a race "Track", "Laps", "AI karts", "AI skill", "Items"; for a cup "Cup", its races, "Change this cup", "Delete this cup", "New cup", "AI karts", "AI skill", "Items"; then sky. The cup builder is a page of its own (title "Cup builder"). |
 | Kart TT | "Track", sky. Items are off. Hosting adds "Minutes" (§7.7). |
-| Custom | "Preset", "Save preset", "Delete preset", then today's Race menu: "Track", "Practice", "Qualifying", "Race length", "Race", "AI cars", "AI skill", "AI cars look", "Start", "Drafting", "Fuel use", "Tire wear", "Grid", "Collisions", "Track limits", then "Items" (description "Kart classes only"), sky. |
+| Custom | "Preset", "Save preset", "Delete preset", then today's Race menu: "Track", "Practice", "Qualifying", "Race length", "Race", "AI cars", "AI skill", "AI cars look", "Start", "Drafting", "Fuel use", "Tire wear", "Restrictor", "Grid", "Collisions", "Track limits", then "Items" (description "Kart classes only"), sky. |
 | Custom TT | "Preset", "Save preset", "Delete preset", "Track", "Track limits", sky. Hosting adds "Minutes" (§7.7). |
 | Endless | Today's: "Road code", "New road", "Start in", "Lanes", "Drive on", "Traffic", "Garage cars", "Oncoming", "Speed traps", "Police", "Far apart", sky. |
 | Highway | "Highway" (the highway itself), then today's: "Mode", "Traffic", "Police", "Way round" (or "Run" for a run), sky. |

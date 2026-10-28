@@ -378,8 +378,10 @@ first (D223-).*
 - **Water** in track files (D224, v0.12.6): lakes off the road; a car that goes in is sent back to
   the road, from a fitted scene's water too now.
 - **Stadium stand and camper** props (D225, v0.12.7).
-- Still to come: a restrictor plate rule, the yellow line rule, line, side and bump drafting,
-  skill-based mistakes in a pack, Halifax Speedway and the Halifax Road Course.
+- **Restrictor plate** (D226, v0.12.8): a track-suggested rule, Off, Light, Medium or Heavy: every
+  car's power cut (86%, 75%, 65%).
+- Still to come: the yellow line rule, line, side and bump drafting, skill-based mistakes in a
+  pack, Halifax Speedway and the Halifax Road Course.
 
 **Acceptance:**
 - [x] Banking to 45° builds and races. *`road_builder_test`: a 45° oval stands on its inner edge
@@ -396,6 +398,12 @@ first (D223-).*
   error and a billboard in it a warning.*
 - [x] The stadium stand and camper build, collide and show in the Props tool. *`props_test`,
   `props_tool_test`; shots on the bare test track at noon and at night.*
+- [x] A plate cuts every car's power and the AI plans with it. *`plate_test`: both cars at the
+  Medium share, through a setup change, and the AI's planned lap slower than an unplated one's;
+  `race_event_test`: it round-trips, resolves the track's and keeps the event's own, and the
+  Custom page shows "Restrictor: Track's (Off)". A lone Stock Car flat out on 2 km straights: 199
+  mph unplated, then 190, 181 and 172 mph. The screen-reader walk reads the new row (`--racing-only`
+  stops later, at Custom's class page, as it did before this work).*
 - [x] A car in a lake is sent back to the road. *`water_test` (on the old collision mask it stayed
   in); `track_fitting_test`: a fitted scene's water looks at cars too.*
 
