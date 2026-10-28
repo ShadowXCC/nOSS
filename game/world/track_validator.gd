@@ -128,6 +128,7 @@ func _check(line: RacingLine) -> void:
 	_sectors()
 	_terrain_edge()
 	_props()
+	_water()
 	if _in.get("scene") != null:
 		_scene()
 	if not t.highway: # traffic and the highway driver follow lanes, not a racing line
@@ -347,6 +348,35 @@ func _props() -> void:
 				if not hit.is_empty():
 					_add("warning", "Prop on a scenery road", -1.0, Vector3(xf[k], piece.samples[hit.i].y, xf[k + 1]))
 					break
+
+
+## Water (D224): never over the road or its pit lane, edge to edge (a car there would be sent
+## back from it); a prop standing in it is a warning.
+func _water() -> void:
+	for w: Dictionary in t.water:
+		var outline: PackedVector2Array = w.outline
+		var box := Rect2(outline[0], Vector2.ZERO)
+		for p in outline:
+			box = box.expand(p)
+		var wet := func(p: Vector3) -> bool: return box.has_point(Vector2(p.x, p.z)) and Geometry2D.is_point_in_polygon(Vector2(p.x, p.z), outline)
+		for road: Array in [[t, "Water on the road"], [t.pit.track if t.pit else null, "Water on the pit lane"]]:
+			var r: TrackData = road[0]
+			if r == null:
+				continue
+			for i in range(0, r.samples.size(), 2):
+				var c := r.samples[i]
+				var left := r.lefts[i]
+				if wet.call(c) or wet.call(c + left * (r.half_l[i] + r.apron(i, 1.0))) or wet.call(c - left * (r.half_r[i] + r.apron(i, -1.0))):
+					_add("error", road[1], r.distances[i] if r == t else -1.0, c)
+					break
+		for item: Dictionary in (_in.props as Dictionary).get("items", []):
+			if wet.call(Vector3(item.p[0], 0.0, item.p[2])):
+				_add("warning", "Prop in the water", -1.0, Vector3(item.p[0], float(w.y), item.p[2]))
+		for group: Dictionary in (_in.props as Dictionary).get("scatter", []):
+			var xf: Array = group.xf
+			for k in range(0, xf.size() - 3, 4):
+				if wet.call(Vector3(xf[k], 0.0, xf[k + 1])):
+					_add("warning", "Prop in the water", -1.0, Vector3(xf[k], float(w.y), xf[k + 1]))
 
 
 ## True if any of a prop's footprint (as _props() samples it) is on a scenery road (D212).

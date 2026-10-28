@@ -46,6 +46,8 @@ var pit: PitLane
 var pit_error := ""
 ## Scenery roads (D212): the pieces of the track's `roads`, fitted to the road and its pit lane.
 var scenery: Array[TrackData] = []
+## Lakes off the road (D224), the track's `water`: [{name, y, outline: PackedVector2Array (x, z)}].
+var water: Array[Dictionary] = []
 ## The ground it was laid on (for rebuilding a highway's ramps without resampling the road).
 var _ground := Callable()
 ## Built in (res://): records are keyed by id alone.
@@ -154,6 +156,7 @@ static func from_dict(data: Dictionary, ground_height := Callable()) -> TrackDat
 	t._read_kart(data)
 	t._read_pit(data)
 	t._read_roads(data)
+	t._read_water(data)
 	return t
 
 
@@ -173,6 +176,7 @@ func with_race(data: Dictionary) -> TrackData:
 	t._read_kart(data)
 	t._read_pit(data)
 	t._read_roads(data)
+	t._read_water(data)
 	return t
 
 
@@ -199,6 +203,24 @@ func _read_roads(data: Dictionary) -> void:
 	if pit:
 		others.append(pit.track)
 	scenery = SceneryRoad.build_all(self, data.roads, others, ground)
+
+
+func _read_water(data: Dictionary) -> void:
+	water = []
+	for w: Dictionary in data.get("water", []):
+		var outline := PackedVector2Array()
+		for p: Array in w.get("points", []):
+			outline.append(Vector2(float(p[0]), float(p[1])))
+		if outline.size() >= 3:
+			water.append({ "name": String(w.get("name", "")), "y": float(w.get("y", 0.0)), "outline": outline })
+
+
+## The water at (x, z) on the map: its entry in `water`, or {} if it's dry there.
+func water_at(x: float, z: float) -> Dictionary:
+	for w: Dictionary in water:
+		if Geometry2D.is_point_in_polygon(Vector2(x, z), w.outline):
+			return w
+	return {}
 
 
 func _read_pit(data: Dictionary) -> void:

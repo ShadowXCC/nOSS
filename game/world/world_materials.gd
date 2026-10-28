@@ -28,6 +28,15 @@ static func get_material(key: String, texture: Texture2D, roughness: float, spec
 	return m
 
 
+## Open water (a track's lakes, D224): glossy, and snow never settles on it.
+static func water() -> ShaderMaterial:
+	if _cache.has("water"):
+		return _cache["water"]
+	var m := get_material("water", RetroTextures.water(), 0.06, 0.8)
+	m.set_shader_parameter("snow_settle", 0.0)
+	return m
+
+
 ## A lit-up material (lamp heads, tunnel lights): `color`, glowing at `glow` of it; with
 ## `night_only`, only after dark (D153); with `flickers`, dipping now and then (flicker(), D221).
 ## Snow never settles on it.

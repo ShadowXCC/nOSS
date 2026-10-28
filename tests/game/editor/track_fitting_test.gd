@@ -179,6 +179,7 @@ func test_water_and_the_retro_style() -> void:
 	var water := root.find_children("Water*", "Area3D", false, false)
 	assert_int(water.size()).is_greater(0)
 	assert_bool((water[0] as Area3D).has_meta(&"noss_water")).is_true()
+	assert_int((water[0] as Area3D).collision_mask & Vehicle.LAYER_VEHICLES).is_not_equal(0) # it sees cars
 	assert_object(root.get_node_or_null("Scene_grass")).is_null() # water isn't ground
 	# Retro: the shown scene's materials are copies, sharp; the scene's own are left alone.
 	var shown := root.get_node("Scene") as Node3D

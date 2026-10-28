@@ -143,6 +143,26 @@
         }
       }
     },
+    "water": {
+      "description": "Lakes off the road (docs/TRACK_EDITOR.md §5, D224): each a flat surface at height y over its outline on the map ([x, z] corners in order, not crossing itself). A car that goes in is sent back to the road.",
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["y", "points"],
+        "properties": {
+          "name": { "type": "string", "maxLength": 64 },
+          "y": { "$ref": "#/$defs/coord" },
+          "points": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 2000,
+            "items": { "type": "array", "prefixItems": [{ "$ref": "#/$defs/coord" }, { "$ref": "#/$defs/coord" }], "minItems": 2, "maxItems": 2 }
+          }
+        }
+      }
+    },
     "highway": {
       "description": "A highway's carriageways, ramps, portals, runs and traffic (type highway; docs/TRACK_EDITOR.md §1, D106). The road is the median's centreline; direction 1 drives along it on its right, -1 the other way.",
       "type": "object",

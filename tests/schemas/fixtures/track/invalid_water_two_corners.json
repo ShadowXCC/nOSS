@@ -1,0 +1,4 @@
+{ "schema": "noss.track/1", "id": "loop", "name": "Loop", "type": "circuit",
+  "road": { "points": [ { "p": [0, 0, 0] }, { "p": [300, 0, 0] }, { "p": [300, 0, 300] } ] },
+  "race": {},
+  "water": [ { "y": -0.5, "points": [[100, 50], [200, 50]] } ] }

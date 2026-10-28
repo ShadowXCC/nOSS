@@ -38,6 +38,14 @@ static func snow() -> Texture2D:
 	return _cached("snow", func() -> Image: return _snow_image())
 
 
+## Open water (a track's lakes, D224): dark blue with lighter ripples.
+static func water() -> Texture2D:
+	return _cached("water", func() -> Image:
+		var img := _noise_image(128, 128, 0.0, 0.0, 111, 0.09, Color(0.08, 0.17, 0.24), Color(0.17, 0.31, 0.39))
+		_speckle(img, 0.02, Color(0.42, 0.55, 0.6), 112)
+		return img)
+
+
 ## The terrain's paint layers (TerrainData.LAYERS) as one array, 128 px each.
 static func terrain_layers() -> Texture2DArray:
 	if _cache.has("terrain_layers"):

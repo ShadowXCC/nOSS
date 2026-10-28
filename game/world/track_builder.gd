@@ -1,8 +1,8 @@
 class_name TrackBuilder
 extends RefCounted
 ## Builds a drivable track scene (docs/TRACK_EDITOR.md §5): the ground (flat, or a terrain), the
-## road and everything along it (RoadBuilder), the start gantry and the props (PropBuilder), each
-## with the surface the tire model reads (docs/PHYSICS.md §4).
+## road and everything along it (RoadBuilder), the start gantry, the props (PropBuilder) and any
+## water (WaterBuilder), each with the surface the tire model reads (docs/PHYSICS.md §4).
 ##
 ## opts: visual (false: collision only, for the dedicated server), segmented (the editor: road
 ## pieces per control segment, under a "Road" node), per_item (the editor: a node per prop),
@@ -49,6 +49,7 @@ static func build(data: TrackData, ground: TerrainData = null, opts := {}) -> No
 	var props := PropBuilder.new(data, ground)
 	props.visual = b.visual
 	props.build(b.root, bool(opts.get("per_item", false)))
+	WaterBuilder.build(data, b.root, b.visual)
 	return b.root
 
 

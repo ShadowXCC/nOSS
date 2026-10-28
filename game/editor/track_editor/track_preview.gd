@@ -1,7 +1,7 @@
 class_name TrackPreview
 extends Node3D
 ## The track as the editor shows it (EDT-06): ground, road (a node per control segment), start
-## gantry and props (a node per item), kept up with the draft in parts. Changes are gathered and
+## gantry, props (a node per item) and water (D224: shown, not edited), kept up with the draft in parts. Changes are gathered and
 ## applied once a frame; while a drag goes on, at most every LIVE_S, and only the segments it
 ## moves (the ground's bed under them included). A highway's ramps come again one by one, with
 ## the stretches of road where they leave and join it (EDT-10); kart pieces one by one too
@@ -15,6 +15,7 @@ var _road: Node3D
 var _start: Node3D
 var _props: Node3D
 var _stunts: Node3D
+var _water: Node3D
 var _built: TrackData
 var _pending := {}
 var _since := 0.0
@@ -51,6 +52,8 @@ func rebuild_all() -> void:
 	TrackBuilder.add_gantry(_start, t)
 	_props = _part("Props")
 	PropBuilder.new(t, draft.terrain).build(_props, true)
+	_water = _part("Water")
+	WaterBuilder.build(t, _water)
 	_built = t
 	if Game.dev.has("perf"):
 		print("perf editor rebuild %.1f ms (%.2f km)" % [(Time.get_ticks_usec() - t0) / 1000.0, t.length / 1000.0])
