@@ -89,6 +89,10 @@ func _physics_process(delta: float) -> void:
 			print("traffic: %d scheduled, %d physics, %d gone; garage %d cars, %d whole (most %d), %d far, %d drawn as themselves, %d seen, view %.1f ms, set %d, picks %s" % [
 				t.scheduled().size(), t.cars.size(), t.gone.size(), t.garage.size(), t._garage_pkgs.size(), t.most_loaded, t._garage_far.size(), t._garage_views.size(),
 				t.garage_seen.size(), t.view_ms, t.garage_sets.k if t.garage_sets else -1, t.picks_check()])
+			print("memory: %d MB, %d objects, %d resources, %d nodes, %d orphans, textures %d MB" % [OS.get_static_memory_usage() >> 20,
+				Performance.get_monitor(Performance.OBJECT_COUNT), Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT),
+				Performance.get_monitor(Performance.OBJECT_NODE_COUNT), Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT),
+				int(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)) >> 20])
 
 
 ## Online: this game's players to just behind car `id` (where its game last said it was), in single

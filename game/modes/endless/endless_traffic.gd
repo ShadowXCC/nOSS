@@ -57,6 +57,10 @@ const NEAR_M := 600.0
 const UNLOAD_S := 60.0
 const FAR_OPTS := { "models": "smallest", "audio": false }
 const VIEW_TIMEOUT_S := 30.0
+## Once cars have gone, the memory they had goes back to the system (NossCore.trim_memory, on a
+## worker), at most every TRIM_S: a 10-minute drive grew from 3.4 to 5.3 GB without it, and stayed
+## near 2 GB with it.
+const TRIM_S := 10.0
 
 var session: TrackSession
 var world: EndlessWorld
@@ -112,6 +116,9 @@ var _wanted_near := {} # garage index -> when a slot within NEAR_M of a player l
 var _loading := {} # Vector2i(garage index, 1 far or 0 whole) -> true
 var _view_queue: Array[int] = [] # loaded cars whose far view is still to be made
 var _viewing := false # a far view is being merged
+var _freed := false # a car went since the last trim
+var _trim_at := -INF
+var _trim_task := -1
 var _stream_in := 0.0
 
 
@@ -156,6 +163,8 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if _trim_task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_trim_task)
 	for t: int in _packages:
 		(_packages[t] as VehiclePackage).free_scenes()
 	for pkgs: Dictionary in [_garage_pkgs, _garage_far]:
@@ -485,6 +494,12 @@ func stream(at: float) -> void:
 		else:
 			_load(g, false)
 	most_loaded = maxi(most_loaded, _garage_pkgs.size())
+	if _freed and at - _trim_at > TRIM_S:
+		_freed = false
+		_trim_at = at
+		if _trim_task >= 0:
+			WorkerThreadPool.wait_for_task_completion(_trim_task) # done long since
+		_trim_task = WorkerThreadPool.add_task(NossCore.trim_memory)
 
 
 ## A whole model only where it's drawn (and not headless, where models can't load on a worker).
@@ -517,6 +532,7 @@ func _unload(g: int, far: bool) -> void:
 		return
 	into.erase(g)
 	pkg.free_scenes()
+	_freed = true
 	if far:
 		var view: Node = _garage_views.get(g)
 		if view:

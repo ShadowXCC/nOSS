@@ -14,6 +14,10 @@ protected:
 
 public:
 	static godot::String version();
+	// Hands memory freed on the heap back to the system (glibc's malloc_trim; nothing elsewhere).
+	// glibc keeps each thread's peak otherwise: garage traffic loading and letting go of models on
+	// worker threads grew a drive by 2 GB (D233).
+	static void trim_memory();
 };
 
 } // namespace noss
