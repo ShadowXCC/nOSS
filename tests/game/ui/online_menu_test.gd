@@ -260,7 +260,7 @@ func test_hosting_stock_car() -> void:
 	assert_bool(Net.is_server()).is_true()
 	assert_str(Net.host_logic.event().kind).is_equal("race")
 	assert_str(Net.host_logic.platform_id()).is_equal(EventFlow.STOCK_CAR)
-	assert_str(Net.host_logic.track_info().id).is_equal("piedmont_speedway")
+	assert_bool(Net.host_logic.track_info().id in ["halifax_speedway", "piedmont_speedway"]).is_true() # an oval
 	assert_str((_find(runner.scene(), "LobbyPage") as LobbyPage).event_label.text).starts_with("Stock Car race, 10 laps")
 
 

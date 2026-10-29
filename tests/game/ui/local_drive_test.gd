@@ -196,9 +196,9 @@ func test_stock_car_skips_the_class_step() -> void:
 	var settings := _stack(runner).top() as EventSettingsPage
 	assert_str(settings.title).is_equal("Stock Car race")
 	assert_str(settings.step_text()).is_equal("Step 2 of 3")
-	assert_str(_focused(runner)).starts_with("Track: Piedmont Speedway")
+	assert_str(_focused(runner)).starts_with("Track: Halifax Speedway")
 	assert_str(settings.pane.text()).contains("Oval · Real-world")
-	await _key(KEY_RIGHT) # the only oval: it stays
+	await _key(KEY_RIGHT) # the other oval
 	assert_str(_focused(runner)).starts_with("Track: Piedmont Speedway")
 	for i in 3:
 		await _key(KEY_DOWN)
@@ -271,6 +271,7 @@ func test_time_trial_switch() -> void:
 func test_drive_again() -> void:
 	var last := EventFlow.racing("stock_car")
 	last.recall()
+	last.track = TrackLibrary.BUILTIN_DIR + "piedmont_speedway" # not whichever oval comes first
 	last.event.race_laps = 25
 	Settings.profile.last_drive = last.to_dict()
 	var runner := scene_runner(TITLE_SCENE)

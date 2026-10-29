@@ -72,8 +72,8 @@ func test_custom_rows() -> void:
 	var rows := page.body.get_children().map(func(c: Control) -> String:
 		return String(UiKit._focus_target(c).accessibility_name).get_slice(":", 0) if UiKit._focus_target(c) else "")
 	assert_array(rows).contains_exactly(["Preset", "Save preset", "Delete preset", "Track", "Practice", "Qualifying", "Race length",
-		"Race", "AI cars", "AI skill", "AI cars look", "Start", "Drafting", "Fuel use", "Tire wear", "Grid", "Collisions", "Track limits",
-		"Items", "Time", "Time runs", "Weather"])
+		"Race", "AI cars", "AI skill", "AI cars look", "Start", "Drafting", "Fuel use", "Tire wear", "Restrictor", "Grid", "Collisions",
+		"Track limits", "Items", "Time", "Time runs", "Weather"])
 	assert_str(_name(page, "Preset")).is_equal("Preset: None")
 	assert_bool((page.row_named("Delete preset") as Button).disabled).is_true()
 	assert_str(page.row_named("Items").accessibility_description).starts_with("Kart classes only")

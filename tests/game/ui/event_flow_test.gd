@@ -155,6 +155,7 @@ func test_falls_back_to_the_old_keys() -> void:
 func test_start_remembers_for_drive_again() -> void:
 	var flow := EventFlow.racing("stock_car")
 	flow.recall()
+	flow.track = TrackLibrary.BUILTIN_DIR + "piedmont_speedway" # not whichever oval comes first
 	flow.event.race_laps = 20
 	flow.start()
 	assert_int(_requested.size()).is_equal(1)

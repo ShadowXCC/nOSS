@@ -31,6 +31,9 @@ func test_plausibility() -> void:
 	var track := TrackData.load_file("res://content/tracks/proving_ground/track.json")
 	var p := Plausibility.for_platform(gt, track)
 	assert_float(p.top_speed).is_between(60.0, 110.0)
+	# Where the track races in packs, a line drafts deeper (D228): a little more is plausible.
+	var oval := TrackData.load_file("res://content/tracks/halifax_speedway/track.json")
+	assert_float(Plausibility.for_platform(gt, oval).top_speed).is_greater(p.top_speed)
 	assert_float(p.ideal_lap).is_greater(30.0)
 	# An honest car: nothing.
 	var t := 10.0

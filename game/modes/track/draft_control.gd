@@ -32,9 +32,11 @@ static func tuning_for(mode: Dictionary) -> Dictionary:
 	return out
 
 
-## The lowest drag scale a car can draft to with `tuning` (in the longest line a pack makes).
-static func lowest_scale(tuning_: Dictionary) -> float:
-	return 1.0 - minf(float(tuning_.drag_cut) + float(tuning_.lead_cut) + float(tuning_.line_cut) * int(tuning_.line_max), MAX_CUT)
+## The lowest drag scale a car can draft to with `tuning`; with `pack`, in the longest line a pack
+## makes (D228).
+static func lowest_scale(tuning_: Dictionary, pack := false) -> float:
+	var line := float(tuning_.line_cut) * int(tuning_.line_max) if pack else 0.0
+	return 1.0 - minf(float(tuning_.drag_cut) + float(tuning_.lead_cut) + line, MAX_CUT)
 
 
 ## True if `platform` makes and feels a slipstream.

@@ -47,7 +47,9 @@ static func for_platform(platform: Dictionary, track: TrackData, arcade := {}) -
 	var power := GameModes.peak_power_kw(platform) * 1000.0
 	var cd_a := maxf(float(platform.get("aero", {}).get("cd_a", 0.8)), 0.05)
 	var mode := GameModes.mode_for(String(platform.get("id", "")))
-	var drafted := DraftControl.lowest_scale(DraftControl.tuning_for(mode)) if arcade.is_empty() and mode.get("id") == "track" \
+	# Pack racing (D228) only where the track suggests it: a line there drafts deeper.
+	var pack := track != null and bool(RaceEvent.track_rules(track).pack)
+	var drafted := DraftControl.lowest_scale(DraftControl.tuning_for(mode), pack) if arcade.is_empty() and mode.get("id") == "track" \
 		and DraftControl.drafts(platform) else 1.0
 	p.top_speed = pow(2.0 * power / (AIR_DENSITY * cd_a * drafted), 1.0 / 3.0)
 	if not arcade.is_empty():
