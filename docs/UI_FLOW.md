@@ -337,7 +337,7 @@ The sky rows are "Time", "Time runs" and "Weather" (`SkyRows`), at the end of ev
 | Kart TT | "Track", sky. Items are off. Hosting adds "Minutes" (§7.7). |
 | Custom | "Preset", "Save preset", "Delete preset", then today's Race menu: "Track", "Practice", "Qualifying", "Race length", "Race", "AI cars", "AI skill", "AI cars look", "Start", "Drafting", "Fuel use", "Tire wear", "Restrictor", "Grid", "Collisions", "Track limits", then "Items" (description "Kart classes only"), sky. |
 | Custom TT | "Preset", "Save preset", "Delete preset", "Track", "Track limits", sky. Hosting adds "Minutes" (§7.7). |
-| Endless | Today's: "Road code", "New road", "Start in", "Lanes", "Drive on", "Traffic", "Garage cars", "Oncoming", "Speed traps", "Police", "Far apart", sky. |
+| Endless | Today's: "Road code", "New road", "Start in", "Lanes", "Drive on", "Traffic", "Garage cars", "Oncoming", "Speed traps", "Police", "Far apart", sky. Hosting, "Garage cars" is Off, Host or Everyone ("Whose cars join the traffic", D233). |
 | Highway | "Highway" (the highway itself), then today's: "Mode", "Traffic", "Police", "Way round" (or "Run" for a run), sky. |
 | Sumo Wrestling | Today's: "Platforms", "Underneath", "Shrink", "Length", "Sudden death", "Drift", "AI cars", "AI skill", "AI models", sky. |
 | Drag Strip | Today's without "Class" (it moves to the Class step): "Length", "Boost", "Timing shifts", "Quick time events", the "Gimmicks" rows, the "Field" rows, sky. |

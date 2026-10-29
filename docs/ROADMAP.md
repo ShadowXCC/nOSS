@@ -454,6 +454,48 @@ first (D223-).*
 - [x] A car in a lake is sent back to the road. *`water_test` (on the old collision mask it stayed
   in); `track_fitting_test`: a fitted scene's water looks at cars too.*
 
+## Endless: every garage car
+
+*Every garage car in the traffic offline, and online 12 at a time that change with the biomes
+(D233, v0.13.2, protocol 16).*
+
+- **Offline, every car** left on in Traffic cars drives in the traffic, no cap. Each one's smallest
+  LOD loads while it's on the road ahead or just behind, for far off, and its whole model once it's
+  within 600 m of a player; both go a minute after, and the memory goes back to the system.
+- **Online, Garage cars: Off, Host or Everyone** (hosting's Endless page). The server deals sets of
+  up to 12 from the host's cars, or everyone's in turn, and moves every game to the next set each
+  time the leader comes into a new biome, fetching it a biome ahead. Cars within 2.5 km of anyone
+  keep their model, so none changes in sight. Joins and leaves count from the next set.
+- Online garage traffic had never reached a game before: the session's list was dropped on arrival.
+
+**Acceptance:**
+- [x] Every car fits in offline, with the same schedule. *`endless_traffic_test`: twenty copies of a
+  car are twenty in the pool; the stock draws, and each slot's three garage draws, are as before;
+  about 80% of fitting slots are garage cars.*
+- [x] Models stream. *`endless_traffic_test`: only cars near a player load whole, and one no slot
+  has had for 60 s goes, its cached package too, unless a physics car is it. A 10-minute
+  heavy-traffic drive on FOREST-0000002 (windowed, autodriven): all 27 in-traffic cars seen, at most
+  16 whole and 24 far at once; 2.0-2.7 GB after loading, against 3.5 GB before with 12 cars (5.3 GB
+  without handing memory back); 7.0 ms a frame, as before (p99 7.2 ms against 6.9). Physics took
+  about 6 ms a frame against 3.6 before (3.0 with garage traffic off; 4.5 with nothing let go):
+  worth a look on the Windows PC, which runs out of CPU first.*
+- [x] Sets deal in turn with no car twice, and twelve cars or fewer never change. *`endless_garage_test`
+  (3, 30 and 0 cars; 5 and 7); `endless_net_test`: the host's and a guest's take turns, a guest's
+  only once the server has checked them, a guest gone is out of the next set, and in Host a guest's
+  count for nothing.*
+- [x] A pinned slot keeps its set; a late joiner draws the same as everyone. *`endless_garage_test`:
+  thirty random swaps against the rule itself, and a joiner's state after four of eight swaps, sent
+  over the wire, matching the server's slot for slot; `endless_net_test`: the swap through the
+  host's own sink and a joiner's copy; every car the schedule has within 2.5 km of a player is in
+  the swap's pins.*
+- [x] Online, at a swap, nothing in sight changes. *A dedicated server in Everyone, two windowed
+  guests and a bot with an empty cache from 7300 m on FOREST-0000002: the swap came at Haunted at
+  the same moment on all three, 18 cars in view and none changed on each; the three games' picks
+  matched minute by minute; the bot fetched sets 0 and 1 (22 cars) in the background and set 2's 11
+  a biome ahead. `tools/net_check.py --event endless --clients 3 --late 40`: PASS, throttle 32/32.*
+- [x] Hosting says whose. *`local_types_test`: "Garage cars" is On/Off offline, Host, Everyone and
+  Off hosting, and saved events still load.*
+
 ## M10+: Backlog (order to be decided)
 
 | Item | IDs |
