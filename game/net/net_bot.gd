@@ -50,6 +50,8 @@ var _owned_traffic_max := 0
 var _near_s := 0
 var _kart_hooked: KartItems
 var _tt := {}
+## A sumo Team Battle (D236): each car's team as this game had it, by car id ("-1": none).
+var _teams := {}
 
 
 func _ready() -> void:
@@ -90,6 +92,7 @@ func _physics_process(delta: float) -> void:
 		_kart_sample(session)
 		_endless_sample(session)
 		_tt_sample(session)
+		_teams_sample(session)
 	for id: int in session.net.owned:
 		var r: Racer = session.net.owned[id]
 		var v := r.vehicle
@@ -176,6 +179,16 @@ func _tt_sample(session: TrackSession) -> void:
 	_tt = { "board_max": maxi(int(_tt.get("board_max", 0)), tn.entries.size()), "on_board": on }
 
 
+## Once a second: the sumo teams as the server's snapshots left them here, the last match's.
+func _teams_sample(session: TrackSession) -> void:
+	if session.sumo == null or not session.sumo.teams_on:
+		return
+	for id: int in session.net.racers:
+		var t := session.sumo.team(session.net.racers[id])
+		if t >= 0:
+			_teams[str(id)] = t
+
+
 ## Once a second: the kart items' counters.
 func _kart_sample(session: TrackSession) -> void:
 	var kn := session.get_node_or_null(^"KartNet") as KartNet
@@ -259,7 +272,7 @@ func _exit_tree() -> void:
 		"err_p95": e[int(e.size() * 0.95)] if not e.is_empty() else 0.0, "err_max": e.back() if not e.is_empty() else 0.0,
 		"contacts": _contacts, "remote_cars": _remote_cars, "throttle_min": _throttle_min,
 		"rtt_ms": Net.client.rtt_ms() if Net.client else 0.0,
-		"cars": _cars, "preview_s": _preview_s, "full_s": _full_s, "traffic": _traffic, "kart": _kart, "endless": _endless, "tt": _tt,
+		"cars": _cars, "preview_s": _preview_s, "full_s": _full_s, "traffic": _traffic, "kart": _kart, "endless": _endless, "tt": _tt, "teams": _teams,
 	}))
 
 

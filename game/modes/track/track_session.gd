@@ -1345,7 +1345,8 @@ func _on_session_ended(kind: String, results: Array) -> void:
 			return { "position": row.position, "name": row.name, "laps": row.laps, "dnf": row.dnf, "time": row.time, "best": row.best,
 				"ai": not (row.racer as Racer).is_human, "lives": row.get("lives", -1), "hits": row.get("hits", 0),
 				"tier": row.get("tier", 0), "lasted": row.get("lasted", 0.0), "out": row.get("out", false),
-				"reaction": row.get("reaction", -1.0), "et": row.get("et", -1.0), "round": row.get("round", 0) }) }))
+				"reaction": row.get("reaction", -1.0), "et": row.get("et", -1.0), "round": row.get("round", 0),
+				"team": row.get("team", -1), "id": (row.racer as Racer).net_id }) }))
 		var sn := get_node_or_null(^"SumoNet") as SumoNet
 		if sn:
 			print("NETCHECK_SUMO_SERVER " + JSON.stringify({ "outs": sn.outs, "tiers": sumo.layout.count() }))

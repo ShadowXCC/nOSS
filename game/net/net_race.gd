@@ -285,9 +285,9 @@ func _rows(raw: Array) -> Array:
 				"flagged": TYPE_BOOL }):
 			continue
 		var row: Dictionary = v.duplicate()
-		# A battle's columns (D144), a sumo match's tier (D162) and a drag pass's round (D168),
-		# when there.
-		for key: String in ["lives", "hits", "taken", "tier", "round"]:
+		# A battle's columns (D144), a sumo match's tier (D162) and team (D236), and a drag pass's
+		# round (D168), when there.
+		for key: String in ["lives", "hits", "taken", "tier", "team", "round"]:
 			if row.has(key) and typeof(row[key]) != TYPE_INT:
 				row.erase(key)
 		for key: String in ["lasted", "reaction", "et", "trap"]:

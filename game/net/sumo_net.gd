@@ -6,9 +6,11 @@ extends Node
 ## each one has shrunk and where each car stands. A ring-out goes out at once as a reliable event,
 ## so the splash and the message land on the tick they happened; five times a second the server
 ## sends how things stand, which heals drift and brings a joiner up to date.
-##   [107][tiers u8][radius f32 × tiers][wedges u8][hits u8 × wedges × tiers][warn u16 × tiers][cars u8 × 5 B]
+##   [107][tiers u8][radius f32 × tiers][wedges u8][hits u8 × wedges × tiers][warn u16 × tiers][cars u8 × 6 B]
 ##     SUMO_STATE, server -> clients, 5 Hz
-## A car: id u16 · tier i8 (-1: in the air or gone) · flags u8 (1: out) · charge u8 (ram, 0-255).
+## A car: id u16 · tier i8 (-1: in the air or gone) · flags u8 (1: out) · charge u8 (ram, 0-255) ·
+## team i8 (-1: every car for itself, or not drawn yet; D236). The server draws the teams, and
+## the snapshot is sent from the session's start, so every game has them before the green light.
 ## `warn` is the wedges a platform has marked as about to go, which a client cannot work out for
 ## itself: it never shrinks a platform, so it has no clock to read (D183). `wedges` is 0 while
 ## every platform is a plain disc, and the wedge depths follow it for a crumbling one (D182).
@@ -18,7 +20,7 @@ extends Node
 const MSG_STATE := 107
 const MSG_EVENTS := 113
 const RECORD := 8
-const CAR_BYTES := 5
+const CAR_BYTES := 6
 const STATE_HZ := 5.0
 enum Ev { OUT = 1, ARMED }
 
@@ -111,6 +113,7 @@ func pack_state() -> PackedByteArray:
 		p.encode_s8(at + 2, clampi(sumo.tier(r), -1, 127))
 		p[at + 3] = 1 if r.out else 0
 		p[at + 4] = clampi(roundi(sumo.charge(r) * 255.0), 0, 255)
+		p.encode_s8(at + 5, clampi(sumo.team(r), -1, 127))
 	return p
 
 
@@ -163,7 +166,7 @@ func _on_state(bytes: PackedByteArray) -> void:
 		var r := _racer(bytes.decode_u16(o))
 		if r == null:
 			continue
-		sumo.apply_net(r, bytes.decode_s8(o + 2), bytes[o + 3] & 1 != 0)
+		sumo.apply_net(r, bytes.decode_s8(o + 2), bytes[o + 3] & 1 != 0, bytes.decode_s8(o + 5))
 
 
 ## Client: a ring-out, as it happened.

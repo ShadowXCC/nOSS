@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Runs every test suite: native (doctest), JSON schemas, tools (unittest), GDScript (gdUnit4, headless),
 # platform conformance, a short AI race check (and one in the rain), a short kart check, two short
-# sumo checks, two short drag checks, a 10-minute endless drive and a 5-minute one with traps and
+# sumo checks and a team one, two short drag checks, a 10-minute endless drive and a 5-minute one with traps and
 # police, a short highway check, short online checks (a race, a highway with traffic, karts, an
-# endless convoy, endless police, a sumo match, a drag ladder, a timed time trial, a highway run),
+# endless convoy, endless police, a sumo match and a team one, a drag ladder, a timed time trial, a highway run),
 # the track editor's 3 km acceptance
 # build (raced and sent online), boot smoke test.
 # Exits non-zero if any fails. Run tools/setup_dev.sh once first.
@@ -59,6 +59,9 @@ tools/sumo_check.sh --cars=6 --tiers=2 --secs=45 --seed=1 | grep -E "^(sumo_chec
 step "Sumo check (6 cars, 3 platforms, rings crumbling away)"
 tools/sumo_check.sh --cars=6 --tiers=3 --shrink=crumble --secs=45 --seed=2 | grep -E "^(sumo_check|Sumo|Check|Time|PASS|FAIL|  )" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("sumo crumble check")
 
+step "Sumo check (Team Battle: 2 teams of 4, expanded platforms)"
+tools/sumo_check.sh --cars=8 --tiers=2 --teams=2 --size=expanded --secs=45 --seed=1 | grep -E "^(sumo_check|Sumo|Teams|Check|Falls|Time|PASS|FAIL|  )" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("sumo team check")
+
 step "Drag: a ladder of AI passes"
 tools/drag_check.sh --cars=6 --length=201 --skill=60-90 --seed=1 | grep -E "^(drag_check|Field|Drag|Ticks|PASS|FAIL|  )" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("drag check")
 
@@ -94,6 +97,9 @@ step "Battle net check (3 bots, 1 AI, the Crate Yard, 150 ms)"
 
 step "Sumo net check (3 bots, 2 AI, two platforms, 150 ms)"
 .venv/bin/python tools/net_check.py --event sumo --clients 3 --ai 2 --tiers 2 --platform-secs 45 --duration 200 --rtt 150 --jitter 10 --loss 1 | grep -E "^(net_check|sumo results|server platforms|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("sumo net check")
+
+step "Sumo net check (Team Battle: 3 bots, 2 AI and one more to even it, 150 ms)"
+.venv/bin/python tools/net_check.py --event sumo --clients 3 --ai 2 --tiers 2 --platform-secs 45 --duration 200 --rtt 150 --jitter 10 --loss 1 --sumo-teams 2 | grep -E "^(net_check|sumo results|server platforms|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("sumo team net check")
 
 step "Online: a drag ladder"
 .venv/bin/python tools/net_check.py --event drag --clients 2 --ai 3 --length 201 --duration 200 --rtt 150 --jitter 10 --loss 1 | grep -E "^(net_check|drag results|  server|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("drag net check")

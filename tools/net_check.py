@@ -23,6 +23,7 @@ and exits 0 (PASS) or 1 (FAIL).
   tools/net_check.py --event battle --clients 4 --ai 4 --track crate_yard --rule hits   # M8
   tools/net_check.py --event endless --clients 3 --late 40 --duration 150   # M9: an endless convoy
   tools/net_check.py --event sumo --clients 3 --ai 4 --tiers 2 --rtt 150   # a sumo match
+  tools/net_check.py --event sumo --clients 3 --ai 4 --sumo-teams 2         # a sumo Team Battle
   tools/net_check.py --event drag --clients 3 --ai 4 --length 402 --rtt 150 # a drag ladder
   tools/net_check.py --event endless --clients 2 --exported --duration 120  # exported builds (tools/export.sh)
 
@@ -157,6 +158,9 @@ def main(argv=None):
     p.add_argument("--hazard", choices=["lava", "acid"], default="lava", help="sumo: what is under the platforms")
     p.add_argument("--shrink", choices=["smooth", "crumble", "stepped"], default="smooth", help="sumo: how a platform shrinks")
     p.add_argument("--platform-secs", type=int, default=60, help="sumo: how long one platform takes to go")
+    p.add_argument("--sumo-teams", type=int, default=0, choices=[0, 2, 3, 4], help="sumo: a Team Battle of this many teams (0: every car for itself)")
+    p.add_argument("--friendly", action="store_true", help="sumo teams: teammates collide")
+    p.add_argument("--size", choices=["regular", "expanded"], default="regular", help="sumo: the platforms' size")
     p.add_argument("--minutes", type=int, default=5, help="battle: its length at most; tt: the session's length")
     p.add_argument("--traffic", type=int, default=150, help="highway: traffic cars")
     p.add_argument("--dirs", choices=["same", "opposite"], default="same", help="highway: players start one way, or turn about")
@@ -234,7 +238,9 @@ def main(argv=None):
     if sumo:
         # The arena is generated from these, so there is no track to agree on (D162).
         event.update({"sumo_tiers": args.tiers, "sumo_hazard": args.hazard, "sumo_shrink": args.shrink,
-                      "sumo_secs": args.platform_secs, "ai_count": args.ai, "ai_cars": "builtin"})
+                      "sumo_secs": args.platform_secs, "ai_count": args.ai, "ai_cars": "builtin", "sumo_size": args.size})
+        if args.sumo_teams:
+            event.update({"sumo_mode": "teams", "sumo_teams": args.sumo_teams, "sumo_friendly": args.friendly})
     if drag:
         # The strip is generated from these, so there is no track to agree on (D168).
         event.update({"drag_length_m": args.length, "drag_boost": args.boost,
@@ -600,14 +606,42 @@ def main(argv=None):
             fails.append("no sumo results")
         else:
             rows = results["rows"]
-            print("sumo results (%d tier(s), %s, %s):" % (args.tiers, args.hazard, args.shrink))
+            teams = args.sumo_teams
+            print("sumo results (%d tier(s), %s, %s%s):" % (args.tiers, args.hazard, args.shrink,
+                  ", %d teams" % teams if teams else ""))
             for r in rows:
-                print("  P%-2d %-16s tier %s, %s%s" % (r["position"], r["name"], r.get("tier", "-"),
-                      "lasted %.1f s" % r["lasted"] if r.get("out") else "won", "  (AI)" if r["ai"] else ""))
-            if len(rows) != players + args.ai:
-                fails.append("%d cars in the results, not %d" % (len(rows), players + args.ai))
+                print("  P%-2d %-16s tier %s, %s%s%s" % (r["position"], r["name"], r.get("tier", "-"),
+                      "lasted %.1f s" % r["lasted"] if r.get("out") else "won",
+                      ", team %d" % r.get("team", -1) if teams else "", "  (AI)" if r["ai"] else ""))
+            # Bots are added to even the teams out (D234), at most MAX_PLAYERS cars.
+            want = players + args.ai
+            if teams:
+                want = max(-(-want // teams) * teams, teams)
+                if want > 16:
+                    want = 16 // teams * teams
+                want = max(want, players)
+            if len(rows) != want:
+                fails.append("%d cars in the results, not %d" % (len(rows), want))
             still_in = [r for r in rows if not r.get("out")]
-            if len(still_in) != 1:
+            if teams:
+                won = {r.get("team", -1) for r in still_in}
+                if len(won) != 1 or -1 in won:
+                    fails.append("teams still in at the end: %s" % sorted(won))
+                sizes = {}
+                for r in rows:
+                    sizes[r.get("team", -1)] = sizes.get(r.get("team", -1), 0) + 1
+                if -1 in sizes or len(sizes) != teams or max(sizes.values()) - min(sizes.values()) > 1:
+                    fails.append("teams not drawn evenly: %s" % sizes)
+                # Every client had each car on the team the server drew (D236).
+                server_teams = {str(r["id"]): r.get("team", -1) for r in rows}
+                for name in sorted(n for n in reports if n.startswith("bot")):
+                    seen = reports[name].get("teams", {})
+                    if not seen:
+                        fails.append(f"{name}: saw no teams")
+                    wrong = {k: v for k, v in seen.items() if server_teams.get(k) not in (None, v)}
+                    if wrong:
+                        fails.append(f"{name}: teams differ from the server's for cars {sorted(wrong)}")
+            elif len(still_in) != 1:
                 fails.append("%d cars ended still in, not 1" % len(still_in))
     elif args.event in ["race", "kart"]:
         if results is None:

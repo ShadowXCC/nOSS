@@ -30,6 +30,8 @@ const LAND_VY := 2.0
 ## Once every player is out, the rest of the match may run this many times faster (D220), as a
 ## drag pass of bots can (D178): the clock only, so the bots fight it out as they would have.
 const FF_SPEED := 4.0
+## apply_net: the car's team as it was.
+const KEEP_TEAM := -2
 ## HUD elements a sumo match never shows: it has no laps, no sectors and no racing line.
 const HUD_HIDDEN := ["timing", "delta", "position", "standings", "flags"]
 
@@ -491,9 +493,10 @@ func row(r: Racer) -> Dictionary:
 	return { "tier": reached(r) + 1, "lasted": float(_out_at.get(r, session.race.clock)), "out": r.out, "team": team(r) }
 
 
-## Online client: car `r`'s tier, out and team as the server has them (SumoNet).
-func apply_net(r: Racer, at_tier: int, is_out: bool, on_team := -1) -> void:
-	if teams_on and on_team != int(_team.get(r, -1)):
+## Online client: car `r`'s tier, out and team as the server has them (SumoNet). A team of -1 is
+## none drawn yet; KEEP_TEAM (a ring-out event, which carries none) leaves it as it is.
+func apply_net(r: Racer, at_tier: int, is_out: bool, on_team := KEEP_TEAM) -> void:
+	if teams_on and on_team != KEEP_TEAM and on_team != int(_team.get(r, -1)):
 		if on_team >= 0:
 			_team[r] = on_team
 		else:
