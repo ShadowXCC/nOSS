@@ -46,11 +46,17 @@ const SIREN_PACE := 0.45
 ## (they'd drive through it); physics cars stop before it.
 const CLOSED_BEFORE_M := 150.0
 ## Garage traffic (D191): of the slots of a type some garage car fits, this share are garage cars.
-## Their models stream (D232): looked at every STREAM_S, a car loads while a slot in the road window
-## has it and goes UNLOAD_S after the last, unless a physics car is one.
+## Their models stream (D233), looked at every STREAM_S: a car's smallest LOD (its far view, about 1
+## MB of an FM4 car's 38) while a slot in the road window has it, its whole model while one within
+## NEAR_M of a player does (it turns physical at PROMOTE_M); each goes UNLOAD_S after the last
+## (the whole one not while a physics car is it). A far view's mesh is merged on a worker, one at a
+## time (on the main thread one took up to 33 ms).
 const GARAGE_SHARE := 0.8
 const STREAM_S := 0.5
+const NEAR_M := 600.0
 const UNLOAD_S := 60.0
+const FAR_OPTS := { "models": "smallest", "audio": false }
+const VIEW_TIMEOUT_S := 30.0
 
 var session: TrackSession
 var world: EndlessWorld
@@ -79,7 +85,7 @@ var garage := {}
 ## Which set of them each slot draws from (offline: one set of every car).
 var garage_sets: EndlessGarage
 ## For the dev log (D232): garage cars seen as themselves, the most loaded at once, and the longest
-## far-view merge (ms).
+## far-view merge (ms, on its worker).
 var garage_seen := {}
 var most_loaded := 0
 var view_ms := 0.0
@@ -98,11 +104,14 @@ var _closure_id := 0
 var _car_types := {} # type index -> true: the ones on the car platform (patrols come among them)
 var _set_fits := {} # set id -> {type index: [garage index]}
 var _picks := 0 # goes up when the sets change: slots pick their garage car again
-var _garage_pkgs := {} # garage index -> VehiclePackage, while loaded
+var _garage_pkgs := {} # garage index -> VehiclePackage (its whole model), while loaded
+var _garage_far := {} # garage index -> VehiclePackage (its smallest LOD), while loaded
 var _garage_views := {} # garage index -> MultiMeshInstance3D (its own far mesh)
 var _wanted := {} # garage index -> when a slot in the road window last had it (this node's clock)
-var _loading := {} # garage index -> true
-var _view_queue: Array[int] = [] # loaded cars whose far view is still to be made, one a frame
+var _wanted_near := {} # garage index -> when a slot within NEAR_M of a player last had it
+var _loading := {} # Vector2i(garage index, 1 far or 0 whole) -> true
+var _view_queue: Array[int] = [] # loaded cars whose far view is still to be made
+var _viewing := false # a far view is being merged
 var _stream_in := 0.0
 
 
@@ -149,9 +158,10 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	for t: int in _packages:
 		(_packages[t] as VehiclePackage).free_scenes()
-	for g: int in _garage_pkgs:
-		(_garage_pkgs[g] as VehiclePackage).free_scenes()
-	_garage_pkgs.clear()
+	for pkgs: Dictionary in [_garage_pkgs, _garage_far]:
+		for g: int in pkgs:
+			(pkgs[g] as VehiclePackage).free_scenes()
+		pkgs.clear()
 
 
 func now() -> float:
@@ -174,7 +184,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(_delta: float) -> void:
-	if not _view_queue.is_empty():
+	if not _view_queue.is_empty() and not _viewing:
 		_next_view()
 	if _draws:
 		_draw()
@@ -323,6 +333,8 @@ func use_garage(sets: EndlessGarage) -> void:
 ## The server's sets changed: new cars join `garage`, the newest set's cars and the next one's (a
 ## biome ahead) are fetched in full, and slots pick again (only those out of sight change).
 func garage_changed() -> void:
+	var debug := Game.dev.has("endless-debug")
+	var before := _picks_in_view() if debug else {}
 	for g: int in garage_sets.cars:
 		if garage.has(g):
 			continue
@@ -334,12 +346,37 @@ func garage_changed() -> void:
 				fits.append(i)
 		garage[g] = { "car": String(d.car), "path": "", "fits": fits, "paint": {} }
 		car_here(String(d.car))
+	var fetching := 0
 	if Net.content:
 		for id: int in [garage_sets.k, garage_sets.k + 1]:
 			for g: int in garage_sets.sets.get(id, PackedInt32Array()):
 				if String(garage[g].path).is_empty():
 					Net.content.fetch_car(String(garage[g].car), 1, Net.content.max_tier)
+					fetching += 1
 	_sets_changed()
+	if debug:
+		var changed := before.keys().filter(func(key: Vector2i) -> bool: return garage_of(key) != int(before[key])).size()
+		print("garage: set %d (%d cars), next %d cars, %d to fetch; %d cars in view, %d changed" % [garage_sets.k,
+			garage_sets.sets.get(garage_sets.k, []).size(), garage_sets.sets.get(garage_sets.k + 1, []).size(), fetching, before.size(), changed])
+
+
+## For the dev log: the garage car of each scheduled car within VIEW_M of a camera (headless, of a
+## player), as picked till now.
+func _picks_in_view() -> Dictionary:
+	var eyes := PackedVector3Array()
+	for p in session.players:
+		if p.cameras and p.cameras.camera:
+			eyes.append(p.cameras.camera.global_position)
+	if eyes.is_empty():
+		eyes = _players()
+	var out := {}
+	if world == null or world.road.samples.size() < 2:
+		return out
+	for c: Dictionary in scheduled():
+		var at := pose(c.lane, c.s).origin
+		if Array(eyes).any(func(e: Vector3) -> bool: return e.distance_to(at) < VIEW_M):
+			out[c.key] = int(c.garage)
+	return out
 
 
 func _sets_changed() -> void:
@@ -359,8 +396,10 @@ func car_here(car: String) -> void:
 			continue
 		if (e.paint as Dictionary).is_empty():
 			e.paint = PackageLoader.read_json(String(c.path), "paint.json")
-		if not c.partial:
+		if not c.partial and String(e.path).is_empty():
 			e.path = String(c.path)
+			if Game.dev.has("endless-debug"):
+				print("garage: car %d here (%s)" % [g, car.substr(7, 8)])
 
 
 ## Slot `key`'s garage car (its index in `garage`), or -1 (a stock car): of the cars in its set
@@ -368,8 +407,11 @@ func car_here(car: String) -> void:
 func garage_of(key: Vector2i) -> int:
 	if key.x == PARKED or garage_sets == null:
 		return -1
-	var sl := slot(key.x, key.y)
-	if int(sl.get("picks", -1)) != _picks:
+	return _pick(key, slot(key.x, key.y))
+
+
+func _pick(key: Vector2i, sl: Dictionary) -> int:
+	if sl.get("picks", -1) != _picks:
 		sl.picks = _picks
 		sl.g = -1
 		sl.erase("tint")
@@ -407,76 +449,113 @@ func _fits_in(set_id: int) -> Dictionary:
 	return _set_fits[set_id]
 
 
-## Loads the garage cars slots in the road window have (at time `at`, this node's clock), and lets
-## go of those none has had for UNLOAD_S that no physics car is.
+## Loads the garage cars slots in the road window have (at time `at`, this node's clock): their
+## smallest LOD, and their whole model near a player; and lets go of those none has had for
+## UNLOAD_S (a whole model not while a physics car is it).
 func stream(at: float) -> void:
 	if garage.is_empty():
 		return
+	var players := PackedFloat64Array()
+	for p in session.players:
+		if p.vehicle and is_instance_valid(p.vehicle):
+			players.append(p.distance)
 	for c: Dictionary in scheduled():
-		if int(c.garage) >= 0:
-			_wanted[int(c.garage)] = at
+		var g := int(c.garage)
+		if g < 0:
+			continue
+		_wanted[g] = at
+		for d in players:
+			if absf(float(c.s) - d) < NEAR_M:
+				_wanted_near[g] = at
+				break
 	var driven := {}
 	for key: Vector2i in cars:
 		driven[(cars[key] as EndlessTrafficCar).garage] = true
+	var far_views := _draws and MeshBatch.threaded()
 	for g: int in _wanted.keys():
-		if at - float(_wanted[g]) > UNLOAD_S and not driven.has(g):
+		if at - float(_wanted[g]) > UNLOAD_S:
 			_wanted.erase(g)
-			_unload_garage(g)
-		elif not _garage_pkgs.has(g) and not _loading.has(g) and String(garage[g].path) and not garage[g].get("broken", false):
-			_load_garage(g)
+			_unload(g, true)
+		elif far_views:
+			_load(g, true)
+	for g: int in _wanted_near.keys():
+		if at - float(_wanted_near[g]) > UNLOAD_S and not driven.has(g):
+			_wanted_near.erase(g)
+			_unload(g, false)
+		else:
+			_load(g, false)
 	most_loaded = maxi(most_loaded, _garage_pkgs.size())
 
 
-## Its model only where it's drawn (and not headless, where models can't load on a worker).
+## A whole model only where it's drawn (and not headless, where models can't load on a worker).
 func _load_opts() -> Dictionary:
 	return {} if _draws and MeshBatch.threaded() else { "models": "none", "audio": false }
 
 
-func _load_garage(g: int) -> void:
-	var path := String(garage[g].path)
-	var opts := _load_opts()
-	_loading[g] = true
-	PackageLoader.load_shared(path, func(pkg: VehiclePackage) -> void:
-		_loading.erase(g)
+## Loads garage car `g`'s smallest LOD (`far`, for its far view) or its whole model, if its files
+## are here and it isn't loaded or loading.
+func _load(g: int, far: bool) -> void:
+	var into := _garage_far if far else _garage_pkgs
+	var key := Vector2i(g, int(far))
+	if into.has(g) or _loading.has(key) or String(garage[g].path).is_empty() or garage[g].get("broken", false):
+		return
+	_loading[key] = true
+	PackageLoader.load_shared(String(garage[g].path), func(pkg: VehiclePackage) -> void:
+		_loading.erase(key)
 		if not pkg.ok():
 			garage[g].broken = true
 			return
-		_garage_pkgs[g] = pkg
-		if opts.is_empty():
-			_view_queue.append(g), opts)
+		into[g] = pkg
+		if far:
+			_view_queue.append(g), FAR_OPTS if far else _load_opts())
 
 
-func _unload_garage(g: int) -> void:
-	var pkg: VehiclePackage = _garage_pkgs.get(g)
+func _unload(g: int, far: bool) -> void:
+	var into := _garage_far if far else _garage_pkgs
+	var pkg: VehiclePackage = into.get(g)
 	if pkg == null:
 		return
-	_garage_pkgs.erase(g)
+	into.erase(g)
 	pkg.free_scenes()
-	var view: Node = _garage_views.get(g)
-	if view:
-		view.queue_free()
-		_garage_views.erase(g)
-	_view_queue.erase(g)
-	PackageLoader.drop_shared(String(garage[g].path), _load_opts())
+	if far:
+		var view: Node = _garage_views.get(g)
+		if view:
+			view.queue_free()
+			_garage_views.erase(g)
+		_view_queue.erase(g)
+	PackageLoader.drop_shared(String(garage[g].path), FAR_OPTS if far else _load_opts())
 
 
-## One queued far view a frame (each is a mesh merge on the main thread).
+## The next queued far view, merged on a worker from a copy of the car's smallest LOD (its loaded
+## one stays as it is).
 func _next_view() -> void:
 	var g: int = _view_queue.pop_front()
-	var pkg: VehiclePackage = _garage_pkgs.get(g)
-	if pkg == null or _garage_views.has(g):
+	var pkg: VehiclePackage = _garage_far.get(g)
+	if pkg == null or _garage_views.has(g) or pkg.lods.is_empty():
 		return
-	var t0 := Time.get_ticks_usec()
-	_garage_view(g, pkg)
-	view_ms = maxf(view_ms, (Time.get_ticks_usec() - t0) / 1000.0)
+	var own := VehiclePackage.new()
+	own.fit = pkg.fit
+	own.paint = pkg.paint
+	own.lods.append(pkg.lods[pkg.lods.size() - 1].duplicate() as Node3D)
+	var platform: Dictionary = (_platforms[int(garage[g].fits[0])] as PlatformLoader.Result).platform
+	_viewing = true
+	WorkerJob.start(self, func() -> Array:
+		var t0 := Time.get_ticks_usec()
+		return [TrafficModels.far_mesh_of(own, platform), (Time.get_ticks_usec() - t0) / 1000.0],
+		func(made: Variant) -> void:
+			_viewing = false
+			if not made is Array:
+				return # timed out: the copy goes when the merge ends (discard)
+			own.free_scenes()
+			view_ms = maxf(view_ms, float(made[1]))
+			if made[0] and _garage_far.get(g) == pkg and not _garage_views.has(g):
+				_garage_view(g, made[0]),
+		VIEW_TIMEOUT_S, func() -> Variant: return null, own.free_scenes.unbind(1))
 
 
-## A garage car's own far view, if its model is light enough (else it's drawn as a stock car of its
-## type, in its paint).
-func _garage_view(g: int, pkg: VehiclePackage) -> void:
-	var mesh := TrafficModels.far_mesh_of(pkg, (_platforms[int(garage[g].fits[0])] as PlatformLoader.Result).platform)
-	if mesh == null:
-		return
+## A garage car's own far view (`mesh`, from its smallest LOD; one too heavy has none, and is drawn
+## as a stock car of its type, in its paint).
+func _garage_view(g: int, mesh: ArrayMesh) -> void:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
@@ -577,7 +656,7 @@ func scheduled() -> Array[Dictionary]:
 			if not closures.is_empty() and is_finite(closed_ahead(lane, s, CLOSED_BEFORE_M)):
 				continue
 			var speed := lerpf((road.speed_up if up else road.speed_down)[i], (road.speed_up if up else road.speed_down)[i + 1], u) * f
-			var g := garage_of(key)
+			var g := _pick(key, sl) if garage_sets else -1
 			out.append({ "key": key, "lane": lane, "s": s, "speed": speed, "type": sl.type, "color": _color_of(sl, g), "garage": g })
 	return out
 

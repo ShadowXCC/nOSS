@@ -376,8 +376,9 @@ func test_a_garage_car_drives_as_itself() -> void:
 	await get_tree().process_frame
 
 
-## Garage models stream (D232): only cars slots in the road window have are loaded; one no slot has
-## had for UNLOAD_S goes (its cached package too), unless a physics car is it.
+## Garage models stream (D233): only cars of slots near a player are loaded whole (headless there's
+## no far view to load); one no slot near has had for UNLOAD_S goes (its cached package too), unless
+## a physics car is it.
 func test_garage_models_stream_in_and_out() -> void:
 	var s := _session("heavy")
 	await _wait_for_car(s)
@@ -388,8 +389,17 @@ func test_garage_models_stream_in_and_out() -> void:
 			break
 		await _ticks(10)
 	assert_int(t._garage_pkgs.size()).is_greater(0)
+	assert_bool(t._garage_far.is_empty()).is_true()
+	var d := float(s.players[0].distance)
+	var near := {}
+	for c: Dictionary in t.scheduled():
+		if int(c.garage) >= 0 and absf(float(c.s) - d) < EndlessTraffic.NEAR_M:
+			near[int(c.garage)] = true
 	for g: int in t._garage_pkgs:
+		assert_bool(t._wanted_near.has(g)).is_true()
+	for g: int in t._wanted_near:
 		assert_bool(t._wanted.has(g)).is_true()
+	assert_bool(near.keys().any(func(g: int) -> bool: return t._garage_pkgs.has(g) or t._loading.has(Vector2i(g, 0)))).is_true()
 	# A loaded car no physics car is: the slots stop drawing it (a set without it).
 	var driven := {}
 	for key: Vector2i in t.cars:
@@ -414,19 +424,17 @@ func test_garage_models_stream_in_and_out() -> void:
 	t.stream(now + EndlessTraffic.UNLOAD_S + 1.0)
 	assert_bool(t._garage_pkgs.has(gone)).is_false()
 	assert_bool(PackageLoader._shared.has(key)).is_false()
-	# (One car fewer in the set, the other slots picked again.) What the window has now is loaded or
-	# on its way; anything else loaded is a physics car or was wanted within UNLOAD_S.
-	var window := 0
+	# (One car fewer in the set, the other slots picked again.) What's near now is loaded or on its
+	# way; anything else loaded is a physics car or was near within UNLOAD_S.
+	d = float(s.players[0].distance)
 	for c: Dictionary in t.scheduled():
-		if int(c.garage) >= 0:
-			window += 1
-			assert_bool(t._garage_pkgs.has(int(c.garage)) or t._loading.has(int(c.garage))).is_true()
-	assert_int(window).is_greater(0)
+		if int(c.garage) >= 0 and absf(float(c.s) - d) < EndlessTraffic.NEAR_M:
+			assert_bool(t._garage_pkgs.has(int(c.garage)) or t._loading.has(Vector2i(int(c.garage), 0))).is_true()
 	driven.clear()
 	for k: Vector2i in t.cars:
 		driven[t.cars[k].garage] = true
 	for g: int in t._garage_pkgs:
-		assert_bool(driven.has(g) or now + EndlessTraffic.UNLOAD_S + 1.0 - float(t._wanted[g]) <= EndlessTraffic.UNLOAD_S).is_true()
+		assert_bool(driven.has(g) or now + EndlessTraffic.UNLOAD_S + 1.0 - float(t._wanted_near[g]) <= EndlessTraffic.UNLOAD_S).is_true()
 	assert_int(t.most_loaded).is_greater_equal(t._garage_pkgs.size())
 	s.queue_free()
 	await get_tree().process_frame

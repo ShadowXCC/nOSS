@@ -86,8 +86,8 @@ func _physics_process(delta: float) -> void:
 			p.vehicle.global_position, world.road.point_at(p.distance), p.speed, world.road.offset_m, world.road.end_m(), world.counts(), session.origin.x, session.origin.z])
 		if session.endless_traffic:
 			var t: EndlessTraffic = session.endless_traffic
-			print("traffic: %d scheduled, %d physics, %d gone; garage %d cars, %d loaded (most %d), %d drawn as themselves, %d seen, view %.1f ms, set %d, picks %s" % [
-				t.scheduled().size(), t.cars.size(), t.gone.size(), t.garage.size(), t._garage_pkgs.size(), t.most_loaded, t._garage_views.size(),
+			print("traffic: %d scheduled, %d physics, %d gone; garage %d cars, %d whole (most %d), %d far, %d drawn as themselves, %d seen, view %.1f ms, set %d, picks %s" % [
+				t.scheduled().size(), t.cars.size(), t.gone.size(), t.garage.size(), t._garage_pkgs.size(), t.most_loaded, t._garage_far.size(), t._garage_views.size(),
 				t.garage_seen.size(), t.view_ms, t.garage_sets.k if t.garage_sets else -1, t.picks_check()])
 
 
