@@ -386,7 +386,13 @@ first (D223-).*
   off another's side, and a straight push from behind doesn't turn the car pushed. Piedmont too.
 - **Mistakes in a pack** (D229, v0.12.11): AI under skill 90 block late, pull out without looking
   and misjudge gaps, more the lower their skill. Every pack track.
-- Still to come: Halifax Speedway and the Halifax Road Course.
+- **Halifax Speedway** (D230, v0.13.0): the Daytona International Speedway tri-oval under another
+  name, 2.5 miles, banked 31° in the turns, 18° along the tri-oval and 3° down the backstretch,
+  Lake Lloyd in the infield, stadium stands along the tri-oval, campers in the infield, night
+  under the lights; it suggests a rolling start, drafting, fuel 5×, tires 2×, packs, a medium
+  plate and the yellow line.
+- **Halifax Road Course** (D231): the Daytona road course through its infield, 5.79 km, 12 corners,
+  with the Le Mans chicane; each track shows the other's roads.
 
 **Acceptance:**
 - [x] Banking to 45° builds and races. *`road_builder_test`: a 45° oval stands on its inner edge
@@ -424,6 +430,27 @@ first (D223-).*
   eight races; a 92-98 field none in four.*
 - [ ] A big one now and then in a weak field. *Not on Piedmont yet (see above): to look at again on
   Halifax's plated packs.*
+- [x] The tracks come again the same from their generators and pass the checks.
+  *`halifax_speedway_test`, `halifax_road_course_test`: layout hashes, no validator errors, 2.5
+  miles at 15 ft, counter-clockwise, 31°/18°/3°, pit road at 55 mph, the grid on the tri-oval,
+  Lake Lloyd inside the oval and below the infield, the rules, the scenery roads both ways, 12
+  corners on the road course. Piedmont's and the Eifel GP's generators write the same files as
+  before.*
+- [x] Stock Cars race Halifax clean. *16 Stock Cars, 10 laps, the track's rules, four seeds: no
+  pile-ups, 0-1 resets, every car one stop, best laps 51.7-52.1 s, the pack topping out near 180
+  mph; a skill 30-50 field likewise.*
+- [x] Online. *`tools/net_check.py --event race --track halifax_speedway --class
+  official.track.stock_car --clients 2 --ai 6 --laps 3 --plausibility flag`: every car 3 laps,
+  remote cars within 0.06 m (95%), no contacts, nothing flagged. A server config's event rotation
+  takes the plate (it was turned down before; found by `online_events_test`).*
+- [x] The road course races clean. *8 Stock Cars, 4 laps, the track's rules, three seeds: no
+  pile-ups, 0-1 resets, best laps 123.4-123.9 s, the slowest car's best within 2.6 s.*
+- [ ] A superspeedway pack: the field holding together at about 190 mph. *Not yet: it strings out
+  (1-1.5 km in four laps) whatever the cars, the skill or the draft's reach and strength; the cars
+  behind lose more speed racing each other than the draft gives back. To do: the pack AI (D230).*
+- [ ] Windowed, by hand (the owner): the night, the stadium, the lake, the campers, the plate and
+  the yellow line in a race, and the Race menu's Restrictor row. *Shots on the way: the night, the
+  towers, the fence, the stands, the campers, the 31° turns.*
 - [x] A car in a lake is sent back to the road. *`water_test` (on the old collision mask it stayed
   in); `track_fitting_test`: a fitted scene's water looks at cars too.*
 

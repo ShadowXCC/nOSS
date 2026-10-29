@@ -39,6 +39,10 @@ Part of the game:
 | Piedmont Speedway's ground: USGS 3DEP / National Elevation Dataset, 1/3 arc-second (via [OpenTopoData](https://www.opentopodata.org/), dataset ned10m) | U.S. Geological Survey | Public domain | `content/tracks/piedmont_speedway/terrain/`, `tools/data/piedmont.json` |
 | Piedmont Road Course's layout: the Charlotte Motor Speedway "Roval" through the infield ([OpenStreetMap](https://www.openstreetmap.org/way/402168711) ways 402168711, 116107372, 402168714, 402168718, 116107359, 585912895, 676112675, 918050113 and 923003592) and the oval's | © OpenStreetMap contributors | ODbL 1.0 | `content/tracks/piedmont_road_course/`, `tools/data/piedmont.json` |
 | Piedmont Road Course's ground: the same USGS heights as Piedmont Speedway's | U.S. Geological Survey | Public domain | `content/tracks/piedmont_road_course/terrain/` |
+| Halifax Speedway's layout: the Daytona International Speedway oval, its pit road, Lake Lloyd and the raceways round it ([OpenStreetMap](https://www.openstreetmap.org/way/352070316) ways 352070316, 11371365, 352067004, 352070311, 352070309, 352067003, 198465568, 119970289 and others) | © OpenStreetMap contributors | ODbL 1.0 | `content/tracks/halifax_speedway/`, `tools/data/halifax.json` |
+| Halifax Speedway's ground: USGS 3DEP / National Elevation Dataset, 1/3 arc-second (via [OpenTopoData](https://www.opentopodata.org/), dataset ned10m) | U.S. Geological Survey | Public domain | `content/tracks/halifax_speedway/terrain/`, `tools/data/halifax.json` |
+| Halifax Road Course's layout: the Daytona road course through the infield ([OpenStreetMap](https://www.openstreetmap.org/way/352104911) ways 352696267, 352104911, 352104914, 1315971773, 352070313, 352104912, 352070310, 352070308, 198466856 and 198465570) and the oval's | © OpenStreetMap contributors | ODbL 1.0 | `content/tracks/halifax_road_course/`, `tools/data/halifax.json` |
+| Halifax Road Course's ground: the same USGS heights as Halifax Speedway's | U.S. Geological Survey | Public domain | `content/tracks/halifax_road_course/terrain/` |
 
 Used for testing only; not part of the game.
 
