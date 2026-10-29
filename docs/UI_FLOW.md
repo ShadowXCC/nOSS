@@ -339,7 +339,7 @@ The sky rows are "Time", "Time runs" and "Weather" (`SkyRows`), at the end of ev
 | Custom TT | "Preset", "Save preset", "Delete preset", "Track", "Track limits", sky. Hosting adds "Minutes" (§7.7). |
 | Endless | Today's: "Road code", "New road", "Start in", "Lanes", "Drive on", "Traffic", "Garage cars", "Oncoming", "Speed traps", "Police", "Far apart", sky. Hosting, "Garage cars" is Off, Host or Everyone ("Whose cars join the traffic", D233). |
 | Highway | "Highway" (the highway itself), then today's: "Mode", "Traffic", "Police", "Way round" (or "Run" for a run), sky. |
-| Sumo Wrestling | Today's: "Platforms", "Underneath", "Shrink", "Length", "Sudden death", "Drift", "AI cars", "AI skill", "AI models", sky. |
+| Sumo Wrestling | "Mode" (Free-for-all or Teams; Teams adds "Teams" and "Friendly fire", D234), "Platforms", "Platform size" (D235), "Underneath", "Shrink", "Length", "Sudden death", "Drift", "AI cars", "AI skill", "AI models", sky. |
 | Drag Strip | Today's without "Class" (it moves to the Class step): "Length", "Boost", "Timing shifts", "Quick time events", the "Gimmicks" rows, the "Field" rows, sky. |
 | Kart Battle | "Arena", "Rule", "Hits to win" (Most hits only), "Minutes", "AI karts", "AI skill", sky. |
 | Free Drive | "Track", then on a circuit "AI cars", "AI skill", "AI cars look", "Collisions", "Track limits"; on a highway "Traffic" ("Off" or "On") in their place; then sky. |

@@ -141,6 +141,7 @@ Each new local player who joins (press-to-join, [INPUT.md §3](INPUT.md#3-joinin
 
 - **Per viewport:** HUD scale, palette, camera, shake, flashing and brightness follow that viewport's player.
 - **Who's who (D199):** a name tag over each other player's car pairs their colour with their name (never colour alone, §1). It follows the viewing player's HUD size, font and high contrast (a solid plate that fades less).
+- **Sumo teams (D234):** every car's tag, the HUD's team line and roster and the results name the team ("Vega · Red", "Team Red", "Red 3 · Blue 2", "Red wins") beside its colour; the paint and the ring round each car are a second cue, not the only one. The four team colours stay apart under all three colour-vision simulations (`sumo_teams_test`), and the screen reader reads the roster with the rest of the sumo HUD.
 - **Shared menus** (primary window) use P1's font and the largest text size of any joined player (M3; the game can't tell which player is navigating a shared menu).
 - **One audio output:** in local play, audio settings (volumes, mono, spotter) are shared and any player can change them.
 - **Online:** presentation and input settings stay local. Only assist use is sent, for rules and results (M5), and from P9 the assists each player has on and the device they play with, for everyone's roster.
