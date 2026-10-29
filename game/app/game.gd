@@ -136,6 +136,7 @@ var reopen_flow := false
 var _time := 0.0
 var _shots_taken := 0
 var _dev_import_used := false
+var _fullscreen_key := false
 
 
 func _ready() -> void:
@@ -674,6 +675,8 @@ func quit() -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
+	if not dedicated:
+		_poll_fullscreen_key()
 	# --shot-at can list several times ("5,30,90"): then each file gets _<n> after its name.
 	var times := String(dev.get("shot-at", "5")).split(",")
 	if dev.has("shot") and _shots_taken < times.size() and _time >= float(times[_shots_taken]):
@@ -689,3 +692,15 @@ func _process(delta: float) -> void:
 			print("Screenshot: ", path)
 	if dev.has("quit-at") and _time >= float(dev["quit-at"]):
 		get_tree().quit()
+
+
+## F11, or Cmd+Ctrl+F on macOS (where F11 shows the desktop), toggles fullscreen. Polled, like the
+## players' keys, so it works whichever window has focus and whatever a page does with key events.
+func _poll_fullscreen_key() -> void:
+	var down := Input.is_physical_key_pressed(KEY_F11)
+	if OS.get_name() == "macOS":
+		down = down or (Input.is_physical_key_pressed(KEY_META) and Input.is_physical_key_pressed(KEY_CTRL)
+			and Input.is_physical_key_pressed(KEY_F))
+	if down and not _fullscreen_key:
+		Settings.toggle_fullscreen()
+	_fullscreen_key = down

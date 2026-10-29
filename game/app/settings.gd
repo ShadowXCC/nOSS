@@ -5,6 +5,8 @@ extends Node
 ## `profile` is the primary player's (P1) profile data, used by shared menus.
 
 signal changed
+## Fullscreen went on or off from toggle_fullscreen() (F11): open Settings pages follow it.
+signal fullscreen_changed
 
 const PRESETS := ["low", "medium", "high"]
 ## Machine settings, saved in settings.cfg as [section] key.
@@ -237,6 +239,16 @@ func set_value(key: String, value: Variant) -> void:
 	else:
 		profile[key] = value
 	save()
+
+
+## F11 (Game): fullscreen on or off, saved like the Settings row. Goes by the window's own mode,
+## which the system may have changed without us.
+func toggle_fullscreen() -> void:
+	var on := fullscreen
+	if DisplayServer.get_name() != "headless":
+		on = DisplayServer.window_get_mode() in [DisplayServer.WINDOW_MODE_FULLSCREEN, DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN]
+	set_value("fullscreen", not on)
+	fullscreen_changed.emit()
 
 
 func set_assist(assist: String, on: bool) -> void:

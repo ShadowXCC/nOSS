@@ -16,6 +16,8 @@ const RESETS := {
 ## Opened in a player's view mid-session: no Players tab (renaming needs a keyboard).
 var in_session := false
 
+var _fullscreen: CheckButton
+
 
 func _ready() -> void:
 	title = "Settings"
@@ -23,7 +25,14 @@ func _ready() -> void:
 	if not in_session:
 		back_hint = "Back to the main menu"
 	tabs = ["Display", "Sound", "Splitscreen", "General"] if in_session else ["Display", "Sound", "Splitscreen", "General", "Players"]
+	Settings.fullscreen_changed.connect(_on_fullscreen_changed)
 	super._ready()
+
+
+## F11 while the Display tab is open: its Fullscreen row follows.
+func _on_fullscreen_changed() -> void:
+	if is_instance_valid(_fullscreen):
+		_fullscreen.set_pressed_no_signal(Settings.fullscreen)
 
 
 func _build_tab(which: String) -> void:
@@ -31,8 +40,9 @@ func _build_tab(which: String) -> void:
 		"Display":
 			add_row(UiKit.spinner("Graphics", [["low", "Low"], ["medium", "Medium"], ["high", "High"]], Settings.graphics,
 				func(v: String) -> void: Settings.set_value("graphics", v), "Detail and smoothing. Low runs fastest"))
-			add_row(UiKit.check("Fullscreen", Settings.fullscreen, func(on: bool) -> void: Settings.set_value("fullscreen", on),
-				"The whole screen, or a window"))
+			_fullscreen = UiKit.check("Fullscreen", Settings.fullscreen, func(on: bool) -> void: Settings.set_value("fullscreen", on),
+				"The whole screen, or a window. F11")
+			add_row(_fullscreen)
 		"Sound":
 			add_row(UiKit.slider("Volume", Settings.master_volume, func(v: float) -> void: Settings.set_value("master_volume", v), "Everything"))
 			for item: Array in [["vol_own_engine", "Own engine", "Your car's engine"], ["vol_other_engines", "Other engines", "Everyone else's"],
