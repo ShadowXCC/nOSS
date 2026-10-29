@@ -120,3 +120,23 @@ func test_a_server_builds_the_collision_and_none_of_the_show() -> void:
 	assert_object(builder.get_node_or_null("Goo")).is_null()
 	# The floor is still there to rule on, which is what a dedicated server needs.
 	assert_bool(_down(_at(0, SumoLayout.RADII[0] - 1.0)).is_empty()).is_false()
+
+
+## A platform that has gone leaves nothing behind, even when its last rebuild was within a
+## rebuild's step of nothing: the slab and its rim used to stay, and cars parked dead centre
+## stood on them for ever.
+func test_a_platform_that_has_gone_leaves_nothing_in_the_middle() -> void:
+	var builder := await _arena("smooth", false)
+	var layout := builder.layout
+	layout.arm(0)
+	# Down to just under a rebuild's step, built there, then gone.
+	layout.advance(60.0 * (1.0 - SumoBuilder.REBUILD_M * 0.5 / SumoLayout.RADII[0]))
+	builder.refresh()
+	await get_tree().physics_frame
+	assert_bool(layout.live(0)).is_true()
+	assert_bool(_down(Vector3.ZERO).is_empty()).override_failure_message("no sliver to stand on yet").is_false()
+	layout.advance(1.0)
+	assert_bool(layout.live(0)).is_false()
+	builder.refresh()
+	await get_tree().physics_frame
+	assert_bool(_down(Vector3.ZERO).is_empty()).override_failure_message("the gone platform is still there").is_true()

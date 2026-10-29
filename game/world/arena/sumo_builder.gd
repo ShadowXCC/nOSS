@@ -36,8 +36,9 @@ var visual := true
 var calm := false
 
 var _slabs: Array[Node3D] = []
-## Each tier's wedge radii as its slab was last built from them.
+## Each tier's wedge radii as its slab was last built from them, and whether it was still live.
 var _built: Array[PackedFloat32Array] = []
+var _built_live: Array[bool] = []
 ## Lumps of a crumbled ring on their way into the goo: [{node, vel, spin, life, delay}].
 var _debris: Array[Dictionary] = []
 ## The warning bands (D182), one mesh a tier, and what each was last built from. Nothing is made
@@ -59,6 +60,7 @@ func setup(a: SumoLayout, with_visuals := true, reduce_flashing := false) -> voi
 		add_child(slab)
 		_slabs.append(slab)
 		_built.append(PackedFloat32Array())
+		_built_live.append(true)
 	_warning()
 	refresh()
 
@@ -91,12 +93,16 @@ func refresh() -> void:
 		# A platform that has gone reads as every wedge at nothing, so the last of it is thrown
 		# into the goo like the rest was rather than vanishing where it stood.
 		var radii := layout.wedge_radii(i)
-		if not _moved(i, radii):
+		# Gone counts as a change however little the radius had left to lose: last built under
+		# REBUILD_M from nothing, the slab and its sloped rim stayed, and a car parked dead centre
+		# stood on them for ever.
+		if not _moved(i, radii) and _built_live[i] == layout.live(i):
 			continue
 		# A crumbling platform throws the floor it just lost into the goo (D162).
 		if visual and layout.style == "crumble":
 			_calve(i, radii)
 		_built[i] = radii
+		_built_live[i] = layout.live(i)
 		_clear(_slabs[i])
 		if layout.live(i):
 			_slab(_slabs[i], radii, layout.floor_y_of(i))

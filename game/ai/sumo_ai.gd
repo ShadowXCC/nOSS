@@ -31,11 +31,20 @@ const DRIFT_OVER := 1.0
 const DRIFT_EDGE := Vector2(2.0, 1.3)
 const DRIFT_DONE_DEG := 20.0
 const DRIFT_MAX_S := 1.0
+## Team Battle (D234): an enemy counts this much nearer for every teammate already after it, so
+## bots gang up on one car rather than each taking its own.
+const GANG_M := 5.0
+## With nobody to fight on its platform (its own team alone on it, D234), it comes to rest within
+## this of the middle, slowing this much a metre on the way: charging the middle at hunting speed
+## it overshot and drove off a small platform at its turning speed.
+const HOLD_M := 2.5
+const HOLD_SLOW := 0.8
 
 var racer: Racer
 var skill := 80.0
 var as_guide := false
-## What it's doing: "hunt", "edge" (backing off the rim) or "wait" (in the air, or out).
+## What it's doing: "hunt", "edge" (backing off the rim), "hold" (nobody to fight here: parked in
+## the middle) or "wait" (in the air, or out).
 var intent := "wait"
 
 var _target: Racer
@@ -112,6 +121,10 @@ func controls(delta: float) -> Dictionary:
 	var fast := lerpf(SPEED.x, SPEED.y, clampf(skill / 100.0, 0.0, 1.0))
 	var want := lerpf(fast, TURN_SPEED, clampf(absf(angle) / deg_to_rad(80.0), 0.0, 1.0))
 	var speed := racer.speed
+	if intent == "hold":
+		want = minf(want, maxf(Vector2(racer.com().x, racer.com().z).length() - HOLD_M, 0.0) * HOLD_SLOW)
+		if want <= 0.0 and absf(speed) < 2.0:
+			out.handbrake = 1.0 # the brake pedal at a standstill would select reverse
 	if speed < want - 0.5:
 		out.throttle = clampf(0.4 + (want - speed) * 0.3, 0.0, 1.0)
 	elif speed > want + 1.5:
@@ -129,7 +142,7 @@ func controls(delta: float) -> Dictionary:
 ## Hunt the nearest car, unless the edge is coming up: then get off the rim first.
 func _plan(tier: int) -> void:
 	_target = _nearest()
-	intent = "edge" if _near_edge(tier) else ("hunt" if _target else "edge")
+	intent = "edge" if _near_edge(tier) else ("hunt" if _target else "hold")
 	var k := clampf((skill - DRIFT_SKILL) / (100.0 - DRIFT_SKILL), 0.0, 1.0)
 	_may_drift = skill >= DRIFT_SKILL and _rng.randf() < lerpf(DRIFT_CHANCE.x, DRIFT_CHANCE.y, k)
 
@@ -204,23 +217,40 @@ func _should_ram(angle: float) -> bool:
 	return theirs >= mine
 
 
+## Who it is after now, or null.
+func target() -> Racer:
+	return _target if is_instance_valid(_target) else null
+
+
 func _nearest() -> Racer:
 	var me := racer.com()
-	var layout: SumoLayout = racer.session.sumo.layout
+	var sumo := racer.session.sumo
+	var layout: SumoLayout = sumo.layout
 	var tier := layout.tier_at(me)
 	var best: Racer = null
 	var best_d := INF
 	for o: Racer in racer.session.racers:
 		if o == racer or o.vehicle == null or not is_instance_valid(o.vehicle) or o.out or o.towed:
 			continue
-		# Only cars on the same platform are worth chasing.
-		if layout.tier_at(o.com()) != tier:
+		# Only cars on the same platform are worth chasing, and never a teammate.
+		if layout.tier_at(o.com()) != tier or sumo.same_team(racer, o):
 			continue
 		var d := me.distance_to(o.com())
+		if sumo.teams_on:
+			d -= GANG_M * _mates_after(o)
 		if d < best_d:
 			best_d = d
 			best = o
 	return best
+
+
+## Teammates of this car whose bot is after `o` (D234).
+func _mates_after(o: Racer) -> int:
+	var n := 0
+	for m: Racer in racer.session.racers:
+		if m != racer and racer.session.sumo.same_team(racer, m) and m.driver is SumoAI and (m.driver as SumoAI).target() == o:
+			n += 1
+	return n
 
 
 ## Where `p` is from the car's nose (+ = to its left), radians.

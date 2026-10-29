@@ -494,6 +494,9 @@ func _ai_entries() -> Array:
 	if e.kind not in ["race", "battle", "sumo", "drag"]:
 		return out
 	var count := mini(e.ai_count, NetProtocol.MAX_PLAYERS - server.player_count())
+	if e.kind == "sumo" and e.sumo_mode == "teams":
+		# Bots are added so the teams come out even (D234).
+		count = SumoTeams.even_field(server.player_count(), maxi(count, 0), e.sumo_teams, NetProtocol.MAX_PLAYERS)
 	if count <= 0:
 		return out
 	if cup and not _cup_ai.is_empty():

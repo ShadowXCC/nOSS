@@ -4,7 +4,9 @@ extends GdUnitTestSuite
 ## once a car has landed on it; touching the goo puts a car out, ghosted, timed at that moment;
 ## the last one not in the goo wins and the standings put the one that went in latest ahead of
 ## the rest; the results carry the tier reached and how long each lasted; the ram boost spends
-## its charge and lunges the car forward.
+## its charge and lunges the car forward. Team Battle (D234): every car drawn onto a team each
+## match, the last team in wins, teammates kept apart with friendly fire off, and bots that never
+## go after a teammate.
 
 var s: TrackSession
 var sumo: SumoControl
@@ -24,7 +26,7 @@ func after() -> void:
 	Settings.use_folder("user://")
 
 
-func _start(tiers := 2, hazard := "lava", pillar := false, drift := "drift") -> void:
+func _start(tiers := 2, hazard := "lava", pillar := false, drift := "drift", teams := 0, friendly := false) -> void:
 	Players.clear()
 	ended = []
 	s = TrackSession.new()
@@ -32,6 +34,10 @@ func _start(tiers := 2, hazard := "lava", pillar := false, drift := "drift") -> 
 	s.event = RaceEvent.sumo(tiers, hazard)
 	s.event.sumo_pillar = pillar
 	s.event.sumo_drift = drift
+	if teams > 0:
+		s.event.sumo_mode = "teams"
+		s.event.sumo_teams = teams
+		s.event.sumo_friendly = friendly
 	s.event.ai_count = 3
 	s.event.ai_cars = "builtin"
 	add_child(s)
@@ -144,6 +150,109 @@ func test_the_last_car_not_in_the_goo_wins() -> void:
 	assert_array(ended).is_not_empty()
 	assert_str(String(ended[0][0])).is_equal("sumo")
 	assert_object(sumo.standings()[0]).is_same(d)
+
+
+## Team Battle: four cars dealt two a side, a new draw every match; Free-for-all has no teams.
+func test_teams_are_drawn_evenly_each_match() -> void:
+	await _start(2, "lava", false, "drift", 2)
+	assert_bool(sumo.teams_on).is_true()
+	var sizes := [0, 0]
+	for r in s.racers:
+		assert_int(sumo.team(r)).is_between(0, 1)
+		sizes[sumo.team(r)] += 1
+	assert_array(sizes).contains_exactly([2, 2])
+	var draws := {}
+	for i in 12:
+		sumo.reset()
+		draws[str(s.racers.map(func(r: Racer) -> int: return sumo.team(r)))] = true
+	assert_int(draws.size()).is_greater(1)
+	assert_dict(sumo.row(a)).contains_keys(["team"])
+	assert_int(int(sumo.row(a).team)).is_equal(sumo.team(a))
+
+
+func test_free_for_all_has_no_teams() -> void:
+	await _start()
+	assert_bool(sumo.teams_on).is_false()
+	assert_int(sumo.team(a)).is_equal(-1)
+	assert_bool(sumo.same_team(a, b)).is_false()
+	assert_int(int(sumo.row(a).team)).is_equal(-1)
+
+
+## A team match is over once only one team has cars in, however many; that team's cars rank
+## first, and the other team's last car in ahead of its first.
+func test_the_last_team_in_wins() -> void:
+	await _start(2, "lava", false, "drift", 2)
+	sumo._team = { a: 0, b: 1, c: 0, d: 1 }
+	await _running()
+	_goo(a)
+	for i in 4:
+		await get_tree().physics_frame
+	assert_array(ended).is_empty()
+	assert_dict(sumo.teams_standing()).is_equal({ 0: 1, 1: 2 })
+	_goo(c)
+	for i in 4:
+		await get_tree().physics_frame
+	assert_array(ended).is_not_empty()
+	var order := sumo.standings()
+	assert_array(order.slice(0, 2)).contains_exactly_in_any_order([b, d])
+	assert_object(order[2]).is_same(c) # its team's last one in
+	assert_object(order[3]).is_same(a)
+
+
+## Friendly fire off, teammates' cars pass through each other and nobody else's; on, they collide.
+func test_friendly_fire_off_keeps_teammates_apart() -> void:
+	await _start(2, "lava", false, "drift", 2)
+	for i in 2: # the contacts follow cars that arrived after the draw
+		await get_tree().physics_frame
+	for r in s.racers:
+		for o in s.racers:
+			if o == r:
+				continue
+			var kept := r.vehicle.get_collision_exceptions().has(o.vehicle)
+			assert_bool(kept).override_failure_message("%s/%s" % [r.display_name, o.display_name]).is_equal(sumo.same_team(r, o))
+	sumo.friendly = true
+	sumo._apply_contacts()
+	for r in s.racers:
+		assert_array(r.vehicle.get_collision_exceptions()).is_empty()
+
+
+## Bots never go after a teammate, and pick an enemy a teammate is already after over a nearer one.
+func test_bots_go_after_the_other_team_together() -> void:
+	await _start(2, "lava", false, "drift", 2)
+	sumo._team = { a: 1, b: 0, c: 0, d: 1 }
+	sumo._apply_contacts()
+	var at := func(r: Racer, x: float) -> void:
+		r.vehicle.reset_to(Transform3D(Basis.IDENTITY, Vector3(x, 0.5, 0.0)))
+	at.call(b, 0.0)
+	at.call(c, 3.0) # b's teammate, side by side with it: nearest of all
+	at.call(a, 6.0)
+	at.call(d, -9.0)
+	await get_tree().physics_frame
+	var bot := b.driver as SumoAI
+	assert_object(bot._nearest()).is_same(a)
+	(c.driver as SumoAI)._target = d
+	assert_object(bot._nearest()).is_same(d) # 9 m, less GANG_M for c: nearer than a's 6 m
+	for r: Racer in [b, c, d]:
+		var t: Racer = (r.driver as SumoAI)._nearest()
+		assert_bool(t != null and sumo.same_team(r, t)).is_false()
+
+
+## A bot with nobody to fight on its platform comes to rest near the middle rather than charging
+## round it: on a small platform that charge drove it off the edge at its turning speed.
+func test_a_bot_alone_on_its_platform_holds_the_middle() -> void:
+	await _start(2)
+	await _running()
+	var y := sumo.layout.floor_y_of(1) + 0.6
+	b.vehicle.reset_to(Transform3D(Basis(Vector3.UP, PI / 2.0), Vector3(-12.0, y, 0.0)))
+	b.driver.process_mode = Node.PROCESS_MODE_INHERIT
+	for i in 120 * 8:
+		await get_tree().physics_frame
+	var bot := b.driver as SumoAI
+	assert_str(bot.intent).is_equal("hold")
+	assert_int(sumo.tier(b)).is_equal(1)
+	var off := Vector2(b.com().x, b.com().z).length()
+	assert_float(off).override_failure_message("%.1f m from the middle" % off).is_less(SumoAI.HOLD_M + 2.0)
+	assert_float(absf(b.speed)).is_less(1.0)
 
 
 ## The one that went in latest is ahead of the rest: that is what settles a floor vanishing

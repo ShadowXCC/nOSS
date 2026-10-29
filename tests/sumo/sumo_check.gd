@@ -5,10 +5,12 @@ extends Node
 ## platform was still full size and nothing touched it, a car stuck over 5 s, two cars out on the
 ## same tick (a draw the rules say cannot stand) unless the pillar is on, a car that fell off the
 ## top platform and never reached the next one when one was there to catch it, or a tier left
-## live after its radius reached zero.
+## live after its radius reached zero. With teams (D234), also on uneven teams, a bot going after
+## a teammate, or a match that ended with two teams still in.
 ## Runs as a scene so the autoloads are there:
 ##   tools/sumo_check.sh [--cars=8] [--tiers=2] [--hazard=lava|acid]
 ##                       [--shrink=smooth|crumble|stepped] [--secs=90] [--pillar] [--skill=50-90] [--seed=1]
+##                       [--teams=2|3|4] [--friendly] [--size=regular|expanded]
 
 const STUCK_S := 5.0
 ## A car doing less than this with the throttle down is stuck.
@@ -20,9 +22,17 @@ const DEAD_HEAT_M := 0.001
 ## At most this share of the falls that had a platform below may miss it, and never on one fall
 ## alone: a miss is meant to be rare, not impossible (D163), so a single one proves nothing.
 const MISS_RATE := 0.34
+## A fall counts as one the platform below should catch only while that platform is still this
+## much wider than where the car left (Regular; Expanded scales it): half of D163's step. Late in a
+## match both are nearly gone, and a fall off a 7 m disc past a 9 m one is not a second chance.
+const WIDE_M := 6.0
 
 var opts := { "cars": "8", "tiers": "2", "hazard": "lava", "shrink": "smooth", "secs": "90",
-	"skill": "50-90", "seed": "1" }
+	"skill": "50-90", "seed": "1", "teams": "0", "size": "regular" }
+## The field: --cars, or more once bots even the teams out.
+var cars := 0
+var teams_checked := false
+var went_after_mate := {} # "bot>mate" -> true, each pair reported once
 var session: TrackSession
 var time := 0.0
 var ticks := 0
@@ -37,7 +47,8 @@ var armed_at := {} # tier -> the time it started shrinking
 var landed_on := {} # tier -> how many cars have stood on it
 var fell_from := {} # racer -> the tier it was last on
 var missed := 0 # fell off a platform and never reached the next one
-var catchable := 0 # falls that had a platform below to catch them
+var catchable := 0 # falls that had a platform below to catch them, caught or not
+var wide := {} # racer -> its fall had a platform below wide enough to catch it
 
 
 func _ready() -> void:
@@ -64,12 +75,22 @@ func _start() -> void:
 	e.ai_count = int(opts.cars) - 1
 	e.ai_skill = (float(skill[0]) + float(skill[skill.size() - 1])) / 2.0
 	e.ai_cars = "builtin"
+	e.sumo_size = String(opts.size)
+	if int(opts.teams) > 0:
+		e.sumo_mode = "teams"
+		e.sumo_teams = int(opts.teams)
+		e.sumo_friendly = opts.has("friendly")
+	cars = int(opts.cars)
+	if int(opts.teams) > 0:
+		cars = 1 + SumoTeams.even_field(1, cars - 1, int(opts.teams), ArenaLayout.AUTO_SPAWNS)
 	session.event = e
 	session.ai_skill_spread = float(skill[skill.size() - 1]) - float(skill[0])
 	add_child(session)
 	session.race.session_ended.connect(_on_ended)
-	print("sumo_check: %d cars, %d tier(s), %s, %s, %d s a platform%s, seed %s" % [int(opts.cars),
-		int(opts.tiers), opts.hazard, opts.shrink, int(opts.secs), ", pillar" if e.sumo_pillar else "", opts.seed])
+	print("sumo_check: %d cars, %d tier(s), %s, %s, %d s a platform%s%s%s, seed %s" % [cars,
+		int(opts.tiers), opts.hazard, opts.shrink, int(opts.secs), ", pillar" if e.sumo_pillar else "",
+		", expanded" if e.sumo_size == "expanded" else "",
+		(", %d teams, friendly fire %s" % [e.sumo_teams, "on" if e.sumo_friendly else "off"]) if e.sumo_mode == "teams" else "", opts.seed])
 
 
 func layout() -> SumoLayout:
@@ -78,7 +99,7 @@ func layout() -> SumoLayout:
 
 ## How long every platform could take, back to back, plus a margin.
 func budget() -> float:
-	return float(opts.secs) * int(opts.tiers) + SLACK_S
+	return layout().secs * int(opts.tiers) + SLACK_S
 
 
 func _tick() -> void:
@@ -89,7 +110,7 @@ func _tick() -> void:
 	time += dt
 	ticks += 1
 	if not started:
-		if session.sumo and session.racers.size() == int(opts.cars) and session.racers.all(func(r: Racer) -> bool: return r.vehicle != null):
+		if session.sumo and session.racers.size() == cars and session.racers.all(func(r: Racer) -> bool: return r.vehicle != null):
 			started = true
 			session.sumo.pushed_out.connect(_on_out)
 		tick_us += Time.get_ticks_usec() - t0
@@ -97,6 +118,8 @@ func _tick() -> void:
 	var a := layout()
 	for r in session.racers:
 		_watch(r, dt)
+	if session.sumo.teams_on:
+		_watch_teams()
 	for i in a.count():
 		if a.armed(i) and not armed_at.has(i):
 			armed_at[i] = time
@@ -112,6 +135,28 @@ func _tick() -> void:
 	tick_us += Time.get_ticks_usec() - t0
 
 
+## Teams (D234): dealt evenly once the match runs, and no bot ever after one of its own.
+func _watch_teams() -> void:
+	var sumo := session.sumo
+	if not teams_checked and session.race.phase == RaceControl.Phase.RUNNING:
+		teams_checked = true
+		var sizes := {}
+		for r in session.racers:
+			if sumo.team(r) < 0:
+				problems.append("%s has no team" % r.display_name)
+			sizes[sumo.team(r)] = int(sizes.get(sumo.team(r), 0)) + 1
+		if sizes.size() != sumo.team_count or int(sizes.values().max()) - int(sizes.values().min()) > 0:
+			problems.append("teams not even: %s" % sizes)
+	for r in session.racers:
+		if not r.driver is SumoAI:
+			continue
+		var t := (r.driver as SumoAI).target()
+		var key := "%s>%s" % [r.display_name, t.display_name if t else ""]
+		if t and sumo.same_team(r, t) and not went_after_mate.has(key):
+			went_after_mate[key] = true
+			problems.append("%s went after its teammate %s at %.0f s" % [r.display_name, t.display_name, time])
+
+
 func _watch(r: Racer, dt: float) -> void:
 	var a := layout()
 	var at := session.sumo.tier(r)
@@ -119,11 +164,18 @@ func _watch(r: Racer, dt: float) -> void:
 	if on >= 0:
 		landed_on[on] = int(landed_on.get(on, 0)) + (1 if int(fell_from.get(r, -99)) != on else 0)
 	if at >= 0:
+		# Down on a lower platform after leaving one: a fall it caught. Counted here as well as the
+		# misses in _on_out, or every miss would be a miss out of one.
+		var ff := int(fell_from.get(r, 0))
+		if ff < 0 and at > -1 - ff and bool(wide.get(r, false)):
+			catchable += 1
 		fell_from[r] = at
 	elif not r.out and int(fell_from.get(r, -1)) >= 0:
 		# Left a platform: it should reach the next one if there is one still standing.
 		var was := int(fell_from[r])
 		fell_from[r] = -1 - was # remember which, negatively, until it lands or goes in
+		var off := Vector2(r.com().x, r.com().z).length()
+		wide[r] = a.live(was + 1) and a.radius_of(was + 1) - off >= WIDE_M * SumoLayout.size_of(session.event)
 	if r.out or r.vehicle == null or not is_instance_valid(r.vehicle) or r.held:
 		stuck.erase(r)
 		return
@@ -145,7 +197,7 @@ func _on_out(r: Racer) -> void:
 	same.append(session.sumo.out_depth(r))
 	out_ticks[ticks] = same
 	# Went in from a platform that was not the bottom one: it should have been caught.
-	if from >= 0 and from < a.count() - 1 and a.live(from + 1):
+	if from >= 0 and from < a.count() - 1 and a.live(from + 1) and bool(wide.get(r, false)):
 		catchable += 1
 		missed += 1
 
@@ -153,7 +205,10 @@ func _on_out(r: Racer) -> void:
 func _on_ended(_kind: String, results: Array) -> void:
 	var a := layout()
 	var standing := session.sumo.standing()
-	if standing.size() > 1:
+	if session.sumo.teams_on:
+		if session.sumo.teams_standing().size() > 1:
+			problems.append("ended with %d teams still in" % session.sumo.teams_standing().size())
+	elif standing.size() > 1:
 		problems.append("ended with %d cars still in" % standing.size())
 	# Two cars in on one tick is fine as long as their depths tell them apart (D167); the same
 	# tick at the same depth is a real dead heat, with nothing to rank them by.
@@ -171,6 +226,8 @@ func _on_ended(_kind: String, results: Array) -> void:
 	if missed > 1 and float(missed) / catchable > MISS_RATE:
 		problems.append("%d of %d catchable fall(s) missed the platform below" % [missed, catchable])
 	var winner: Racer = results[0].racer if not results.is_empty() else null
+	if session.sumo.teams_on:
+		print("Teams: %s won, %d of its cars still in" % [SumoTeams.name_of(session.sumo.team(winner)) if winner else "-", standing.size()])
 	print("Sumo: %.0f s, %d tier(s); winner %s (tier %d); radii %s; out: %s" % [session.race.clock, a.count(),
 		winner.display_name if winner else "-", session.sumo.reached(winner) + 1 if winner else 0,
 		", ".join(PackedStringArray(Array(a.radii()).map(func(r: float) -> String: return "%.1f" % r))),
@@ -183,7 +240,8 @@ func _report() -> void:
 		return
 	reported = true
 	print("Check: %.0f s simulated, %d of %d cars out, tiers set going by %s" % [time,
-		outs.size(), int(opts.cars), session.sumo.armed_by])
+		outs.size(), cars, session.sumo.armed_by])
+	print("Falls: %d of %d catchable missed the platform below" % [missed, catchable])
 	print("Time: %.1f µs a tick in the check's own work, %d ticks" % [float(tick_us) / maxf(ticks, 1), ticks])
 	if problems.is_empty():
 		print("PASS")

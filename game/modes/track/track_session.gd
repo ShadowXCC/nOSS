@@ -451,6 +451,9 @@ func _ready() -> void:
 		ai_racers = clampi(ai_racers, 0, maxi(int(track.grid.slots) - maxi(Players.count(), 1), 0))
 	elif event.kind == "sumo":
 		ai_racers = clampi(event.ai_count, 0, maxi(track.arena.spawns.size() - maxi(Players.count(), 1), 0))
+		if event.sumo_mode == "teams":
+			# Bots are added so the teams come out even (D234).
+			ai_racers = SumoTeams.even_field(maxi(Players.count(), 1), ai_racers, event.sumo_teams, track.arena.spawns.size())
 		ai_skill = event.ai_skill
 		ai_builtin_cars = event.ai_cars == "builtin"
 		_apply_sumo_drift()

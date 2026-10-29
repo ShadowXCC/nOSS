@@ -8,9 +8,13 @@ extends Node
 ## and no Reset (D219): the lower tiers are the second and third chances, and a car on its roof
 ## rights itself (the kart layer's `right_after_s`).
 ## The authority decides (offline: this game); RaceControl runs the lights and the results.
+## Team Battle (D234): every car is drawn onto a team at the start of each match, and the last
+## team with a car still in wins. With friendly fire off, teammates pass through each other.
 
 signal pushed_out(r: Racer)
 signal tier_reached(r: Racer, tier: int)
+## The teams have been drawn, or a car's team has changed (online: as the server says).
+signal teams_changed
 
 ## The goo pulls a car under over this long, this far down.
 const SINK_S := 1.0
@@ -55,11 +59,25 @@ var _charge := {}
 var armed_by := {}
 ## The match running on at FF_SPEED (D220).
 var fast_forward := false
+## Team Battle (D234): on, how many teams, and whether teammates collide.
+var teams_on := false
+var team_count := 2
+var friendly := false
 var _started := false
+## racer -> its team this match, and whether this game has drawn them (the authority only)
+var _team := {}
+var _drawn := false
+## racer -> the vehicle its teammates were last kept from colliding with (the contacts follow a
+## swapped car)
+var _bodies := {}
 
 
 func _ready() -> void:
 	process_physics_priority = -53 # after RaceControl, before the drivers
+	var e := session.event
+	teams_on = e.kind == "sumo" and e.sumo_mode == "teams"
+	team_count = clampi(e.sumo_teams, 2, SumoTeams.NAMES.size())
+	friendly = e.sumo_friendly
 	session.race.session_started.connect(func(_kind: String) -> void: reset())
 
 
@@ -82,6 +100,49 @@ func reset() -> void:
 	for r in session.racers:
 		_charge[r] = 1.0
 		_set_out(r, false)
+	_team.clear()
+	_drawn = false
+	if teams_on and authority:
+		_draw()
+	elif teams_on:
+		teams_changed.emit() # a client waits for the server's draw
+
+
+## A new draw (D234): every car into the hat, the teams dealt evenly, each player told theirs.
+func _draw() -> void:
+	_team = SumoTeams.draw(session.racers, team_count)
+	_drawn = true
+	for r: Racer in _team:
+		if r.is_human:
+			r.notify("Team %s" % SumoTeams.name_of(_team[r]), 2.5)
+	teams_changed.emit()
+	_apply_contacts()
+
+
+## `r`'s team this match, or -1 (every car for itself, or not drawn yet).
+func team(r: Racer) -> int:
+	return int(_team.get(r, -1)) if teams_on else -1
+
+
+## Two cars on the same team.
+func same_team(a: Racer, b: Racer) -> bool:
+	return teams_on and team(a) >= 0 and team(a) == team(b)
+
+
+## How many cars of each team are still in: team -> count, only teams with someone left.
+func teams_standing() -> Dictionary:
+	var out := {}
+	for r in standing():
+		var t := team(r)
+		if t >= 0:
+			out[t] = int(out.get(t, 0)) + 1
+	return out
+
+
+## The side a car is on for ending a match and ranking it: its team, or (not drawn) itself.
+func _side(r: Racer) -> int:
+	var t := team(r)
+	return t if t >= 0 else 1000 + r.number
 
 
 ## Cars still in.
@@ -138,6 +199,8 @@ func ram(r: Racer) -> bool:
 func _physics_process(delta: float) -> void:
 	_forget_gone()
 	_hold_out()
+	if teams_on:
+		_follow_teams()
 	# Over every racer, not just the table's keys: a car that joined after the start has none yet.
 	for r in session.racers:
 		_charge[r] = minf(1.0, float(_charge.get(r, 1.0)) + delta / RAM_RECHARGE_S)
@@ -156,14 +219,27 @@ func _physics_process(delta: float) -> void:
 	if not authority or ended or not running:
 		return
 	_check_goo()
-	# One car left (or none: the goo took the last of them on the same tick).
-	if session.racers.size() > 1 and standing().size() <= 1:
+	# One car left (or none: the goo took the last of them on the same tick); with teams, one
+	# team left, however many of its cars are still in.
+	if session.racers.size() > 1 and _decided():
 		ended = true
 		fast_forward_on(false) # the results and the cool-down at 1x
 		var order := standings()
-		if not order.is_empty() and not order[0].out:
+		if teams_on:
+			for r in standing():
+				r.notify("%s wins" % SumoTeams.name_of(team(r)) if team(r) >= 0 else "Winner", 4.0)
+		elif not order.is_empty() and not order[0].out:
 			order[0].notify("Winner", 4.0)
 		session.race.end_session()
+
+
+## The match is over: a single car still in, or with teams every car still in on one side.
+func _decided() -> bool:
+	var left := standing()
+	if not teams_on or left.size() <= 1:
+		return left.size() <= 1
+	var side := _side(left[0])
+	return left.all(func(r: Racer) -> bool: return _side(r) == side)
 
 
 ## Every player is out and the match goes on without them: they may run it on faster (D220).
@@ -196,10 +272,55 @@ func _hold_out() -> void:
 ## Cars that left the game drop out of the tables (they stay in the results they were in).
 func _forget_gone() -> void:
 	_out_order.assign(_out_order.filter(func(r: Variant) -> bool: return is_instance_valid(r)))
-	for d: Dictionary in [_tier, _reached, _out_at, _out_depth, _sinking, _charge]:
+	for d: Dictionary in [_tier, _reached, _out_at, _out_depth, _sinking, _charge, _team, _bodies]:
 		for k: Variant in d.keys():
 			if not is_instance_valid(k):
 				d.erase(k)
+
+
+## A car that came into the match after the draw goes onto the smallest team, and the contacts
+## follow a car whose vehicle has changed (D234).
+func _follow_teams() -> void:
+	var moved := false
+	for r in session.racers:
+		if authority and _drawn and not _team.has(r):
+			_team[r] = _smallest_team()
+			moved = true
+			teams_changed.emit()
+		if _bodies.get(r) != r.vehicle:
+			moved = true
+	if moved:
+		_apply_contacts()
+
+
+func _smallest_team() -> int:
+	var sizes := []
+	sizes.resize(team_count)
+	sizes.fill(0)
+	for r: Racer in _team:
+		var t := int(_team[r])
+		if t >= 0 and t < team_count:
+			sizes[t] += 1
+	return sizes.find(sizes.min())
+
+
+## Friendly fire off: teammates' cars never touch, so neither can shove the other (the ram only
+## moves the car that fires it). Both ways, whichever body the physics asks first.
+func _apply_contacts() -> void:
+	var cars: Array[Racer] = session.racers.filter(func(r: Racer) -> bool: return r.vehicle != null and is_instance_valid(r.vehicle))
+	for i in cars.size():
+		var a := cars[i]
+		for j in range(i + 1, cars.size()):
+			var b := cars[j]
+			if not friendly and same_team(a, b):
+				a.vehicle.add_collision_exception_with(b.vehicle)
+				b.vehicle.add_collision_exception_with(a.vehicle)
+			else:
+				a.vehicle.remove_collision_exception_with(b.vehicle)
+				b.vehicle.remove_collision_exception_with(a.vehicle)
+	_bodies.clear()
+	for r in session.racers:
+		_bodies[r] = r.vehicle
 
 
 ## Where everyone is: a car that has just landed on a platform starts it shrinking.
@@ -281,7 +402,12 @@ func _knock_out(r: Racer) -> void:
 	if sounds and r.vehicle:
 		sounds.splash(r.vehicle.global_position)
 	pushed_out.emit(r)
-	if standing().size() == 1:
+	if teams_on and team(r) >= 0:
+		# The last of a team still fighting is told, unless that was the match.
+		var mates := standing().filter(func(o: Racer) -> bool: return team(o) == team(r))
+		if mates.size() == 1 and not _decided():
+			(mates[0] as Racer).notify("Last one", 2.0)
+	elif standing().size() == 1:
 		var last := standing()[0]
 		if not last.out:
 			last.notify("Last one", 2.0)
@@ -312,10 +438,14 @@ func recover(r: Racer) -> void:
 
 
 ## The order now (RaceControl's standings in a sumo match): cars still in first, by how high they
-## are; then the ones that are out, the last one in ahead of the rest.
+## are; then the ones that are out, the last one in ahead of the rest. With teams, team by team
+## first (D234): a team still in ahead, then the teams whose last car went in latest.
 func standings() -> Array[Racer]:
 	var out: Array[Racer] = session.racers.duplicate()
+	var rank := _side_ranks() if teams_on else {}
 	out.sort_custom(func(a: Racer, b: Racer) -> bool:
+		if teams_on and _side(a) != _side(b):
+			return int(rank[_side(a)]) < int(rank[_side(b)])
 		if a.out != b.out:
 			return not a.out
 		if a.out:
@@ -323,6 +453,30 @@ func standings() -> Array[Racer]:
 		if tier(a) != tier(b):
 			return tier(a) < tier(b) # higher platform: ahead
 		return a.number < b.number)
+	return out
+
+
+## side -> its place among the sides: more cars still in ahead, then the last car in latest.
+func _side_ranks() -> Dictionary:
+	var info := {}
+	for r in session.racers:
+		var k := _side(r)
+		var d: Array = info.get(k, [0, -1])
+		if not r.out:
+			d[0] += 1
+		else:
+			d[1] = maxi(d[1], _out_order.find(r))
+		info[k] = d
+	var sides := info.keys()
+	sides.sort_custom(func(a: int, b: int) -> bool:
+		if info[a][0] != info[b][0]:
+			return info[a][0] > info[b][0]
+		if info[a][1] != info[b][1]:
+			return info[a][1] > info[b][1]
+		return a < b)
+	var out := {}
+	for i in sides.size():
+		out[sides[i]] = i
 	return out
 
 
@@ -334,11 +488,18 @@ func out_depth(r: Racer) -> float:
 
 ## The sumo columns for `r`'s results row.
 func row(r: Racer) -> Dictionary:
-	return { "tier": reached(r) + 1, "lasted": float(_out_at.get(r, session.race.clock)), "out": r.out }
+	return { "tier": reached(r) + 1, "lasted": float(_out_at.get(r, session.race.clock)), "out": r.out, "team": team(r) }
 
 
-## Online client: car `r`'s tier and out as the server has them (SumoNet).
-func apply_net(r: Racer, at_tier: int, is_out: bool) -> void:
+## Online client: car `r`'s tier, out and team as the server has them (SumoNet).
+func apply_net(r: Racer, at_tier: int, is_out: bool, on_team := -1) -> void:
+	if teams_on and on_team != int(_team.get(r, -1)):
+		if on_team >= 0:
+			_team[r] = on_team
+		else:
+			_team.erase(r)
+		teams_changed.emit()
+		_apply_contacts()
 	_tier[r] = at_tier
 	if at_tier >= 0:
 		_reached[r] = maxi(reached(r), at_tier)
