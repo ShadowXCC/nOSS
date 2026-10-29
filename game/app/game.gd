@@ -46,7 +46,8 @@ extends Node
 ##   --cup[=<id>]         a cup right away (the Spark Cup, or <id>; --race-ai)
 ##   --sumo               a sumo match right away (--sumo-tiers=1-5, --sumo-hazard=lava|acid,
 ##                        --sumo-shrink=smooth|crumble|stepped, --sumo-secs=<s>, --sumo-pillar,
-##                        --sumo-drift=off|drift, --sumo-garage-ai, --race-ai)
+##                        --sumo-drift=off|drift, --sumo-garage-ai, --race-ai, --sumo-teams=2-4,
+##                        --sumo-friendly, --sumo-size=regular|expanded)
 ##   --drag               a drag match right away (--drag-length=201|402|805, --drag-boost=0-3,
 ##                        --drag-class=street|pro|top_fuel, --drag-seed=<n> the ladder's draw,
 ##                        --drag-no-timing, --drag-no-qtes, --drag-no-tree, --drag-no-two-step,
@@ -236,6 +237,11 @@ func start_dev_event() -> void:
 		su.sumo_secs = int(dev.get("sumo-secs", "90"))
 		su.sumo_pillar = dev.has("sumo-pillar")
 		su.sumo_drift = String(dev.get("sumo-drift", "drift"))
+		su.sumo_size = String(dev.get("sumo-size", "regular"))
+		if dev.has("sumo-teams"):
+			su.sumo_mode = "teams"
+			su.sumo_teams = clampi(int(dev.get("sumo-teams", "2")), 2, SumoTeams.NAMES.size())
+			su.sumo_friendly = dev.has("sumo-friendly")
 		su.ai_count = int(dev.get("race-ai", "7"))
 		su.ai_skill = float(dev.get("ai-skill", "70"))
 		su.ai_cars = "builtin" if not dev.has("sumo-garage-ai") else "garage"

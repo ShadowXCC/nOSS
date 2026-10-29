@@ -2,7 +2,8 @@ class_name SumoHud
 extends Node
 ## Each player's sumo HUD (SumoPanel) and its news (D162): landing on a lower platform, the
 ## platform about to shrink, who went in and who is left. Captions always; spoken with race
-## narration ("Out", "Last one" and "Winner" come from SumoControl).
+## narration ("Out", "Last one" and "Winner" come from SumoControl). In a Team Battle, each team's
+## cars still in (D234).
 
 var session: TrackSession
 var _panels := {} # SessionPlayer -> SumoPanel
@@ -47,12 +48,28 @@ func _process(_delta: float) -> void:
 		var prompt := ""
 		if p.out and (sumo.fast_forward or sumo.can_fast_forward()):
 			prompt = _fast_forward_text(p, sumo.fast_forward)
+		if sumo.teams_on:
+			panel.show_teams(sumo.team(p), _roster(sumo.team(p)))
 		panel.show_sumo(left, session.racers.size(), tier, layout.count(), shrink, sumo.charge(p), warn, p.out, watching, prompt)
 		if warn and int(_warned.get(p, -2)) != tier:
 			_warned[p] = tier
 			_news(p, "Shrinking")
 		elif not warn and int(_warned.get(p, -2)) == tier:
 			_warned.erase(p)
+
+
+## Every team's cars still in, `mine` first, then the rest in order (D234): [[team, count], ...].
+func _roster(mine: int) -> Array:
+	var sumo := session.sumo
+	var left := sumo.teams_standing()
+	var out := []
+	for t in sumo.team_count:
+		var row := [t, int(left.get(t, 0))]
+		if t == mine:
+			out.push_front(row)
+		else:
+			out.append(row)
+	return out
 
 
 ## What an out player can do about the wait (D220), naming their Ram input as a drag prompt does

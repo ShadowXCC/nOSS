@@ -809,6 +809,11 @@ func _ready_sumo() -> void:
 		s.session = self
 		sumo.sounds = s
 		add_child(s)
+		if sumo.teams_on:
+			var look := SumoTeamLook.new()
+			look.name = "SumoTeamLook"
+			look.session = self
+			add_child(look)
 
 
 ## Drag (D168): the passes, the ladder, their HUD and their sounds, and the standings

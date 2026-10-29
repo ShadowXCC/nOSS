@@ -4,7 +4,9 @@ extends Control
 ## cars that are people are known at a glance (online and splitscreen; bots and police get none).
 ## Each tag shows the name and how far on a dark plate with a stripe in their colour, and a
 ## triangle under it pointing down at the car. Tags show through walls, fade with distance and go
-## beyond RANGE_M or off screen. A HUD element ("nametags") the player can hide.
+## beyond RANGE_M or off screen. A HUD element ("nametags") the player can hide. In a sumo Team
+## Battle (D234) every car has one, bots too, with its team's name and colour; where plates would
+## overlap, only the nearest car's is shown.
 
 const RANGE_M := 400.0
 const FONT_SIZE := 26
@@ -43,8 +45,10 @@ func entries() -> Array[Dictionary]:
 	# The camera gives viewport pixels; the HUD is scaled by the player's HUD size.
 	var to_local := get_global_transform_with_canvas().affine_inverse()
 	var imperial := Settings.units == "imperial"
+	# Team Battle (D234): every car has a tag, bots too, in its team's colour and with its name.
+	var teams := session.sumo != null and session.sumo.teams_on
 	for r in session.racers:
-		if r == player or not (r.is_human or r is SessionPlayer) or r.waiting or r.parked or r.out:
+		if r == player or not (teams or r.is_human or r is SessionPlayer) or r.waiting or r.parked or r.out:
 			continue
 		var v := r.vehicle
 		if v == null or not is_instance_valid(v) or not v.visible: # hidden: left the session
@@ -57,10 +61,38 @@ func entries() -> Array[Dictionary]:
 		if not view.has_point(p):
 			continue
 		var shown := "%d ft" % roundi(d * 3.28084) if imperial else "%d m" % roundi(d)
-		tags.append({ "racer": r, "tip": to_local * p, "distance": d, "text": "%s  %s" % [r.display_name, shown],
-			"alpha": clampf(1.2 - d / RANGE_M, 0.6 if player.hud.high_contrast else 0.25, 1.0), "color": r.color })
+		var t := session.sumo.team(r) if teams else -1
+		var who := "%s · %s" % [r.display_name, SumoTeams.name_of(t)] if t >= 0 else r.display_name
+		tags.append({ "racer": r, "tip": to_local * p, "distance": d, "text": "%s  %s" % [who, shown],
+			"alpha": clampf(1.2 - d / RANGE_M, 0.6 if player.hud.high_contrast else 0.25, 1.0),
+			"color": SumoTeams.color_of(t) if t >= 0 else r.color })
 	tags.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.distance > b.distance)
+	if teams:
+		tags = _uncrowded(tags)
 	return tags
+
+
+## With every car tagged, a far pack's plates pile into one unreadable strip: of tags whose plates
+## overlap, only the nearest is kept. `tags` far to near, as entries() gives them.
+func _uncrowded(tags: Array[Dictionary]) -> Array[Dictionary]:
+	var font := get_theme_default_font()
+	var kept: Array[Dictionary] = []
+	var boxes: Array[Rect2] = []
+	for i in range(tags.size() - 1, -1, -1):
+		var box := _box(tags[i], font)
+		if boxes.any(func(b: Rect2) -> bool: return b.intersects(box)):
+			continue
+		boxes.append(box)
+		kept.push_front(tags[i])
+	return kept
+
+
+## A tag's plate, in this control's coordinates.
+func _box(tag: Dictionary, font: Font) -> Rect2:
+	var text_size := font.get_string_size(tag.text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE)
+	var box_size := text_size + Vector2(26.0, 8.0)
+	var tip: Vector2 = tag.tip
+	return Rect2(tip - Vector2(box_size.x / 2.0, ARROW_H + box_size.y), box_size)
 
 
 ## Where a car's tag points: just over its roof, straight up from its middle.
@@ -77,12 +109,10 @@ func _draw() -> void:
 	for tag in entries():
 		var a: float = tag.alpha
 		var tip: Vector2 = tag.tip
-		var text_size := font.get_string_size(tag.text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE)
-		var box_size := text_size + Vector2(26.0, 8.0)
-		var box := Rect2(tip - Vector2(box_size.x / 2.0, ARROW_H + box_size.y), box_size)
+		var box := _box(tag, font)
 		draw_rect(box, Color(0, 0, 0, plate * a))
 		draw_rect(Rect2(box.position, Vector2(6.0, box.size.y)), Color(tag.color, a))
-		draw_string(font, box.position + Vector2(16.0, text_size.y), tag.text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, Color(1, 1, 1, a))
+		draw_string(font, box.position + Vector2(16.0, box.size.y - 8.0), tag.text, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, Color(1, 1, 1, a))
 		# The triangle, from the plate down to the car, edged so a pale colour still reads.
 		var arrow := PackedVector2Array([tip + Vector2(-ARROW_W / 2.0, -ARROW_H), tip + Vector2(ARROW_W / 2.0, -ARROW_H), tip])
 		draw_colored_polygon(arrow, Color(tag.color, a))

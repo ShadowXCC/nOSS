@@ -197,6 +197,18 @@ func test_the_last_team_in_wins() -> void:
 	assert_array(order.slice(0, 2)).contains_exactly_in_any_order([b, d])
 	assert_object(order[2]).is_same(c) # its team's last one in
 	assert_object(order[3]).is_same(a)
+	# The results say which team won, and each row its team.
+	var menu := ResultsMenu.new()
+	menu.kind = "sumo"
+	menu.results = ended[0][1]
+	add_child(menu)
+	await get_tree().process_frame
+	var blue := SumoTeams.name_of(1)
+	assert_int(menu.find_children("*", "Label", true, false).filter(func(l: Label) -> bool:
+		return l.text == "Sumo results  ·  %s wins" % blue).size()).is_equal(1)
+	assert_str(menu.row_text(0)).contains("team " + blue)
+	assert_str(menu.row_text(3)).contains("team " + SumoTeams.name_of(0))
+	menu.queue_free()
 
 
 ## Friendly fire off, teammates' cars pass through each other and nobody else's; on, they collide.
@@ -235,6 +247,37 @@ func test_bots_go_after_the_other_team_together() -> void:
 	for r: Racer in [b, c, d]:
 		var t: Racer = (r.driver as SumoAI)._nearest()
 		assert_bool(t != null and sumo.same_team(r, t)).is_false()
+
+
+## Every car wears its team's colour with a ring of it round the car; tags name the team, bots
+## too; the HUD names the player's team and counts each team's cars, its own first (D234).
+func test_a_team_match_shows_who_is_on_which_team() -> void:
+	await _start(2, "lava", false, "drift", 2)
+	for i in 3:
+		await get_tree().process_frame
+	assert_object(s.get_node_or_null(^"SumoTeamLook")).is_not_null()
+	for r in s.racers:
+		var colour := SumoTeams.color_of(sumo.team(r))
+		var ring := r.vehicle.get_node_or_null(^"TeamRing") as MeshInstance3D
+		assert_object(ring).override_failure_message("%s has no ring" % r.display_name).is_not_null()
+		assert_object((ring.material_override as StandardMaterial3D).albedo_color).is_equal(colour)
+		var paint: ShaderMaterial = r.vehicle.visual._paint.get("primary")
+		if paint:
+			assert_object(paint.get_shader_parameter("paint_color")).is_equal(colour)
+	# A's tag for a bot ahead of its camera: the bot's name and team, in its colour.
+	var p := a as SessionPlayer
+	b.vehicle.reset_to(Transform3D(a.vehicle.global_basis, a.vehicle.global_position + a.vehicle.global_basis.z * 10.0))
+	p.cameras.process_mode = Node.PROCESS_MODE_DISABLED
+	p.cameras.camera.look_at_from_position(b.vehicle.global_position - b.vehicle.global_basis.z * 12.0 + Vector3.UP * 4.0, b.vehicle.global_position)
+	var tags := (p.hud.get_node(^"Nameplates") as Nameplates).entries().filter(func(t: Dictionary) -> bool: return t.racer == b)
+	assert_int(tags.size()).is_equal(1)
+	assert_str(String(tags[0].text)).starts_with("%s · %s" % [b.display_name, SumoTeams.name_of(sumo.team(b))])
+	assert_object(tags[0].color).is_equal(SumoTeams.color_of(sumo.team(b)))
+	var panel := p.hud.get_node(^"SumoPanel") as SumoPanel
+	var mine := SumoTeams.name_of(sumo.team(a))
+	assert_str(panel.cars_text()).is_equal("Team " + mine)
+	assert_str(panel.roster_text()).starts_with(mine + " 2")
+	assert_str(String(panel.accessibility_name)).contains("Team " + mine)
 
 
 ## A bot with nobody to fight on its platform comes to rest near the middle rather than charging
