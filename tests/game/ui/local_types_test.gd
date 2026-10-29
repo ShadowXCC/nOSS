@@ -120,6 +120,33 @@ func test_endless_and_its_road_code() -> void:
 	assert_bool(names.all(func(n: String) -> bool: return n.begins_with("Endless "))).is_true()
 
 
+## Garage cars (D232): On or Off offline; hosting, whose: Host, Everyone or Off.
+func test_endless_garage_cars_online_say_whose() -> void:
+	var page := _page(EventFlow.make("endless"))
+	await _frames(2)
+	assert_str(String(page.row_named("Garage cars").accessibility_name)).is_equal("Garage cars: On")
+	_holder.free()
+	page = _page(EventFlow.make("endless", "", false, "host"))
+	await _frames(2)
+	var e := page.flow.event
+	var row := page.row_named("Garage cars") as Button
+	assert_str(String(row.accessibility_name)).is_equal("Garage cars: Host")
+	row.pressed.emit()
+	assert_str(String(row.accessibility_name)).is_equal("Garage cars: Everyone")
+	assert_bool(e.garage_traffic).is_true()
+	assert_str(e.garage_from).is_equal("everyone")
+	row.pressed.emit()
+	assert_bool(e.garage_traffic).is_false()
+	assert_str(e.garage_from).is_equal("everyone")
+	row.pressed.emit()
+	assert_bool(e.garage_traffic).is_true()
+	assert_str(e.garage_from).is_equal("host")
+	# Saved and back, as servers send it.
+	var again := RaceEvent.from_dict(e.to_dict())
+	assert_str(again.garage_from).is_equal("host")
+	assert_str(RaceEvent.from_dict({ "kind": "endless", "garage_from": "nobody" }).garage_from).is_equal("host")
+
+
 ## Sumo Wrestling: its rows, no track pane, and Next straight to the players in its own class.
 func test_sumo_goes_straight_to_the_players() -> void:
 	var page := _page(EventFlow.make("mini", "sumo"))

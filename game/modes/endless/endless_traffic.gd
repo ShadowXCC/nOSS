@@ -8,7 +8,9 @@ extends Node
 ## spread from the seed), so where every car is at any time is worked out, the same on every game,
 ## and no two in a lane ever meet. Two lanes each way, the passing lane's cars overtake the other's,
 ## and trucks and buses keep out of it. Garage cars (D191) drive in place of most of the stock cars
-## of a type they fit, picked after a slot's own draws so the stock schedule stays as it was. Cars near a player become physics cars (EndlessTrafficCar) that keep to their
+## of a type they fit, picked after a slot's own draws so the stock schedule stays as it was: offline
+## every car, online the server's sets (EndlessGarage, D232), their models loaded while they're
+## near the players and let go after. Cars near a player become physics cars (EndlessTrafficCar) that keep to their
 ## slot unless something's in the way; knocked or left far behind, a car leaves its slot (the slot
 ## stays empty) and goes once nobody's near. Cars further off are drawn, one MultiMesh per type.
 ## Online (D159) one game drives each physics car (EndlessNet's owners) and the others show it from
@@ -43,11 +45,12 @@ const SIREN_PACE := 0.45
 ## A roadblock's closure (D194): scheduled cars in a closed lane this far before it aren't there
 ## (they'd drive through it); physics cars stop before it.
 const CLOSED_BEFORE_M := 150.0
-## Garage traffic (D191): of the slots of a type some garage car fits, this share are garage cars;
-## at most this many garage cars (online, the host shares fewer).
+## Garage traffic (D191): of the slots of a type some garage car fits, this share are garage cars.
+## Their models stream (D232): looked at every STREAM_S, a car loads while a slot in the road window
+## has it and goes UNLOAD_S after the last, unless a physics car is one.
 const GARAGE_SHARE := 0.8
-const GARAGE_MOST := 12
-const GARAGE_SHARED := 6
+const STREAM_S := 0.5
+const UNLOAD_S := 60.0
 
 var session: TrackSession
 var world: EndlessWorld
@@ -69,9 +72,17 @@ var patrols := false
 var closures := {}
 ## Units with their sirens on (Vehicles), set each tick by the police (EndlessPoliceRoad).
 var sirens: Array = []
-## The garage cars in the traffic (D191), the same on every game online: [{car (a path offline, a
-## hash online), path (where it is here; "" until its files are), fits: [type index], paint}].
-var garage: Array[Dictionary] = []
+## The garage cars in the traffic (D191) by registry index (EndlessGarage), the same on every game
+## online: {car (a path offline, a hash online), path (where it is here; "" until all its files
+## are), fits: [type index], paint}.
+var garage := {}
+## Which set of them each slot draws from (offline: one set of every car).
+var garage_sets: EndlessGarage
+## For the dev log (D232): garage cars seen as themselves, the most loaded at once, and the longest
+## far-view merge (ms).
+var garage_seen := {}
+var most_loaded := 0
+var view_ms := 0.0
 
 var _types: Array[Dictionary] = []
 var _weights := 0
@@ -81,13 +92,18 @@ var _platforms := {}
 var _packages := {}
 var _views: Array[MultiMeshInstance3D] = []
 var _time := 0.0
-var _slots := {} # slot key -> {present, tau, type, color, garage, paint_roll} (made from the seed, kept a while)
+var _slots := {} # slot key -> {present, tau, type, color, share, roll, paint_roll, g (its garage car as of _picks)} (made from the seed, kept a while)
 var _draws := true
-var _garage_fits := {} # type index -> [garage index]
 var _closure_id := 0
 var _car_types := {} # type index -> true: the ones on the car platform (patrols come among them)
-var _garage_pkgs := {} # garage index -> VehiclePackage, once loaded
+var _set_fits := {} # set id -> {type index: [garage index]}
+var _picks := 0 # goes up when the sets change: slots pick their garage car again
+var _garage_pkgs := {} # garage index -> VehiclePackage, while loaded
 var _garage_views := {} # garage index -> MultiMeshInstance3D (its own far mesh)
+var _wanted := {} # garage index -> when a slot in the road window last had it (this node's clock)
+var _loading := {} # garage index -> true
+var _view_queue: Array[int] = [] # loaded cars whose far view is still to be made, one a frame
+var _stream_in := 0.0
 
 
 func _ready() -> void:
@@ -151,9 +167,15 @@ func _physics_process(delta: float) -> void:
 	_promote_near()
 	if _slots.size() > 2000:
 		_slots.clear()
+	_stream_in -= delta
+	if _stream_in <= 0.0:
+		_stream_in = STREAM_S
+		stream(_time)
 
 
 func _process(_delta: float) -> void:
+	if not _view_queue.is_empty():
+		_next_view()
 	if _draws:
 		_draw()
 
@@ -194,16 +216,15 @@ func slot(lane: int, j: int) -> Dictionary:
 				type = i
 				break
 		var colors := TrafficTypes.colors(TrafficTypes.index_of(String(_types[type].id)))
-		var sl := { "present": present, "tau": tau, "type": type, "color": colors[rng.randi_range(0, colors.size() - 1)], "garage": -1 }
-		# Garage traffic: draws of its own after the stock ones, and only where a garage car fits.
-		var fits: Array = _garage_fits.get(type, [])
-		if not fits.is_empty() and rng.randf() < GARAGE_SHARE:
-			sl.garage = fits[rng.randi_range(0, fits.size() - 1)]
-			sl.paint_roll = rng.randi()
+		var sl := { "present": present, "tau": tau, "type": type, "color": colors[rng.randi_range(0, colors.size() - 1)] }
+		# Garage traffic: three draws of its own after the stock ones (whether it's a garage car,
+		# which, its paint), always made, so they hold whatever set it draws from (garage_of).
+		sl.share = rng.randf()
+		sl.roll = rng.randi()
+		sl.paint_roll = rng.randi()
 		# Patrols: the last draw.
 		if patrols and _car_types.has(type) and rng.randf() < PATROL_SHARE:
 			sl.type = _patrol_type
-			sl.garage = -1
 			sl.patrol = true
 			sl.color = TrafficTypes.colors(TrafficTypes.index_of(String(_types[_patrol_type].id)))[0]
 		_slots[key] = sl
@@ -215,13 +236,10 @@ func slot(lane: int, j: int) -> Dictionary:
 
 ## The cars of `paths` that can drive in the traffic (D191): each with the traffic types whose
 ## platform takes it as it is (its family, and its wheelbase without scaling it), shuffled by
-## `seed`, at most `most`: [{car, path, fits: [type index]}] (type indexes: the weighted types, in
-## TrafficTypes order).
-static func garage_pool(paths: PackedStringArray, seed_value: int, most := GARAGE_MOST) -> Array[Dictionary]:
-	var types: Array[Dictionary] = []
-	for t: Dictionary in TrafficTypes.list():
-		if int(t.weight) > 0:
-			types.append(t)
+## `seed`, at most `most` (-1: all): [{car, path, fits: [type index]}] (type indexes: the weighted
+## types, in TrafficTypes order).
+static func garage_pool(paths: PackedStringArray, seed_value: int, most := -1) -> Array[Dictionary]:
+	var types := weighted_types()
 	var order := Array(paths)
 	order.sort()
 	var rng := RandomNumberGenerator.new()
@@ -234,64 +252,223 @@ static func garage_pool(paths: PackedStringArray, seed_value: int, most := GARAG
 	var platforms := {} # platform id -> PlatformLoader.Result
 	var out: Array[Dictionary] = []
 	for path: String in order:
-		if out.size() >= most:
+		if most >= 0 and out.size() >= most:
 			break
-		if path.begins_with("res://content/traffic/"):
-			continue
-		var family := String(PackageLoader.read_manifest(path).get("family", ""))
-		var fit := PackageLoader.read_json(path, "fit.json")
-		if not (fit.get("wheels") is Array and fit.get("model_transform") is Dictionary and fit.get("envelope") is Dictionary):
-			continue
-		var fits: Array[int] = []
-		var takes := {} # platform id -> bool
-		for i in types.size():
-			var pid := String(types[i].platform)
-			if not takes.has(pid):
-				if not platforms.has(pid):
-					platforms[pid] = PlatformLoader.load_official(pid)
-				var p: PlatformLoader.Result = platforms[pid]
-				takes[pid] = p.ok() and Fitting.compatible(p.platform, family) and is_equal_approx(Fitting.fit(p.platform, fit).scale, 1.0)
-			if takes[pid]:
-				fits.append(i)
+		var fits := _fits_of(path, types, platforms)
 		if not fits.is_empty():
 			out.append({ "car": path, "path": path, "fits": fits })
 	return out
 
 
-## The garage cars that drive in the traffic (garage_pool offline, the host's list online). Each
-## loads once its files are here (have_car).
+## The traffic types car `path` drives as (garage_pool's rule), by id: the server's own look at a
+## guest's car (D232).
+static func fits_ids(path: String) -> PackedStringArray:
+	var types := weighted_types()
+	var out := PackedStringArray()
+	for i: int in _fits_of(path, types, {}):
+		out.append(String(types[i].id))
+	return out
+
+
+## The types that come up in the traffic (garage_pool's type indexes are into these).
+static func weighted_types() -> Array[Dictionary]:
+	var types: Array[Dictionary] = []
+	for t: Dictionary in TrafficTypes.list():
+		if int(t.weight) > 0:
+			types.append(t)
+	return types
+
+
+## Which of `types` take car `path` as it is (indexes); `platforms` keeps those loaded.
+static func _fits_of(path: String, types: Array[Dictionary], platforms: Dictionary) -> Array[int]:
+	var fits: Array[int] = []
+	if path.begins_with("res://content/traffic/"):
+		return fits
+	var family := String(PackageLoader.read_manifest(path).get("family", ""))
+	var fit := PackageLoader.read_json(path, "fit.json")
+	if not (fit.get("wheels") is Array and fit.get("model_transform") is Dictionary and fit.get("envelope") is Dictionary):
+		return fits
+	var takes := {} # platform id -> bool
+	for i in types.size():
+		var pid := String(types[i].platform)
+		if not takes.has(pid):
+			if not platforms.has(pid):
+				platforms[pid] = PlatformLoader.load_official(pid)
+			var p: PlatformLoader.Result = platforms[pid]
+			takes[pid] = p.ok() and Fitting.compatible(p.platform, family) and is_equal_approx(Fitting.fit(p.platform, fit).scale, 1.0)
+		if takes[pid]:
+			fits.append(i)
+	return fits
+
+
+## Offline: every car of `pool` (garage_pool) in the traffic, in one set. Each one's paint is read
+## now (a stand-in wears it); its model loads when a slot near the players has it (stream).
 func set_garage(pool: Array[Dictionary]) -> void:
-	garage = pool
-	_garage_fits.clear()
-	_slots.clear()
-	for g in garage.size():
-		for t: int in garage[g].fits:
-			if not _garage_fits.has(t):
-				_garage_fits[t] = []
-			(_garage_fits[t] as Array).append(g)
-		if String(garage[g].get("path", "")):
-			_load_garage(g)
+	garage = {}
+	var one := EndlessGarage.new()
+	one.sets[0] = PackedInt32Array(range(pool.size()))
+	for g in pool.size():
+		garage[g] = pool[g].duplicate()
+		garage[g].paint = PackageLoader.read_json(String(pool[g].path), "paint.json")
+	garage_sets = one
+	_sets_changed()
 
 
-## Online: garage car `car` (a hash) is all here now, at `path`.
-func have_car(car: String, path: String) -> void:
-	for g in garage.size():
-		if garage[g].car == car and String(garage[g].get("path", "")).is_empty():
-			garage[g].path = path
+## Online: the server's sets (Net.endless_garage, D232); garage_changed() after each swap.
+func use_garage(sets: EndlessGarage) -> void:
+	garage_sets = sets
+	garage_changed()
+
+
+## The server's sets changed: new cars join `garage`, the newest set's cars and the next one's (a
+## biome ahead) are fetched in full, and slots pick again (only those out of sight change).
+func garage_changed() -> void:
+	for g: int in garage_sets.cars:
+		if garage.has(g):
+			continue
+		var d: Dictionary = garage_sets.cars[g]
+		var fits: Array[int] = []
+		for id: String in d.fits:
+			var i := _types.find_custom(func(t: Dictionary) -> bool: return t.id == id)
+			if i >= 0 and i != _patrol_type and not i in fits:
+				fits.append(i)
+		garage[g] = { "car": String(d.car), "path": "", "fits": fits, "paint": {} }
+		car_here(String(d.car))
+	if Net.content:
+		for id: int in [garage_sets.k, garage_sets.k + 1]:
+			for g: int in garage_sets.sets.get(id, PackedInt32Array()):
+				if String(garage[g].path).is_empty():
+					Net.content.fetch_car(String(garage[g].car), 1, Net.content.max_tier)
+	_sets_changed()
+
+
+func _sets_changed() -> void:
+	_set_fits.clear()
+	_picks += 1
+
+
+## Online: some of garage car `car` (a hash) is here now: its paint once its data is, its model
+## once all of it is.
+func car_here(car: String) -> void:
+	var c: Dictionary = Net.content.car(car) if Net.content else {}
+	if not c.has("path"):
+		return
+	for g: int in garage:
+		var e: Dictionary = garage[g]
+		if e.car != car:
+			continue
+		if (e.paint as Dictionary).is_empty():
+			e.paint = PackageLoader.read_json(String(c.path), "paint.json")
+		if not c.partial:
+			e.path = String(c.path)
+
+
+## Slot `key`'s garage car (its index in `garage`), or -1 (a stock car): of the cars in its set
+## that fit its type, the one its roll picks.
+func garage_of(key: Vector2i) -> int:
+	if key.x == PARKED or garage_sets == null:
+		return -1
+	var sl := slot(key.x, key.y)
+	if int(sl.get("picks", -1)) != _picks:
+		sl.picks = _picks
+		sl.g = -1
+		sl.erase("tint")
+		if float(sl.share) < GARAGE_SHARE and not sl.get("patrol", false):
+			var fits: Array = _fits_in(garage_sets.set_of(key.x, key.y)).get(int(sl.type), [])
+			if not fits.is_empty():
+				sl.g = int(fits[int(sl.roll) % fits.size()])
+	return int(sl.g)
+
+
+## For the dev log: the garage cars the slots round this minute of the clock draw (lanes 0 and 1,
+## 300 slots each) as a checksum, the same on every game whose sets agree.
+func picks_check() -> String:
+	var minute := floori(now() / 60.0)
+	var j0 := floori(minute * 60.0 / headway())
+	var sum := 0
+	for lane in [UP, DOWN]:
+		for j in range(j0 - 150, j0 + 150):
+			sum = (sum * 31 + garage_of(Vector2i(lane, j)) + 1) & 0xFFFFFFF
+	return "%d:%07x" % [minute, sum]
+
+
+## Set `set_id`'s cars by the types they fit, in the set's order: {type index: [garage index]}.
+func _fits_in(set_id: int) -> Dictionary:
+	if not _set_fits.has(set_id):
+		var by_type := {}
+		for g: int in garage_sets.sets.get(set_id, PackedInt32Array()):
+			if not garage.has(g):
+				continue
+			for t: int in garage[g].fits:
+				if not by_type.has(t):
+					by_type[t] = []
+				(by_type[t] as Array).append(g)
+		_set_fits[set_id] = by_type
+	return _set_fits[set_id]
+
+
+## Loads the garage cars slots in the road window have (at time `at`, this node's clock), and lets
+## go of those none has had for UNLOAD_S that no physics car is.
+func stream(at: float) -> void:
+	if garage.is_empty():
+		return
+	for c: Dictionary in scheduled():
+		if int(c.garage) >= 0:
+			_wanted[int(c.garage)] = at
+	var driven := {}
+	for key: Vector2i in cars:
+		driven[(cars[key] as EndlessTrafficCar).garage] = true
+	for g: int in _wanted.keys():
+		if at - float(_wanted[g]) > UNLOAD_S and not driven.has(g):
+			_wanted.erase(g)
+			_unload_garage(g)
+		elif not _garage_pkgs.has(g) and not _loading.has(g) and String(garage[g].path) and not garage[g].get("broken", false):
 			_load_garage(g)
+	most_loaded = maxi(most_loaded, _garage_pkgs.size())
+
+
+## Its model only where it's drawn (and not headless, where models can't load on a worker).
+func _load_opts() -> Dictionary:
+	return {} if _draws and MeshBatch.threaded() else { "models": "none", "audio": false }
 
 
 func _load_garage(g: int) -> void:
 	var path := String(garage[g].path)
-	garage[g].paint = PackageLoader.read_json(path, "paint.json")
-	# Its model only where it's drawn (and not headless, where models can't load on a worker).
-	var whole := _draws and MeshBatch.threaded()
+	var opts := _load_opts()
+	_loading[g] = true
 	PackageLoader.load_shared(path, func(pkg: VehiclePackage) -> void:
+		_loading.erase(g)
 		if not pkg.ok():
+			garage[g].broken = true
 			return
 		_garage_pkgs[g] = pkg
-		if whole:
-			_garage_view(g, pkg), {} if whole else { "models": "none", "audio": false })
+		if opts.is_empty():
+			_view_queue.append(g), opts)
+
+
+func _unload_garage(g: int) -> void:
+	var pkg: VehiclePackage = _garage_pkgs.get(g)
+	if pkg == null:
+		return
+	_garage_pkgs.erase(g)
+	pkg.free_scenes()
+	var view: Node = _garage_views.get(g)
+	if view:
+		view.queue_free()
+		_garage_views.erase(g)
+	_view_queue.erase(g)
+	PackageLoader.drop_shared(String(garage[g].path), _load_opts())
+
+
+## One queued far view a frame (each is a mesh merge on the main thread).
+func _next_view() -> void:
+	var g: int = _view_queue.pop_front()
+	var pkg: VehiclePackage = _garage_pkgs.get(g)
+	if pkg == null or _garage_views.has(g):
+		return
+	var t0 := Time.get_ticks_usec()
+	_garage_view(g, pkg)
+	view_ms = maxf(view_ms, (Time.get_ticks_usec() - t0) / 1000.0)
 
 
 ## A garage car's own far view, if its model is light enough (else it's drawn as a stock car of its
@@ -317,9 +494,10 @@ func _garage_view(g: int, pkg: VehiclePackage) -> void:
 	_garage_views[g] = view
 
 
-## A garage slot's paint, as CarVisual.random_paint picks from the car's presets ({}: its own).
-func garage_paint(sl: Dictionary) -> Dictionary:
-	var paint: Dictionary = garage[int(sl.garage)].get("paint", {})
+## Garage car `g`'s paint in slot `sl`, as CarVisual.random_paint picks from the car's presets ({}:
+## its own).
+func garage_paint(g: int, sl: Dictionary) -> Dictionary:
+	var paint: Dictionary = garage[g].get("paint", {})
 	var presets: Array = (paint.get("presets", []) as Array).filter(func(p: Variant) -> bool: return p is Dictionary)
 	var roll := int(sl.paint_roll)
 	if presets.is_empty():
@@ -329,16 +507,16 @@ func garage_paint(sl: Dictionary) -> Dictionary:
 	return CarVisual.clean_paint(presets[i]) if i < presets.size() else {}
 
 
-## A slot's colour: its stock one, or a garage car's main paint once its paint is known.
-func _color_of(sl: Dictionary) -> Color:
-	if int(sl.garage) < 0:
+## A slot's colour: its stock one, or its garage car's (`g`) main paint once its paint is known.
+func _color_of(sl: Dictionary, g: int) -> Color:
+	if g < 0:
 		return sl.color
 	if sl.has("tint"):
 		return sl.tint
-	var paint: Dictionary = garage[int(sl.garage)].get("paint", {})
+	var paint: Dictionary = garage[g].get("paint", {})
 	if paint.is_empty():
 		return sl.color
-	var primary: Variant = garage_paint(sl).get("primary", paint.get("slots", {}).get("primary", {}).get("color", ""))
+	var primary: Variant = garage_paint(g, sl).get("primary", paint.get("slots", {}).get("primary", {}).get("color", ""))
 	sl.tint = Color.html(primary) if primary is String and Color.html_is_valid(primary) else sl.color
 	return sl.tint
 
@@ -357,7 +535,7 @@ func _weights_of(lane: int) -> PackedInt32Array:
 	return out
 
 
-## Every scheduled car in the road window now: [{key, lane, s (absolute m), speed, type, color}].
+## Every scheduled car in the road window now: [{key, lane, s (absolute m), speed, type, color, garage}].
 func scheduled() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var road := world.road
@@ -399,7 +577,8 @@ func scheduled() -> Array[Dictionary]:
 			if not closures.is_empty() and is_finite(closed_ahead(lane, s, CLOSED_BEFORE_M)):
 				continue
 			var speed := lerpf((road.speed_up if up else road.speed_down)[i], (road.speed_up if up else road.speed_down)[i + 1], u) * f
-			out.append({ "key": key, "lane": lane, "s": s, "speed": speed, "type": sl.type, "color": _color_of(sl), "garage": sl.garage })
+			var g := garage_of(key)
+			out.append({ "key": key, "lane": lane, "s": s, "speed": speed, "type": sl.type, "color": _color_of(sl, g), "garage": g })
 	return out
 
 
@@ -660,6 +839,8 @@ func _promote(c: Dictionary, xf: Transform3D) -> void:
 	# A garage car once it's loaded; till then the stock car, in its paint.
 	var g := int(c.get("garage", -1))
 	var own: VehiclePackage = _garage_pkgs.get(g)
+	if own:
+		garage_seen[g] = true
 	var v := Vehicle.create(_platforms[type], PackageLoader.copy(own if own else _packages[type]))
 	v.name = "EndlessTraffic%d_%d" % [c.key.x, c.key.y]
 	var slot := slot_of(c.key)
@@ -668,12 +849,13 @@ func _promote(c: Dictionary, xf: Transform3D) -> void:
 	session.add_child(v)
 	if v.visual:
 		if own:
-			v.visual.apply_choice(garage_paint(slot(c.key.x, c.key.y)))
+			v.visual.apply_choice(garage_paint(g, slot(c.key.x, c.key.y)))
 		else:
 			v.visual.set_paint("primary", c.color, "metallic")
 	var car := EndlessTrafficCar.new()
 	car.traffic = self
 	car.key = c.key
+	car.garage = g
 	car.vehicle = v
 	car.s = c.s
 	car.speed = c.speed
@@ -774,6 +956,8 @@ func _draw() -> void:
 		if not sirens.is_empty() and c.lane != PARKED:
 			xf = _moved_over(c, xf)
 		var view: MultiMeshInstance3D = _garage_views.get(int(c.garage), _views[t])
+		if view != _views[t]:
+			garage_seen[int(c.garage)] = true
 		var mm := view.multimesh
 		var n: int = counts.get(view, 0)
 		if n >= mm.instance_count:

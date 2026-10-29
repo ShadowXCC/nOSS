@@ -165,15 +165,25 @@ func test_one_sky_and_one_road_for_everyone() -> void:
 	assert_str(String(d.environment.weather)).is_equal("changing")
 	assert_int(int(d.environment.seed)).is_greater(0)
 	assert_bool(d.endless.has("t0")).is_true()
-	# Garage traffic (D191): the host's cars that may be shared, with the types they drive as.
-	var cars: Array = d.endless.traffic_cars
-	assert_int(cars.size()).is_between(1, EndlessTraffic.GARAGE_SHARED)
-	for c: Dictionary in cars:
-		assert_bool(ContentStore.valid_hash(String(c.car))).is_true()
-		assert_bool("saloon" in c.fits).is_true()
+	# Garage traffic (D191, D232): set 0 and the next of the host's cars that may be shared (up to
+	# 12 a set), with the types they drive as.
+	var garage: Dictionary = d.endless.garage
+	assert_int(int(garage.k)).is_equal(0)
+	var first: PackedInt32Array = garage.sets[0]
+	assert_int(first.size()).is_equal(mini(Net.host_logic._host_hand.size(), EndlessGarage.ONLINE_MOST))
+	assert_int(first.size()).is_greater(0)
+	assert_bool(garage.sets.has(1)).is_true()
+	var type_ids := EndlessTraffic.weighted_types().map(func(t: Dictionary) -> String: return String(t.id))
+	for i: int in first:
+		assert_bool(ContentStore.valid_hash(String(garage.cars[i].car))).is_true()
+		assert_bool((garage.cars[i].fits as PackedStringArray).is_empty()).is_false()
+		for id: String in garage.cars[i].fits:
+			assert_bool(id in type_ids).is_true()
 	# This game's own copy of the session has them too.
 	assert_str(String(Net.session.environment.weather)).is_equal("changing")
 	assert_float(float(Net.session.endless.t0)).is_equal(float(d.endless.t0))
+	assert_object(Net.endless_garage).is_not_null()
+	assert_array(Array(Net.endless_garage.sets[0])).is_equal(Array(first))
 	# An admin changes the weather: every game hears, and joiners get it.
 	var heard := []
 	Net.env_changed.connect(func(env: Dictionary) -> void: heard.append(env))
@@ -189,7 +199,8 @@ func test_one_sky_and_one_road_for_everyone() -> void:
 	cfg.rotation = [{ "track": "anything", "class": "official.endless.cruiser", "event": e.to_dict() }]
 	assert_int(Net.host(cfg, [{ "name": "Host", "color": "00ff00" }])).is_equal(OK)
 	Net.host_logic.start_session()
-	assert_bool((Net.host_logic.session_dict().endless.traffic_cars as Array).is_empty()).is_true()
+	assert_bool((Net.host_logic.session_dict().endless.garage as Dictionary).is_empty()).is_true()
+	assert_object(Net.endless_garage).is_null()
 	Net.leave()
 	# With it on but every car switched out of traffic in the Garage (D222), none either.
 	e.garage_traffic = true
@@ -200,10 +211,166 @@ func test_one_sky_and_one_road_for_everyone() -> void:
 	GarageFiles.set_in_traffic(ids, false)
 	assert_int(Net.host(cfg, [{ "name": "Host", "color": "00ff00" }])).is_equal(OK)
 	Net.host_logic.start_session()
-	assert_bool((Net.host_logic.session_dict().endless.traffic_cars as Array).is_empty()).is_true()
+	var none: Dictionary = Net.host_logic.session_dict().endless.garage
+	assert_int((none.sets[0] as PackedInt32Array).size()).is_equal(0)
 	Net.leave()
 	Settings.reset_keys(["traffic_off"])
 	Game.hold_events = false
+
+
+func _garage_host(from := "host") -> NetHost:
+	var cfg := ServerConfig.defaults()
+	cfg.port = 47900 + randi() % 90
+	cfg.upnp = false
+	cfg.lan = false
+	var e := RaceEvent.endless(4242, 2)
+	e.endless_traffic = "heavy"
+	e.garage_from = from
+	cfg.rotation = [{ "track": "anything", "class": "official.endless.cruiser", "event": e.to_dict() }]
+	Game.hold_events = true
+	assert_int(Net.host(cfg, [{ "name": "Host", "color": "00ff00" }])).is_equal(OK)
+	Net.host_logic.start_session()
+	return Net.host_logic
+
+
+static func _hashes(from: int, n: int) -> PackedStringArray:
+	var out := PackedStringArray()
+	for i in n:
+		out.append("sha256:%064x" % (from + i))
+	return out
+
+
+## Everyone (D232): the host's cars and each guest's take turns in a set, no car twice; a guest's
+## count once the server has seen for itself that they fit; one that's gone is out of the next set.
+func test_everyone_takes_turns_in_the_sets() -> void:
+	var host := _garage_host("everyone")
+	# Three of the host's own (made up), and a guest (peer 7) offering the built-in cars.
+	host._host_hand = _hashes(100, 3)
+	for h in host._host_hand:
+		host._car_fits[h] = PackedStringArray(["saloon"])
+	var built_in := {}
+	for path in PackageLoader.list_available():
+		if path.begins_with("res://content/cars/"):
+			built_in[ContentIndex.package_hash(path)] = path
+	for h: String in built_in:
+		host._car_fits.erase(h) # as if only the guest had them
+	var offer := [{ "car": "junk", "bytes": 1 }, { "car": _hashes(900, 1)[0], "bytes": 1 << 40 }]
+	for h: String in built_in:
+		offer.append({ "car": h, "bytes": 1000 })
+		offer.append({ "car": h, "bytes": 1000 })
+	host.handle(7, NetProtocol.Msg.TRAFFIC_CARS, { "cars": offer })
+	assert_array(Array(host._offered[7])).contains_exactly_in_any_order(built_in.keys())
+	# Looked at here (they're built in, so their data is): those that fit.
+	var fit := Array(host._guest_hand(7))
+	assert_int(fit.size()).is_greater(0)
+	for h: String in fit:
+		assert_array(Array(EndlessTraffic.fits_ids(built_in[h]))).is_equal(Array(host._car_fits[h]))
+	# The guest connected: turns from the second hand (set 5: 5 % 2), the host's and the guest's in
+	# turn, each car once.
+	var info := NetServer.PeerInfo.new()
+	info.connected = true
+	host.server.peers[7] = info
+	var dealt := Array(host._deal(5))
+	host.server.peers.erase(7)
+	var cars := dealt.map(func(i: int) -> String: return String(host.endless_garage.cars[i].car))
+	assert_array(cars).contains_exactly_in_any_order(Array(host._host_hand) + fit)
+	var sorted := dealt.duplicate()
+	sorted.sort()
+	assert_array(dealt).is_equal(sorted)
+	# The guest gone: only the host's.
+	var after := Array(host._deal(6)).map(func(i: int) -> String: return String(host.endless_garage.cars[i].car))
+	assert_array(after).contains_exactly_in_any_order(Array(host._host_hand))
+	# In Host, a guest's offer counts for nothing.
+	Net.leave()
+	host = _garage_host("host")
+	host._host_hand = _hashes(100, 3)
+	for h in host._host_hand:
+		host._car_fits[h] = PackedStringArray(["saloon"])
+	host.handle(7, NetProtocol.Msg.TRAFFIC_CARS, { "cars": offer })
+	host.server.peers[7] = info
+	var hosts := Array(host._deal(2)).map(func(i: int) -> String: return String(host.endless_garage.cars[i].car))
+	host.server.peers.erase(7)
+	assert_array(hosts).contains_exactly_in_any_order(Array(host._host_hand))
+	Net.leave()
+	Game.hold_events = false
+
+
+## A swap (D232) reaches this game's own copy as every client's (the message through the local
+## sink), and a late joiner's state with the swaps after it draws every slot from the same set.
+func test_a_swap_reaches_every_game_and_a_late_joiner_alike() -> void:
+	var host := _garage_host()
+	var sink := host.local_sink
+	var sent := []
+	host.local_sink = func(type: int, d: Dictionary) -> void:
+		if type == NetProtocol.Msg.ENDLESS_GARAGE:
+			sent.append(bytes_to_var(var_to_bytes(d)))
+		sink.call(type, d)
+	var heard := []
+	var count := func() -> void: heard.append(true)
+	Net.endless_garage_changed.connect(count)
+	host.endless_swap({ 0: PackedInt64Array([10, 40]) })
+	host.endless_swap({ 0: PackedInt64Array([30, 90]), 1: PackedInt64Array([-5, 5]) })
+	var late := EndlessGarage.from_dict(bytes_to_var(var_to_bytes(host.session_dict().endless.garage)))
+	assert_int(late.set_of(0, 35)).is_equal(0) # pinned both times
+	assert_int(late.set_of(0, 60)).is_equal(1) # pinned the second time
+	assert_int(late.set_of(0, 120)).is_equal(2)
+	host.endless_swap({ 1: PackedInt64Array([0, 3]) })
+	assert_bool(late.apply(sent[-1])).is_true()
+	assert_int(heard.size()).is_equal(3)
+	assert_int(host.endless_garage.k).is_equal(3)
+	for g: EndlessGarage in [Net.endless_garage, late]:
+		assert_int(g.k).is_equal(3)
+		for lane in 2:
+			for j in range(-20, 200):
+				assert_int(g.set_of(lane, j)).is_equal(host.endless_garage.set_of(lane, j))
+	assert_int(host.endless_garage.set_of(0, 35)).is_equal(3) # not pinned the third time
+	assert_int(host.endless_garage.set_of(1, 2)).is_equal(1)
+	assert_int(host.endless_garage.set_of(1, 4)).is_equal(3)
+	Net.endless_garage_changed.disconnect(count)
+	Net.leave()
+	Game.hold_events = false
+
+
+## The slots a swap pins (D232) hold every car the traffic's schedule has within PIN_M of a player,
+## and the biome a swap goes by is the one EndlessControl names there.
+func test_a_swap_pins_every_car_near_a_player() -> void:
+	Players.clear()
+	var s := TrackSession.new()
+	s.platform_id = "official.endless.cruiser"
+	s.event = RaceEvent.endless(31337, 2)
+	s.event.endless_traffic = "heavy"
+	s.event.lanes = 4
+	s.autodrive = true
+	add_child(s)
+	for i in 900:
+		if not s.players.is_empty() and s.players[0].vehicle:
+			break
+		await get_tree().physics_frame
+	var t: EndlessTraffic = s.endless_traffic
+	t.clock = func() -> float: return 0.0 # the server's pins go by the traffic's clock (0 here)
+	var en := EndlessNet.new()
+	en.session = s
+	var d := float(s.players[0].distance) + 400.0
+	en.at = { 1: [d, 0.0, 0.0] }
+	var pins := en.pinned()
+	assert_int(pins.size()).is_equal(4)
+	var near := 0
+	for c: Dictionary in t.scheduled():
+		if int(c.lane) == EndlessTraffic.PARKED or absf(float(c.s) - d) > EndlessGarage.PIN_M - 20.0:
+			continue
+		near += 1
+		var p: PackedInt64Array = pins[int(c.lane)]
+		var inside := false
+		for i in range(0, p.size(), 2):
+			inside = inside or (c.key.y >= p[i] and c.key.y <= p[i + 1])
+		assert_bool(inside).override_failure_message("lane %d slot %d at %.0f m" % [c.lane, c.key.y, float(c.s) - d]).is_true()
+	assert_int(near).is_greater(20)
+	var road := s.endless_world.road
+	var i := road.index_of(d)
+	assert_int(en._biome_at(d)).is_equal(int(road.biome2[i]) if road.blend[i] >= 0.5 else int(road.biome[i]))
+	en.free()
+	s.queue_free()
+	await get_tree().process_frame
 
 
 func test_a_joiner_starts_behind_the_leader() -> void:

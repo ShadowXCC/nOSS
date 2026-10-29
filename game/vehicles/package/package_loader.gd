@@ -74,7 +74,7 @@ static var _shared := {}
 ## own copy of the model scenes, sharing meshes and textures (a grid of AI cars on one model).
 ## Paint and brake lights are per car (CarVisual uses its own material overrides).
 static func load_shared(path: String, on_done: Callable, opts := {}) -> void:
-	var key := path + "|" + String(opts.get("models", "all")) + ("|partial" if opts.get("partial", false) else "")
+	var key := _shared_key(path, opts)
 	var entry: Variant = _shared.get(key)
 	if entry is VehiclePackage:
 		var pkg_copy := copy(entry)
@@ -100,6 +100,20 @@ static func load_shared(path: String, on_done: Callable, opts := {}) -> void:
 		for callback: Callable in waiting:
 			if WorkerJob.alive(callback):
 				callback.call(copy(pkg) if pkg.ok() else pkg), {}, opts)
+
+
+static func _shared_key(path: String, opts: Dictionary) -> String:
+	return path + "|" + String(opts.get("models", "all")) + ("|partial" if opts.get("partial", false) else "")
+
+
+## Frees one cached package's scenes and forgets it (copies already handed out stay; one still
+## loading is left be).
+static func drop_shared(path: String, opts := {}) -> void:
+	var key := _shared_key(path, opts)
+	var entry: Variant = _shared.get(key)
+	if entry is VehiclePackage:
+		entry.free_scenes()
+		_shared.erase(key)
 
 
 ## Frees the cached packages' scenes (copies already handed out stay).

@@ -67,6 +67,9 @@ var _ping_at := 0 # when the pings are measured next (ticks, ms)
 ## Where each player is on an endless road ({car id: [distance, time, speed]}, from EndlessNet), for
 ## joiners.
 var endless_at := {}
+## An endless session's garage traffic (D232): the server's sets, or null. They're dealt from hands
+## of cars: this game's own (peer 1), and in Everyone each guest's that offered some.
+var endless_garage: EndlessGarage
 ## The kart cup being run (its standings, by player id and AI name), or null. It stays after its last
 ## race, for the lobby, until another event starts.
 var cup: CupRun
@@ -74,6 +77,12 @@ var cup: CupRun
 var _cup_ai: Array = [] # the cup's AI field, kept from its first race
 var _cup_ai_paths := {}
 var _cup_before := {} # the standings before the race now's results ({race, table, index}): a restart's go again
+var _garage_ids := {} # car hash -> its index in endless_garage (for the session)
+var _hands := {} # peer -> {cars (shuffled hashes), at}
+var _host_hand := PackedStringArray()
+var _offered := {} # guest peer -> its TRAFFIC_CARS hashes
+var _car_fits := {} # car hash -> traffic type ids: this game's own, and guests' once looked at
+var _car_from := {} # car hash -> {peer, bytes}: whose it is, to fetch it from
 
 
 func _init(p_server: NetServer) -> void:
@@ -89,6 +98,7 @@ func _ready() -> void:
 	server.message.connect(handle)
 	if content:
 		content.car_refused.connect(_on_car_refused)
+		content.car_changed.connect(_check_car)
 	_dirty = true
 	if config.lan:
 		discovery = NetDiscovery.Responder.new()
@@ -276,6 +286,9 @@ func handle(peer: int, type: int, data: Dictionary) -> void:
 			if NetProtocol.has_fields(data, { "player": TYPE_INT, "ready": TYPE_BOOL }) and _owns(peer, data.player):
 				server.players[data.player].ready = data.ready
 				_dirty = true
+		NetProtocol.Msg.TRAFFIC_CARS:
+			if peer != 1 and NetProtocol.has_fields(data, { "cars": [TYPE_ARRAY, EndlessGarage.MOST_OFFERED] }):
+				_traffic_cars(peer, data.cars)
 		NetProtocol.Msg.PLAYER_INFO:
 			if NetProtocol.has_fields(data, { "player": TYPE_INT, "device": [TYPE_STRING, 16], "assists": [TYPE_ARRAY, 16] }) \
 					and _owns(peer, data.player):
@@ -409,8 +422,9 @@ func start_session() -> void:
 	var e := event()
 	_env = { "time": e.time, "time_rate": e.time_rate, "weather": e.weather, "seed": e.env_seed if e.env_seed > 0 else randi_range(1, 0x7FFFFFFF),
 		"t0": ClockSync.local_now() }
-	_endless = { "t0": ClockSync.local_now(), "traffic_cars": _endless_cars() } if e.kind == "endless" else {}
+	_endless = { "t0": ClockSync.local_now() } if e.kind == "endless" else {}
 	endless_at = {}
+	_start_garage()
 	_to_all(NetProtocol.Msg.SESSION, session_dict())
 	log_line.emit("Session: %s, %s, %s" % [track_info().name, _class_name(platform_id()), event().kind])
 	_dirty = true
@@ -423,6 +437,7 @@ func end_session() -> void:
 	state = "lobby"
 	_ai = []
 	synced.clear()
+	endless_garage = null
 	_unready()
 	_to_all(NetProtocol.Msg.SESSION_END, {})
 	if config.rotation.size() > 1:
@@ -442,7 +457,7 @@ func session_dict() -> Dictionary:
 	if not _env.is_empty():
 		out.environment = _env
 	if not _endless.is_empty():
-		out.endless = { "t0": _endless.t0, "at": endless_at, "traffic_cars": _endless.traffic_cars }
+		out.endless = { "t0": _endless.t0, "at": endless_at, "garage": endless_garage.to_dict() if endless_garage else {} }
 	return out
 
 
@@ -527,31 +542,148 @@ func _ai_entries() -> Array:
 	return out
 
 
-## An endless road's garage traffic (D191): up to EndlessTraffic.GARAGE_SHARED of this game's cars
-## that may be shared and are left on in the Garage (D222), each with the traffic types it drives
-## as: [{car: hash, fits: [type id]}].
-func _endless_cars() -> Array:
-	var out := []
+## An endless session's garage traffic (D191, D232): sets 0 and 1 dealt and fetched, if the event
+## has it.
+func _start_garage() -> void:
+	endless_garage = null
+	_garage_ids = {}
+	_hands = {}
 	var e := event()
-	if not e.garage_traffic:
-		return out
+	if e.kind != "endless" or not e.garage_traffic or e.endless_traffic == "off":
+		return
+	endless_garage = EndlessGarage.new()
+	_host_hand = _endless_cars()
+	for id in 2:
+		endless_garage.sets[id] = _deal(id)
+		_fetch_set(id)
+
+
+## This game's cars for the traffic: those that may be shared and are left on in the Garage
+## (D222), that fit a traffic type, shuffled by the road's seed; each shared, its types kept.
+func _endless_cars() -> PackedStringArray:
+	var out := PackedStringArray()
 	var paths := PackedStringArray()
 	for path in PackageLoader.list_available():
 		var manifest := PackageLoader.read_manifest(path)
 		if ContentIndex.shareable(manifest) and GarageFiles.in_traffic(String(manifest.get("id", ""))):
 			paths.append(path)
-	var types: Array[Dictionary] = []
-	for t: Dictionary in TrafficTypes.list():
-		if int(t.weight) > 0:
-			types.append(t)
-	for g: Dictionary in EndlessTraffic.garage_pool(paths, e.road_seed, EndlessTraffic.GARAGE_SHARED):
+	var types := EndlessTraffic.weighted_types()
+	for g: Dictionary in EndlessTraffic.garage_pool(paths, event().road_seed):
 		var h := ContentIndex.package_hash(g.path)
-		if h.is_empty():
+		if h.is_empty() or h in out:
 			continue
 		if content:
 			content.share_car(h)
-		out.append({ "car": h, "fits": (g.fits as Array).map(func(i: int) -> String: return String(types[i].id)) })
+		_car_fits[h] = PackedStringArray((g.fits as Array).map(func(i: int) -> String: return String(types[i].id)))
+		_car_from[h] = { "peer": 1, "bytes": -1 }
+		out.append(h)
 	return out
+
+
+## Set `n`: the hands take turns from the n-th (by peer, this game's first), up to
+## EndlessGarage.ONLINE_MOST cars, in registry order (so with that many cars or fewer every set is
+## the same). A hand whose cars changed starts again from its first.
+func _deal(n: int) -> PackedInt32Array:
+	var hands := []
+	var peers := [1]
+	if event().garage_from == "everyone":
+		var guests := _offered.keys().filter(func(peer: int) -> bool: return server.peers.has(peer) and server.peers[peer].connected)
+		guests.sort()
+		peers.append_array(guests)
+	for peer: int in peers:
+		var cars := _host_hand if peer == 1 else _guest_hand(peer)
+		if cars.is_empty():
+			continue
+		var hand: Dictionary = _hands.get(peer, {})
+		if hand.get("cars") != cars:
+			hand = { "cars": cars, "at": 0 }
+			_hands[peer] = hand
+		hands.append(hand)
+	var out := PackedInt32Array()
+	for h in EndlessGarage.deal(hands, n):
+		if not _garage_ids.has(h):
+			_garage_ids[h] = _garage_ids.size()
+		var i: int = _garage_ids[h]
+		out.append(i)
+		endless_garage.cars[i] = { "car": h, "fits": _car_fits[h] }
+	out.sort()
+	return out
+
+
+## A guest's offered cars that fit (as the server saw for itself), shuffled by the road's seed.
+func _guest_hand(peer: int) -> PackedStringArray:
+	var list := Array(_offered.get(peer, PackedStringArray())).filter(func(h: String) -> bool:
+		return not (_car_fits.get(h, PackedStringArray()) as PackedStringArray).is_empty())
+	list.sort()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = event().road_seed
+	for i in range(list.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var swap: Variant = list[i]
+		list[i] = list[j]
+		list[j] = swap
+	return PackedStringArray(list)
+
+
+## Set `id`'s guests' cars fetched in full from their owners as it's dealt (this game's own are
+## shared already), so the server has them for everyone.
+func _fetch_set(id: int) -> void:
+	if content == null:
+		return
+	for i: int in endless_garage.sets[id]:
+		var from: Dictionary = _car_from.get(String(endless_garage.cars[i].car), {})
+		if int(from.get("peer", 1)) != 1:
+			content.fetch_car(String(endless_garage.cars[i].car), int(from.peer), "full", int(from.bytes))
+
+
+## The leader entered a new biome (EndlessNet): every game moves to the next set but for the slots
+## in `pinned` (near a player), and the one after is dealt and fetched, a biome ahead.
+func endless_swap(pinned: Dictionary) -> void:
+	var g := endless_garage
+	if g == null:
+		return
+	var ahead := g.k + 2
+	g.sets[ahead] = _deal(ahead)
+	var msg := { "k": g.k + 1, "cars": {}, "sets": {}, "pinned": pinned }
+	for id: int in [g.k + 1, ahead]:
+		msg.sets[id] = g.sets[id]
+		for i: int in g.sets[id]:
+			msg.cars[i] = g.cars[i]
+	g.swap(pinned)
+	_fetch_set(ahead)
+	log_line.emit("Traffic cars: set %d" % g.k)
+	_to_all(NetProtocol.Msg.ENDLESS_GARAGE, msg)
+
+
+## A guest's cars for the traffic (TRAFFIC_CARS): each one's data is fetched so the server can see
+## for itself that it fits (_check_car). They join its hand from the next set dealt.
+func _traffic_cars(peer: int, cars: Array) -> void:
+	var cap := int(config.caps.max_package_mb) << 20
+	var list := PackedStringArray()
+	for c: Variant in cars:
+		if not (c is Dictionary and c.get("car") is String and ContentStore.valid_hash(c.car) and c.get("bytes") is int) \
+				or int(c.bytes) > cap or String(c.car) in list:
+			continue
+		var h := String(c.car)
+		list.append(h)
+		var from: Dictionary = _car_from.get(h, {})
+		if from.is_empty() or int(from.peer) != 1 and not server.peers.has(int(from.peer)):
+			_car_from[h] = { "peer": peer, "bytes": int(c.bytes) }
+		if content and not _car_fits.has(h):
+			content.fetch_car(h, peer, "data", int(c.bytes))
+			_check_car(h)
+	_offered[peer] = list
+
+
+## An offered car's data is here: the traffic types it takes as it is (none: it stays out).
+func _check_car(h: String) -> void:
+	if _car_fits.has(h) or not _car_from.has(h) or content == null:
+		return
+	var c := content.car(h)
+	if not c.has("path"):
+		return
+	var shared := ContentIndex.shareable(PackageLoader.read_manifest(String(c.path)))
+	_car_fits[h] = EndlessTraffic.fits_ids(String(c.path)) if shared else PackedStringArray()
 
 
 ## The next event in the rotation (back in the lobby).
@@ -796,6 +928,8 @@ func _roster_changed(except := 0) -> void:
 func _on_left(peer: int, reason: String, names: String) -> void:
 	synced.erase(peer)
 	_chat.forget(peer)
+	_offered.erase(peer)
+	_hands.erase(peer)
 	if reason in ["Left", "Kicked", "Banned"]:
 		_say("%s left" % names)
 	else:

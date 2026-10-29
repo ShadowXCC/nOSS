@@ -166,7 +166,7 @@ func test_the_nearest_cars_turn_physical_first() -> void:
 
 
 ## Two lanes each way's slots are drawn as they always were (D158): the same tau, presence, type and
-## colour from the same three draws.
+## colour from the same draws; then always the garage car's three (D232: whatever its set).
 func test_two_lane_slots_are_as_they_always_were() -> void:
 	var t := _bare("normal")
 	for lane in [EndlessTraffic.UP, EndlessTraffic.DOWN]:
@@ -188,6 +188,9 @@ func test_two_lane_slots_are_as_they_always_were() -> void:
 			assert_bool(sl.present).is_equal(present)
 			assert_int(int(sl.type)).is_equal(type)
 			assert_bool(sl.color == colors[rng.randi_range(0, colors.size() - 1)]).is_true()
+			assert_float(float(sl.share)).is_equal(rng.randf())
+			assert_int(int(sl.roll)).is_equal(rng.randi())
+			assert_int(int(sl.paint_roll)).is_equal(rng.randi())
 
 
 func test_slots_and_ids_round_trip() -> void:
@@ -249,11 +252,18 @@ func test_four_lanes_run_their_own_schedules() -> void:
 	await get_tree().process_frame
 
 
-## Garage traffic (D191): a pool of the built-in cars that fit, its picks drawn after the stock ones.
+## Garage traffic (D191): a pool of the built-in cars that fit (every one, D232), its picks drawn
+## after the stock ones.
 func test_garage_cars_mix_in_without_changing_the_stock_schedule() -> void:
 	var built_in := PackedStringArray(Array(PackageLoader.list_available()).filter(func(p: String) -> bool: return p.begins_with("res://")))
 	var pool := EndlessTraffic.garage_pool(built_in, 4242)
 	assert_int(pool.size()).is_greater(0)
+	# No cap: twenty of a car that fits are twenty in the pool.
+	var many := PackedStringArray()
+	for i in 20:
+		many.append(String(pool[0].path))
+	assert_int(EndlessTraffic.garage_pool(many, 1).size()).is_equal(20)
+	assert_int(EndlessTraffic.garage_pool(many, 1, 3).size()).is_equal(3)
 	var car_types: Array = ["hatch", "saloon", "suv"].map(func(id: String) -> int: return _bare("normal")._types.find_custom(func(t: Dictionary) -> bool: return t.id == id))
 	for g: Dictionary in pool:
 		assert_bool(String(g.path).begins_with("res://content/traffic/")).is_false()
@@ -261,6 +271,8 @@ func test_garage_cars_mix_in_without_changing_the_stock_schedule() -> void:
 			assert_bool(i in g.fits).override_failure_message("%s should fit type %d" % [g.path, i]).is_true()
 		# A car's wheelbase is no bus's.
 		assert_bool(_bare("normal")._types.find_custom(func(t: Dictionary) -> bool: return t.id == "bus") in g.fits).is_false()
+		# The server's own look at a car comes to the same (by id).
+		assert_array(Array(EndlessTraffic.fits_ids(String(g.path)))).is_equal((g.fits as Array).map(func(i: int) -> String: return String(_bare("normal")._types[i].id)))
 	var stock := _bare("heavy")
 	var mixed := _bare("heavy")
 	var again := _bare("heavy")
@@ -270,31 +282,71 @@ func test_garage_cars_mix_in_without_changing_the_stock_schedule() -> void:
 	var fitting_slots := 0
 	for lane in [EndlessTraffic.UP, EndlessTraffic.DOWN]:
 		for j in range(-20, 400):
+			var key := Vector2i(lane, j)
 			var a := stock.slot(lane, j)
 			var b := mixed.slot(lane, j)
 			var c := again.slot(lane, j)
-			for key: String in ["tau", "present", "type", "color"]:
-				assert_bool(a[key] == b[key]).override_failure_message("slot %d,%d: %s changed" % [lane, j, key]).is_true()
-			assert_int(int(b.garage)).is_equal(int(c.garage))
-			assert_int(int(b.get("paint_roll", -1))).is_equal(int(c.get("paint_roll", -1)))
-			if int(b.garage) >= 0:
+			for k: String in ["tau", "present", "type", "color", "share", "roll", "paint_roll"]:
+				assert_bool(a[k] == b[k] and b[k] == c[k]).override_failure_message("slot %d,%d: %s changed" % [lane, j, k]).is_true()
+			var g := mixed.garage_of(key)
+			assert_int(g).is_equal(again.garage_of(key))
+			if g >= 0:
 				garage_slots += 1
-				assert_bool(int(b.type) in pool[int(b.garage)].fits).is_true()
+				assert_bool(int(b.type) in pool[g].fits).is_true()
 			if int(b.type) in car_types:
 				fitting_slots += 1
-			assert_int(int(a.garage)).is_equal(-1)
+			assert_int(stock.garage_of(key)).is_equal(-1)
 	# About GARAGE_SHARE of the slots a garage car fits.
 	assert_float(float(garage_slots) / fitting_slots).override_failure_message("%d of %d" % [garage_slots, fitting_slots]).is_equal_approx(EndlessTraffic.GARAGE_SHARE, 0.06)
-	# A garage slot's paint is one of the car's presets, or its own.
-	var sl := {}
+	# Every car's paint is read up front (a stand-in wears it); a garage slot's is one of the car's
+	# presets, or its own.
+	for g: int in mixed.garage:
+		assert_bool((mixed.garage[g].paint as Dictionary).is_empty()).is_false()
 	for j in 50:
-		if int(mixed.slot(EndlessTraffic.UP, j).garage) >= 0:
-			sl = mixed.slot(EndlessTraffic.UP, j)
-			break
-	mixed.garage[int(sl.garage)].paint = PackageLoader.read_json(pool[int(sl.garage)].path, "paint.json")
-	var choice := mixed.garage_paint(sl)
-	var presets: Array = mixed.garage[int(sl.garage)].paint.presets.map(func(p: Dictionary) -> Dictionary: return CarVisual.clean_paint(p))
-	assert_bool(choice.is_empty() or choice in presets).is_true()
+		var g := mixed.garage_of(Vector2i(EndlessTraffic.UP, j))
+		if g < 0:
+			continue
+		var choice := mixed.garage_paint(g, mixed.slot(EndlessTraffic.UP, j))
+		var presets: Array = mixed.garage[g].paint.presets.map(func(p: Dictionary) -> Dictionary: return CarVisual.clean_paint(p))
+		assert_bool(choice.is_empty() or choice in presets).is_true()
+		break
+
+
+## Online (D232) a slot draws from its set: the server's sets, swapped. A slot pinned at a swap keeps
+## its car; the others pick from the new set with the same rolls.
+func test_slots_pick_from_their_set_and_a_pinned_one_keeps_its_car() -> void:
+	var t := _bare("heavy")
+	var sets := EndlessGarage.new()
+	for i in 24:
+		sets.cars[i] = { "car": "sha256:%064x" % (i + 1), "fits": PackedStringArray(["hatch", "saloon", "suv"]) }
+	sets.sets[0] = PackedInt32Array(range(0, 12))
+	sets.sets[1] = PackedInt32Array(range(12, 24))
+	t.use_garage(sets)
+	assert_int(t.garage.size()).is_equal(24)
+	var before := {}
+	for j in range(0, 300):
+		var g := t.garage_of(Vector2i(EndlessTraffic.UP, j))
+		before[j] = g
+		assert_bool(g < 12).is_true()
+	assert_bool(before.values().any(func(g: int) -> bool: return g >= 0)).is_true()
+	# Slots 100-150 of the players' lane are near someone at the swap.
+	sets.swap({ EndlessTraffic.UP: PackedInt64Array([100, 150]) })
+	t.garage_changed()
+	var moved := 0
+	for j in range(0, 300):
+		var g := t.garage_of(Vector2i(EndlessTraffic.UP, j))
+		if j >= 100 and j <= 150:
+			assert_int(g).is_equal(int(before[j]))
+		else:
+			assert_bool(g < 0 or g >= 12).is_true()
+			# A stock car stays a stock car (the same share roll), a garage car stays one.
+			assert_bool((g < 0) == (int(before[j]) < 0)).is_true()
+			if g >= 0:
+				moved += 1
+	assert_int(moved).is_greater(50)
+	# Oncoming slots weren't pinned: all on the new set.
+	for j in range(100, 150):
+		assert_bool(t.garage_of(Vector2i(EndlessTraffic.DOWN, j)) < 0 or t.garage_of(Vector2i(EndlessTraffic.DOWN, j)) >= 12).is_true()
 
 
 ## In a drive, garage cars turn physical as themselves once they've loaded.
@@ -312,13 +364,70 @@ func test_a_garage_car_drives_as_itself() -> void:
 	for i in 240:
 		for key: Vector2i in t.cars:
 			var car: EndlessTrafficCar = t.cars[key]
-			var g := int(t.slot(key.x, key.y).garage)
+			var g := t.garage_of(key)
+			assert_int(car.garage).is_equal(g)
 			if g >= 0 and t._garage_pkgs.has(g) and car.vehicle.package.path == String(t.garage[g].path):
 				seen = true
 		if seen:
 			break
 		await _ticks(30)
 	assert_bool(seen).is_true()
+	s.queue_free()
+	await get_tree().process_frame
+
+
+## Garage models stream (D232): only cars slots in the road window have are loaded; one no slot has
+## had for UNLOAD_S goes (its cached package too), unless a physics car is it.
+func test_garage_models_stream_in_and_out() -> void:
+	var s := _session("heavy")
+	await _wait_for_car(s)
+	var t: EndlessTraffic = s.endless_traffic
+	assert_int(t.garage_sets.sets[0].size()).is_equal(t.garage.size())
+	for i in 60:
+		if not t._garage_pkgs.is_empty():
+			break
+		await _ticks(10)
+	assert_int(t._garage_pkgs.size()).is_greater(0)
+	for g: int in t._garage_pkgs:
+		assert_bool(t._wanted.has(g)).is_true()
+	# A loaded car no physics car is: the slots stop drawing it (a set without it).
+	var driven := {}
+	for key: Vector2i in t.cars:
+		driven[t.cars[key].garage] = true
+	var gone := -1
+	for g: int in t._garage_pkgs:
+		if not driven.has(g):
+			gone = g
+			break
+	assert_int(gone).is_greater_equal(0)
+	var others := PackedInt32Array()
+	for g: int in t.garage:
+		if g != gone:
+			others.append(g)
+	t.garage_sets.sets[0] = others
+	t._sets_changed()
+	var key := PackageLoader._shared_key(String(t.garage[gone].path), t._load_opts())
+	assert_bool(PackageLoader._shared.has(key)).is_true()
+	var now := t._time
+	t.stream(now + EndlessTraffic.UNLOAD_S * 0.5)
+	assert_bool(t._garage_pkgs.has(gone)).is_true()
+	t.stream(now + EndlessTraffic.UNLOAD_S + 1.0)
+	assert_bool(t._garage_pkgs.has(gone)).is_false()
+	assert_bool(PackageLoader._shared.has(key)).is_false()
+	# (One car fewer in the set, the other slots picked again.) What the window has now is loaded or
+	# on its way; anything else loaded is a physics car or was wanted within UNLOAD_S.
+	var window := 0
+	for c: Dictionary in t.scheduled():
+		if int(c.garage) >= 0:
+			window += 1
+			assert_bool(t._garage_pkgs.has(int(c.garage)) or t._loading.has(int(c.garage))).is_true()
+	assert_int(window).is_greater(0)
+	driven.clear()
+	for k: Vector2i in t.cars:
+		driven[t.cars[k].garage] = true
+	for g: int in t._garage_pkgs:
+		assert_bool(driven.has(g) or now + EndlessTraffic.UNLOAD_S + 1.0 - float(t._wanted[g]) <= EndlessTraffic.UNLOAD_S).is_true()
+	assert_int(t.most_loaded).is_greater_equal(t._garage_pkgs.size())
 	s.queue_free()
 	await get_tree().process_frame
 

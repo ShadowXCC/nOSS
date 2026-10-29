@@ -12,6 +12,8 @@ const OFF := [[false, "Off"], [true, "On"]]
 const ENDLESS_TRAFFIC := [["light", "Light"], ["normal", "Normal"], ["heavy", "Heavy"], ["off", "Off"]]
 const SPREAD := [["bring", "Bring up the one behind"], ["hold", "Hold the leader back"]]
 const LANES := [[2, "2"], [4, "4"]]
+## Online: whose garage cars drive in the traffic (D232).
+const GARAGE_FROM := [["off", "Off"], ["host", "Host"], ["everyone", "Everyone"]]
 const SIDES := [["right", "Right"], ["left", "Left"]]
 ## Highway.
 const HIGHWAY_MODES := [["cruise", "Cruise"], ["score", "Score attack"], ["run", "Run"], ["loop", "Loop"]]
@@ -289,8 +291,14 @@ static func endless(page: EventSettingsPage) -> void:
 	page.add_row(UiKit.spinner("Drive on", SIDES, e.drive_side, func(v: String) -> void: e.drive_side = v, "The side traffic keeps to"))
 	page.add_row(UiKit.spinner("Traffic", ENDLESS_TRAFFIC, e.endless_traffic, func(v: String) -> void: e.endless_traffic = v,
 		"Other cars on the road"))
-	page.add_row(UiKit.spinner("Garage cars", ON, e.garage_traffic, func(v: bool) -> void: e.garage_traffic = v,
-		"Your cars in the traffic"))
+	if page.flow.context == "local":
+		page.add_row(UiKit.spinner("Garage cars", ON, e.garage_traffic, func(v: bool) -> void: e.garage_traffic = v,
+			"Your cars in the traffic"))
+	else:
+		page.add_row(UiKit.spinner("Garage cars", GARAGE_FROM, e.garage_from if e.garage_traffic else "off", func(v: String) -> void:
+			e.garage_traffic = v != "off"
+			if e.garage_traffic:
+				e.garage_from = v, "Whose cars join the traffic"))
 	page.add_row(UiKit.spinner("Oncoming", ON, e.oncoming, func(v: bool) -> void: e.oncoming = v, "Cars coming the other way"))
 	page.add_row(UiKit.spinner("Speed traps", OFF, e.speed_traps, func(v: bool) -> void: e.speed_traps = v,
 		"Cameras and parked patrols"))

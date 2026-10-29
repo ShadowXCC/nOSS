@@ -31,6 +31,8 @@ signal highway_event(data: Dictionary)
 signal endless_state(data: Dictionary)
 ## The sky changed mid-session (an admin's /time or /weather): {time, time_rate, weather, seed, t0}.
 signal env_changed(env: Dictionary)
+## The server swapped an endless road's garage traffic to its next set (endless_garage, D232).
+signal endless_garage_changed
 
 const CHAT_KEEP := 100
 
@@ -52,6 +54,9 @@ var session := {}
 var race_begin := {}
 ## Player ids whose chat this game hides.
 var muted := {}
+## An endless session's garage traffic as the server has it (D232): its sets and where each slot
+## draws from, kept up to date; null without garage traffic.
+var endless_garage: EndlessGarage
 
 var _identity: NetIdentity
 
@@ -128,7 +133,8 @@ func join(host_name: String, port: int, local: Array, password := "") -> Error:
 	client.joined.connect(func(_info: Dictionary) -> void:
 		my_ids = client.player_ids()
 		state_changed.emit()
-		joined.emit())
+		joined.emit()
+		offer_traffic_cars())
 	client.failed.connect(_on_cut_off)
 	client.left.connect(_on_cut_off)
 	client.message.connect(_handle)
@@ -321,6 +327,7 @@ static func package_hash(path: String) -> String:
 func _reset() -> void:
 	lobby = {}
 	session = {}
+	endless_garage = null
 	race_begin = {}
 	roster.clear()
 	my_ids = PackedInt32Array()
@@ -386,6 +393,25 @@ func track_here() -> bool:
 	return not ContentStore.valid_hash(h) or content != null and content.track_path(h) != ""
 
 
+## A guest's cars for an endless road's traffic (D232; the server uses them in Everyone): those
+## that may be shared, are left on in the Garage's Traffic cars (D222) and fit a traffic type, at
+## most EndlessGarage.MOST_OFFERED. Sent on joining and when Traffic cars changes.
+func offer_traffic_cars() -> void:
+	if client == null or client.state != NetClient.State.JOINED or content == null:
+		return
+	var paths := PackedStringArray()
+	for path: String in content.local_cars().values():
+		if ContentIndex.shareable(PackageLoader.read_manifest(path)):
+			paths.append(path)
+	var cars := []
+	for g: Dictionary in EndlessTraffic.garage_pool(GarageFiles.traffic_paths(paths), 0, EndlessGarage.MOST_OFFERED):
+		var h := ContentIndex.package_hash(String(g.path))
+		if h:
+			content.share_car(h)
+			cars.append({ "car": h, "bytes": NetContent.package_bytes(String(g.path)) })
+	client.send(NetProtocol.Msg.TRAFFIC_CARS, { "cars": cars })
+
+
 ## Every car in the session (AI cars included) this game doesn't have.
 func _fetch_session_cars(session_roster: Array) -> void:
 	if content == null or is_server():
@@ -445,8 +471,10 @@ func _handle(type: int, data: Dictionary) -> void:
 			if not env.is_empty():
 				session.environment = env
 			var el: Variant = data.get("endless")
+			endless_garage = null
 			if el is Dictionary and NetProtocol.has_fields(el, { "t0": TYPE_FLOAT, "at": TYPE_DICTIONARY }) and (el.at as Dictionary).size() <= NetProtocol.MAX_PLAYERS:
 				session.endless = { "t0": float(el.t0), "at": el.at }
+				endless_garage = EndlessGarage.from_dict(el.get("garage"))
 			_fetch_track(String(data.track), int(data.get("track_bytes", -1)))
 			race_begin = {}
 			session_started.emit(session)
@@ -459,6 +487,7 @@ func _handle(type: int, data: Dictionary) -> void:
 		NetProtocol.Msg.SESSION_END:
 			session = {}
 			race_begin = {}
+			endless_garage = null
 			session_ended.emit()
 		NetProtocol.Msg.TRAFFIC_FULL:
 			if not session.is_empty():
@@ -466,6 +495,9 @@ func _handle(type: int, data: Dictionary) -> void:
 		NetProtocol.Msg.ENDLESS_STATE:
 			if not session.is_empty():
 				endless_state.emit(data)
+		NetProtocol.Msg.ENDLESS_GARAGE:
+			if not session.is_empty() and endless_garage and endless_garage.apply(data):
+				endless_garage_changed.emit()
 		NetProtocol.Msg.ENV:
 			var env := _env_of(data)
 			if not session.is_empty() and not env.is_empty():

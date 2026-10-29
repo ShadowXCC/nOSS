@@ -6,7 +6,7 @@ extends RefCounted
 ## before decoding, its fields after. Car states and content chunks have their own packed formats.
 
 ## Bumped whenever messages change: a client and server must match.
-const VERSION := 15
+const VERSION := 16
 const DEFAULT_PORT := 47800
 ## Channels beyond Godot's channel 0 (which carries reliable control messages).
 const EXTRA_CHANNELS := 3
@@ -61,13 +61,14 @@ enum Msg {
 	YOUR_PLAYERS = 19, ## server: {players}: this connection's player ids, after a change
 	NOTICE = 20, ## server: {text}: a short message for this client only
 	PLAYER_INFO = 21, ## client: {player, device, assists, name, color}: what a player drives with and the assists they have on (the lobby's roster), their name and colour
+	TRAFFIC_CARS = 22, ## client: {cars: [{car, bytes}]}: its cars for an endless road's traffic (D232), at most 100
 	# Content (NetTransfer), either way.
 	WANT = 30, ## {hash, from}: send this file (from this chunk)
 	OFFER = 31, ## {xfer, hash, size, csize, from}: it's coming
 	NOT_FOUND = 32, ## {hash}
 	CANCEL = 33, ## {hash}: stop sending / no longer wanted
 	# Sessions.
-	SESSION = 40, ## server: {track (its hash, or "endless"), track_id, track_name, track_bytes, class, event, roster: [players], environment: {seed, t0}, endless: {t0, at}}: a session starts (or is on, to a late joiner)
+	SESSION = 40, ## server: {track (its hash, or "endless"), track_id, track_name, track_bytes, class, event, roster: [players], environment: {seed, t0}, endless: {t0, at, garage}}: a session starts (or is on, to a late joiner)
 	ROSTER = 41, ## server: {roster}: who's in the session changed (join, leave, car)
 	SESSION_END = 42, ## server: {}: back to the lobby
 	RACE_BEGIN = 43, ## server: {kind, index, grid: [car ids], rolling}: a session of the event starts
@@ -83,6 +84,7 @@ enum Msg {
 	ENDLESS = 53, ## client: {want, drop, gone, at, sums}: an endless road's traffic, players and road (EndlessNet, D159)
 	ENDLESS_STATE = 54, ## server: {owners, gone, at, full}: who drives which traffic car, slots used up, where everyone is
 	ENV = 55, ## server: {time, time_rate, weather, seed, t0}: the sky changed (an admin's /time or /weather)
+	ENDLESS_GARAGE = 56, ## server: {k, cars, sets, pinned}: an endless road's garage traffic moves to its next set (EndlessGarage, D232)
 }
 
 

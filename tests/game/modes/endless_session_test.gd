@@ -130,7 +130,7 @@ func test_road_codes() -> void:
 	# Haunted (D221) is appended: the others keep their codes. Its roads change the protocol.
 	assert_str(EndlessCode.encode(1, EndlessBiomes.index_of("haunted"))).is_equal("HAUNTED-0000001")
 	assert_int(EndlessBiomes.index_of("haunted")).is_equal(7)
-	assert_int(NetProtocol.VERSION).is_equal(15)
+	assert_int(NetProtocol.VERSION).is_equal(16) # 16: garage traffic's sets (D232)
 	assert_dict(EndlessCode.decode("FOREST-OOOOOO7")).is_equal({ "seed": 7, "biome": 1 }) # O for 0
 	for bad in ["", "forest", "MOON-0000001", "FOREST-", "FOREST-UUUU", "FOREST-ZZZZZZZZ"]:
 		assert_dict(EndlessCode.decode(bad)).is_empty()

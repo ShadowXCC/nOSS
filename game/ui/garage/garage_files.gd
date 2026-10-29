@@ -160,7 +160,8 @@ static func in_traffic(id: String) -> bool:
 	return id not in Settings.traffic_off
 
 
-## Switches the cars with these manifest ids into traffic or out of it, and saves.
+## Switches the cars with these manifest ids into traffic or out of it, and saves. Joined to a
+## server, it hears the new list (D232).
 static func set_in_traffic(ids: PackedStringArray, on: bool) -> void:
 	var off := Settings.traffic_off.duplicate()
 	for id in ids:
@@ -169,6 +170,7 @@ static func set_in_traffic(ids: PackedStringArray, on: bool) -> void:
 		elif id not in off:
 			off.append(id)
 	Settings.set_value("traffic_off", off)
+	Net.offer_traffic_cars()
 
 
 ## The cars of `paths` that may drive in traffic.
@@ -184,7 +186,7 @@ static func traffic_paths(paths: PackedStringArray) -> PackedStringArray:
 ## path -> true.
 static func traffic_fits(paths: PackedStringArray) -> Dictionary:
 	var out := {}
-	for g: Dictionary in EndlessTraffic.garage_pool(paths, 0, paths.size()):
+	for g: Dictionary in EndlessTraffic.garage_pool(paths, 0):
 		out[String(g.path)] = true
 	return out
 

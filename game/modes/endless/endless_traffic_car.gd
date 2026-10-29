@@ -23,6 +23,8 @@ const STALE_S := 1.0
 
 var traffic: EndlessTraffic
 var key: Vector2i
+## The garage car it is (EndlessTraffic.garage), or -1.
+var garage := -1
 var vehicle: Vehicle
 ## Where it is: absolute distance along the road, and its speed (m/s, its own way).
 var s := 0.0

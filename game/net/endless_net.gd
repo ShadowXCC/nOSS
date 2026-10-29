@@ -8,7 +8,9 @@ extends Node
 ##   states; when the owner lets it go, the next game still asking takes it over where it is;
 ## - slots used up: a car knocked out of its slot is never drawn again, on any game;
 ## - where on the road every player is (once a second), for Join and for where a joiner starts;
-## - checksums of the road chunks each game made, checked against the server's own.
+## - checksums of the road chunks each game made, checked against the server's own;
+## - garage traffic (D232): when the furthest anyone has been enters a new biome, the server moves
+##   every game to the next set (NetHost.endless_swap) but for the slots near a player (pinned).
 ##   ENDLESS, client -> server: {want, drop, gone: [slots], at: {car id: [distance, speed]}, sums: {chunk: checksum}}
 ##   ENDLESS_STATE, server -> clients: {owners: {slot: car id, or -1: nobody}, gone: [slots], at: {car id: [distance, time, speed]}, full}
 
@@ -46,6 +48,9 @@ var _owners_out := {} # server: owner changes not yet sent
 var _gone_out := PackedInt64Array()
 var _full_sent := {} # server: peer -> true once it has the whole state
 var _stats_time := 0.0
+var _lead := -INF # server: the furthest along anyone has been (m), and the biome there
+var _lead_biome := -1
+var _road_chunks := {} # server: chunk -> NossRoadGen.chunk(), the fields read here
 
 
 func _ready() -> void:
@@ -292,6 +297,8 @@ func _server_tick(report: bool) -> void:
 				_full_sent.erase(peer)
 		if Net.host_logic:
 			Net.host_logic.endless_at = at.duplicate(true)
+			if Net.host_logic.endless_garage:
+				_watch_biome()
 	if _owners_out.is_empty() and _gone_out.is_empty() and not report:
 		return
 	var d := { "owners": _owners_out, "gone": _gone_out }
@@ -300,6 +307,76 @@ func _server_tick(report: bool) -> void:
 	Net.server.broadcast(NetProtocol.Msg.ENDLESS_STATE, d)
 	_owners_out = {}
 	_gone_out = PackedInt64Array()
+
+
+## Garage traffic (D232): a swap each time the furthest anyone has been comes into a new biome
+## (the one most of the road is in there, as EndlessControl names it).
+func _watch_biome() -> void:
+	for id: int in at:
+		_lead = maxf(_lead, distance_of(id))
+	var b := _biome_at(_lead) if is_finite(_lead) else -1
+	if b < 0 or b == _lead_biome:
+		return
+	var first := _lead_biome < 0
+	_lead_biome = b
+	if not first:
+		Net.host_logic.endless_swap(pinned())
+
+
+## The slots whose cars are within EndlessGarage.PIN_M of a player now (from where they last said
+## they were, carried on at their speed), by lane: {lane: [lo, hi, ...]} (slot numbers), worked out
+## as the traffic's schedule places them (EndlessTraffic.scheduled), with a slot to spare each end.
+func pinned() -> Dictionary:
+	var out := {}
+	var lanes := session.endless_lanes
+	var h := float(EndlessTraffic.HEADWAY_S.get(session.event.endless_traffic, 48.0))
+	var t := (session.net.now() if session.net else 0.0) - float(session.online.get("endless", {}).get("t0", 0.0))
+	for lane in lanes.ids():
+		var up := EndlessLanes.dir_of(lane) == EndlessTraffic.UP
+		var f := lanes.speed_factor(lane)
+		var spans := []
+		for id: int in at:
+			var d := distance_of(id)
+			var a := _road_time(maxf(d - EndlessGarage.PIN_M, 0.0), up)
+			var b := _road_time(d + EndlessGarage.PIN_M, up)
+			if is_nan(a) or is_nan(b):
+				continue
+			var lo := (t - b / f) if up else (t + a / f)
+			var hi := (t - a / f) if up else (t + b / f)
+			spans.append([floori(lo / h - EndlessTraffic.SPREAD) - 1, floori(hi / h) + 1])
+		if not spans.is_empty():
+			out[lane] = EndlessGarage.merged(spans)
+	return out
+
+
+## The traffic's time to road distance `d` its way (s, the generator's), or NAN.
+func _road_time(d: float, up: bool) -> float:
+	var c := _road_chunk(floori(d / (TrackData.SAMPLE_M * NossRoadGen.chunk_samples())))
+	if c.is_empty():
+		return NAN
+	var times: PackedFloat64Array = c.time_up if up else c.time_down
+	var x := d / TrackData.SAMPLE_M - float(c.first)
+	var i := clampi(floori(x), 0, times.size() - 2)
+	return lerpf(times[i], times[i + 1], clampf(x - i, 0.0, 1.0))
+
+
+## The biome most of the road is in at distance `d`, or -1.
+func _biome_at(d: float) -> int:
+	var c := _road_chunk(floori(d / (TrackData.SAMPLE_M * NossRoadGen.chunk_samples())))
+	if c.is_empty():
+		return -1
+	var i := clampi(roundi(d / TrackData.SAMPLE_M) - int(c.first), 0, (c.biome as PackedByteArray).size() - 1)
+	return int(c.biome2[i]) if c.blend[i] >= 0.5 else int(c.biome[i])
+
+
+func _road_chunk(k: int) -> Dictionary:
+	if not _road_chunks.has(k):
+		if _road_chunks.size() > 64:
+			_road_chunks.clear()
+		var c := session.endless_world.gen.chunk(k) if k >= 0 else {}
+		_road_chunks[k] = {} if c.is_empty() else { "first": c.first, "time_up": c.time_up, "time_down": c.time_down,
+			"biome": c.biome, "biome2": c.biome2, "blend": c.blend }
+	return _road_chunks[k]
 
 
 func _peer_of(id: int) -> int:
