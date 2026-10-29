@@ -81,6 +81,8 @@ func _describe() -> Dictionary:
 	activity["start_unix"] = _session_start
 	# All the session poking lives here, so the two helpers below stay pure and testable.
 	var mode_name := String(session.mode.get("name", "")) if session.mode else ""
+	if session.event and session.event.kind == "sumo" and session.event.sumo_mode == "teams":
+		mode_name = "Sumo Team Battle"
 	var track_name := String(session.track.display_name) if session.track else ""
 	activity["details"] = _session_name(mode_name, track_name)
 	var online := session.is_online()

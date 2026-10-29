@@ -59,13 +59,20 @@ var battle_hits := 10
 ## ("lava" or "acid"), how a platform shrinks ("smooth", "crumble" or "stepped"), how long one
 ## takes to shrink away, whether the bottom one stops at a pillar instead of vanishing, and
 ## whether the cars get the kart drift ("drift": the hop and a quick pivot, D220; "off": not, and
-## the handbrake works again instead). The old "boost" reads as "drift".
+## the handbrake works again instead). The old "boost" reads as "drift". Team Battle (D234): "ffa"
+## (every car for itself) or "teams", how many teams (2-4, drawn at random each match) and whether
+## teammates collide ("friendly fire"). The platforms' size (D235): "regular" or "expanded" (a
+## quarter wider, and a quarter longer to shrink away).
 var sumo_tiers := 2
 var sumo_hazard := "lava"
 var sumo_shrink := "smooth"
 var sumo_secs := 90
 var sumo_pillar := false
 var sumo_drift := "drift"
+var sumo_mode := "ffa"
+var sumo_teams := 2
+var sumo_friendly := false
+var sumo_size := "regular"
 ## Drag (docs/GAMEMODES.md §6, D168-D173): the strip's length in metres (1/8, 1/4 or 1/2 mile),
 ## how many boost charges each driver gets (0-3), whether shifts are timed against the tach and
 ## whether the QTEs fire at all, then each gimmick on its own: the Christmas tree (with reaction
@@ -114,7 +121,7 @@ const CHOICES := {
 	"track_limits": ["lenient", "off", "strict"], "ai_cars": ["garage", "builtin"], "sub": ["cruise", "score", "run", "loop"],
 	"battle_rule": ["standing", "hits"],
 	"sumo_hazard": ["lava", "acid"], "sumo_shrink": ["smooth", "crumble", "stepped"],
-	"sumo_drift": ["drift", "off"],
+	"sumo_drift": ["drift", "off"], "sumo_mode": ["ffa", "teams"], "sumo_size": ["regular", "expanded"],
 	"time": ["track", "dawn", "morning", "noon", "afternoon", "dusk", "night"],
 	"weather": ["track", "clear", "cloudy", "rain", "storm", "fog", "snow", "changing"],
 	"endless_traffic": ["light", "normal", "heavy", "off"], "spread": ["bring", "hold"],
@@ -126,6 +133,7 @@ const KEYS := ["kind", "practice_min", "qualifying_min", "tt_min", "race_laps", 
 	"start", "grid", "collisions", "track_limits", "ai_cars", "draft", "fuel_x", "tyre_x", "plate", "sub", "police", "traffic", "run", "direction",
 	"items", "battle_rule", "battle_min", "battle_hits",
 	"sumo_tiers", "sumo_hazard", "sumo_shrink", "sumo_secs", "sumo_pillar", "sumo_drift",
+	"sumo_mode", "sumo_teams", "sumo_friendly", "sumo_size",
 	"drag_length_m", "drag_boost", "drag_timing", "drag_qtes", "drag_tree", "drag_two_step",
 	"drag_burnout", "drag_shake", "drag_chain", "drag_money_shift", "drag_centreline",
 	"time", "time_rate", "weather", "env_seed",
@@ -145,7 +153,8 @@ const PLATES := ["light", "medium", "heavy"]
 ## Written only for battles, or with items off.
 const KART_KEYS := ["items", "battle_rule", "battle_min", "battle_hits"]
 ## Written only for sumo matches.
-const SUMO_KEYS := ["sumo_tiers", "sumo_hazard", "sumo_shrink", "sumo_secs", "sumo_pillar", "sumo_drift"]
+const SUMO_KEYS := ["sumo_tiers", "sumo_hazard", "sumo_shrink", "sumo_secs", "sumo_pillar", "sumo_drift",
+	"sumo_mode", "sumo_teams", "sumo_friendly", "sumo_size"]
 ## Written only for drag matches.
 const DRAG_KEYS := ["drag_length_m", "drag_boost", "drag_timing", "drag_qtes", "drag_tree",
 	"drag_two_step", "drag_burnout", "drag_shake", "drag_chain", "drag_money_shift", "drag_centreline"]
@@ -291,6 +300,7 @@ static func from_dict(d: Dictionary) -> RaceEvent:
 	e.battle_hits = clampi(e.battle_hits, 0, 50)
 	e.sumo_tiers = clampi(e.sumo_tiers, 1, SumoLayout.RADII.size())
 	e.sumo_secs = clampi(e.sumo_secs, 30, 300)
+	e.sumo_teams = clampi(e.sumo_teams, 2, SumoTeams.NAMES.size())
 	e.drag_length_m = clampi(e.drag_length_m, DragLayout.LENGTHS[0], DragLayout.LENGTHS[DragLayout.LENGTHS.size() - 1])
 	e.drag_boost = clampi(e.drag_boost, 0, 3)
 	e.time_rate = clampi(e.time_rate, 0, 600)

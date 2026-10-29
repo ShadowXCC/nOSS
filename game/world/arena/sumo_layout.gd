@@ -9,6 +9,9 @@ extends ArenaLayout
 ## off one lands on the next (D163). The steps are wide enough to catch a car thrown off by a
 ## whole ring going at once, which is the longest fall a stepped or crumbling platform makes.
 const RADII := [24.0, 36.0, 48.0, 60.0, 72.0]
+## Expanded platforms (D235): every radius this much wider, the steps between them with it, and a
+## platform this much longer to shrink away, so its edge comes in at the Regular speed.
+const EXPANDED := 1.25
 ## From one tier's floor down to the next (m).
 const DROP_M := 18.0
 ## The goo's surface, below the lowest tier (m). Shallow enough, against the pit's width, that
@@ -75,21 +78,32 @@ static func make(t: TrackData, event: RaceEvent) -> SumoLayout:
 	a.settings = DEFAULTS.duplicate(true)
 	a.hazard = String(event.sumo_hazard)
 	a.style = String(event.sumo_shrink)
-	a.secs = float(event.sumo_secs)
+	a.secs = float(event.sumo_secs) * size_of(event)
 	a.pillar = bool(event.sumo_pillar)
 	var count := clampi(int(event.sumo_tiers), 1, RADII.size())
 	for i in count:
-		a.tiers.append({ "start": RADII[i], "radius": RADII[i], "floor_y": -DROP_M * i, "live": true,
+		var r := start_radius(event, i)
+		a.tiers.append({ "start": r, "radius": r, "floor_y": -DROP_M * i, "live": true,
 			"armed": false, "elapsed": 0.0, "warn": 0, "hits": no_bites(), "done": 0,
 			"plan": crumble_plan() if a.style == "crumble" else PackedByteArray() })
 	a.floor_y = 0.0
 	a.centre = Vector2.ZERO
 	a.hazard_y = -DROP_M * (count - 1) - HAZARD_DROP_M
-	a.pit_r = RADII[count - 1] + PIT_MARGIN_M
-	a.outline = ring(RADII[0])
-	a.area = PI * RADII[0] * RADII[0]
+	a.pit_r = start_radius(event, count - 1) + PIT_MARGIN_M
+	a.outline = ring(start_radius(event, 0))
+	a.area = PI * pow(start_radius(event, 0), 2.0)
 	a._sumo_spawns()
 	return a
+
+
+## How much bigger than Regular a match's platforms are (D235).
+static func size_of(event: RaceEvent) -> float:
+	return EXPANDED if String(event.sumo_size) == "expanded" else 1.0
+
+
+## Tier `i`'s radius before anything has shrunk it, for a match's settings.
+static func start_radius(event: RaceEvent, i: int) -> float:
+	return float(RADII[clampi(i, 0, RADII.size() - 1)]) * size_of(event)
 
 
 ## The order a crumbling platform's wedges come off in: every wedge once a step, shuffled within
@@ -442,7 +456,7 @@ func apply_radii(from: PackedFloat32Array) -> void:
 
 ## A ring of spawns part way out on the top tier, every car facing the middle.
 func _sumo_spawns() -> void:
-	var r: float = RADII[0] * SPAWN_RING
+	var r := float(tiers[0].start) * SPAWN_RING
 	for i in AUTO_SPAWNS:
 		var ang := TAU * i / AUTO_SPAWNS
 		var at := Vector2(cos(ang), sin(ang)) * r

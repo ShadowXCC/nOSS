@@ -45,6 +45,35 @@ func test_spawns_ring_the_top_platform_facing_the_middle() -> void:
 		assert_float((at.basis.z as Vector3).normalized().dot(to_middle)).is_greater(0.99)
 
 
+## Expanded (D235): every platform a quarter wider, the pit and the spawns with them, and a quarter
+## longer to shrink away; the drops and the sudden-death pillar as they were.
+func test_expanded_platforms_are_a_quarter_wider_and_slower() -> void:
+	var e := RaceEvent.sumo(5)
+	e.sumo_size = "expanded"
+	e.sumo_secs = 60
+	var big := SumoLayout.make(TrackData.new(), e)
+	var regular := _layout(5, "smooth", 60)
+	for i in 5:
+		assert_float(big.radius_of(i)).is_equal_approx(SumoLayout.RADII[i] * 1.25, 0.001)
+		assert_float(big.floor_y_of(i)).is_equal_approx(regular.floor_y_of(i), 0.001)
+	assert_float(big.radius_of(0)).is_equal_approx(30.0, 0.001)
+	assert_float(big.radius_of(4)).is_equal_approx(90.0, 0.001)
+	assert_float(big.secs).is_equal_approx(75.0, 0.001)
+	assert_float(big.pit_r).is_equal_approx(90.0 + SumoLayout.PIT_MARGIN_M, 0.001)
+	assert_float(big.hazard_y).is_equal_approx(regular.hazard_y, 0.001)
+	var at: Transform3D = big.spawns[0]
+	assert_float(Vector2(at.origin.x, at.origin.z).length()).is_equal_approx(30.0 * ArenaLayout.SPAWN_RING, 0.01)
+	# The edge comes in at the Regular speed: the same metres gone after the same time.
+	big.arm(0)
+	regular.arm(0)
+	big.advance(20.0)
+	regular.advance(20.0)
+	assert_float(30.0 - big.radius_of(0)).is_equal_approx(24.0 - regular.radius_of(0), 0.01)
+	# Sudden death's pillar keeps its size.
+	e.sumo_pillar = true
+	assert_float(SumoLayout.make(TrackData.new(), e).floor_radius(4)).is_equal_approx(SumoLayout.PILLAR_R, 0.001)
+
+
 func test_tier_at_finds_the_platform_a_point_belongs_to() -> void:
 	var a := _layout(3)
 	assert_int(a.tier_at(Vector3(0, 0.5, 0))).is_equal(0)

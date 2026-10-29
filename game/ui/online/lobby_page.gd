@@ -305,7 +305,12 @@ static func event_text(e: RaceEvent, class_id: String) -> String:
 		"endless":
 			return ""
 		"sumo":
-			return "Sumo Wrestling"
+			var parts := ["Sumo Wrestling"]
+			if e.sumo_mode == "teams":
+				parts.append("%d teams" % e.sumo_teams)
+			if e.sumo_size == "expanded":
+				parts.append("expanded")
+			return ", ".join(parts)
 		"drag":
 			var length := EventForms.nearest(EventForms.DRAG_LENGTHS, e.drag_length_m)
 			for l: Array in EventForms.DRAG_LENGTHS:

@@ -245,7 +245,7 @@ func _load_sumo() -> void:
 		"road": { "points": [] },
 		"race": { "grid": { "slots": ArenaLayout.AUTO_SPAWNS } },
 	}
-	for p in SumoLayout.ring(SumoLayout.RADII[0]):
+	for p in SumoLayout.ring(SumoLayout.start_radius(event, 0)):
 		(data.road.points as Array).append({ "p": [p.x, 0.0, p.y] })
 	track = TrackData.from_dict(data)
 	track.arena = SumoLayout.make(track, event)

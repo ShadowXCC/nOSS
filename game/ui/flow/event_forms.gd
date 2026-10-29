@@ -29,6 +29,9 @@ const HAZARDS := [["lava", "Lava"], ["acid", "Acid"]]
 const SHRINKS := [["smooth", "Smooth"], ["crumble", "Crumbling"], ["stepped", "Stepped"]]
 const SUMO_LENGTHS := [[60, "Short"], [90, "Normal"], [150, "Long"]]
 const DRIFTS := [["off", "Off"], ["drift", "Drift"]]
+const SUMO_MODES := [["ffa", "Free-for-all"], ["teams", "Teams"]]
+const SUMO_TEAMS := [[2, "2"], [3, "3"], [4, "4"]]
+const SUMO_SIZES := [["regular", "Regular"], ["expanded", "Expanded"]]
 ## Drag Strip: each length in metres, with its name in miles and in metres (Settings.units picks).
 const DRAG_LENGTHS := [[201, "1/8 mile", "201 m"], [402, "1/4 mile", "402 m"], [805, "1/2 mile", "805 m"]]
 const BOOSTS := [[0, "Off"], [1, "1"], [2, "2"], [3, "3"]]
@@ -381,11 +384,22 @@ static func _way(data: TrackData, dir: int) -> String:
 	return "Clockwise" if data.highway.clockwise(dir) else "Anticlockwise"
 
 
-## Sumo Wrestling (D162): the platforms, what's under them and how they shrink, the AI cars.
+## Sumo Wrestling (D162): every car for itself or in teams (D234), the platforms, their size
+## (D235), what's under them and how they shrink, the AI cars.
 static func sumo(page: EventSettingsPage) -> void:
 	var e := page.flow.event
+	page.add_row(UiKit.spinner("Mode", SUMO_MODES, e.sumo_mode, func(v: String) -> void:
+		e.sumo_mode = v
+		page.rebuild.call_deferred("Mode"), "Teams: drawn at random each match. Last team in wins"))
+	if e.sumo_mode == "teams":
+		page.add_row(UiKit.spinner("Teams", SUMO_TEAMS, clampi(e.sumo_teams, 2, 4), func(v: int) -> void:
+			e.sumo_teams = v, "Bots are added to even them out"))
+		page.add_row(UiKit.spinner("Friendly fire", OFF, e.sumo_friendly, func(v: bool) -> void:
+			e.sumo_friendly = v, "On: teammates can shove each other"))
 	page.add_row(UiKit.spinner("Platforms", TIERS, clampi(e.sumo_tiers, 1, TIERS.size()), func(v: int) -> void:
 		e.sumo_tiers = v, "Stacked, each wider than the one above: a fall is a second chance"))
+	page.add_row(UiKit.spinner("Platform size", SUMO_SIZES, e.sumo_size, func(v: String) -> void:
+		e.sumo_size = v, "Expanded: a quarter wider, a quarter longer to shrink"))
 	page.add_row(UiKit.spinner("Underneath", HAZARDS, e.sumo_hazard, func(v: String) -> void:
 		e.sumo_hazard = v, "Touch it and you're out"))
 	page.add_row(UiKit.spinner("Shrink", SHRINKS, e.sumo_shrink, func(v: String) -> void:

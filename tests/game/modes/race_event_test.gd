@@ -45,6 +45,31 @@ func test_the_rules_round_trip_and_clamp() -> void:
 	assert_bool(RaceEvent.highway().to_dict().has("draft")).is_false()
 
 
+## Sumo's team and size settings (D234, D235): their defaults, a round trip, and clamped.
+func test_sumo_teams_and_size_round_trip_and_clamp() -> void:
+	var e := RaceEvent.sumo()
+	assert_str(e.sumo_mode).is_equal("ffa")
+	assert_int(e.sumo_teams).is_equal(2)
+	assert_bool(e.sumo_friendly).is_false()
+	assert_str(e.sumo_size).is_equal("regular")
+	e.sumo_mode = "teams"
+	e.sumo_teams = 4
+	e.sumo_friendly = true
+	e.sumo_size = "expanded"
+	var back := RaceEvent.from_dict(e.to_dict())
+	assert_str(back.sumo_mode).is_equal("teams")
+	assert_int(back.sumo_teams).is_equal(4)
+	assert_bool(back.sumo_friendly).is_true()
+	assert_str(back.sumo_size).is_equal("expanded")
+	var wild := RaceEvent.from_dict({ "kind": "sumo", "sumo_mode": "duel", "sumo_teams": 9, "sumo_size": "huge" })
+	assert_str(wild.sumo_mode).is_equal("ffa")
+	assert_int(wild.sumo_teams).is_equal(4)
+	assert_str(wild.sumo_size).is_equal("regular")
+	assert_int(RaceEvent.from_dict({ "kind": "sumo", "sumo_teams": 1 }).sumo_teams).is_equal(2)
+	# Only sumo matches carry them.
+	assert_bool(RaceEvent.battle().to_dict().has("sumo_mode")).is_false()
+
+
 func test_every_endless_biome_survives_and_others_clamp() -> void:
 	var last := NossRoadGen.biome_ids().size() - 1
 	assert_int(RaceEvent.from_dict(RaceEvent.endless(5, 7).to_dict()).biome).is_equal(7) # Haunted (D221)

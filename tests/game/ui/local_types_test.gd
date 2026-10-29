@@ -153,13 +153,32 @@ func test_sumo_goes_straight_to_the_players() -> void:
 	await _frames(2)
 	assert_str(page.title).is_equal("Sumo Wrestling")
 	assert_str(page.step_text()).is_equal("Step 2 of 3")
-	assert_array(_rows(page)).contains_exactly(["Platforms", "Underneath", "Shrink", "Length", "Sudden death", "Drift", "AI cars",
-		"AI skill", "AI models", "Time", "Time runs", "Weather"])
+	assert_array(_rows(page)).contains_exactly(["Mode", "Platforms", "Platform size", "Underneath", "Shrink", "Length",
+		"Sudden death", "Drift", "AI cars", "AI skill", "AI models", "Time", "Time runs", "Weather"])
 	assert_object(page.pane).is_null()
 	assert_str(page.next_button.accessibility_description).is_equal("The players: each picks a car")
 	page.go_on()
 	await _frames(2)
 	assert_str((_stack.top() as PlayersMenu).platform_id).is_equal(EventFlow.SUMO)
+
+
+## Sumo's Mode: Teams adds the Teams and Friendly fire rows (D234), the focus kept on Mode.
+func test_sumo_teams_mode() -> void:
+	var page := _page(EventFlow.make("mini", "sumo"))
+	await _frames(2)
+	var mode := page.row_named("Mode")
+	mode.grab_focus()
+	(mode as Button).pressed.emit()
+	await _frames(2)
+	assert_array(_rows(page)).contains_exactly(["Mode", "Teams", "Friendly fire", "Platforms", "Platform size", "Underneath",
+		"Shrink", "Length", "Sudden death", "Drift", "AI cars", "AI skill", "AI models", "Time", "Time runs", "Weather"])
+	assert_str(String(_focused().accessibility_name)).is_equal("Mode: Teams")
+	var e := page.flow.event
+	assert_str(e.sumo_mode).is_equal("teams")
+	(page.row_named("Teams") as Button).pressed.emit()
+	(page.row_named("Platform size") as Button).pressed.emit()
+	assert_int(e.sumo_teams).is_equal(3)
+	assert_str(e.sumo_size).is_equal("expanded")
 
 
 ## Highway's Mode: Run swaps Way round for the Run row (the Lumen Ring's runs), the focus kept on
