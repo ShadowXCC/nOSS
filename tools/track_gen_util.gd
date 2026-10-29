@@ -205,23 +205,26 @@ static func apply(d: TrackDraft, changes: Dictionary) -> void:
 
 
 ## A grandstand `length` long on `side` (+1 left) at `m`, `extra` m behind the barrier, facing the road,
-## with a crowd at its foot; none if it would come near another part of the road or a prop.
-static func stand(d: TrackDraft, t: TrackData, m: float, side: float, length: float, free: Callable, keep_long: Callable, extra := 6.0) -> void:
+## with a crowd at its foot; none if it would come near another part of the road or a prop. `prop`,
+## `depth` and `height` for another kind of stand (a stadium stand, D225).
+static func stand(d: TrackDraft, t: TrackData, m: float, side: float, length: float, free: Callable, keep_long: Callable, extra := 6.0,
+		prop := "grandstand", depth := 13.0, height := 9.9) -> void:
 	var front := behind(t, m, side, extra)
 	var x := t.transform_at(m)
 	var fwd := Vector2(x.basis.z.x, x.basis.z.z).normalized()
 	var away := Vector2(x.basis.x.x, x.basis.x.z).normalized() * side
 	var k := t.index_at(m)
+	var same_part := maxf(80.0, length / 2.0 + 20.0) # the road along a long stand is its own part
 	for s in range(-int(length / 2.0), int(length / 2.0) + 1, 6):
-		for depth: float in [0.0, 6.0, 13.0]:
-			var p := front + fwd * s + away * depth
-			if not free.call(p, 2.0) or near_other(t, k, Vector3(p.x, 0, p.y), 20.0) or t.is_near_centreline(Vector3(p.x, 0, p.y), 14.0):
+		for back: float in [0.0, depth / 2.0, depth]:
+			var p := front + fwd * s + away * back
+			if not free.call(p, 2.0) or near_other(t, k, Vector3(p.x, 0, p.y), 20.0, same_part) or t.is_near_centreline(Vector3(p.x, 0, p.y), 14.0):
 				print("  no grandstand at %.0f m: no room" % m)
 				return
-	keep_long.call(front + away * 4.0, fwd, length, 10.0) # the crowd's ground in front too
+	keep_long.call(front + away * (depth / 2.0 - 2.5), fwd, length, depth / 2.0 + 3.5) # the crowd's ground in front too
 	var yaw := snappedf(rad_to_deg(atan2(-away.y, away.x)), 0.1)
-	d.add_prop({ "prop": "grandstand", "p": [snappedf(front.x, 0.01), 0.0, snappedf(front.y, 0.01)], "yaw_deg": yaw, "scale": 1.0,
-		"size": [13.0, 9.9, length], "ground": true })
+	d.add_prop({ "prop": prop, "p": [snappedf(front.x, 0.01), 0.0, snappedf(front.y, 0.01)], "yaw_deg": yaw, "scale": 1.0,
+		"size": [depth, height, length], "ground": true })
 	var crowd := front - away * 2.0
 	d.add_prop({ "prop": "crowd", "p": [snappedf(crowd.x, 0.01), 0.0, snappedf(crowd.y, 0.01)], "yaw_deg": yaw_along(fwd), "scale": 1.0,
 		"size": [0.0, 0.0, length], "ground": true })
