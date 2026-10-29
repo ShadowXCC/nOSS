@@ -9,7 +9,7 @@ extends Node
 ## - slots used up: a car knocked out of its slot is never drawn again, on any game;
 ## - where on the road every player is (once a second), for Join and for where a joiner starts;
 ## - checksums of the road chunks each game made, checked against the server's own;
-## - garage traffic (D232): when the furthest anyone has been enters a new biome, the server moves
+## - garage traffic (D233): when the furthest anyone has been enters a new biome, the server moves
 ##   every game to the next set (NetHost.endless_swap) but for the slots near a player (pinned).
 ##   ENDLESS, client -> server: {want, drop, gone: [slots], at: {car id: [distance, speed]}, sums: {chunk: checksum}}
 ##   ENDLESS_STATE, server -> clients: {owners: {slot: car id, or -1: nobody}, gone: [slots], at: {car id: [distance, time, speed]}, full}
@@ -309,7 +309,7 @@ func _server_tick(report: bool) -> void:
 	_gone_out = PackedInt64Array()
 
 
-## Garage traffic (D232): a swap each time the furthest anyone has been comes into a new biome
+## Garage traffic (D233): a swap each time the furthest anyone has been comes into a new biome
 ## (the one most of the road is in there, as EndlessControl names it).
 func _watch_biome() -> void:
 	for id: int in at:

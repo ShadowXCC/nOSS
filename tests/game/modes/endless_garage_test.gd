@@ -1,5 +1,5 @@
 extends GdUnitTestSuite
-## Garage traffic's sets (D232): the server deals them from everyone's cars in turn, with no car
+## Garage traffic's sets (D233): the server deals them from everyone's cars in turn, with no car
 ## twice in a set; a swap moves every slot to the next set but the pinned ones (near a player), which
 ## keep theirs, so a slot is on the newest swap's set that didn't pin it; and a late joiner's state
 ## draws every slot from the same set as a game that saw each swap.

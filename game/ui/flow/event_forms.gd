@@ -12,7 +12,7 @@ const OFF := [[false, "Off"], [true, "On"]]
 const ENDLESS_TRAFFIC := [["light", "Light"], ["normal", "Normal"], ["heavy", "Heavy"], ["off", "Off"]]
 const SPREAD := [["bring", "Bring up the one behind"], ["hold", "Hold the leader back"]]
 const LANES := [[2, "2"], [4, "4"]]
-## Online: whose garage cars drive in the traffic (D232).
+## Online: whose garage cars drive in the traffic (D233).
 const GARAGE_FROM := [["off", "Off"], ["host", "Host"], ["everyone", "Everyone"]]
 const SIDES := [["right", "Right"], ["left", "Left"]]
 ## Highway.

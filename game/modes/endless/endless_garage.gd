@@ -1,6 +1,6 @@
 class_name EndlessGarage
 extends RefCounted
-## Which garage cars an endless road's traffic draws from, and where (D191, D232). Offline every
+## Which garage cars an endless road's traffic draws from, and where (D191, D233). Offline every
 ## car is in one set. Online the server deals sets of up to ONLINE_MOST from the contributors' cars
 ## (the host's, or everyone's in turn) and swaps to the next set each time the leader enters a new
 ## biome; slots whose cars are near a player at a swap keep the set they had, so no car changes in

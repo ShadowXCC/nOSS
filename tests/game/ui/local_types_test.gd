@@ -120,7 +120,7 @@ func test_endless_and_its_road_code() -> void:
 	assert_bool(names.all(func(n: String) -> bool: return n.begins_with("Endless "))).is_true()
 
 
-## Garage cars (D232): On or Off offline; hosting, whose: Host, Everyone or Off.
+## Garage cars (D233): On or Off offline; hosting, whose: Host, Everyone or Off.
 func test_endless_garage_cars_online_say_whose() -> void:
 	var page := _page(EventFlow.make("endless"))
 	await _frames(2)

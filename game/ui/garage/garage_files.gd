@@ -161,7 +161,7 @@ static func in_traffic(id: String) -> bool:
 
 
 ## Switches the cars with these manifest ids into traffic or out of it, and saves. Joined to a
-## server, it hears the new list (D232).
+## server, it hears the new list (D233).
 static func set_in_traffic(ids: PackedStringArray, on: bool) -> void:
 	var off := Settings.traffic_off.duplicate()
 	for id in ids:

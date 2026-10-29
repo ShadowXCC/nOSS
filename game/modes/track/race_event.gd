@@ -94,7 +94,7 @@ var env_seed := 0
 ## order), traffic ("light", "normal", "heavy" or "off"), oncoming traffic on, and what happens when local
 ## players drift far apart ("bring": the one behind is brought up; "hold": the leader is held); the
 ## road's lanes (2 or 4: one or two each way) and the side they're driven on ("right" or "left",
-## D190); garage cars in the traffic (D191) and online whose (D232: the host's, or everyone's in
+## D190); garage cars in the traffic (D191) and online whose (D233: the host's, or everyone's in
 ## turn); speed traps (D193) and, with `police`, the police (D194).
 var road_seed := 1
 var biome := 1

@@ -166,7 +166,7 @@ func test_the_nearest_cars_turn_physical_first() -> void:
 
 
 ## Two lanes each way's slots are drawn as they always were (D158): the same tau, presence, type and
-## colour from the same draws; then always the garage car's three (D232: whatever its set).
+## colour from the same draws; then always the garage car's three (D233: whatever its set).
 func test_two_lane_slots_are_as_they_always_were() -> void:
 	var t := _bare("normal")
 	for lane in [EndlessTraffic.UP, EndlessTraffic.DOWN]:
@@ -252,7 +252,7 @@ func test_four_lanes_run_their_own_schedules() -> void:
 	await get_tree().process_frame
 
 
-## Garage traffic (D191): a pool of the built-in cars that fit (every one, D232), its picks drawn
+## Garage traffic (D191): a pool of the built-in cars that fit (every one, D233), its picks drawn
 ## after the stock ones.
 func test_garage_cars_mix_in_without_changing_the_stock_schedule() -> void:
 	var built_in := PackedStringArray(Array(PackageLoader.list_available()).filter(func(p: String) -> bool: return p.begins_with("res://")))
@@ -312,7 +312,7 @@ func test_garage_cars_mix_in_without_changing_the_stock_schedule() -> void:
 		break
 
 
-## Online (D232) a slot draws from its set: the server's sets, swapped. A slot pinned at a swap keeps
+## Online (D233) a slot draws from its set: the server's sets, swapped. A slot pinned at a swap keeps
 ## its car; the others pick from the new set with the same rolls.
 func test_slots_pick_from_their_set_and_a_pinned_one_keeps_its_car() -> void:
 	var t := _bare("heavy")

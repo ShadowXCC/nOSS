@@ -31,7 +31,7 @@ signal highway_event(data: Dictionary)
 signal endless_state(data: Dictionary)
 ## The sky changed mid-session (an admin's /time or /weather): {time, time_rate, weather, seed, t0}.
 signal env_changed(env: Dictionary)
-## The server swapped an endless road's garage traffic to its next set (endless_garage, D232).
+## The server swapped an endless road's garage traffic to its next set (endless_garage, D233).
 signal endless_garage_changed
 
 const CHAT_KEEP := 100
@@ -54,7 +54,7 @@ var session := {}
 var race_begin := {}
 ## Player ids whose chat this game hides.
 var muted := {}
-## An endless session's garage traffic as the server has it (D232): its sets and where each slot
+## An endless session's garage traffic as the server has it (D233): its sets and where each slot
 ## draws from, kept up to date; null without garage traffic.
 var endless_garage: EndlessGarage
 
@@ -393,7 +393,7 @@ func track_here() -> bool:
 	return not ContentStore.valid_hash(h) or content != null and content.track_path(h) != ""
 
 
-## A guest's cars for an endless road's traffic (D232; the server uses them in Everyone): those
+## A guest's cars for an endless road's traffic (D233; the server uses them in Everyone): those
 ## that may be shared, are left on in the Garage's Traffic cars (D222) and fit a traffic type, at
 ## most EndlessGarage.MOST_OFFERED. Sent on joining and when Traffic cars changes.
 func offer_traffic_cars() -> void:

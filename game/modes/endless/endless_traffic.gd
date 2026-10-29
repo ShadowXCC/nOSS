@@ -9,7 +9,7 @@ extends Node
 ## and no two in a lane ever meet. Two lanes each way, the passing lane's cars overtake the other's,
 ## and trucks and buses keep out of it. Garage cars (D191) drive in place of most of the stock cars
 ## of a type they fit, picked after a slot's own draws so the stock schedule stays as it was: offline
-## every car, online the server's sets (EndlessGarage, D232), their models loaded while they're
+## every car, online the server's sets (EndlessGarage, D233), their models loaded while they're
 ## near the players and let go after. Cars near a player become physics cars (EndlessTrafficCar) that keep to their
 ## slot unless something's in the way; knocked or left far behind, a car leaves its slot (the slot
 ## stays empty) and goes once nobody's near. Cars further off are drawn, one MultiMesh per type.
@@ -88,7 +88,7 @@ var sirens: Array = []
 var garage := {}
 ## Which set of them each slot draws from (offline: one set of every car).
 var garage_sets: EndlessGarage
-## For the dev log (D232): garage cars seen as themselves, the most loaded at once, and the longest
+## For the dev log (D233): garage cars seen as themselves, the most loaded at once, and the longest
 ## far-view merge (ms, on its worker).
 var garage_seen := {}
 var most_loaded := 0
@@ -280,7 +280,7 @@ static func garage_pool(paths: PackedStringArray, seed_value: int, most := -1) -
 
 
 ## The traffic types car `path` drives as (garage_pool's rule), by id: the server's own look at a
-## guest's car (D232).
+## guest's car (D233).
 static func fits_ids(path: String) -> PackedStringArray:
 	var types := weighted_types()
 	var out := PackedStringArray()
@@ -333,7 +333,7 @@ func set_garage(pool: Array[Dictionary]) -> void:
 	_sets_changed()
 
 
-## Online: the server's sets (Net.endless_garage, D232); garage_changed() after each swap.
+## Online: the server's sets (Net.endless_garage, D233); garage_changed() after each swap.
 func use_garage(sets: EndlessGarage) -> void:
 	garage_sets = sets
 	garage_changed()

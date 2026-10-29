@@ -61,7 +61,7 @@ enum Msg {
 	YOUR_PLAYERS = 19, ## server: {players}: this connection's player ids, after a change
 	NOTICE = 20, ## server: {text}: a short message for this client only
 	PLAYER_INFO = 21, ## client: {player, device, assists, name, color}: what a player drives with and the assists they have on (the lobby's roster), their name and colour
-	TRAFFIC_CARS = 22, ## client: {cars: [{car, bytes}]}: its cars for an endless road's traffic (D232), at most 100
+	TRAFFIC_CARS = 22, ## client: {cars: [{car, bytes}]}: its cars for an endless road's traffic (D233), at most 100
 	# Content (NetTransfer), either way.
 	WANT = 30, ## {hash, from}: send this file (from this chunk)
 	OFFER = 31, ## {xfer, hash, size, csize, from}: it's coming
@@ -84,7 +84,7 @@ enum Msg {
 	ENDLESS = 53, ## client: {want, drop, gone, at, sums}: an endless road's traffic, players and road (EndlessNet, D159)
 	ENDLESS_STATE = 54, ## server: {owners, gone, at, full}: who drives which traffic car, slots used up, where everyone is
 	ENV = 55, ## server: {time, time_rate, weather, seed, t0}: the sky changed (an admin's /time or /weather)
-	ENDLESS_GARAGE = 56, ## server: {k, cars, sets, pinned}: an endless road's garage traffic moves to its next set (EndlessGarage, D232)
+	ENDLESS_GARAGE = 56, ## server: {k, cars, sets, pinned}: an endless road's garage traffic moves to its next set (EndlessGarage, D233)
 }
 
 

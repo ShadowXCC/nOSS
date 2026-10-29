@@ -165,7 +165,7 @@ func test_one_sky_and_one_road_for_everyone() -> void:
 	assert_str(String(d.environment.weather)).is_equal("changing")
 	assert_int(int(d.environment.seed)).is_greater(0)
 	assert_bool(d.endless.has("t0")).is_true()
-	# Garage traffic (D191, D232): set 0 and the next of the host's cars that may be shared (up to
+	# Garage traffic (D191, D233): set 0 and the next of the host's cars that may be shared (up to
 	# 12 a set), with the types they drive as.
 	var garage: Dictionary = d.endless.garage
 	assert_int(int(garage.k)).is_equal(0)
@@ -240,7 +240,7 @@ static func _hashes(from: int, n: int) -> PackedStringArray:
 	return out
 
 
-## Everyone (D232): the host's cars and each guest's take turns in a set, no car twice; a guest's
+## Everyone (D233): the host's cars and each guest's take turns in a set, no car twice; a guest's
 ## count once the server has seen for itself that they fit; one that's gone is out of the next set.
 func test_everyone_takes_turns_in_the_sets() -> void:
 	var host := _garage_host("everyone")
@@ -295,7 +295,7 @@ func test_everyone_takes_turns_in_the_sets() -> void:
 	Game.hold_events = false
 
 
-## A swap (D232) reaches this game's own copy as every client's (the message through the local
+## A swap (D233) reaches this game's own copy as every client's (the message through the local
 ## sink), and a late joiner's state with the swaps after it draws every slot from the same set.
 func test_a_swap_reaches_every_game_and_a_late_joiner_alike() -> void:
 	var host := _garage_host()
@@ -331,7 +331,7 @@ func test_a_swap_reaches_every_game_and_a_late_joiner_alike() -> void:
 	Game.hold_events = false
 
 
-## The slots a swap pins (D232) hold every car the traffic's schedule has within PIN_M of a player,
+## The slots a swap pins (D233) hold every car the traffic's schedule has within PIN_M of a player,
 ## and the biome a swap goes by is the one EndlessControl names there.
 func test_a_swap_pins_every_car_near_a_player() -> void:
 	Players.clear()

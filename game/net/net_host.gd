@@ -67,7 +67,7 @@ var _ping_at := 0 # when the pings are measured next (ticks, ms)
 ## Where each player is on an endless road ({car id: [distance, time, speed]}, from EndlessNet), for
 ## joiners.
 var endless_at := {}
-## An endless session's garage traffic (D232): the server's sets, or null. They're dealt from hands
+## An endless session's garage traffic (D233): the server's sets, or null. They're dealt from hands
 ## of cars: this game's own (peer 1), and in Everyone each guest's that offered some.
 var endless_garage: EndlessGarage
 ## The kart cup being run (its standings, by player id and AI name), or null. It stays after its last
@@ -542,7 +542,7 @@ func _ai_entries() -> Array:
 	return out
 
 
-## An endless session's garage traffic (D191, D232): sets 0 and 1 dealt and fetched, if the event
+## An endless session's garage traffic (D191, D233): sets 0 and 1 dealt and fetched, if the event
 ## has it.
 func _start_garage() -> void:
 	endless_garage = null
