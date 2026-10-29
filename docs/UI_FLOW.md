@@ -640,6 +640,7 @@ Title "Settings", breadcrumb "Settings" (in a session: "Pause › Settings").
 | "Players" | "Driving Settings" ("<name>: assists, comfort, HUD and controls"), "Profiles" ("Rename, add or delete players") |
 
 - "Graphics" and "Units" are spinners (they were drop-down lists), like every other choice.
+- **F11** (macOS: also Cmd+Ctrl+F) toggles Fullscreen from anywhere; an open Display tab's row follows (D232).
 - The Players tab is hidden during a session.
 - **"Clear downloads"** shows the size ("Clear downloads (12.3 MB)", "0 MB" when empty, "1.20 GB"
   past a gigabyte; from `ContentStore.size_bytes()`), asks first, then calls
