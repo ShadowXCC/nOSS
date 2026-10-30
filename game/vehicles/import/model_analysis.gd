@@ -14,6 +14,9 @@ const NOT_WHEEL_WORDS := ["steer", "spare", "arch", "well", "house", "guard", "c
 const HIDE_WORDS := ["ground", "floor", "plane", "shadow", "backdrop", "turntable", "podium", "fabric", "carpet"]
 const FRONT_WORDS := ["front", "head"]
 const REAR_WORDS := ["rear", "back", "tail", "exhaust", "trunk", "boot"]
+## Glass livery layers may land on (D242); lamp lenses aren't.
+const GLASS_WORDS := ["glass", "window", "windshield", "windscreen"]
+const LAMP_WORDS := ["light", "lamp", "lens", "head", "tail", "indicator", "signal", "blinker", "brake", "fog", "reflector"]
 const MAX_COMPONENT_TRIANGLES := 400_000
 ## Points sampled per part for shape tests.
 const SAMPLES := 1500
@@ -922,6 +925,7 @@ static func _cockpit(r: Result, scene: Node3D, steering: Node3D, points: PackedV
 static func _paint(meshes: Array[Dictionary], hidden: Dictionary, r: Result) -> Dictionary:
 	var slots := {}
 	var area := {}
+	var glass := []
 	var on_wheels := {}
 	var wheel_meshes := {}
 	for id: String in r.wheel_nodes:
@@ -939,6 +943,8 @@ static func _paint(meshes: Array[Dictionary], hidden: Dictionary, r: Result) -> 
 					slots[slot.to_lower()] = { "materials": [n], "color": _hex(mat), "finish": "metallic" }
 			if wheel_meshes.has(String(mi.name)) or _has_word(mi.name, WHEEL_WORDS) or r.wheel_materials.has(n):
 				on_wheels[n] = true
+			if n and n not in glass and not n.begins_with("Paint_") and _is_glass(mat):
+				glass.append(n)
 			if not hidden.has(mi):
 				area[n] = float(area.get(n, 0.0)) + _surface_area(_aabb(m.points))
 	if slots.is_empty():
@@ -952,7 +958,23 @@ static func _paint(meshes: Array[Dictionary], hidden: Dictionary, r: Result) -> 
 		if best and area[best] > 0.35 * total and not on_wheels.has(best) and not excluded.any(func(w: String) -> bool: return best.to_lower().contains(w)):
 			slots.primary = { "materials": [best], "color": "#FFFFFF", "finish": "metallic" }
 			r.notes.append("Paint: %s" % best)
-	return { "schema": "noss.paint/1", "slots": slots, "presets": [] }
+	var out := { "schema": "noss.paint/1", "slots": slots, "presets": [] }
+	var painted := []
+	for slot: String in slots:
+		painted.append_array(slots[slot].materials)
+	glass = glass.filter(func(n: String) -> bool: return n not in painted).slice(0, 128)
+	if not glass.is_empty():
+		out.glass = glass
+	return out
+
+
+## A glass material: named so, or see-through, and not a lamp's lens.
+static func _is_glass(mat: Material) -> bool:
+	var n := mat.resource_name
+	if _has_word(n, LAMP_WORDS):
+		return false
+	var clear := mat is BaseMaterial3D and (mat as BaseMaterial3D).transparency != BaseMaterial3D.TRANSPARENCY_DISABLED
+	return _has_word(n, GLASS_WORDS) or clear
 
 
 ## "open" when most wheels stand outside the body's sides where they are, "car" otherwise.

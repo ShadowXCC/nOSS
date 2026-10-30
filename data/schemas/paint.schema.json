@@ -17,6 +17,14 @@
         "tertiary": { "$ref": "#/$defs/slot" }
       }
     },
+    "glass": {
+      "description": "Materials that are the car's glass: livery layers may land on them (docs/VEHICLE_PACKAGE.md §5, §12). Written only when there are some.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+    },
     "presets": {
       "type": "array",
       "maxItems": 64,
