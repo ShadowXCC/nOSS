@@ -31,6 +31,10 @@ struct EngineProfile {
 	double mechanical = 0.15; // valvetrain and block noise
 	double harshness = 0.3; // brighter pulses
 	double jitter = 0.08; // cycle-to-cycle amplitude variation
+	// Character (all off by default):
+	double pulse_hold_deg = 0.0; // a pulse stays at full strength this many crank degrees (rotary)
+	double knock = 0.0; // diesel clatter: a short, bright noise burst per firing
+	double cyl_spread = 0.0; // fixed strength differences between cylinders (half-order content)
 	// Electric motor instead of combustion.
 	bool electric = false;
 	double motor_order = 6.0; // whine frequency = rpm / 60 * order
@@ -41,6 +45,9 @@ struct Loop {
 	std::vector<int16_t> samples;
 	double rpm = 0.0; // exact rpm of the loop (a whole number of cycles fits it)
 };
+
+// Each cylinder's fixed strength (1 without cyl_spread): from the profile and seed only.
+std::vector<double> cylinder_gains(const EngineProfile &p_profile, uint32_t p_seed);
 
 // A loop of about p_length_s at p_rpm. p_load 0..1 (off- to on-throttle).
 Loop render_loop(const EngineProfile &p_profile, double p_rpm, double p_load, Emitter p_emitter, int p_rate = 44100,

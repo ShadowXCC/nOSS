@@ -10,7 +10,6 @@
 #include "audio/fx_synth.h"
 #include "audio/music_synth.h"
 #include "audio/weather_synth.h"
-#include "audio/weather_synth.h"
 #include "audio/siren_synth.h"
 #include "audio/tire_synth.h"
 
@@ -51,6 +50,9 @@ EngineProfile read_profile(const Dictionary &p) {
 	e.mechanical = num(p, "mechanical", e.mechanical);
 	e.harshness = num(p, "harshness", e.harshness);
 	e.jitter = num(p, "jitter", e.jitter);
+	e.pulse_hold_deg = num(p, "pulse_hold_deg", e.pulse_hold_deg);
+	e.knock = num(p, "knock", e.knock);
+	e.cyl_spread = num(p, "cyl_spread", e.cyl_spread);
 	e.electric = bool(p.get("electric", false));
 	e.motor_order = num(p, "motor_order", e.motor_order);
 	e.inverter_order = num(p, "inverter_order", e.inverter_order);

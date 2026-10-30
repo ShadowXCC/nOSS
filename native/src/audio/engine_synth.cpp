@@ -11,6 +11,18 @@ using dsp::Biquad;
 using dsp::PI;
 using dsp::Rng;
 
+std::vector<double> cylinder_gains(const EngineProfile &p, uint32_t p_seed) {
+	// Its own generator, so every rpm point and emitter of a profile agrees.
+	std::vector<double> gains(p.fire_deg.size(), 1.0);
+	if (p.cyl_spread > 0.0) {
+		Rng spread{ (p_seed * 2246822519u + 0x9E3779B9u) | 1u };
+		for (double &g : gains) {
+			g = 1.0 + p.cyl_spread * spread.next();
+		}
+	}
+	return gains;
+}
+
 Loop render_loop(const EngineProfile &p, double p_rpm, double p_load, Emitter p_emitter, int p_rate, double p_length_s, uint32_t p_seed) {
 	Loop out;
 	double rpm = std::max(p_rpm, 60.0);
@@ -30,23 +42,35 @@ Loop render_loop(const EngineProfile &p, double p_rpm, double p_load, Emitter p_
 	for (double &x : noise) {
 		x = rng.next();
 	}
+	// Diesel clatter gets its own excitation, filtered bright below.
+	bool knocks = !p.electric && p.knock > 0.0;
+	std::vector<double> knock_in(knocks ? size_t(n) : 0, 0.0);
+	std::vector<double> cyl_gain = cylinder_gains(p, p_seed);
 	if (!p.electric) {
 		double tau = p.pulse_ms * 0.001 * (load > 0.5 ? 1.0 : 1.6);
 		double amp = load > 0.5 ? 1.0 : 0.35;
+		double hold = p.pulse_hold_deg / 720.0 * cycle_s; // 0: the plain decaying pulse
+		int knock_len = int(0.0006 * p_rate);
 		for (int c = 0; c < cycles; c++) {
 			for (size_t k = 0; k < p.fire_deg.size(); k++) {
 				double start = (c + p.fire_deg[k] / 720.0) * cycle_s;
 				int b = k < p.bank.size() ? std::clamp(p.bank[k], 0, 1) : 0;
 				start += p.exhaust_delay_ms[b] * 0.001;
-				double a = amp * (1.0 + p.jitter * rng.next());
+				double a = amp * cyl_gain[k] * (1.0 + p.jitter * rng.next());
 				int s0 = int(start * p_rate);
-				int len = int(tau * 8.0 * p_rate);
+				int len = int((tau * 8.0 + hold) * p_rate);
 				for (int s = 0; s < len; s++) {
 					double t = double(s) / p_rate;
-					double v = a * std::exp(-t / tau) * (1.0 - std::exp(-t / (tau * 0.08)));
-					v += p.harshness * a * std::exp(-t / (tau * 0.25)) * noise[size_t((s0 + s) % n)];
+					double held = std::max(t - hold, 0.0);
+					double v = a * std::exp(-held / tau) * (1.0 - std::exp(-t / (tau * 0.08)));
+					v += p.harshness * a * std::exp(-held / (tau * 0.25)) * noise[size_t((s0 + s) % n)];
 					size_t at = size_t(((s0 + s) % n + n) % n);
 					bank_in[b][at] += v;
+				}
+				// The burst reads the noise elsewhere, so the cycle-to-cycle draws stay the same.
+				for (int s = 0; knocks && s < knock_len; s++) {
+					double t = double(s) / p_rate;
+					knock_in[size_t((s0 + s) % n)] += p.knock * a * std::exp(-t / 0.00015) * noise[size_t((s0 + s + n / 3) % n)];
 				}
 			}
 		}
@@ -59,6 +83,7 @@ Loop render_loop(const EngineProfile &p, double p_rpm, double p_load, Emitter p_
 	Biquad intake_noise = bp(p.intake_hz * 2.5, 0.8);
 	Biquad body = Biquad::lowpass(220.0, p_rate);
 	Biquad tick = bp(3200.0, 1.5);
+	Biquad clatter = bp(2800.0, 1.2);
 	double f_motor = rpm / 60.0 * p.motor_order;
 	double f_inverter = rpm / 60.0 * p.inverter_order;
 
@@ -94,6 +119,10 @@ Loop render_loop(const EngineProfile &p, double p_rpm, double p_load, Emitter p_
 					case Emitter::ENGINE:
 						v = body.run(e0 + e1) * 1.2 + tick.run(noise[size_t((s * 7) % n)]) * p.mechanical * std::min(rpm / 3000.0, 2.0);
 						break;
+				}
+				// Clatter: loudest from the block, some through the intake and pipes.
+				if (knocks) {
+					v += clatter.run(knock_in[size_t(s)]) * (p_emitter == Emitter::ENGINE ? 2.0 : p_emitter == Emitter::INTAKE ? 0.8 : 0.5);
 				}
 			}
 			if (pass == 1) {
