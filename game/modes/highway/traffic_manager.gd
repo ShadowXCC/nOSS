@@ -55,11 +55,14 @@ const TICK_HZ := 20
 ## its whole model while within GARAGE_NEAR_M of a player here, the nearest MOST_WHOLE at most (on
 ## a loop nearly every car comes within 600 m). What a car is drawn as only changes while it's out
 ## of sight (VIEW_M + 50 m from every camera), or in the first SETTLE_S while the views are made.
+## A physics car that started as the stock car (its model wasn't here yet) becomes its garage car
+## once it is, while no player's camera sees it (D241): SWAPS_PER_STREAM at most a time.
 const STREAM_S := 0.5
 const GARAGE_FAR_M := VIEW_M + 500.0
 const GARAGE_NEAR_M := 400.0
 const MOST_WHOLE := 24
 const SETTLE_S := 5.0
+const SWAPS_PER_STREAM := 2
 ## Ids members() gives racers (their index added).
 const RACER_ID := 10000
 ## Event kinds (NossTraffic, D109). HANDOVER moves a physics car to another game; the lane sim
@@ -620,9 +623,13 @@ func _release(car: int) -> void:
 	cars.erase(car)
 	if session.net:
 		session.net.drop_traffic(NetProtocol.FIRST_TRAFFIC_ID + car)
-	var v := tc.vehicle
-	var key := Vector2i(_car_type[car], tc.garage)
 	tc.queue_free()
+	_park(tc.vehicle, Vector2i(_car_type[car], tc.garage))
+
+
+## Physics car `v` out of the way, into its pool (`key`: its type and garage car), or freed if
+## that has gone.
+func _park(v: Vehicle, key: Vector2i) -> void:
 	v.traffic_id = -1
 	v.indicators = 0
 	v.set_ghost(false)
@@ -907,12 +914,34 @@ func _fill(mm: MultiMesh, buf_count: Array) -> void:
 
 func _cameras() -> PackedVector3Array:
 	var cameras := PackedVector3Array()
+	for c in _camera_nodes():
+		cameras.append(c.global_position)
+	return cameras
+
+
+## The players' cameras here (none on a server or a bot).
+func _camera_nodes() -> Array[Camera3D]:
+	var out: Array[Camera3D] = []
 	if session == null:
-		return cameras
+		return out
 	for p in session.players:
 		if p.cameras and p.cameras.camera:
-			cameras.append(p.cameras.camera.global_position)
-	return cameras
+			out.append(p.cameras.camera)
+	return out
+
+
+## True if a ball at `pos` (`radius` m) is outside every one of `frustums` (Camera3D.get_frustum()
+## planes, facing out); with none, nobody sees it.
+static func _out_of_view(frustums: Array, pos: Vector3, radius: float) -> bool:
+	for planes: Array in frustums:
+		var inside := true
+		for plane: Plane in planes:
+			if plane.distance_to(pos) > radius:
+				inside = false
+				break
+		if inside:
+			return false
+	return true
 
 
 # --- garage cars ------------------------------------------------------------------------------
@@ -1053,7 +1082,54 @@ func _stream() -> void:
 	for car: int in cars:
 		driven[(cars[car] as TrafficCar).garage] = true
 	models.sweep(at, driven)
+	_swaps()
 	_apply_views(_clock < SETTLE_S, poses)
+
+
+## Stock physics cars whose garage car's whole model is here now become it where no player's
+## camera sees them, SWAPS_PER_STREAM at most. Online each game swaps its own physics cars and
+## proxies (what a car looks like differs between games anyway, D239).
+func _swaps() -> void:
+	var frustums := _camera_nodes().map(func(c: Camera3D) -> Array: return c.get_frustum())
+	var n := 0
+	for car: int in cars:
+		var tc: TrafficCar = cars[car]
+		var g := _garage_of[car]
+		if tc.garage >= 0 or g < 0 or not models.pkgs.has(g) or tc.wrecked or _asked.has(car) or tc.vehicle.fitted == null:
+			continue
+		var e := tc.vehicle.fitted.envelope
+		if _out_of_view(frustums, tc.vehicle.global_transform * e.get_center(), e.size.length() / 2.0 + 1.0) and _swap(tc, g):
+			n += 1
+			if n >= SWAPS_PER_STREAM:
+				return
+
+
+## Physics car (or proxy) `tc` becomes garage car `g` where it is, at its speed: its stock car
+## goes back to the pool. False if it can't be made.
+func _swap(tc: TrafficCar, g: int) -> bool:
+	var type := _car_type[tc.car]
+	var old := tc.vehicle
+	var v := _take_vehicle(type, g)
+	if v == null:
+		return false
+	var xform := old.ground_reference()
+	var velocity := old.remote_velocity if tc.remote else old.linear_velocity
+	_park(old, Vector2i(type, -1))
+	v.traffic_id = tc.car
+	if v.visual:
+		v.visual.apply_choice(models.paint_of(g, _paint_roll[tc.car]))
+	v.set_remote(tc.remote)
+	if tc.remote:
+		v.move_remote(xform, velocity, Vector3.ZERO, true)
+	else:
+		v.reset_to(xform, velocity)
+	tc.garage = g
+	tc.use_vehicle(v)
+	garage_seen[g] = true
+	if tc.ghost_time > 0.0 or overlaps(tc):
+		tc.ghost_time = maxf(tc.ghost_time, TrafficCar.GHOST_S)
+		v.set_ghost(true, false)
+	return true
 
 
 ## Each garage car drawn as itself once its far view is made, in its paint once that's known; a

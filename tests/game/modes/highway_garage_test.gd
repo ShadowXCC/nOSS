@@ -3,7 +3,8 @@ extends GdUnitTestSuite
 ## only into a type the car fits, about GARAGE_SHARE of those; patrols never. Drawing them never
 ## touches the lane sim. In a drive a garage car turns physical as itself once its model is here;
 ## whole models load near a player only, the nearest MOST_WHOLE at most, and go a while after.
-## Models load a few at a time, nearest first (D241).
+## Models load a few at a time, nearest first, and a physics car that started as the stock car
+## becomes its garage car out of sight (D241).
 
 const FIXTURE := "res://tests/fixtures/tracks/highway_ring_small.json"
 const LUMEN := "res://content/tracks/lumen_ring"
@@ -230,3 +231,66 @@ func test_models_load_a_few_at_a_time_nearest_first() -> void:
 		assert_int(sweeps).override_failure_message("%d sweeps" % sweeps).is_less_equal(pool.size())
 		m.free()
 
+
+## A physics car that started as the stock car (its model wasn't here yet) becomes its garage car
+## once that's loaded, out of every player's sight only (D241); its stock body goes to the pool.
+func test_stock_physics_cars_become_garage_cars_out_of_view() -> void:
+	var s := _session()
+	await _wait_for_car(s)
+	var tm := s.traffic
+	for i in 60:
+		if tm.cars.size() >= 8:
+			break
+		await _ticks(30)
+	var rig := s.players[0].cameras
+	var above := func(look: Vector3, fov: float) -> void:
+		var at := s.players[0].vehicle.global_position + Vector3.UP * 400.0
+		rig.watch(Transform3D(Basis.looking_at(look, Vector3.FORWARD), at), fov)
+	# The camera high above, looking down on every car near the player.
+	above.call(Vector3.DOWN, 120.0)
+	await _ticks(2)
+	tm.set_garage(_pool())
+	var stock := {} # car -> its stock body, for cars that pick a garage car
+	for car: int in tm.cars:
+		if tm.garage_of(car) >= 0:
+			stock[car] = (tm.cars[car] as TrafficCar).vehicle
+	assert_int(stock.size()).is_greater(0)
+	var ready := func() -> Array:
+		return stock.keys().filter(func(car: int) -> bool: return tm.cars.has(car) and tm.models.pkgs.has(tm.garage_of(car)))
+	# Their models load, but they're seen: still stock (two sweeps after the first is in).
+	var seen_loaded := 0
+	for i in 12:
+		await _ticks(int(TrafficManager.STREAM_S * 120.0))
+		above.call(Vector3.DOWN, 120.0)
+		for car: int in stock:
+			if tm.cars.has(car):
+				assert_int((tm.cars[car] as TrafficCar).garage).override_failure_message("car %d swapped in view" % car).is_equal(-1)
+		if not ready.call().is_empty():
+			seen_loaded += 1
+			if seen_loaded > 2:
+				break
+	assert_int(seen_loaded).is_greater(2)
+	# Looking up at the sky: they become their garage cars, where they were.
+	var swapped := 0
+	for i in 10:
+		above.call(Vector3.UP, 60.0)
+		await _ticks(int(TrafficManager.STREAM_S * 120.0))
+		var waiting: Array = ready.call()
+		for car: int in waiting.duplicate():
+			var tc: TrafficCar = tm.cars[car]
+			if tc.garage < 0:
+				continue
+			waiting.erase(car)
+			var old: Vehicle = stock[car]
+			assert_int(tc.garage).is_equal(tm.garage_of(car))
+			assert_str(tc.vehicle.package.path).is_equal(String(tm.models.cars[tc.garage].path))
+			assert_bool(tc.vehicle != old and old.traffic_id != car).is_true()
+			assert_bool((tm._pool[Vector2i(int(tm.sim.car(car).type), -1)] as Array).has(old) or old.traffic_id >= 0).is_true()
+			swapped += 1
+			stock.erase(car)
+		if waiting.is_empty() and swapped > 0:
+			break
+	assert_int(swapped).is_greater(0)
+	rig.unwatch()
+	s.queue_free()
+	await get_tree().process_frame

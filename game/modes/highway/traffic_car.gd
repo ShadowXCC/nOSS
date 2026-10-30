@@ -68,13 +68,20 @@ var _half := Vector2(2.25, 0.9)
 
 func _ready() -> void:
 	process_physics_priority = -50
-	var p := vehicle.platform
+	use_vehicle(vehicle)
+
+
+## Drives `v` from now on: at the start, or once a stock car has become its garage car
+## (TrafficManager, D241).
+func use_vehicle(v: Vehicle) -> void:
+	vehicle = v
+	var p := v.platform
 	_wheelbase = float(p.geometry.wheelbase_m.ref)
 	_max_steer = deg_to_rad(float(p.steering.max_road_angle_deg))
-	var e := vehicle.fitted.envelope
+	var e := v.fitted.envelope
 	_half = Vector2(e.size.z / 2.0, e.size.x / 2.0)
 	var assists := { "abs": true, "tcs": true, "stability": true, "auto_gearbox": true, "auto_clutch": true }
-	vehicle.sim.set_assists(assists)
+	v.sim.set_assists(assists)
 
 
 func _physics_process(delta: float) -> void:
