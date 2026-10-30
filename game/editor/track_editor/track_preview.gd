@@ -1,7 +1,7 @@
 class_name TrackPreview
 extends Node3D
 ## The track as the editor shows it (EDT-06): ground, road (a node per control segment), start
-## gantry, props (a node per item) and water (D224: shown, not edited), kept up with the draft in parts. Changes are gathered and
+## gantry, props (a node per item) and water (D224, the Water tool's: D240), kept up with the draft in parts. Changes are gathered and
 ## applied once a frame; while a drag goes on, at most every LIVE_S, and only the segments it
 ## moves (the ground's bed under them included). A highway's ramps come again one by one, with
 ## the stretches of road where they leave and join it (EDT-10); kart pieces one by one too
@@ -189,6 +189,9 @@ func _flush_parts() -> void:
 	if (pending.has(&"props") or pending.has(&"scatter") or pending.has(&"road") or pending.has(&"terrain") or pending.has(&"highway")) and not live_road:
 		_clear(_props)
 		PropBuilder.new(t, draft.terrain).build(_props, true)
+	if pending.has(&"water"):
+		_clear(_water)
+		WaterBuilder.build(t, _water)
 	_built = t
 
 

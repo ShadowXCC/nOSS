@@ -180,6 +180,18 @@ func with_race(data: Dictionary) -> TrackData:
 	return t
 
 
+## The same track with `data`'s water (D240, the editor's Water tool): nothing else read again.
+func with_water(data: Dictionary) -> TrackData:
+	var t := TrackData.new()
+	for prop in get_property_list():
+		if prop.usage & PROPERTY_USAGE_SCRIPT_VARIABLE:
+			t.set(prop.name, get(prop.name))
+	t.raw = data
+	t.layout_hash = TrackFormat.layout_hash(data)
+	t._read_water(data)
+	return t
+
+
 ## An open road made as the main road is from `road` ({points, defaults}), beside `main`: a
 ## scenery road's (D212).
 static func open_road(main: TrackData, road: Dictionary, ground: Callable) -> TrackData:

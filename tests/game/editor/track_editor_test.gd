@@ -62,11 +62,13 @@ func test_undo_goes_through_the_history_and_outlives_the_screen() -> void:
 	await get_tree().process_frame
 
 
-## Every slider and spinner on every tool's panel can be changed (a point and a prop selected):
-## a callback that takes its arguments the wrong way round fails here as a script error.
+## Every slider and spinner on every tool's panel can be changed (a point, a prop and a lake's
+## corner selected): a callback that takes its arguments the wrong way round fails here as a
+## script error.
 func test_every_value_control_works() -> void:
 	var d := TrackTemplates.make("oval")
 	d.add_prop({ "prop": "tent", "p": [0.0, 0.0, 0.0], "yaw_deg": 0.0, "scale": 1.0, "ground": true })
+	d.add_lake({ "name": "Pond", "y": -0.5, "points": [[-40, -20], [40, -20], [0, 30]] })
 	var e := _editor(d)
 	await get_tree().process_frame
 	for title: String in e.tools:
@@ -75,6 +77,9 @@ func test_every_value_control_works() -> void:
 			e.tool.call("_select", 0)
 		elif title == "Props":
 			e.tool.call("_select", 0)
+		elif title == "Water":
+			e.tool.call("_select", 0)
+			e.tool.call("_select_point", 0)
 		await get_tree().process_frame
 		var controls: Array = e._content.find_children("*", "Control", true, false)
 		for c: Control in controls:

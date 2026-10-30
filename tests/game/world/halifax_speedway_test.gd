@@ -13,7 +13,10 @@ func test_the_generator_makes_the_committed_track() -> void:
 	var manifest: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(DIR + "/manifest.json"))
 	var d: TrackDraft = MakeHalifax.build()
 	assert_str(d.track().layout_hash).override_failure_message("halifax_speedway changed: run tools/make_halifax_speedway.tscn").is_equal(String(manifest.layout))
-	assert_array(TrackValidator.errors(TrackValidator.check(d))).is_empty()
+	var found := TrackValidator.check(d)
+	assert_array(TrackValidator.errors(found)).is_empty()
+	# Lake Lloyd's bed is dug and its level under the infield (D240's checks).
+	assert_array(found.filter(func(p: Dictionary) -> bool: return "Lake" in String(p.text))).is_empty()
 
 
 func test_it_is_a_banked_tri_oval_of_two_and_a_half_miles() -> void:

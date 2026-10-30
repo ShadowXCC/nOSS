@@ -11,7 +11,7 @@ signal closed
 const AUTOSAVE_S := 120.0
 const PANEL_WIDTH := 640
 const FONT_SIZE := 24
-const TOOL_ORDER := ["Road", "Ramps", "Stunts", "Surfaces", "Terrain", "Paint", "Props", "Race", "Check", "File"]
+const TOOL_ORDER := ["Road", "Ramps", "Stunts", "Surfaces", "Terrain", "Paint", "Water", "Props", "Race", "Check", "File"]
 ## The AI line and the checks run this long after the last change (sooner while dragging a pin).
 const ANALYSE_S := 0.6
 const ANALYSE_LIVE_S := 0.05
@@ -173,7 +173,7 @@ func _extra_tools() -> Array:
 			"res://game/editor/track_editor/tools/paint_tool.gd", "res://game/editor/track_editor/tools/props_tool.gd",
 			"res://game/editor/track_editor/tools/race_tool.gd", "res://game/editor/track_editor/tools/check_tool.gd",
 			"res://game/editor/track_editor/tools/surfaces_tool.gd", "res://game/editor/track_editor/tools/ramps_tool.gd",
-			"res://game/editor/track_editor/tools/stunts_tool.gd"]:
+			"res://game/editor/track_editor/tools/stunts_tool.gd", "res://game/editor/track_editor/tools/water_tool.gd"]:
 		if ResourceLoader.exists(path):
 			out.append((load(path) as GDScript).new())
 	return out
@@ -389,7 +389,7 @@ func render_images() -> void:
 		draft.images["thumb.png"] = img.save_png_to_buffer()
 
 
-## The road from above on 256 px.
+## The road from above on 256 px, over its lakes (D240).
 static func minimap(t: TrackData) -> Image:
 	var img := Image.create(256, 256, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
@@ -398,6 +398,14 @@ static func minimap(t: TrackData) -> Image:
 		box = box.expand(Vector2(p.x, p.z))
 	var fit := 230.0 / maxf(box.size.x, box.size.y)
 	var offset := (Vector2(256, 256) - box.size * fit) / 2.0
+	for lake in TrackMap.lakes_in(t, box):
+		var px := PackedVector2Array()
+		for p in lake:
+			px.append(offset + (p - box.position) * fit)
+		var inside := TerrainData.cells_inside(px, Vector2.ZERO, Vector2i(256, 256))
+		for k in inside.size():
+			if inside[k]:
+				img.set_pixel(k % 256, k / 256, TrackMap.WATER)
 	for k in t.samples.size():
 		var a := t.samples[k]
 		var at := offset + (Vector2(a.x, a.z) - box.position) * fit

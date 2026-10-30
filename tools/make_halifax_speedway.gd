@@ -347,8 +347,8 @@ static func _ground(d: TrackDraft, dem: Dictionary, line: PackedVector2Array, la
 	var size: Vector2i = f.get_size()
 	var origin: Vector2 = d.terrain.origin()
 	var heights := f.region_get(Rect2i(Vector2i.ZERO, size))
-	var inside := _inside(line, origin, size)
-	var wet := _inside(lake, origin, size)
+	var inside := TerrainData.cells_inside(line, origin, size)
+	var wet := TerrainData.cells_inside(lake, origin, size)
 	var sum := 0.0
 	var count := 0
 	for k in inside.size():
@@ -390,26 +390,6 @@ static func _ground(d: TrackDraft, dem: Dictionary, line: PackedVector2Array, la
 			heights[k] = snappedf(lerpf(grade, heights[k], smoothstep(flat, flat + BLEND_M, dist)), TerrainData.HEIGHT_STEP)
 	f.set_base(heights)
 	return grade
-
-
-## The terrain cells inside the closed `outline` (x, z): row by row, between its crossings.
-static func _inside(outline: PackedVector2Array, origin: Vector2, size: Vector2i) -> PackedByteArray:
-	var inside := PackedByteArray()
-	inside.resize(size.x * size.y)
-	var n := outline.size()
-	for z in size.y:
-		var wz := origin.y + z
-		var xs := PackedFloat32Array()
-		for i in n:
-			var a := outline[i]
-			var b := outline[(i + 1) % n]
-			if (a.y <= wz) != (b.y <= wz):
-				xs.append(a.x + (wz - a.y) / (b.y - a.y) * (b.x - a.x))
-		xs.sort()
-		for k in range(0, xs.size() - 1, 2):
-			for x in range(maxi(ceili(xs[k] - origin.x), 0), mini(floori(xs[k + 1] - origin.x), size.x - 1) + 1):
-				inside[z * size.x + x] = 1
-	return inside
 
 
 ## The berm: outside the wall the ground comes up level with the top of the banking for BERM_M,

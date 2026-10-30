@@ -1,8 +1,10 @@
 class_name TrackMap
 extends Control
 ## Track map for the spare splitscreen quarter (docs/ARCHITECTURE.md §6): the track's
-## centreline, the start line, and each player's car as a dot with their number on it, in
-## their colour (never colour alone).
+## centreline, its lakes (D240, cut to the road's extent), the start line, and each player's car
+## as a dot with their number on it, in their colour (never colour alone).
+
+const WATER := Color(0.13, 0.26, 0.46)
 
 var track: TrackData:
 	set(t):
@@ -14,6 +16,7 @@ var cars: Callable
 
 var _points := PackedVector2Array()
 var _ramps: Array[PackedVector2Array] = []
+var _lakes: Array[PackedVector2Array] = []
 var _bounds := Rect2()
 
 
@@ -46,6 +49,7 @@ func _draw() -> void:
 				_ramps.append(pts)
 				for p in pts:
 					_bounds = _bounds.expand(p)
+		_lakes = lakes_in(track, _bounds)
 	var margin := minf(size.x, size.y) * 0.1
 	var fit := minf((size.x - 2.0 * margin) / maxf(_bounds.size.x, 1.0), (size.y - 2.0 * margin) / maxf(_bounds.size.y, 1.0))
 	var offset := (size - _bounds.size * fit) / 2.0
@@ -55,6 +59,11 @@ func _draw() -> void:
 		line.append(to_map.call(p))
 	line.append(line[0])
 	var width := maxf(size.y / 90.0, 2.0)
+	for lake in _lakes:
+		var ll := PackedVector2Array()
+		for p in lake:
+			ll.append(to_map.call(p))
+		draw_colored_polygon(ll, WATER)
 	for ramp in _ramps:
 		var rl := PackedVector2Array()
 		for p in ramp:
@@ -81,3 +90,14 @@ func _draw() -> void:
 		var fs := int(radius * 1.4)
 		var tw := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
 		draw_string(font, at + Vector2(-tw.x / 2.0, fs * 0.36), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.BLACK)
+
+
+## `t`'s lakes (x, z) cut to `bounds`, each piece one that can be filled.
+static func lakes_in(t: TrackData, bounds: Rect2) -> Array[PackedVector2Array]:
+	var out: Array[PackedVector2Array] = []
+	var box := PackedVector2Array([bounds.position, Vector2(bounds.end.x, bounds.position.y), bounds.end, Vector2(bounds.position.x, bounds.end.y)])
+	for w: Dictionary in t.water:
+		for piece: PackedVector2Array in Geometry2D.intersect_polygons(w.outline, box):
+			if not Geometry2D.triangulate_polygon(piece).is_empty():
+				out.append(piece)
+	return out

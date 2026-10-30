@@ -680,7 +680,7 @@ def editor_walk():
         return
     if find("Start new", "button", timeout=3.0) is not None:  # an autosave from another run
         step("Restore prompt", "Start new")
-    for tool in ["Road", "Terrain", "Paint", "Props", "Race", "Check", "File"]:  # the tool tabs toggle
+    for tool in ["Road", "Terrain", "Paint", "Water", "Props", "Race", "Check", "File"]:  # the tool tabs toggle
         if not step(f"Editor: {tool}", tool, role="toggle button", prefix=(tool == "Check")):
             return
     step("Editor: File", "New track")

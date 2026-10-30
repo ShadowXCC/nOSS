@@ -5,7 +5,7 @@ extends Node3D
 ## the grid, the sector lines, the AI line's pins, the brush ring and the cursor. On a highway
 ## (EDT-10): arrows down each carriageway, the ramps and their names, portals, runs, speed traps
 ## and zones. Drawn on top, in the player's palette, and never by colour alone (sizes, rings,
-## shapes and labels too).
+## shapes and labels too). Lakes' outlines (the Water tool, D240).
 
 const LIFT := 0.35
 const ARROW_EVERY_M := 100.0
@@ -176,6 +176,22 @@ func show_points(points: PackedVector3Array, selected := -1, hover := -1) -> voi
 			_label(str(i + 1), points[i] + Vector3.UP * (2.5 * point_scale + 1.0))
 
 
+## A line through `points` (a lake's outline, D240), back to the first if `closed`, over what
+## show_track() drew. `label`: shown over the middle of its points.
+func show_outline(points: PackedVector3Array, closed: bool, c: Color, label := "") -> void:
+	if points.size() < 2:
+		return
+	_begin(c)
+	var middle := Vector3.ZERO
+	for k in points.size() + (1 if closed else 0):
+		_lines.surface_add_vertex(points[k % points.size()] + Vector3.UP * LIFT)
+	for p in points:
+		middle += p / points.size()
+	_lines.surface_end()
+	if label:
+		_label(label, middle + Vector3.UP * (2.0 * point_scale + 1.0))
+
+
 ## A highway's ramps (centreline and edges; the selected one brighter, with its name), portals,
 ## runs (start and finish across their carriageway), speed traps and zones.
 func _highway(t: TrackData) -> void:
@@ -280,6 +296,17 @@ func show_brush(center: Vector3, radius: float, height: Callable, color := Color
 	_brush.surface_add_vertex(center + Vector3(1.5, 0.3, 0))
 	_brush.surface_add_vertex(center + Vector3(0, 0.3, -1.5))
 	_brush.surface_add_vertex(center + Vector3(0, 0.3, 1.5))
+	_brush.surface_end()
+
+
+## A line from `from` to `to` in the brush's place (an outline's next side, to the cursor);
+## show_brush() with no radius takes it away.
+func show_line(from: Vector3, to: Vector3, c: Color) -> void:
+	_brush.clear_surfaces()
+	_brush.surface_begin(Mesh.PRIMITIVE_LINES)
+	_brush.surface_set_color(c)
+	_brush.surface_add_vertex(from + Vector3.UP * LIFT)
+	_brush.surface_add_vertex(to + Vector3.UP * LIFT)
 	_brush.surface_end()
 
 

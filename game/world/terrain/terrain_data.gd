@@ -272,3 +272,114 @@ func fit_to(bounds: Rect2, margin := 300.0) -> TerrainData:
 		var weights := field.splat_region_get(overlap)
 		t.field.splat_region_set(Rect2i(overlap.position - offset, overlap.size), weights)
 	return t
+
+
+## The samples inside the closed `outline` (x, z), `size` of them from `origin`: row by row,
+## between its crossings. 1 inside, 0 not.
+static func cells_inside(outline: PackedVector2Array, origin_: Vector2, size: Vector2i) -> PackedByteArray:
+	var inside := PackedByteArray()
+	inside.resize(size.x * size.y)
+	var n := outline.size()
+	for z in size.y:
+		var wz := origin_.y + z
+		var xs := PackedFloat32Array()
+		for i in n:
+			var a := outline[i]
+			var b := outline[(i + 1) % n]
+			if (a.y <= wz) != (b.y <= wz):
+				xs.append(a.x + (wz - a.y) / (b.y - a.y) * (b.x - a.x))
+		xs.sort()
+		for k in range(0, xs.size() - 1, 2):
+			for x in range(maxi(ceili(xs[k] - origin_.x), 0), mini(floori(xs[k + 1] - origin_.x), size.x - 1) + 1):
+				inside[z * size.x + x] = 1
+	return inside
+
+
+## Digs a lake's bed (D240): the shaped ground inside `outline` (x, z) goes down from the lake's
+## level `y` at the outline to `depth` under it `shore` metres in, and stays there; it's only ever
+## lowered. Applied; returns {rect, before, after} (the samples' heights), or {} if nothing changed.
+func dig_lake(outline: PackedVector2Array, y: float, depth: float, shore: float) -> Dictionary:
+	var box := Rect2(outline[0], Vector2.ZERO)
+	for p in outline:
+		box = box.expand(p)
+	var o := origin()
+	var size := field.get_size()
+	var from := (Vector2i((box.position - o).floor()) - Vector2i.ONE).clamp(Vector2i.ZERO, size)
+	var to := (Vector2i((box.end - o).ceil()) + Vector2i(2, 2)).clamp(Vector2i.ZERO, size)
+	var rect := Rect2i(from, to - from)
+	if not rect.has_area():
+		return {}
+	var at := o + Vector2(rect.position)
+	var w := rect.size.x
+	var inside := cells_inside(outline, at, rect.size)
+	# How far in from the outline, for the samples within `shore` of it (the rest: the bed).
+	var dist := PackedFloat32Array()
+	dist.resize(inside.size())
+	dist.fill(INF)
+	var n := outline.size()
+	for i in n:
+		var a := outline[i]
+		var b := outline[(i + 1) % n]
+		for z in range(maxi(floori(minf(a.y, b.y) - shore - at.y), 0), mini(ceili(maxf(a.y, b.y) + shore - at.y), rect.size.y - 1) + 1):
+			var wz := at.y + z
+			# The part of the edge within `shore` of this row, and the row's samples near it.
+			var t0 := 0.0
+			var t1 := 1.0
+			if absf(b.y - a.y) > 1e-6:
+				var ta := (wz - shore - a.y) / (b.y - a.y)
+				var tb := (wz + shore - a.y) / (b.y - a.y)
+				t0 = maxf(minf(ta, tb), 0.0)
+				t1 = minf(maxf(ta, tb), 1.0)
+				if t0 > t1:
+					continue
+			var xa := lerpf(a.x, b.x, t0)
+			var xb := lerpf(a.x, b.x, t1)
+			for x in range(maxi(floori(minf(xa, xb) - shore - at.x), 0), mini(ceili(maxf(xa, xb) + shore - at.x), w - 1) + 1):
+				var k := z * w + x
+				if inside[k]:
+					var p := Vector2(at.x + x, wz)
+					dist[k] = minf(dist[k], p.distance_to(Geometry2D.get_closest_point_to_segment(p, a, b)))
+	var before := field.region_get(rect)
+	var after := before.duplicate()
+	var changed := false
+	for k in inside.size():
+		if not inside[k]:
+			continue
+		var target := snappedf(lerpf(y, y - depth, smoothstep(0.0, shore, dist[k]) if shore > 0.0 else 1.0), HEIGHT_STEP)
+		if after[k] > target + 0.001: # heights are kept as 32-bit floats
+			after[k] = maxf(target, HEIGHT_MIN)
+			changed = true
+	if not changed:
+		return {}
+	field.region_set(rect, after)
+	return { "rect": rect, "before": before, "after": after }
+
+
+## The lowest ground just outside `outline` (x, z; `out_m` out from it, so a bed cut straight down
+## at the outline doesn't count: 2 m keeps all four samples a height is read from outside it),
+## looked at every `step_m` along it: (x, height, z). Off a sharp corner, where a step out from
+## one side comes close to the next, it isn't looked at.
+func shore_low(outline: PackedVector2Array, step_m := 2.0, out_m := 2.0) -> Vector3:
+	var best := Vector3(0.0, INF, 0.0)
+	var n := outline.size()
+	for i in n:
+		var a := outline[i]
+		var b := outline[(i + 1) % n]
+		var along := b - a
+		if along.length() < 1e-4:
+			continue
+		var normal := along.orthogonal().normalized() * out_m
+		var steps := maxi(ceili(along.length() / step_m), 1)
+		for s in steps:
+			var p := a + along * (float(s) / steps)
+			var q := p + normal
+			if out_m > 0.0 and Geometry2D.is_point_in_polygon(q, outline):
+				q = p - normal
+			var before := Geometry2D.get_closest_point_to_segment(q, outline[(i + n - 1) % n], a)
+			var after := Geometry2D.get_closest_point_to_segment(q, b, outline[(i + 2) % n])
+			if minf(q.distance_to(before), q.distance_to(after)) < out_m * 0.9:
+				continue
+			var h := height_at(q.x, q.y)
+			if h < best.y:
+				best = Vector3(q.x, h, q.y)
+	return best

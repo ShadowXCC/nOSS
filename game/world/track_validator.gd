@@ -55,6 +55,13 @@ const ARENA_MIN_M2 := 2500.0
 const ARENA_SPAWNS := 8
 ## A pit lane (D203) at least this long.
 const PIT_MIN_M := 150.0
+## Water (D224, D240): road at least this far over a lake's level is a bridge over it (a car on it
+## never reaches the catch volume under the surface).
+const WATER_CLEAR_M := 1.0
+## A lake's edge hangs in the air where the ground round it is this far under its level; it's
+## under the ground when the ground is over its level on this share of it (less: islands).
+const WATER_FLOAT_M := 0.3
+const WATER_DRY_SHARE := 0.5
 ## The car the AI line's speeds are checked with (and the editor's "AI lap" is timed with).
 const REFERENCE_PLATFORM := "official.track.gt"
 const LEVELS := ["error", "warning", "info"]
@@ -90,7 +97,40 @@ static func inputs(draft: TrackDraft) -> Dictionary:
 		"license": String(draft.info.get("license", "")),
 		"scene": draft.scene,
 		"platform": PlatformLoader.load_official(REFERENCE_PLATFORM).platform,
+		"water_ground": _water_ground(draft, track),
 	}
+
+
+## Per lake (D240), the ground round it and under it, read now: {low: the lowest ground just
+## outside it (x, height, z), above: the share of it where the ground is over its level, at: one
+## such spot}. Empty with no terrain (a fitted scene's ground is its own).
+static func _water_ground(draft: TrackDraft, track: TrackData) -> Array:
+	var out := []
+	if draft.terrain == null:
+		return out
+	for w: Dictionary in track.water:
+		var outline: PackedVector2Array = w.outline
+		var box := Rect2(outline[0], Vector2.ZERO)
+		for p in outline:
+			box = box.expand(p)
+		var step := maxf(4.0, sqrt(box.get_area() / 20000.0))
+		var inside := 0
+		var dry := 0
+		var at := Vector3.ZERO
+		var z := box.position.y + step / 2.0
+		while z < box.end.y:
+			var x := box.position.x + step / 2.0
+			while x < box.end.x:
+				if Geometry2D.is_point_in_polygon(Vector2(x, z), outline):
+					inside += 1
+					var h := draft.terrain.height_at(x, z)
+					if h > float(w.y) + 0.05:
+						dry += 1
+						at = Vector3(x, h, z)
+				x += step
+			z += step
+		out.append({ "low": draft.terrain.shore_low(outline), "above": float(dry) / maxi(inside, 1), "at": at })
+	return out
 
 
 static func run(inputs_: Dictionary, line: RacingLine = null) -> Array:
@@ -351,14 +391,22 @@ func _props() -> void:
 
 
 ## Water (D224): never over the road or its pit lane, edge to edge (a car there would be sent
-## back from it); a prop standing in it is a warning.
+## back from it), unless the road crosses it WATER_CLEAR_M up or more (a bridge, D240); a prop
+## standing in it is a warning. An outline that crosses itself builds nothing; one whose edge
+## hangs over lower ground, or that the ground hides, is a warning (D240: Dig bed).
 func _water() -> void:
-	for w: Dictionary in t.water:
+	var ground: Array = _in.get("water_ground", [])
+	for n in t.water.size():
+		var w: Dictionary = t.water[n]
 		var outline: PackedVector2Array = w.outline
+		var y := float(w.y)
+		if Geometry2D.triangulate_polygon(outline).is_empty():
+			_add("error", "Lake crosses itself", -1.0, Vector3(outline[0].x, y, outline[0].y))
 		var box := Rect2(outline[0], Vector2.ZERO)
 		for p in outline:
 			box = box.expand(p)
 		var wet := func(p: Vector3) -> bool: return box.has_point(Vector2(p.x, p.z)) and Geometry2D.is_point_in_polygon(Vector2(p.x, p.z), outline)
+		var under := func(p: Vector3) -> bool: return p.y < y + WATER_CLEAR_M and wet.call(p)
 		for road: Array in [[t, "Water on the road"], [t.pit.track if t.pit else null, "Water on the pit lane"]]:
 			var r: TrackData = road[0]
 			if r == null:
@@ -366,9 +414,16 @@ func _water() -> void:
 			for i in range(0, r.samples.size(), 2):
 				var c := r.samples[i]
 				var left := r.lefts[i]
-				if wet.call(c) or wet.call(c + left * (r.half_l[i] + r.apron(i, 1.0))) or wet.call(c - left * (r.half_r[i] + r.apron(i, -1.0))):
+				if under.call(c) or under.call(c + left * (r.half_l[i] + r.apron(i, 1.0))) or under.call(c - left * (r.half_r[i] + r.apron(i, -1.0))):
 					_add("error", road[1], r.distances[i] if r == t else -1.0, c)
 					break
+		if n < ground.size():
+			var g: Dictionary = ground[n]
+			var low: Vector3 = g.low
+			if low.y < y - WATER_FLOAT_M:
+				_add("warning", "Lake edge floats", -1.0, Vector3(low.x, y, low.z))
+			if float(g.above) >= WATER_DRY_SHARE:
+				_add("warning", "Lake under the ground", -1.0, g.at)
 		for item: Dictionary in (_in.props as Dictionary).get("items", []):
 			if wet.call(Vector3(item.p[0], 0.0, item.p[2])):
 				_add("warning", "Prop in the water", -1.0, Vector3(item.p[0], float(w.y), item.p[2]))

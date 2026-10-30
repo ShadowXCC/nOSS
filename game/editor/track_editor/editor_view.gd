@@ -8,7 +8,7 @@ extends SubViewportContainer
 
 ## {kind: press|drag|release|hover, screen, hit: {hit, position, normal, collider}, shift, alt, crosshair}
 signal pointer(event: Dictionary)
-## A shortcut: confirm, delete, prev, next, undo, redo, test, test_grid, panel, map, tool_<1-8>.
+## A shortcut: confirm, delete, prev, next, undo, redo, test, test_grid, panel, map, tool_<1-9>.
 signal action(name: String)
 ## The camera zoomed enough that the gizmos should be redrawn at their new size.
 signal zoomed
@@ -205,7 +205,7 @@ func _key_action(key: InputEventKey) -> String:
 		return "redo" if key.shift_pressed else "undo"
 	if key.ctrl_pressed and key.physical_keycode == KEY_Y:
 		return "redo"
-	if key.physical_keycode >= KEY_1 and key.physical_keycode <= KEY_8 and not key.ctrl_pressed:
+	if key.physical_keycode >= KEY_1 and key.physical_keycode <= KEY_9 and not key.ctrl_pressed:
 		return "tool_%d" % (key.physical_keycode - KEY_1 + 1)
 	return ""
 

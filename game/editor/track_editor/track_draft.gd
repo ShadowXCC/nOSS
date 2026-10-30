@@ -399,8 +399,8 @@ func set_info(key: String, value: Variant) -> void:
 
 ## A terrain stroke that was applied as it went (heights in `rect` went from `before` to
 ## `after`), recorded as one action.
-func terrain_stroke(rect: Rect2i, before: PackedFloat32Array, after: PackedFloat32Array) -> void:
-	history.act("Shape ground", _set_heights.bind(rect, after), _set_heights.bind(rect, before), false)
+func terrain_stroke(rect: Rect2i, before: PackedFloat32Array, after: PackedFloat32Array, name := "Shape ground") -> void:
+	history.act(name, _set_heights.bind(rect, after), _set_heights.bind(rect, before), false)
 	_track = null
 	_changed(&"terrain", { "rect": rect })
 
@@ -1084,6 +1084,127 @@ static func _flip_kart(k: Dictionary, mirror: Callable) -> void:
 			p.lateral_m = -float(p.lateral_m)
 
 
+# --- water (D224, D240) -------------------------------------------------------------------
+
+
+## As the track format allows (data/schemas/track.schema.json).
+const MAX_LAKES := 16
+const MAX_LAKE_POINTS := 2000
+
+
+## The lakes as stored: [{name, y, points: [[x, z], …]}].
+func lakes() -> Array:
+	return layout.get("water", [])
+
+
+## Lake `i` as stored (null if none).
+func lake(i: int) -> Variant:
+	var w := lakes()
+	return w[i] if i >= 0 and i < w.size() else null
+
+
+## Lake `w`'s outline (x, z).
+static func lake_outline(w: Dictionary) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for p: Array in w.get("points", []):
+		out.append(Vector2(float(p[0]), float(p[1])))
+	return out
+
+
+## Adds `w` ({name, y, points}) after the others: its index, or -1 when there are MAX_LAKES.
+func add_lake(w: Dictionary) -> int:
+	if lakes().size() >= MAX_LAKES:
+		return -1
+	_edit("Add lake", "water", func() -> void:
+		if not layout.has("water"):
+			layout.water = []
+		layout.water.append({ "name": String(w.get("name", "")), "y": snappedf(float(w.get("y", 0.0)), 0.01),
+			"points": (w.points as Array).map(func(p: Array) -> Array: return _lake_point(Vector2(p[0], p[1]))) }), &"water")
+	return lakes().size() - 1
+
+
+## Sets lake `i`'s name or level (`y`).
+func set_lake(i: int, key: String, value: Variant) -> void:
+	if lake(i) == null:
+		return
+	var v: Variant = snappedf(float(value), 0.01) if key == "y" else value
+	_edit("Lake level" if key == "y" else "Set lake " + key, "water", func() -> void: lake(i)[key] = v, &"water")
+
+
+## Moves lake `i`'s corner `k` without recording (while dragging); end_lake_move() records it,
+## cancel_lake_move() puts it back.
+func drag_lake_point(i: int, k: int, p: Vector2) -> void:
+	var w: Variant = lake(i)
+	if w == null or k < 0 or k >= (w.points as Array).size():
+		return
+	if not _dragging.has("water"):
+		_dragging.water = _section("water")
+	w.points[k] = _lake_point(p)
+	_changed(&"water", { "live": true })
+
+
+## Records a corner's drag (drag_lake_point) as one move.
+func end_lake_move(name := "Move corner") -> void:
+	if not _dragging.has("water"):
+		return
+	var before: Dictionary = _dragging.water
+	_dragging.erase("water")
+	history.act(name, _set_section.bind("water", _section("water"), &"water"), _set_section.bind("water", before, &"water"), false)
+	_changed(&"water", {})
+
+
+## Puts a dragged corner back where it was, unrecorded.
+func cancel_lake_move() -> void:
+	if _dragging.has("water"):
+		_set_section("water", _dragging.water, &"water")
+		_dragging.erase("water")
+
+
+## Puts a corner at `index` of lake `i` (it becomes that corner; the rest move up).
+func add_lake_point(i: int, index: int, p: Vector2) -> void:
+	var w: Variant = lake(i)
+	if w == null or (w.points as Array).size() >= MAX_LAKE_POINTS:
+		return
+	_edit("Add corner", "water", func() -> void:
+		var pts: Array = lake(i).points
+		pts.insert(clampi(index, 0, pts.size()), _lake_point(p)), &"water")
+
+
+## Removes corner `k` of lake `i` (a lake keeps three).
+func delete_lake_point(i: int, k: int) -> void:
+	var w: Variant = lake(i)
+	if w == null or k < 0 or k >= (w.points as Array).size() or (w.points as Array).size() <= 3:
+		return
+	_edit("Delete corner", "water", func() -> void: (lake(i).points as Array).remove_at(k), &"water")
+
+
+## Removes lake `i` (the key with the last of them, so the track hashes as before).
+func delete_lake(i: int) -> void:
+	if lake(i) == null:
+		return
+	_edit("Delete lake", "water", func() -> void:
+		layout.water.remove_at(i)
+		if layout.water.is_empty():
+			layout.erase("water"), &"water")
+
+
+## Digs lake `i`'s bed into the ground (TerrainData.dig_lake), as one action. False if there was
+## no ground there to lower.
+func dig_lake_bed(i: int, depth: float, shore: float) -> bool:
+	var w: Variant = lake(i)
+	if w == null or terrain == null:
+		return false
+	var dug := terrain.dig_lake(lake_outline(w), float(w.y), depth, shore)
+	if dug.is_empty():
+		return false
+	terrain_stroke(dug.rect, dug.before, dug.after, "Dig lake bed")
+	return true
+
+
+static func _lake_point(p: Vector2) -> Array:
+	return [snappedf(p.x, 0.01), snappedf(p.y, 0.01)]
+
+
 # --- internals ----------------------------------------------------------------------------
 
 
@@ -1115,6 +1236,8 @@ func _section(section: String) -> Dictionary:
 				"highway": (layout.highway as Dictionary).duplicate(true) if layout.has("highway") else null }
 		"roads":
 			return { "roads": (layout.roads as Array).duplicate(true) if layout.has("roads") else null }
+		"water":
+			return { "water": (layout.water as Array).duplicate(true) if layout.has("water") else null }
 		"type":
 			var out := { "type": layout.get("type", "circuit"), "road": layout.road.duplicate(true), "race": layout.race.duplicate(true) }
 			for key in ["highway", "kart", "arena"]:
@@ -1168,7 +1291,9 @@ func _set_scatter(prop: String, xf: Array, notify := true) -> void:
 
 
 func _changed(what: StringName, change_info: Dictionary) -> void:
-	if what in [&"race", &"highway", &"kart"] and _track:
+	if what == &"water" and _track:
+		_track = _track.with_water(layout)
+	elif what in [&"race", &"highway", &"kart"] and _track:
 		_track = _track.with_race(layout) # the road is the same: no resampling
 	elif what in [&"road", &"race", &"terrain", &"all"]:
 		_track = null
