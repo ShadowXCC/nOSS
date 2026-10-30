@@ -590,6 +590,7 @@ func _exit_tree() -> void:
 	Engine.time_scale = 1.0
 	Engine.physics_ticks_per_second = PHYSICS_HZ
 	CarVisual.lod_scale = 1.0
+	PackageLoader.finish_loads()
 	PackageLoader.clear_shared()
 	KartControl.clear_caches()
 	Players.joining = false

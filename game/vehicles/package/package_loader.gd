@@ -151,10 +151,28 @@ static func load_async(path: String, on_done: Callable, limits := {}, opts := {}
 	job.on_done = on_done
 	job.task = WorkerThreadPool.add_task(func() -> void:
 		var pkg := load_package(path, limits, opts)
+		job.pkg = pkg
 		job.finish.call_deferred(pkg), not opts.get("low_priority", false), "Load " + path.get_file())
+	_running[job] = true
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree:
 		tree.create_timer(TIMEOUT_S, true, false, true).timeout.connect(job.time_out.bind(path))
+
+
+## Loads still on a worker (load_async): _Job -> true.
+static var _running := {}
+
+
+## Waits for every load still on a worker, serving their RenderingServer calls meanwhile, and
+## frees what they made (a session ending, D241). A glTF load waits on the main thread to read a
+## texture back; one still waiting once the game quits held up its exit for good.
+static func finish_loads() -> void:
+	for job: _Job in _running.keys():
+		while not WorkerThreadPool.is_task_completed(job.task):
+			RenderingServer.force_sync()
+			OS.delay_msec(1)
+		job.drop()
+	_running.clear()
 
 
 ## Validates and parses a package. Check `ok()` on the result. `opts` (load_async also takes
@@ -462,24 +480,39 @@ class _Job:
 	var task := -1
 	var on_done: Callable
 	var done := false
+	var waited := false
+	## What the worker made (for drop()).
+	var pkg: VehiclePackage
 
-	func finish(pkg: VehiclePackage) -> void:
-		WorkerThreadPool.wait_for_task_completion(task)
+	func finish(made: VehiclePackage) -> void:
+		PackageLoader._running.erase(self)
+		if not waited:
+			WorkerThreadPool.wait_for_task_completion(task)
+			waited = true
 		if done:
-			pkg.free_scenes() # timed out earlier
+			made.free_scenes() # timed out or dropped earlier
 			return
 		done = true
 		if not WorkerJob.alive(on_done): # whoever asked is gone (left the screen meanwhile)
-			pkg.free_scenes()
+			made.free_scenes()
 			return
-		on_done.call(pkg)
+		on_done.call(made)
+
+	## Its worker is done: what it made goes, and finish() won't hand it on.
+	func drop() -> void:
+		if not waited:
+			WorkerThreadPool.wait_for_task_completion(task)
+			waited = true
+		done = true
+		if pkg:
+			pkg.free_scenes()
 
 	func time_out(path: String) -> void:
 		if done:
 			return
 		done = true
-		var pkg := VehiclePackage.new()
-		pkg.path = path
-		pkg.error = "Load timed out"
+		var failed := VehiclePackage.new()
+		failed.path = path
+		failed.error = "Load timed out"
 		if WorkerJob.alive(on_done):
-			on_done.call(pkg)
+			on_done.call(failed)
