@@ -122,6 +122,8 @@ func _car_loaded(pkg: VehiclePackage) -> void:
 
 func _car_changed() -> void:
 	hud.set_car_name("%s · %s%s" % [platform.platform.name, vehicle.package.display_name(), _fit_notes()])
+	if slot.index == 0 and Game.dev.has("livery") and vehicle.visual:
+		vehicle.visual.apply_livery(LiveryData.parse(FileAccess.get_file_as_bytes(String(Game.dev.livery))), str(number))
 
 
 func _make_driver() -> Node:

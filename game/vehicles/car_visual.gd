@@ -4,6 +4,12 @@ extends Node3D
 ## hubs, wheels and the steering wheel driven by the sim (docs/ARCHITECTURE.md §4).
 
 const PAINT_SHADER := preload("res://game/vehicles/noss_paint.gdshader")
+## A paint slot with livery layers on it, and the glass when they reach it (docs/VEHICLE_PACKAGE.md §12).
+const LIVERY_SHADER := preload("res://game/vehicles/livery/noss_paint_livery.gdshader")
+const GLASS_SHADER := preload("res://game/vehicles/livery/noss_glass_livery.gdshader")
+## Paint parameters kept when a slot changes between the plain and the livery shader.
+const PAINT_PARAMS := ["paint_color", "detail", "normal_map", "use_normal_map", "uv_scale", "uv_offset", "metallic",
+	"roughness", "clearcoat", "clearcoat_roughness", "pearl", "pearl_color"]
 ## Finish -> [metallic, roughness, clearcoat, clearcoat roughness, pearl] (docs/VEHICLE_PACKAGE.md §5).
 const FINISHES := {
 	"solid": [0.0, 0.35, 1.0, 0.04, 0.0],
@@ -48,6 +54,15 @@ var _tail_on := false
 var _light_materials := {}
 var _light_level := {}
 var _lod_distances: Array = []
+## The livery worn ({} for none, LiveryData), the number its race-number layers show, and
+## whether it's shown (Sumo's team colours hide it).
+var livery := {}
+var livery_number := ""
+var _livery_shown := true
+## Each slot's colour now, for the layers linked to it.
+var _slot_colors := {}
+## Glass materials with the livery on them, by original material (made while the livery uses the glass).
+var _glass := {}
 
 ## Car LOD distances are multiplied by this (splitscreen lowers it, docs/ARCHITECTURE.md §6).
 static var lod_scale := 1.0
@@ -216,6 +231,11 @@ func set_paint(slot: String, color: Color, finish := "") -> void:
 	if m == null:
 		return
 	m.set_shader_parameter("paint_color", color)
+	_slot_colors[slot] = color
+	if not livery.is_empty():
+		var colors := LiveryRenderer.slot_colors(_slot_colors)
+		for lm: ShaderMaterial in _livery_materials():
+			lm.set_shader_parameter("livery_slots", colors)
 	if FINISHES.has(finish):
 		var f: Array = FINISHES[finish]
 		m.set_shader_parameter("metallic", f[0])
@@ -227,6 +247,125 @@ func set_paint(slot: String, color: Color, finish := "") -> void:
 
 func wheel_count() -> int:
 	return _wheels.size()
+
+
+## Puts on a livery (LiveryData, cleaned; {} takes it off): its base paint on the slots it names,
+## and its layers on the slots and glass they land on. `number`: what race-number layers set to
+## auto show.
+func apply_livery(new_livery: Dictionary, number := "") -> void:
+	livery = new_livery
+	livery_number = number
+	var base: Dictionary = livery.get("base", {})
+	for slot: String in base:
+		set_paint(slot, Color.html(base[slot].color), base[slot].finish)
+	_update_livery()
+
+
+## Shows or hides the livery's layers (its base paint stays).
+func set_livery_shown(on: bool) -> void:
+	if on == _livery_shown:
+		return
+	_livery_shown = on
+	_update_livery()
+
+
+func livery_shown() -> bool:
+	return _livery_shown and not livery.is_empty()
+
+
+## Each slot on the livery shader with its layers, or back on the plain one; the glass likewise.
+func _update_livery() -> void:
+	var on := livery_shown()
+	var rects := {}
+	var text: Texture2D = null
+	var colors := LiveryRenderer.slot_colors(_slot_colors)
+	var mirror := LiveryRenderer.mirror_plane(fitted.model_xform, fitted.model_bounds)
+	var used := false
+	for slot: String in _paint:
+		var m: ShaderMaterial = _paint[slot]
+		var packed := LiveryRenderer.pack(livery, slot, rects) if on else [PackedVector4Array(), 0]
+		if packed[1] == 0:
+			_set_shader(m, PAINT_SHADER)
+			continue
+		_set_shader(m, LIVERY_SHADER)
+		_set_layers(m, packed, colors, mirror, text)
+		used = true
+	var glass_names: Array = package.paint.get("glass", [])
+	var glass := LiveryRenderer.pack(livery, "glass", rects) if on and not glass_names.is_empty() else [PackedVector4Array(), 0]
+	for mi: MeshInstance3D in model_root.find_children("*", "MeshInstance3D", true, false):
+		for s in mi.mesh.get_surface_count() if mi.mesh else 0:
+			var original := mi.mesh.surface_get_material(s)
+			if original == null or original.resource_name not in glass_names:
+				continue
+			var current := mi.get_surface_override_material(s)
+			if current != null and not _glass.values().has(current):
+				continue # a light's material
+			if glass[1] == 0 or not original is BaseMaterial3D:
+				mi.set_surface_override_material(s, null)
+				continue
+			if not _glass.has(original):
+				_glass[original] = _glass_material(original as BaseMaterial3D)
+			_set_layers(_glass[original], glass, colors, mirror, text)
+			mi.set_surface_override_material(s, _glass[original])
+			used = true
+	if not used:
+		return
+	# Model space from each mesh's own: the layers stay on their part as it moves (a wheel).
+	for mi: MeshInstance3D in model_root.find_children("*", "MeshInstance3D", true, false):
+		var xf := _xform_to(mi)
+		var b := xf.basis
+		mi.set_instance_shader_parameter("livery_r0", Vector4(b.x.x, b.y.x, b.z.x, xf.origin.x))
+		mi.set_instance_shader_parameter("livery_r1", Vector4(b.x.y, b.y.y, b.z.y, xf.origin.y))
+		mi.set_instance_shader_parameter("livery_r2", Vector4(b.x.z, b.y.z, b.z.z, xf.origin.z))
+
+
+func _set_layers(m: ShaderMaterial, packed: Array, colors: PackedVector4Array, mirror: Vector4, text: Texture2D) -> void:
+	m.set_shader_parameter("livery", packed[0])
+	m.set_shader_parameter("livery_count", packed[1])
+	m.set_shader_parameter("livery_slots", colors)
+	m.set_shader_parameter("livery_mirror", mirror)
+	m.set_shader_parameter("livery_shapes", LiveryRenderer.shapes_atlas())
+	m.set_shader_parameter("livery_text", text)
+
+
+## The materials drawing the livery now.
+func _livery_materials() -> Array:
+	var out := []
+	for m: ShaderMaterial in _paint.values():
+		if m.shader == LIVERY_SHADER:
+			out.append(m)
+	out.append_array(_glass.values())
+	return out
+
+
+## Swaps a paint slot's shader, keeping its paint.
+static func _set_shader(m: ShaderMaterial, shader: Shader) -> void:
+	if m.shader == shader:
+		return
+	var kept := {}
+	for p: String in PAINT_PARAMS:
+		kept[p] = m.get_shader_parameter(p)
+	m.shader = shader
+	for p: String in kept:
+		if kept[p] != null:
+			m.set_shader_parameter(p, kept[p])
+
+
+## A glass material with the livery on it, looking like `original`.
+static func _glass_material(original: BaseMaterial3D) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = GLASS_SHADER
+	var c := original.albedo_color
+	if original.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED:
+		c.a = 1.0
+	m.set_shader_parameter("glass_color", c)
+	if original.albedo_texture:
+		m.set_shader_parameter("glass_texture", original.albedo_texture)
+	m.set_shader_parameter("glass_metallic", original.metallic)
+	m.set_shader_parameter("glass_roughness", original.roughness)
+	m.set_shader_parameter("uv_scale", original.uv1_scale)
+	m.set_shader_parameter("uv_offset", original.uv1_offset)
+	return m
 
 
 func _setup() -> void:
