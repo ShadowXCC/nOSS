@@ -183,6 +183,11 @@ func _show_step(step: String, keep_focus := false) -> void:
 	# Pointing at the car in the Livery step keeps the focus in the view while the list changes.
 	_preview.set_livery_mode(step == "Livery" and draft != null, self)
 	UiKit.chain_focus(chain, focus_at < 0 and not _preview.has_focus())
+	if step == "Livery" and focus_at < 0 and not _preview.has_focus():
+		# The step opens on its main action, Add shape (the liveries' rows are just above it).
+		for c in _focusable(controls):
+			if c is Button and (c as Button).text == "Add shape…":
+				UiKit.focus_later(c)
 	if focus_at >= 0:
 		var targets := chain.map(func(c: Control) -> Control: return UiKit._focus_target(c)).filter(func(c: Control) -> bool: return c != null)
 		UiKit.focus_later(targets[mini(focus_at, maxi(targets.size() - 4, 0))]) # not the 3 buttons after the step's

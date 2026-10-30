@@ -22,6 +22,7 @@ func before_test() -> void:
 
 
 func after_test() -> void:
+	_draft.delete_draft() # a bay saved it as it showed it
 	_draft.free_scene()
 	for f in DirAccess.get_files_at(DIR):
 		DirAccess.remove_absolute(DIR + f)

@@ -43,6 +43,7 @@ func _init(fitting: FittingDraft) -> void:
 	draft = fitting
 	if draft.livery_history == null:
 		draft.livery_history = EditHistory.new(HISTORY)
+		draft.liveries_saved = draft.livery_history.version() # nothing changed yet
 	_fix_layer()
 
 

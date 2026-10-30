@@ -1,8 +1,8 @@
 class_name LiveryStep
 extends RefCounted
 ## The Fitting Bay's Livery step (docs/VEHICLE_PACKAGE.md §7, §12; docs/UI_FLOW.md §12): the car's
-## liveries (which it wears, which is edited), the edited one's base paint, its layers, the picked
-## layer's look and its place on the car. Everything here works from the list alone (keyboard,
+## liveries (which it wears, which is edited), the edited one's layers, the picked layer's look and
+## its place on the car, then the livery's own paint under it. Everything here works from the list alone (keyboard,
 ## pad, screen reader); the 3D view adds pointing at the car (LiveryView).
 
 const FINISHES := [["paint", "Like the paint"], ["gloss", "Gloss"], ["satin", "Satin"], ["matte", "Matte"],
@@ -51,6 +51,37 @@ func build() -> Array:
 	]))
 	out.append_array(_extra_livery_rows())
 
+	out.append(_heading("Layers"))
+	out.append(_row([
+		UiKit.button("Add shape…", _shape_picker, "Pick a shape to add"),
+		UiKit.button("Add text", _do.bind(e.add.bind("text")), "Add a line of text"),
+		UiKit.button("Add number", _do.bind(e.add.bind("number")), "Add a race number"),
+	]))
+	out.append(_row([
+		UiKit.button("Undo", _do.bind(e.undo), "Ctrl+Z"),
+		UiKit.button("Redo", _do.bind(e.redo), "Ctrl+Y"),
+		UiKit.button("Layers…", _layer_list, "Every layer, top first"),
+	]))
+	var c := e.current()
+	if c.is_empty():
+		out.append(FittingBay._text("No layers yet."))
+		out.append_array(_paint(e, l))
+		return out
+	var items := []
+	for i in range(e.layers().size() - 1, -1, -1):
+		items.append([i, e.layer_label(i)])
+	out.append(UiKit.spinner("Layer", items, e.layer, func(v: int) -> void:
+		e.layer = v
+		bay._show_step("Livery", true), "The layer to change"))
+	out.append_array(_properties(e, c))
+	out.append_array(_placement(e))
+	out.append_array(_paint(e, l))
+	return out
+
+
+## The livery's own paint under its layers, per slot.
+func _paint(e: LiveryEdit, l: Dictionary) -> Array:
+	var out := []
 	out.append(_heading("Paint"))
 	var base: Dictionary = l.get("base", {})
 	for slot: String in ["primary", "secondary", "tertiary"]:
@@ -67,30 +98,6 @@ func build() -> Array:
 			state.finish = v
 			e.set_base(slot, state.color, v)
 			bay._show_livery()))
-
-	out.append(_heading("Layers"))
-	out.append(_row([
-		UiKit.button("Add shape…", _shape_picker, "Pick a shape to add"),
-		UiKit.button("Add text", _do.bind(e.add.bind("text")), "Add a line of text"),
-		UiKit.button("Add number", _do.bind(e.add.bind("number")), "Add a race number"),
-	]))
-	out.append(_row([
-		UiKit.button("Undo", _do.bind(e.undo), "Ctrl+Z"),
-		UiKit.button("Redo", _do.bind(e.redo), "Ctrl+Y"),
-		UiKit.button("Layers…", _layer_list, "Every layer, top first"),
-	]))
-	var c := e.current()
-	if c.is_empty():
-		out.append(FittingBay._text("No layers yet."))
-		return out
-	var items := []
-	for i in range(e.layers().size() - 1, -1, -1):
-		items.append([i, e.layer_label(i)])
-	out.append(UiKit.spinner("Layer", items, e.layer, func(v: int) -> void:
-		e.layer = v
-		bay._show_step("Livery", true), "The layer to change"))
-	out.append_array(_properties(e, c))
-	out.append_array(_placement(e))
 	return out
 
 

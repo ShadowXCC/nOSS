@@ -19,7 +19,9 @@ func after_test() -> void:
 
 
 func test_liveries() -> void:
+	assert_bool(_draft.liveries_unsaved()).override_failure_message("nothing changed yet").is_false()
 	assert_str(_edit.new_livery()).is_equal("Livery added")
+	assert_bool(_draft.liveries_unsaved()).is_true()
 	var first: String = _draft.editing
 	assert_str(_draft.worn).is_equal(first)
 	assert_dict(_edit.livery().base).is_not_empty()

@@ -23,8 +23,9 @@ in the order the full walk runs them (docs/UI_FLOW.md §12):
   free      Free Drive -> its Settings -> the class -> Players (P5)
   settings  Settings: every tab, Reset to defaults and Clear downloads asking first (Keep),
             Profiles; Driving Settings: every tab, Comfort's reset asking first (P3, P11)
-  garage    the Garage's tabs, a car's page and its Drive's class page, the Fitting Bay's Import
-            step ("From online games"), Exit back to the Garage (P7, P7b, P11)
+  garage    the Garage's tabs, a car's page and its Drive's class page, Edit: the Fitting Bay's
+            Livery step and its shape picker (D242), the Fitting Bay's Import step ("From online
+            games"), Exit back to the Garage (P7, P7b, P11)
   editor    the track editor: every tool, a new oval, a highway loop and its ramps, the Stunts
             tool on a kart circuit and an arena (M6-M8)
 Then each in a game of its own:
@@ -456,7 +457,8 @@ def settings_menus():
 
 def garage_menus():
     """Main menu -> Garage -> its tabs (Built-in) -> nOSS Box's page (the grid hidden under it) ->
-    Drive -> the class page and back -> Back -> Traffic cars (nOSS Box a switch) -> Done -> My cars
+    Drive -> the class page and back -> Edit -> the bay's Livery step -> Add shape… -> Cancel ->
+    Exit -> Back -> Traffic cars (nOSS Box a switch) -> Done -> My cars
     -> Fitting Bay -> the Import step's "From online games" list -> Exit -> the Garage again -> Back
     (UI overhaul P7, P7b, P11, D222; docs/UI_FLOW.md §5.6, §8)."""
     log("Garage")
@@ -473,6 +475,31 @@ def garage_menus():
     ok = ok and step("nOSS Box's page", "Drive")
     ok = ok and hidden("nOSS Box: class", "Duplicate")
     ok = ok and back_from("nOSS Box: class", "Track GT")  # every class that takes the car, any mode's
+    # The Fitting Bay's Livery step (D242): Edit opens a copy of the car wearing its stock livery;
+    # the shape picker comes up over it and Cancel goes back; Exit is the car's page again.
+    if ok and find("Duplicate", "button", timeout=30.0) is None:
+        problems.append("Back from the class page: no car page")
+        ok = False
+    time.sleep(1.5)  # the class page is freed meanwhile
+    ok = ok and step("nOSS Box's page: Edit", "Edit")
+    ok = ok and step("Fitting Bay (a copy)", "Livery", role="toggle button")
+    if ok and find("Wears", "button", timeout=20.0, prefix=True) is None:
+        problems.append("Livery step: no 'Wears'")
+        ok = False
+    ok = ok and step("Livery step", "Add shape…")
+    if ok and find("Chevrons", "button", timeout=20.0) is None:
+        problems.append("Add shape: no 'Chevrons'")
+        ok = False
+    ok = ok and step("Add shape", "Cancel")
+    if ok and find("Wears", "button", timeout=20.0, prefix=True) is None:
+        problems.append("Back from Add shape: no Livery step")
+        ok = False
+    ok = ok and step("Livery step again", "Exit")
+    if ok and find("Duplicate", "button", timeout=30.0) is None:
+        problems.append("Out of the Fitting Bay: no car page")
+        names = sorted({f"{n.get_role_name()} '{n.get_name()}'" for n in walk(app()) if showing(n) and (n.get_name() or "")})
+        log(f"  showing: {', '.join(names[:40])}")
+        ok = False
     ok = ok and back_from("nOSS Box's page again", "Duplicate")
     # Traffic cars (D222): the cards become switches (traffic takes nOSS Box), Fitting Bay goes from
     # the bar, and Done brings it back.
