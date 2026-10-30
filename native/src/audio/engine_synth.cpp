@@ -70,7 +70,7 @@ Loop render_loop(const EngineProfile &p, double p_rpm, double p_load, Emitter p_
 				// The burst reads the noise elsewhere, so the cycle-to-cycle draws stay the same.
 				for (int s = 0; knocks && s < knock_len; s++) {
 					double t = double(s) / p_rate;
-					knock_in[size_t((s0 + s) % n)] += p.knock * a * std::exp(-t / 0.00015) * noise[size_t((s0 + s + n / 3) % n)];
+					knock_in[size_t((s0 + s) % n)] += p.knock * 4.0 * a * std::exp(-t / 0.00025) * noise[size_t((s0 + s + n / 3) % n)];
 				}
 			}
 		}

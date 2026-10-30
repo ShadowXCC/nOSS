@@ -1,0 +1,50 @@
+{
+  "schema": "noss.sound_profile/1",
+  "id": "i5",
+  "name": "Inline 5",
+  "rpm_idle": 800,
+  "rpm_max": 7000,
+  "rpm_points": [
+    850,
+    2100,
+    3400,
+    4600,
+    5800,
+    7000
+  ],
+  "mix": {
+    "engine": 0.8,
+    "exhaust": 1.05,
+    "intake": 0.75
+  },
+  "synth": {
+    "fire_deg": [
+      0,
+      144,
+      288,
+      432,
+      576
+    ],
+    "bank": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "pulse_ms": 2.1,
+    "exhaust_hz": [
+      165
+    ],
+    "exhaust_q": 2.8,
+    "muffler_hz": 1100,
+    "intake_hz": 430,
+    "intake_q": 2.0,
+    "intake_noise": 0.32,
+    "mechanical": 0.18,
+    "harshness": 0.35,
+    "jitter": 0.06,
+    "cyl_spread": 0.25,
+    "seed": 15
+  }
+}

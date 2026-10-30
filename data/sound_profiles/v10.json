@@ -1,0 +1,65 @@
+{
+  "schema": "noss.sound_profile/1",
+  "id": "v10",
+  "name": "V10",
+  "rpm_idle": 900,
+  "rpm_max": 8700,
+  "rpm_points": [
+    950,
+    2400,
+    3900,
+    5500,
+    7100,
+    8700
+  ],
+  "mix": {
+    "engine": 0.8,
+    "exhaust": 1.1,
+    "intake": 0.8
+  },
+  "synth": {
+    "fire_deg": [
+      0,
+      72,
+      144,
+      216,
+      288,
+      360,
+      432,
+      504,
+      576,
+      648
+    ],
+    "bank": [
+      0,
+      1,
+      0,
+      1,
+      0,
+      1,
+      0,
+      1,
+      0,
+      1
+    ],
+    "pulse_ms": 1.6,
+    "exhaust_hz": [
+      270,
+      280
+    ],
+    "exhaust_q": 2.8,
+    "exhaust_delay_ms": [
+      0.0,
+      0.1
+    ],
+    "muffler_hz": 2200,
+    "intake_hz": 560,
+    "intake_q": 2.3,
+    "intake_noise": 0.38,
+    "mechanical": 0.2,
+    "harshness": 0.45,
+    "jitter": 0.05,
+    "cyl_spread": 0.06,
+    "seed": 10
+  }
+}

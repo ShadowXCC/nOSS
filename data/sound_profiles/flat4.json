@@ -1,0 +1,53 @@
+{
+  "schema": "noss.sound_profile/1",
+  "id": "flat4",
+  "name": "Flat 4",
+  "rpm_idle": 750,
+  "rpm_max": 7000,
+  "rpm_points": [
+    800,
+    2000,
+    3300,
+    4500,
+    5800,
+    7000
+  ],
+  "mix": {
+    "engine": 0.8,
+    "exhaust": 1.1,
+    "intake": 0.65
+  },
+  "synth": {
+    "fire_deg": [
+      0,
+      180,
+      360,
+      540
+    ],
+    "bank": [
+      0,
+      0,
+      1,
+      1
+    ],
+    "pulse_ms": 2.4,
+    "exhaust_hz": [
+      122,
+      160
+    ],
+    "exhaust_q": 2.6,
+    "exhaust_delay_ms": [
+      0.0,
+      0.6
+    ],
+    "muffler_hz": 850,
+    "intake_hz": 400,
+    "intake_q": 1.9,
+    "intake_noise": 0.3,
+    "mechanical": 0.2,
+    "harshness": 0.33,
+    "jitter": 0.08,
+    "cyl_spread": 0.08,
+    "seed": 14
+  }
+}

@@ -482,7 +482,6 @@ static func _load_profile(id: String) -> Dictionary:
 	return _profiles[id]
 
 
-## Ids and names of the built-in profiles.
 ## A built-in tire sound and its loops (made once per run); {} if there's no such profile.
 static func _load_tire_profile(id: String) -> Dictionary:
 	if _tire_profiles.has(id):
@@ -517,6 +516,7 @@ static func tire_profiles() -> Array:
 	return out
 
 
+## The built-in engine sounds as [[id, name]], by name (V6 before V10; menus).
 static func profiles() -> Array:
 	var out := []
 	for file in DirAccess.get_files_at(PROFILE_DIR):
@@ -524,6 +524,7 @@ static func profiles() -> Array:
 			var p: Variant = JSON.parse_string(FileAccess.get_file_as_string(PROFILE_DIR + file))
 			if p is Dictionary and p.get("schema") == "noss.sound_profile/1":
 				out.append([p.id, p.name])
+	out.sort_custom(func(a: Array, b: Array) -> bool: return String(a[1]).naturalnocasecmp_to(b[1]) < 0)
 	return out
 
 

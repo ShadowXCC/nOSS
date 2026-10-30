@@ -1,0 +1,51 @@
+{
+  "schema": "noss.sound_profile/1",
+  "id": "i6",
+  "name": "Inline 6",
+  "rpm_idle": 750,
+  "rpm_max": 7500,
+  "rpm_points": [
+    800,
+    2100,
+    3400,
+    4800,
+    6200,
+    7500
+  ],
+  "mix": {
+    "engine": 0.85,
+    "exhaust": 1.0,
+    "intake": 0.75
+  },
+  "synth": {
+    "fire_deg": [
+      0,
+      120,
+      240,
+      360,
+      480,
+      600
+    ],
+    "bank": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "pulse_ms": 1.9,
+    "exhaust_hz": [
+      170
+    ],
+    "exhaust_q": 2.8,
+    "muffler_hz": 1250,
+    "intake_hz": 470,
+    "intake_q": 2.0,
+    "intake_noise": 0.3,
+    "mechanical": 0.16,
+    "harshness": 0.3,
+    "jitter": 0.04,
+    "seed": 16
+  }
+}

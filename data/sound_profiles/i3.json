@@ -1,0 +1,45 @@
+{
+  "schema": "noss.sound_profile/1",
+  "id": "i3",
+  "name": "Inline 3",
+  "rpm_idle": 800,
+  "rpm_max": 6800,
+  "rpm_points": [
+    850,
+    2000,
+    3200,
+    4400,
+    5600,
+    6800
+  ],
+  "mix": {
+    "engine": 0.85,
+    "exhaust": 1.0,
+    "intake": 0.7
+  },
+  "synth": {
+    "fire_deg": [
+      0,
+      240,
+      480
+    ],
+    "bank": [
+      0,
+      0,
+      0
+    ],
+    "pulse_ms": 2.4,
+    "exhaust_hz": [
+      150
+    ],
+    "exhaust_q": 2.8,
+    "muffler_hz": 950,
+    "intake_hz": 400,
+    "intake_q": 1.9,
+    "intake_noise": 0.3,
+    "mechanical": 0.22,
+    "harshness": 0.38,
+    "jitter": 0.08,
+    "seed": 13
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "schema": "noss.sound_profile/1",
+  "id": "single",
+  "name": "Single",
+  "rpm_idle": 1300,
+  "rpm_max": 10500,
+  "rpm_points": [
+    1400,
+    3200,
+    5000,
+    6800,
+    8700,
+    10500
+  ],
+  "mix": {
+    "engine": 0.8,
+    "exhaust": 1.15,
+    "intake": 0.6
+  },
+  "synth": {
+    "fire_deg": [
+      0
+    ],
+    "bank": [
+      0
+    ],
+    "pulse_ms": 3.5,
+    "exhaust_hz": [
+      180
+    ],
+    "exhaust_q": 3.2,
+    "muffler_hz": 1400,
+    "intake_hz": 500,
+    "intake_q": 2.2,
+    "intake_noise": 0.4,
+    "mechanical": 0.3,
+    "harshness": 0.55,
+    "jitter": 0.1,
+    "seed": 31
+  }
+}

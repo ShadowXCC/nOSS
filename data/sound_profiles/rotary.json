@@ -1,0 +1,53 @@
+{
+  "schema": "noss.sound_profile/1",
+  "id": "rotary",
+  "name": "Rotary",
+  "rpm_idle": 1000,
+  "rpm_max": 9000,
+  "rpm_points": [
+    1050,
+    2600,
+    4200,
+    5800,
+    7400,
+    9000
+  ],
+  "mix": {
+    "engine": 0.6,
+    "exhaust": 1.2,
+    "intake": 0.7
+  },
+  "synth": {
+    "fire_deg": [
+      0,
+      180,
+      360,
+      540
+    ],
+    "bank": [
+      0,
+      1,
+      0,
+      1
+    ],
+    "pulse_ms": 1.5,
+    "pulse_hold_deg": 120,
+    "exhaust_hz": [
+      260,
+      268
+    ],
+    "exhaust_q": 2.0,
+    "exhaust_delay_ms": [
+      0.0,
+      0.1
+    ],
+    "muffler_hz": 2600,
+    "intake_hz": 560,
+    "intake_q": 2.2,
+    "intake_noise": 0.35,
+    "mechanical": 0.06,
+    "harshness": 0.65,
+    "jitter": 0.25,
+    "seed": 20
+  }
+}

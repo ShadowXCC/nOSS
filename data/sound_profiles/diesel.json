@@ -1,0 +1,52 @@
+{
+  "schema": "noss.sound_profile/1",
+  "id": "diesel",
+  "name": "Diesel",
+  "rpm_idle": 600,
+  "rpm_max": 3200,
+  "rpm_points": [
+    650,
+    1150,
+    1650,
+    2150,
+    2700,
+    3200
+  ],
+  "mix": {
+    "engine": 1.0,
+    "exhaust": 0.9,
+    "intake": 0.6
+  },
+  "synth": {
+    "fire_deg": [
+      0,
+      120,
+      240,
+      360,
+      480,
+      600
+    ],
+    "bank": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "pulse_ms": 3.2,
+    "knock": 0.6,
+    "exhaust_hz": [
+      95
+    ],
+    "exhaust_q": 2.4,
+    "muffler_hz": 500,
+    "intake_hz": 260,
+    "intake_q": 1.8,
+    "intake_noise": 0.3,
+    "mechanical": 0.25,
+    "harshness": 0.2,
+    "jitter": 0.06,
+    "seed": 22
+  }
+}

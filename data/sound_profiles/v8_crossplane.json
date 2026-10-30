@@ -1,7 +1,7 @@
 {
   "schema": "noss.sound_profile/1",
   "id": "v8_crossplane",
-  "name": "Cross-plane V8",
+  "name": "V8 cross-plane",
   "rpm_idle": 700,
   "rpm_max": 7000,
   "rpm_points": [
