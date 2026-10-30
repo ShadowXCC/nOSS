@@ -424,12 +424,15 @@ func test_garage_models_stream_in_and_out() -> void:
 	t.stream(now + EndlessTraffic.UNLOAD_S + 1.0)
 	assert_bool(t.models.pkgs.has(gone)).is_false()
 	assert_bool(PackageLoader._shared.has(key)).is_false()
-	# (One car fewer in the set, the other slots picked again.) What's near now is loaded or on its
-	# way; anything else loaded is a physics car or was near within UNLOAD_S.
+	# (One car fewer in the set, the other slots picked again.) What's near now is loaded, on its
+	# way, or waiting while the most loads are (D241); anything else loaded is a physics car or was
+	# near within UNLOAD_S.
 	d = float(s.players[0].distance)
+	var in_flight := t.models.loading.keys().filter(func(k: Vector2i) -> bool: return k.y == 0).size()
 	for c: Dictionary in t.scheduled():
 		if int(c.garage) >= 0 and absf(float(c.s) - d) < EndlessTraffic.NEAR_M:
-			assert_bool(t.models.pkgs.has(int(c.garage)) or t.models.loading.has(Vector2i(int(c.garage), 0))).is_true()
+			var on_way := t.models.pkgs.has(int(c.garage)) or t.models.loading.has(Vector2i(int(c.garage), 0))
+			assert_bool(on_way or in_flight == GarageModels.MOST_LOADING_WHOLE).is_true()
 	driven.clear()
 	for k: Vector2i in t.cars:
 		driven[t.cars[k].garage] = true

@@ -143,19 +143,22 @@ static func copy(pkg: VehiclePackage) -> VehiclePackage:
 	return c
 
 
-## Loads on a worker thread; `on_done` gets the VehiclePackage on the main thread.
+## Loads on a worker thread; `on_done` gets the VehiclePackage on the main thread. With
+## `low_priority` in `opts` (traffic models, D241) it's a low-priority task: those take a share
+## of the workers at most, so physics jobs (Jolt's share the pool) always find one free.
 static func load_async(path: String, on_done: Callable, limits := {}, opts := {}) -> void:
 	var job := _Job.new()
 	job.on_done = on_done
 	job.task = WorkerThreadPool.add_task(func() -> void:
 		var pkg := load_package(path, limits, opts)
-		job.finish.call_deferred(pkg), true, "Load " + path.get_file())
+		job.finish.call_deferred(pkg), not opts.get("low_priority", false), "Load " + path.get_file())
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree:
 		tree.create_timer(TIMEOUT_S, true, false, true).timeout.connect(job.time_out.bind(path))
 
 
-## Validates and parses a package. Check `ok()` on the result. `opts`:
+## Validates and parses a package. Check `ok()` on the result. `opts` (load_async also takes
+## `low_priority`):
 ## - models: "all" (LOD0 and its LODs), "smallest" (only the smallest LOD, a quick preview) or
 ##   "none" (data only: physics needs fit.json, not the model; servers and bots)
 ## - partial: files the load doesn't read may be missing (a car still downloading). Only the

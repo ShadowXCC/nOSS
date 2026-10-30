@@ -3,6 +3,7 @@ extends GdUnitTestSuite
 ## only into a type the car fits, about GARAGE_SHARE of those; patrols never. Drawing them never
 ## touches the lane sim. In a drive a garage car turns physical as itself once its model is here;
 ## whole models load near a player only, the nearest MOST_WHOLE at most, and go a while after.
+## Models load a few at a time, nearest first (D241).
 
 const FIXTURE := "res://tests/fixtures/tracks/highway_ring_small.json"
 const LUMEN := "res://content/tracks/lumen_ring"
@@ -193,3 +194,39 @@ func test_a_garage_car_drives_as_itself_and_models_come_and_go() -> void:
 		assert_bool(key.y < 0 or tm.models.pkgs.has(key.y)).override_failure_message("pool %s" % key).is_true()
 	s.queue_free()
 	await get_tree().process_frame
+
+
+## Loads go a few at a time (D241): never more than MOST_LOADING_WHOLE in flight, the nearest
+## first, and everything wanted is in within a few sweeps. (Far views go the same way; headless
+## never loads them.) The registry is one built-in car many times: each entry loads on its own.
+func test_models_load_a_few_at_a_time_nearest_first() -> void:
+	var one := _pool()[0]
+	var pool: Array[Dictionary] = []
+	for i in 7:
+		pool.append(one.duplicate())
+	for most: int in [-1, pool.size()]:
+		PackageLoader.clear_shared()
+		var m := GarageModels.new()
+		m.draws = false # data only, as headless
+		m.most_whole = most
+		add_child(m)
+		m.set_pool(pool)
+		var sweeps := 0
+		while m.pkgs.size() < pool.size() and sweeps < 40:
+			for g: int in m.cars:
+				m.want(g, sweeps * 0.5, 10.0 * (pool.size() - g)) # the last is the nearest
+			m.sweep(sweeps * 0.5, {})
+			var flight := m.loading.keys()
+			assert_int(flight.size()).override_failure_message("sweep %d: %s" % [sweeps, flight]).is_less_equal(GarageModels.MOST_LOADING_WHOLE)
+			if sweeps == 0:
+				assert_bool(m.loading.has(Vector2i(pool.size() - 1, 0)) and m.loading.has(Vector2i(pool.size() - 2, 0))).override_failure_message(str(flight)).is_true()
+			for k: Vector2i in flight:
+				for g: int in m.cars:
+					if g > k.x: # nearer: started already
+						assert_bool(m.pkgs.has(g) or m.loading.has(Vector2i(g, 0))).override_failure_message("%d before %d" % [k.x, g]).is_true()
+			await _ticks(10)
+			sweeps += 1
+		assert_int(m.pkgs.size()).is_equal(pool.size())
+		assert_int(sweeps).override_failure_message("%d sweeps" % sweeps).is_less_equal(pool.size())
+		m.free()
+

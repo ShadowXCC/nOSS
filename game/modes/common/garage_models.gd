@@ -7,11 +7,19 @@ extends Node
 ## (the whole one not while a physics car is it). A far view's mesh is merged on a worker, one at
 ## a time (on the main thread one took up to 33 ms); the traffic draws it (view_made).
 ## Endless traffic and highway traffic each make one as a child of theirs.
+##
+## Loads go a few at a time, nearest first, as low-priority tasks (D241). A glTF load waits on the
+## main thread now and then (reading a texture back); some 50 at once at a highway's start took
+## every worker, so Jolt's jobs, which share the pool, waited on them while they waited on the
+## main thread: the game froze.
 
 ## Of the cars of a type some garage car fits, this share are garage cars.
 const GARAGE_SHARE := 0.8
 const UNLOAD_S := 60.0
-const FAR_OPTS := { "models": "smallest", "audio": false }
+const FAR_OPTS := { "models": "smallest", "audio": false, "low_priority": true }
+## Loads in flight at most: whole models, far views (the rest wait for later sweeps).
+const MOST_LOADING_WHOLE := 2
+const MOST_LOADING_FAR := 1
 const VIEW_TIMEOUT_S := 30.0
 ## Once cars have gone, the memory they had goes back to the system (NossCore.trim_memory, on a
 ## worker), at most every TRIM_S: a 10-minute drive grew from 3.4 to 5.3 GB without it, and stayed
@@ -47,6 +55,7 @@ var most_loaded := 0
 var view_ms := 0.0
 
 var _near_d := {} # garage index -> how near a player it was wanted this sweep (m)
+var _far_d := {} # garage index -> how near a camera it was wanted this sweep (m)
 var _made := {} # garage index -> true: its far view is made
 var _view_queue: Array[int] = [] # loaded cars whose far view is still to be made
 var _viewing := false # a far view is being merged
@@ -101,9 +110,11 @@ func car_here(car: String) -> void:
 				print("garage: car %d here (%s)" % [g, car.substr(7, 8)])
 
 
-## The traffic has car `g` at `at` (its clock): within `near_m` of a player (INF: not near one).
-func want(g: int, at: float, near_m := INF) -> void:
+## The traffic has car `g` at `at` (its clock): within `near_m` of a player (INF: not near one),
+## `far_m` from the nearest camera (its far view loads nearest first).
+func want(g: int, at: float, near_m := INF, far_m := INF) -> void:
 	wanted[g] = at
+	_far_d[g] = minf(float(_far_d.get(g, INF)), far_m)
 	if near_m < INF:
 		wanted_near[g] = at
 		_near_d[g] = minf(float(_near_d.get(g, INF)), near_m)
@@ -112,24 +123,30 @@ func want(g: int, at: float, near_m := INF) -> void:
 ## Loads what's wanted and lets go of what hasn't been for UNLOAD_S (a whole model not while a
 ## physics car is it: `driven`, garage index -> true). With `most_whole`, the nearest that many
 ## wanted near load whole; a nearer one waiting puts out the furthest loaded one not driven.
+## Loads start nearest first, MOST_LOADING_WHOLE and MOST_LOADING_FAR in flight at most.
 func sweep(at: float, driven: Dictionary) -> void:
 	var far_views := draws and MeshBatch.threaded()
+	var far_order := []
 	for g: int in wanted.keys():
 		if at - float(wanted[g]) > UNLOAD_S:
 			wanted.erase(g)
 			_unload(g, true)
 		elif far_views:
-			_load(g, true)
+			far_order.append(g)
+	_load_nearest(far_order, _far_d, true)
 	if most_whole < 0:
+		var order := []
 		for g: int in wanted_near.keys():
 			if at - float(wanted_near[g]) > UNLOAD_S and not driven.has(g):
 				wanted_near.erase(g)
 				_unload(g, false)
 			else:
-				_load(g, false)
+				order.append(g)
+		_load_nearest(order, _near_d, false)
 	else:
 		_sweep_nearest(at, driven)
 	_near_d.clear()
+	_far_d.clear()
 	most_loaded = maxi(most_loaded, pkgs.size())
 	if _freed and at - _trim_at > TRIM_S:
 		_freed = false
@@ -150,7 +167,7 @@ func _sweep_nearest(at: float, driven: Dictionary) -> void:
 			wanted_near.erase(g)
 			_unload(g, false)
 	for g: int in order:
-		if keep.has(g) and _whole() < most_whole:
+		if keep.has(g) and _whole() < most_whole and _loading(false) < MOST_LOADING_WHOLE:
 			_load(g, false)
 	var waiting := order.any(func(g: int) -> bool: return keep.has(g) and not _has_whole(g))
 	if not waiting or _whole() < most_whole:
@@ -170,8 +187,23 @@ func _sweep_nearest(at: float, driven: Dictionary) -> void:
 		_unload(out, false)
 
 
+## Starts loading the nearest of `order` (garage indexes, by `dist`) that aren't loaded, while
+## fewer than the most of that kind are in flight.
+func _load_nearest(order: Array, dist: Dictionary, far_lod: bool) -> void:
+	order.sort_custom(func(a: int, b: int) -> bool: return float(dist.get(a, INF)) < float(dist.get(b, INF)))
+	for g: int in order:
+		if _loading(far_lod) >= (MOST_LOADING_FAR if far_lod else MOST_LOADING_WHOLE):
+			return
+		_load(g, far_lod)
+
+
+## Loads in flight: far views (`far_lod`) or whole models.
+func _loading(far_lod: bool) -> int:
+	return loading.keys().filter(func(k: Vector2i) -> bool: return k.y == int(far_lod)).size()
+
+
 func _whole() -> int:
-	return pkgs.size() + loading.keys().filter(func(k: Vector2i) -> bool: return k.y == 0).size()
+	return pkgs.size() + _loading(false)
 
 
 func _has_whole(g: int) -> bool:
@@ -180,7 +212,7 @@ func _has_whole(g: int) -> bool:
 
 ## A whole model only where it's drawn (and not headless, where models can't load on a worker).
 func load_opts() -> Dictionary:
-	return {} if draws and MeshBatch.threaded() else { "models": "none", "audio": false }
+	return { "low_priority": true } if draws and MeshBatch.threaded() else { "models": "none", "audio": false, "low_priority": true }
 
 
 ## Loads garage car `g`'s smallest LOD (`far_lod`, for its far view) or its whole model, if its

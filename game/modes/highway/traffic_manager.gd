@@ -1044,10 +1044,11 @@ func _stream() -> void:
 		if g < 0 or int(poses[i * 8 + 5]) & ACTIVE == 0:
 			continue
 		var pos := Vector3(poses[i * 8], poses[i * 8 + 1], poses[i * 8 + 2])
-		if _nearest(eyes, pos) > GARAGE_FAR_M:
+		var seen := _nearest(eyes, pos)
+		if seen > GARAGE_FAR_M:
 			continue
 		var d := _nearest(near, pos)
-		models.want(g, at, d if d < GARAGE_NEAR_M else INF)
+		models.want(g, at, d if d < GARAGE_NEAR_M else INF, seen)
 	var driven := {}
 	for car: int in cars:
 		driven[(cars[car] as TrafficCar).garage] = true
