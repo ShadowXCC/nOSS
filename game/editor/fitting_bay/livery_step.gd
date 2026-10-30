@@ -223,9 +223,109 @@ func _placement(e: LiveryEdit) -> Array:
 	return out
 
 
-## Livery rows that come with sharing (Import…, Export…, From car…).
+## Sharing: a .nosslivery file in or out, or a livery from another car in the garage.
 func _extra_livery_rows() -> Array:
-	return []
+	return [_row([
+		UiKit.button("Import…", _browse_import, "Read a livery file"),
+		UiKit.button("Export…", _export, "Write this livery to a file to share"),
+		UiKit.button("From car…", _from_car, "Copy a livery from another car"),
+	])]
+
+
+func _browse_import() -> void:
+	var d := bay.get_node_or_null(^"LiveryDialog") as FileDialog
+	if d == null:
+		d = FileDialog.new()
+		d.name = "LiveryDialog"
+		d.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+		d.access = FileDialog.ACCESS_FILESYSTEM
+		d.use_native_dialog = true
+		d.filters = PackedStringArray(["*%s, *.json ; Liveries" % LiveryShare.EXTENSION])
+		d.title = "Import a livery"
+		d.file_selected.connect(import_file)
+		bay.add_child(d)
+	d.popup_file_dialog()
+
+
+## Brings in the livery file at `path`, fitted to this car when it was made on another.
+func import_file(path: String) -> void:
+	var l := LiveryShare.read_file(path)
+	if l.is_empty():
+		bay._set_status("Not a livery: " + path.get_file())
+		return
+	_take(l, "Imported")
+
+
+func _export() -> void:
+	var e := edit()
+	var l := e.livery()
+	if l.is_empty():
+		return
+	UiKit.save_dialog(bay, "Export livery", LiveryShare.EXTENSION, String(l.name), export_to)
+
+
+## Writes the edited livery to `path`.
+func export_to(path: String) -> void:
+	var e := edit()
+	var bytes := LiveryShare.for_file(e.livery(), _car(), LiveryData.frame_of(bay.draft.fit))
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		bay._set_status("Can't write " + path.get_file())
+		return
+	f.store_buffer(bytes)
+	f.close()
+	bay._set_status("Exported to " + path.get_file())
+
+
+## The other cars with liveries (the built-ins' stock ones too): pick one to copy.
+func _from_car() -> void:
+	var menu := Control.new()
+	menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var list := UiKit.panel(menu, "From car", 900)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 640)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	list.add_child(scroll)
+	UiKit.keep_in_view(scroll)
+	var body := VBoxContainer.new()
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(body)
+	var buttons := []
+	for car: Dictionary in GarageFiles.list():
+		var id := String(car.manifest.get("id", ""))
+		if id == bay.draft.id:
+			continue
+		var liveries: Array = [LiveryStore.builtin(id)] if car.official else LiveryStore.list(id)
+		for l: Dictionary in liveries:
+			if l.is_empty():
+				continue
+			var label := "%s: %s" % [car.manifest.get("name", "Car"), l.name]
+			var b := UiKit.button(label, func() -> void:
+				bay._close_overlay()
+				_take(l, "Copied"), "Copy it to this car")
+			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			body.add_child(b)
+			buttons.append(b)
+	if buttons.is_empty():
+		body.add_child(UiKit.label("No other car has a livery"))
+	var close := UiKit.button("Cancel", bay._close_overlay)
+	list.add_child(close)
+	buttons.append(close)
+	bay._show_overlay(menu)
+	UiKit.chain_focus(buttons)
+
+
+## Adds `l` to this car's liveries, fitted to it if it was made on another model.
+func _take(l: Dictionary, said: String) -> void:
+	var e := edit()
+	var result := LiveryShare.fit(l, _car(), LiveryData.frame_of(bay.draft.fit), e.raycast_model)
+	var msg := e.add_livery(result[0], said)
+	bay._show_step("Livery", true)
+	bay._set_status(msg if msg != said else ("Fitted to this car" if result[1] else said))
+
+
+func _car() -> Dictionary:
+	return { "id": bay.draft.id, "model": LiveryShare.model_hash(bay.draft.model_bytes()), "name": bay.draft.car_name }
 
 
 ## Runs an edit that changes the list, then shows the step again and says what happened.

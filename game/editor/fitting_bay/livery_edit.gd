@@ -100,6 +100,20 @@ func copy_livery() -> String:
 	return "Copied"
 
 
+## Adds a livery from outside (a file, another car), worn and edited from now on.
+func add_livery(l: Dictionary, said: String) -> String:
+	if draft.liveries.size() >= LiveryData.MAX_PER_CAR:
+		return "Too many liveries"
+	var copy := l.duplicate(true)
+	copy.name = _free_name(String(copy.name))
+	_act(said, func() -> void:
+		draft.liveries.append(copy)
+		draft.editing = copy.id
+		draft.worn = copy.id
+		layer = (copy.layers as Array).size() - 1)
+	return said
+
+
 func delete_livery() -> String:
 	var l := livery()
 	if l.is_empty():
