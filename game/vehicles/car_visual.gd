@@ -276,8 +276,9 @@ func livery_shown() -> bool:
 ## Each slot on the livery shader with its layers, or back on the plain one; the glass likewise.
 func _update_livery() -> void:
 	var on := livery_shown()
-	var rects := {}
-	var text: Texture2D = null
+	var built := LiveryText.build(livery, livery_number) if on else [null, {}]
+	var text: Texture2D = built[0]
+	var rects: Dictionary = built[1]
 	var colors := LiveryRenderer.slot_colors(_slot_colors)
 	var mirror := LiveryRenderer.mirror_plane(fitted.model_xform, fitted.model_bounds)
 	var used := false

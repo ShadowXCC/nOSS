@@ -12,6 +12,7 @@ Third-party assets keep their own licenses and are listed in [CREDITS.md](CREDIT
 | Files | License |
 |---|---|
 | `content/fonts/atkinson_hyperlegible/` (Atkinson Hyperlegible, © 2020 Braille Institute of America) | SIL Open Font License 1.1 (`OFL.txt` next to the fonts) |
+| `content/fonts/racing_sans_one/`, `russo_one/`, `orbitron/`, `bebas_neue/`, `saira_stencil_one/`, `pacifico/` and `monoton/` (the livery editor's fonts, unmodified; authors in [CREDITS.md](CREDITS.md)) | SIL Open Font License 1.1 (`OFL.txt` next to each font) |
 | `content/ui/prompts/` (Kenney's Input Prompts 1.5: the button glyphs in prompts) | CC0 1.0, public domain (`License.txt` next to them) |
 | `content/branding/` and `docs/images/banner.png` (the nOSS bottle logo: the game's icons, splash, title logo and README banner) | © 2026 ShadowXCC, all rights reserved |
 | `content/tracks/eifel_gp/` and `tools/data/eifel_gp.json` (the Eifel GP: layout from OpenStreetMap, ground from EU-DEM) | The track data is under the Open Database License 1.0 (© OpenStreetMap contributors). The ground heights were produced using Copernicus data and information funded by the European Union (EU-DEM). |

@@ -1,24 +1,516 @@
 {
   "fonts": [
-    { "id": "atkinson_bold", "name": "Clear", "file": "res://content/fonts/atkinson_hyperlegible/AtkinsonHyperlegible-Bold.ttf" }
+    {
+      "file": "res://content/fonts/atkinson_hyperlegible/AtkinsonHyperlegible-Bold.ttf",
+      "id": "atkinson_bold",
+      "name": "Clear"
+    },
+    {
+      "file": "res://content/fonts/racing_sans_one/RacingSansOne-Regular.ttf",
+      "id": "racing_sans_one",
+      "name": "Racing"
+    },
+    {
+      "file": "res://content/fonts/russo_one/RussoOne-Regular.ttf",
+      "id": "russo_one",
+      "name": "Blocky"
+    },
+    {
+      "file": "res://content/fonts/orbitron/Orbitron[wght].ttf",
+      "id": "orbitron",
+      "name": "Tech",
+      "variation": {
+        "wght": 800
+      }
+    },
+    {
+      "file": "res://content/fonts/bebas_neue/BebasNeue-Regular.ttf",
+      "id": "bebas_neue",
+      "name": "Condensed"
+    },
+    {
+      "file": "res://content/fonts/saira_stencil_one/SairaStencilOne-Regular.ttf",
+      "id": "saira_stencil_one",
+      "name": "Stencil"
+    },
+    {
+      "file": "res://content/fonts/pacifico/Pacifico-Regular.ttf",
+      "id": "pacifico",
+      "name": "Script"
+    },
+    {
+      "file": "res://content/fonts/monoton/Monoton-Regular.ttf",
+      "id": "monoton",
+      "name": "Retro"
+    }
   ],
   "schema": "noss.livery_catalog/1",
   "shapes": [
-    { "id": "rect", "name": "Rectangle", "category": "basic", "kind": "proc", "index": 0, "params": [0.0, 0.0], "param_names": ["Corners", "Outline"] },
-    { "id": "ellipse", "name": "Ellipse", "category": "basic", "kind": "proc", "index": 1, "params": [0.0], "param_names": ["Outline"] },
-    { "id": "ring", "name": "Ring", "category": "basic", "kind": "proc", "index": 2, "params": [0.3], "param_names": ["Thickness"] },
-    { "id": "triangle", "name": "Triangle", "category": "basic", "kind": "proc", "index": 3, "params": [0.5, 0.0], "param_names": ["Peak", "Outline"] },
-    { "id": "diamond", "name": "Diamond", "category": "basic", "kind": "proc", "index": 4, "params": [0.0], "param_names": ["Outline"] },
-    { "id": "star", "name": "Star", "category": "basic", "kind": "proc", "index": 5, "params": [0.22, 0.45], "param_names": ["Points", "Inner"] },
-    { "id": "arrow", "name": "Arrow", "category": "basic", "kind": "proc", "index": 6, "params": [0.4, 0.4], "param_names": ["Shaft", "Head"] },
-    { "id": "chevrons", "name": "Chevrons", "category": "racing", "kind": "proc", "index": 7, "params": [0.3, 0.5], "param_names": ["Count", "Thickness"] },
-    { "id": "stripes", "name": "Stripes", "category": "racing", "kind": "proc", "index": 8, "params": [0.1, 0.5], "param_names": ["Count", "Width"] },
-    { "id": "pinstripes", "name": "Pinstripes", "category": "racing", "kind": "proc", "index": 9, "params": [0.1, 0.15], "param_names": ["Count", "Width"] },
-    { "id": "checker", "name": "Checker", "category": "racing", "kind": "proc", "index": 10, "params": [0.4], "param_names": ["Squares"] },
-    { "id": "gradient", "name": "Fade", "category": "racing", "kind": "proc", "index": 11, "params": [1.0], "param_names": ["Softness"] },
-    { "id": "radial", "name": "Glow", "category": "racing", "kind": "proc", "index": 12, "params": [1.0], "param_names": ["Softness"] },
-    { "id": "halftone", "name": "Halftone", "category": "racing", "kind": "proc", "index": 13, "params": [0.4], "param_names": ["Dots"] },
-    { "id": "speed_lines", "name": "Speed lines", "category": "racing", "kind": "proc", "index": 14, "params": [0.4, 0.5], "param_names": ["Count", "Taper"] },
-    { "id": "slash", "name": "Slash", "category": "racing", "kind": "proc", "index": 15, "params": [0.5, 0.0], "param_names": ["Slant", "Outline"] }
+    {
+      "category": "basic",
+      "id": "rect",
+      "index": 0,
+      "kind": "proc",
+      "name": "Rectangle",
+      "param_names": [
+        "Corners",
+        "Outline"
+      ],
+      "params": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "category": "basic",
+      "id": "ellipse",
+      "index": 1,
+      "kind": "proc",
+      "name": "Ellipse",
+      "param_names": [
+        "Outline"
+      ],
+      "params": [
+        0.0
+      ]
+    },
+    {
+      "category": "basic",
+      "id": "ring",
+      "index": 2,
+      "kind": "proc",
+      "name": "Ring",
+      "param_names": [
+        "Thickness"
+      ],
+      "params": [
+        0.3
+      ]
+    },
+    {
+      "category": "basic",
+      "id": "triangle",
+      "index": 3,
+      "kind": "proc",
+      "name": "Triangle",
+      "param_names": [
+        "Peak",
+        "Outline"
+      ],
+      "params": [
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "category": "basic",
+      "id": "diamond",
+      "index": 4,
+      "kind": "proc",
+      "name": "Diamond",
+      "param_names": [
+        "Outline"
+      ],
+      "params": [
+        0.0
+      ]
+    },
+    {
+      "category": "basic",
+      "id": "star",
+      "index": 5,
+      "kind": "proc",
+      "name": "Star",
+      "param_names": [
+        "Points",
+        "Inner"
+      ],
+      "params": [
+        0.22,
+        0.45
+      ]
+    },
+    {
+      "category": "basic",
+      "id": "arrow",
+      "index": 6,
+      "kind": "proc",
+      "name": "Arrow",
+      "param_names": [
+        "Shaft",
+        "Head"
+      ],
+      "params": [
+        0.4,
+        0.4
+      ]
+    },
+    {
+      "category": "racing",
+      "id": "chevrons",
+      "index": 7,
+      "kind": "proc",
+      "name": "Chevrons",
+      "param_names": [
+        "Count",
+        "Thickness"
+      ],
+      "params": [
+        0.3,
+        0.5
+      ]
+    },
+    {
+      "category": "racing",
+      "id": "stripes",
+      "index": 8,
+      "kind": "proc",
+      "name": "Stripes",
+      "param_names": [
+        "Count",
+        "Width"
+      ],
+      "params": [
+        0.1,
+        0.5
+      ]
+    },
+    {
+      "category": "racing",
+      "id": "pinstripes",
+      "index": 9,
+      "kind": "proc",
+      "name": "Pinstripes",
+      "param_names": [
+        "Count",
+        "Width"
+      ],
+      "params": [
+        0.1,
+        0.15
+      ]
+    },
+    {
+      "category": "racing",
+      "id": "checker",
+      "index": 10,
+      "kind": "proc",
+      "name": "Checker",
+      "param_names": [
+        "Squares"
+      ],
+      "params": [
+        0.4
+      ]
+    },
+    {
+      "category": "racing",
+      "id": "gradient",
+      "index": 11,
+      "kind": "proc",
+      "name": "Fade",
+      "param_names": [
+        "Softness"
+      ],
+      "params": [
+        1.0
+      ]
+    },
+    {
+      "category": "racing",
+      "id": "radial",
+      "index": 12,
+      "kind": "proc",
+      "name": "Glow",
+      "param_names": [
+        "Softness"
+      ],
+      "params": [
+        1.0
+      ]
+    },
+    {
+      "category": "racing",
+      "id": "halftone",
+      "index": 13,
+      "kind": "proc",
+      "name": "Halftone",
+      "param_names": [
+        "Dots"
+      ],
+      "params": [
+        0.4
+      ]
+    },
+    {
+      "category": "racing",
+      "id": "speed_lines",
+      "index": 14,
+      "kind": "proc",
+      "name": "Speed lines",
+      "param_names": [
+        "Count",
+        "Taper"
+      ],
+      "params": [
+        0.4,
+        0.5
+      ]
+    },
+    {
+      "category": "racing",
+      "id": "slash",
+      "index": 15,
+      "kind": "proc",
+      "name": "Slash",
+      "param_names": [
+        "Slant",
+        "Outline"
+      ],
+      "params": [
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "category": "graphics",
+      "id": "flames",
+      "index": 0,
+      "kind": "atlas",
+      "name": "Flames",
+      "param_names": [],
+      "params": [],
+      "span": 2
+    },
+    {
+      "category": "graphics",
+      "id": "flame",
+      "index": 2,
+      "kind": "atlas",
+      "name": "Flame",
+      "param_names": [],
+      "params": [],
+      "span": 1
+    },
+    {
+      "category": "graphics",
+      "id": "splatter",
+      "index": 3,
+      "kind": "atlas",
+      "name": "Splatter",
+      "param_names": [],
+      "params": [],
+      "span": 1
+    },
+    {
+      "category": "graphics",
+      "id": "splash",
+      "index": 4,
+      "kind": "atlas",
+      "name": "Splash",
+      "param_names": [],
+      "params": [],
+      "span": 1
+    },
+    {
+      "category": "graphics",
+      "id": "torn",
+      "index": 5,
+      "kind": "atlas",
+      "name": "Torn edge",
+      "param_names": [],
+      "params": [],
+      "span": 2
+    },
+    {
+      "category": "graphics",
+      "id": "lightning",
+      "index": 7,
+      "kind": "atlas",
+      "name": "Lightning",
+      "param_names": [],
+      "params": [],
+      "span": 1
+    },
+    {
+      "category": "graphics",
+      "id": "wing",
+      "index": 8,
+      "kind": "atlas",
+      "name": "Wing",
+      "param_names": [],
+      "params": [],
+      "span": 2
+    },
+    {
+      "category": "graphics",
+      "id": "camo",
+      "index": 10,
+      "kind": "atlas",
+      "name": "Camo",
+      "param_names": [],
+      "params": [],
+      "span": 1
+    },
+    {
+      "category": "graphics",
+      "id": "sunburst",
+      "index": 11,
+      "kind": "atlas",
+      "name": "Sunburst",
+      "param_names": [],
+      "params": [],
+      "span": 1
+    },
+    {
+      "category": "plates",
+      "id": "plate",
+      "index": 12,
+      "kind": "atlas",
+      "name": "Plate",
+      "param_names": [],
+      "params": [],
+      "span": 2
+    },
+    {
+      "category": "plates",
+      "id": "roundel",
+      "index": 14,
+      "kind": "atlas",
+      "name": "Roundel",
+      "param_names": [],
+      "params": [],
+      "span": 1
+    },
+    {
+      "category": "plates",
+      "id": "shield",
+      "index": 15,
+      "kind": "atlas",
+      "name": "Shield",
+      "param_names": [],
+      "params": [],
+      "span": 1
+    },
+    {
+      "category": "plates",
+      "id": "banner",
+      "index": 16,
+      "kind": "atlas",
+      "name": "Banner",
+      "param_names": [],
+      "params": [],
+      "span": 2
+    },
+    {
+      "category": "sponsors",
+      "id": "torqwell",
+      "index": 18,
+      "kind": "atlas",
+      "name": "Torqwell",
+      "param_names": [],
+      "params": [],
+      "readable": true,
+      "span": 3
+    },
+    {
+      "category": "sponsors",
+      "id": "pistonfly",
+      "index": 21,
+      "kind": "atlas",
+      "name": "Pistonfly",
+      "param_names": [],
+      "params": [],
+      "readable": true,
+      "span": 2
+    },
+    {
+      "category": "sponsors",
+      "id": "gearhound",
+      "index": 23,
+      "kind": "atlas",
+      "name": "Gearhound",
+      "param_names": [],
+      "params": [],
+      "readable": true,
+      "span": 2
+    },
+    {
+      "category": "sponsors",
+      "id": "sparkmoth",
+      "index": 25,
+      "kind": "atlas",
+      "name": "Sparkmoth",
+      "param_names": [],
+      "params": [],
+      "readable": true,
+      "span": 3
+    },
+    {
+      "category": "sponsors",
+      "id": "quokka_lube",
+      "index": 28,
+      "kind": "atlas",
+      "name": "Quokka Lube",
+      "param_names": [],
+      "params": [],
+      "readable": true,
+      "span": 3
+    },
+    {
+      "category": "sponsors",
+      "id": "brakebird",
+      "index": 32,
+      "kind": "atlas",
+      "name": "Brakebird",
+      "param_names": [],
+      "params": [],
+      "readable": true,
+      "span": 3
+    },
+    {
+      "category": "sponsors",
+      "id": "fizzbolt",
+      "index": 35,
+      "kind": "atlas",
+      "name": "Fizzbolt",
+      "param_names": [],
+      "params": [],
+      "readable": true,
+      "span": 3
+    },
+    {
+      "category": "sponsors",
+      "id": "grip_owl",
+      "index": 38,
+      "kind": "atlas",
+      "name": "Grip Owl",
+      "param_names": [],
+      "params": [],
+      "readable": true,
+      "span": 3
+    },
+    {
+      "category": "sponsors",
+      "id": "kettlecomet",
+      "index": 41,
+      "kind": "atlas",
+      "name": "Kettlecomet",
+      "param_names": [],
+      "params": [],
+      "readable": true,
+      "span": 3
+    },
+    {
+      "category": "sponsors",
+      "id": "apexberry",
+      "index": 44,
+      "kind": "atlas",
+      "name": "Apexberry",
+      "param_names": [],
+      "params": [],
+      "readable": true,
+      "span": 3
+    }
   ]
 }

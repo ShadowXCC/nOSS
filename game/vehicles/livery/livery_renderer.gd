@@ -13,7 +13,9 @@ const FLAG_CUT := 2
 const FLAG_MIRROR := 4
 const FLAG_READABLE := 8
 const FLAG_TEXT := 16
-## Atlas shapes are coded from here (100 + their cell).
+## The picture keeps its shape inside the box (a race number set to auto: its width varies).
+const FLAG_FIT := 32
+## Atlas shapes are coded from here: 100 + their cell, plus 256 for each further cell they span.
 const ATLAS_CODE := 100
 const SHAPES_ATLAS := "res://content/liveries/shapes.png"
 
@@ -62,12 +64,16 @@ static func pack(livery: Dictionary, surface: String, text_rects := {}) -> Array
 			var s := LiveryData.shape(String(l.shape))
 			if s.get("readable", false):
 				flags |= FLAG_READABLE
-			code = int(s.get("index", 0)) + (ATLAS_CODE if s.get("kind") == "atlas" else 0)
+			code = int(s.get("index", 0))
+			if s.get("kind") == "atlas":
+				code += ATLAS_CODE + 256 * (int(s.get("span", 1)) - 1)
 			var p: Array = l.get("params", [])
 			for j in mini(p.size(), 4):
 				params[j] = float(p[j])
 		else:
 			flags |= FLAG_TEXT | FLAG_READABLE
+			if l.kind == "number" and l.get("number") == "auto":
+				flags |= FLAG_FIT
 			var r: Rect2 = text_rects[shown[k][1]]
 			params = Vector4(r.position.x, r.position.y, r.size.x, r.size.y)
 		var color := String(l.get("color", "#FFFFFF"))

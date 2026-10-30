@@ -7,7 +7,8 @@
 //   3: shape params, or the text's rect in the text atlas
 //   4: colour (linear), opacity
 //   5: colour source (0 own, 1-4 livery_slots), finish, lowest layer a cut reaches, width / height
-// Flags: 1 normal reversed, 2 cut, 4 mirrored, 8 readable (its mirror copy isn't reversed), 16 text.
+// Flags: 1 normal reversed, 2 cut, 4 mirrored, 8 readable (its mirror copy isn't reversed), 16 text,
+// 32 fit (the picture keeps its shape inside the box, centred).
 
 uniform vec4 livery[600];
 uniform int livery_count = 0;
@@ -164,12 +165,25 @@ float livery_shape(int i, vec2 uv, vec2 gx, vec2 gy, int flags) {
 	if ((flags & 16) != 0 || code >= 100) {
 		// A distance field: text from the livery's text atlas (multi-channel), shapes from the
 		// shared atlas's 16 x 16 cells (one channel). Image rows run down, uv up.
+		// An atlas shape's code: 100 + its cell, plus 256 for each further cell it spans across.
 		bool text = (flags & 16) != 0;
-		vec4 rect = text ? prm : vec4(float((code - 100) % 16), float((code - 100) / 16), 1.0, 1.0) / vec4(16.0, 16.0, 16.0, 16.0);
+		int cell = (code - 100) % 256;
+		vec4 rect = text ? prm : vec4(float(cell % 16), float(cell / 16), float(1 + (code - 100) / 256), 1.0) / 16.0;
+		vec2 size = text ? vec2(textureSize(livery_text, 0)) : vec2(textureSize(livery_shapes, 0));
+		if ((flags & 32) != 0) {
+			float picture = rect.z * size.x / max(rect.w * size.y, 1e-6);
+			float box = livery[i * 6 + 5].w;
+			vec2 k = picture > box ? vec2(1.0, picture / box) : vec2(box / picture, 1.0);
+			uv *= k;
+			gx *= k;
+			gy *= k;
+			if (abs(uv.x) > 0.5 || abs(uv.y) > 0.5) {
+				return 0.0;
+			}
+		}
 		vec2 tuv = rect.xy + vec2(uv.x + 0.5, 0.5 - uv.y) * rect.zw;
 		vec2 tx = vec2(gx.x, -gx.y) * rect.zw;
 		vec2 ty = vec2(gy.x, -gy.y) * rect.zw;
-		vec2 size = text ? vec2(textureSize(livery_text, 0)) : vec2(textureSize(livery_shapes, 0));
 		float range = text ? livery_text_range : livery_shape_range;
 		vec2 unit = vec2(range) / size;
 		vec2 dest = 1.0 / max(abs(tx) + abs(ty), vec2(1e-7));
