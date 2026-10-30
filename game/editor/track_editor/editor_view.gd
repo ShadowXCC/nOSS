@@ -28,7 +28,7 @@ var draft: TrackDraft
 var crosshair := false
 ## Crosshair mode: an item is picked up and moves with the view until confirmed again.
 var grabbing := false
-var _cross := Crosshair.new()
+var _cross := Crosshair.new() # in the middle
 var _left_down := false
 var _drag_button := MOUSE_BUTTON_NONE
 var _last_mouse := Vector2.ZERO
@@ -50,9 +50,6 @@ func _init() -> void:
 	world.add_child(preview)
 	world.add_child(gizmos)
 	world.add_child(camera)
-	_cross.visible = false
-	_cross.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_cross.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_cross)
 
 
@@ -305,15 +302,3 @@ func _set_crosshair(on: bool) -> void:
 func _emit(kind: String, screen: Vector2, shift: bool, alt: bool) -> void:
 	pointer.emit({ "kind": kind, "screen": screen, "hit": pick(screen), "shift": shift, "alt": alt, "crosshair": crosshair })
 
-
-## The crosshair in crosshair mode.
-class Crosshair:
-	extends Control
-
-	func _draw() -> void:
-		var c := size / 2.0
-		for w: Array in [[4.0, Color(0, 0, 0, 0.8)], [2.0, Color.WHITE]]:
-			draw_line(c - Vector2(14, 0), c - Vector2(4, 0), w[1], w[0])
-			draw_line(c + Vector2(4, 0), c + Vector2(14, 0), w[1], w[0])
-			draw_line(c - Vector2(0, 14), c - Vector2(0, 4), w[1], w[0])
-			draw_line(c + Vector2(0, 4), c + Vector2(0, 14), w[1], w[0])

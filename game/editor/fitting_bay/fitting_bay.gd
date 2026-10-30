@@ -180,7 +180,9 @@ func _show_step(step: String, keep_focus := false) -> void:
 		if c.get_parent() == null:
 			_content.add_child(c)
 	var chain := _focusable(controls) + [_step_buttons[step], _drive_button, _save_button]
-	UiKit.chain_focus(chain, focus_at < 0)
+	# Pointing at the car in the Livery step keeps the focus in the view while the list changes.
+	_preview.set_livery_mode(step == "Livery" and draft != null, self)
+	UiKit.chain_focus(chain, focus_at < 0 and not _preview.has_focus())
 	if focus_at >= 0:
 		var targets := chain.map(func(c: Control) -> Control: return UiKit._focus_target(c)).filter(func(c: Control) -> bool: return c != null)
 		UiKit.focus_later(targets[mini(focus_at, maxi(targets.size() - 4, 0))]) # not the 3 buttons after the step's
@@ -494,20 +496,30 @@ func _show_livery() -> void:
 	if visual == null or draft == null:
 		return
 	var l := _livery_edit().livery() if _step == "Livery" else {}
+	_preview.show_livery_box(_livery_edit().current() if _step == "Livery" else {})
 	if l.is_empty() and visual.livery.is_empty():
 		return
 	visual.reset_paint()
 	visual.apply_livery(l)
 
 
-## Snaps the picked layer onto the body where it is.
+## Point at the car to put the picked layer there (the 3D view takes the focus).
 func _place_on_car() -> void:
-	var e := _livery_edit()
-	if e.current().is_empty():
+	if _preview.livery_view == null:
 		return
-	var said := e.place_side(String(e.placement().side))
-	_show_step("Livery", true)
-	_set_status(said)
+	_preview.grab_focus()
+	_preview.livery_view.start_carrying()
+
+
+## From the 3D view back to the list: on the Layer row.
+func _focus_livery_list() -> void:
+	for c in _content.get_children():
+		if c is Button and String((c as Button).accessibility_name).begins_with("Layer"):
+			c.grab_focus()
+			return
+	var targets := _focusable(_content.get_children())
+	if not targets.is_empty():
+		UiKit._focus_target(targets[0]).grab_focus()
 
 
 func _step_cockpit() -> Array:

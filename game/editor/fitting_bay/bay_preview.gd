@@ -2,10 +2,12 @@ class_name BayPreview
 extends SubViewportContainer
 ## The Fitting Bay's 3D view: the car as the game will draw it (a CarVisual on a copy of the
 ## draft's model, fitted to the chosen platform) standing on a floor, with overlays for the
-## step being edited. Orbit with the mouse (drag, wheel) or a pad (right stick, shoulders);
-## with picking on, a click on the model picks the part under it.
+## step being edited. Orbit with the mouse (drag, wheel) or any pad (right stick, triggers);
+## with picking on, a click on the model picks the part under it. In the Livery step it takes
+## the focus and a LiveryView points at the car.
 
-## A click on the model (not a drag): the part under it, {node, surface, triangle}.
+## A click on the model (not a drag): the part under it, {node, surface, triangle, position,
+## normal} (position and normal in the model's space).
 signal part_clicked(hit: Dictionary)
 
 const OVERLAY_ALPHA := 0.55
@@ -42,6 +44,10 @@ var _triangles := {} # mesh instance id -> TriangleMesh
 var _hover_mesh: MeshInstance3D
 var _lit_tint := _material(Color(0.2, 0.9, 1.0, 0.35), false)
 var _hover_tint := _material(Color(1.0, 0.55, 0.1, 0.6))
+var _arrays := {} # "<mesh id>:<surface>" -> [vertices, normals, indices], for smooth normals
+## The Livery step's pointing (null in the other steps), and the picked layer's box.
+var livery_view: LiveryView
+var _livery_box: MeshInstance3D
 
 
 func _ready() -> void:
@@ -252,7 +258,39 @@ func pick_ray(from: Vector3, dir: Vector3) -> Dictionary:
 		if d < nearest:
 			nearest = d
 			best = _face(mi, int(hit.face_index))
+			if not best.is_empty():
+				# Where it is on the model, and the surface's smoothed normal there (out of it).
+				var to_model := visual.model_root.global_transform.affine_inverse() * xf
+				var local: Vector3 = hit.position
+				var n := _smooth_normal(mi, best.surface, best.triangle, local, hit.normal)
+				n = (to_model.basis.inverse().transposed() * n).normalized()
+				if n.dot((to_model.basis * (inv.basis * dir)).normalized()) > 0.0:
+					n = -n
+				best.position = to_model * local
+				best.normal = n
 	return best
+
+
+## The vertex normals of triangle `t` of surface `s`, blended at `local` (the mesh's space);
+## `face` (the flat normal) without any.
+func _smooth_normal(mi: MeshInstance3D, s: int, t: int, local: Vector3, face: Vector3) -> Vector3:
+	var key := "%d:%d" % [mi.mesh.get_instance_id(), s]
+	if not _arrays.has(key):
+		var a := mi.mesh.surface_get_arrays(s)
+		_arrays[key] = [a[Mesh.ARRAY_VERTEX], a[Mesh.ARRAY_NORMAL], a[Mesh.ARRAY_INDEX]]
+	var verts: PackedVector3Array = _arrays[key][0]
+	var normals: Variant = _arrays[key][1]
+	var index: Variant = _arrays[key][2]
+	if not normals is PackedVector3Array or (normals as PackedVector3Array).size() != verts.size():
+		return face
+	var ids := [3 * t, 3 * t + 1, 3 * t + 2]
+	if index is PackedInt32Array and not (index as PackedInt32Array).is_empty():
+		ids = [index[3 * t], index[3 * t + 1], index[3 * t + 2]]
+	if ids[2] >= verts.size():
+		return face
+	var w := Geometry3D.get_triangle_barycentric_coords(local, verts[ids[0]], verts[ids[1]], verts[ids[2]])
+	var n: Vector3 = normals[ids[0]] * w.x + normals[ids[1]] * w.y + normals[ids[2]] * w.z
+	return n.normalized() if n.length() > 1e-5 else face
 
 
 ## Which surface and triangle face `face` of `mi`'s TriangleMesh is (faces run through the
@@ -285,6 +323,9 @@ func camera_point(_draft: FittingDraft, which: String) -> Variant:
 
 
 func _gui_input(event: InputEvent) -> void:
+	if livery_view and livery_view.handle(event):
+		accept_event()
+		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
@@ -313,16 +354,66 @@ func _process(delta: float) -> void:
 	if turntable and not _dragging:
 		_yaw += delta * 0.35
 		_update_camera()
-	# A pad's right stick turns the view, the shoulders zoom.
-	var x := Input.get_joy_axis(0, JOY_AXIS_RIGHT_X)
-	var y := Input.get_joy_axis(0, JOY_AXIS_RIGHT_Y)
-	var zoom := Input.get_joy_axis(0, JOY_AXIS_TRIGGER_RIGHT) - Input.get_joy_axis(0, JOY_AXIS_TRIGGER_LEFT)
+	# Any pad's right stick turns the view, the triggers zoom.
+	var x := 0.0
+	var y := 0.0
+	var zoom := 0.0
+	for pad in Input.get_connected_joypads():
+		x += Input.get_joy_axis(pad, JOY_AXIS_RIGHT_X)
+		y += Input.get_joy_axis(pad, JOY_AXIS_RIGHT_Y)
+		zoom += Input.get_joy_axis(pad, JOY_AXIS_TRIGGER_RIGHT) - Input.get_joy_axis(pad, JOY_AXIS_TRIGGER_LEFT)
 	if absf(x) > 0.2 or absf(y) > 0.2 or absf(zoom) > 0.2:
-		_yaw -= x * delta * 2.0
-		_pitch = clampf(_pitch - y * delta * 1.5, deg_to_rad(-85.0), deg_to_rad(10.0))
-		_distance = clampf(_distance * (1.0 - zoom * delta), 1.0, 40.0)
-		view = "orbit"
-		_update_camera()
+		orbit(-x * delta * 2.0, -y * delta * 1.5)
+		zoom_by(1.0 - zoom * delta)
+
+
+## Turns the orbit camera (radians).
+func orbit(yaw: float, pitch: float) -> void:
+	_yaw += yaw
+	_pitch = clampf(_pitch + pitch, deg_to_rad(-85.0), deg_to_rad(10.0))
+	view = "orbit"
+	_update_camera()
+
+
+## Moves the orbit camera `k` times as far out.
+func zoom_by(k: float) -> void:
+	_distance = clampf(_distance * k, 1.0, 40.0)
+	view = "orbit"
+	_update_camera()
+
+
+## The Livery step: the view takes the focus and points at the car (`bay` gets what it does).
+func set_livery_mode(on: bool, bay: FittingBay = null) -> void:
+	if on == (livery_view != null):
+		return
+	focus_mode = Control.FOCUS_ALL if on else Control.FOCUS_NONE
+	if on:
+		livery_view = LiveryView.new(self, bay)
+		add_child(livery_view)
+		accessibility_name = "Car view"
+		accessibility_description = LiveryView.HELP
+	else:
+		livery_view.queue_free()
+		livery_view = null
+		show_livery_box({})
+		if has_focus():
+			release_focus()
+
+
+## Draws `layer`'s box (a livery layer: model space) round where it projects; {} for none.
+func show_livery_box(layer: Dictionary) -> void:
+	if is_instance_valid(_livery_box):
+		_livery_box.free()
+	_livery_box = null
+	if layer.is_empty() or visual == null:
+		return
+	var n := Vector3(layer.normal[0], layer.normal[1], layer.normal[2])
+	var r := Vector3(layer.right[0], layer.right[1], layer.right[2])
+	var frame := Transform3D(Basis(r, n.cross(r), n).scaled(Vector3(absf(float(layer.size[0])), absf(float(layer.size[1])), float(layer.depth) * 2.0)),
+		Vector3(layer.at[0], layer.at[1], layer.at[2]))
+	_livery_box = _box_lines(AABB(Vector3(-0.5, -0.5, -0.5), Vector3.ONE), Color(1.0, 0.8, 0.1))
+	_overlay_root.add_child(_livery_box)
+	_livery_box.global_transform = visual.model_root.global_transform * frame
 
 
 func set_view(new_view: String, draft: FittingDraft) -> void:
