@@ -521,8 +521,8 @@ first (D223-).*
   Everyone: the server's and every bot's picks agree.*
 - [x] Endless unchanged on the shared streamer. *The endless suites; `endless_check.sh --windowed`
   PASS; a drive's far views and whole models as before.*
-- [ ] Frame rate drawn at 650 with garage cars, on the dev PC and the i7-7700. *Not measured: the
-  displays were asleep (no frames).*
+- [ ] Frame rate drawn at 650 with garage cars, on the dev PC and the i7-7700. *The dev PC: it
+  froze at the start (fixed, measured: D241's section below); the i7-7700 not yet.*
 
 ## Track editor: the Water tool
 
@@ -553,6 +553,32 @@ D224; the editor showed and kept them but couldn't draw them.*
   scratch scene driving the tool). `tools/a11y_check.py --editor-only` passes with the Water tab.
 - [ ] By hand (the owner): drawing with the mouse and with a controller, and a test drive into a
   dug lake.
+
+## Highway garage cars: no freeze at the start
+
+*With garage cars on, a highway at 250 cars or more could freeze for good at the start: some 50
+model loads at once took every worker thread while the physics waited on them (D241, v0.13.9).*
+
+- **Loads:** 2 whole models and 1 far view at a time, nearest first, as low-priority worker
+  tasks (Endless too).
+- **Swaps:** nearby cars start as stock cars in their garage paint; a physics car becomes its
+  garage car where it is once its model is in, 2 at most each half second, only while no
+  player's camera sees it.
+- **Quitting:** a session ending waits for loads still on a worker (one there hung the exit).
+
+- [x] The cause. *gdb on a 650 run frozen 14 s in: all 16 workers in a garage load waiting on the
+  main thread (a texture read back), the main thread waiting in the physics step.*
+- [x] Loads a few at a time, nearest first, everything in within a few sweeps.
+  *`highway_garage_test`; `endless_traffic_test`.*
+- [x] A stock physics car becomes its garage car out of view only; its stock body goes back to the
+  pool. *`highway_garage_test`; 21 swaps in the first 20 s of a 650 drive.*
+- [x] Windowed on the dev PC, 3 minutes each, autodriven: no freeze, no Jolt warning.
+  *Frame average / p95: 250 6.32 / 7.44 ms, 400 6.60 / 9.33 ms, 650 7.46 / 13.49 ms; garage cars
+  off at 650 6.08 / 6.06 ms. At 650 the first ~50 s run 10-28 ms a frame (each garage car built
+  costs 20-40 ms on the main thread), then 6-8 ms.*
+- [x] Quitting while models load exits. *650, quit 6, 8, 10 and 14 s in (8 s hung before).*
+- [x] Endless as before. *FOREST-0000002 heavy, windowed: 6.16 ms a frame, 19 far views in 11 s.*
+- [ ] On the i7-7700, and a drive by hand (the owner).
 
 ## M10+: Backlog (order to be decided)
 

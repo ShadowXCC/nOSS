@@ -16,6 +16,8 @@ nOSS (NOS + Open Source Software) is a free, open-source racing game. You can im
 
 ## Status
 
+**`v0.13.9`: busy highways with your cars don't freeze.** With garage cars on, a highway at 250 cars or more could freeze for good at the start. Their models now load a few at a time, nearest first; a car close by before its model is in drives as a stock car in its paint and becomes itself once you can't see it. Quitting while models load no longer hangs.
+
 **`v0.13.8`: lakes in the editor.** The track editor's **Water** tool: click a lake's outline corner by corner, set its level, **dig its bed** into the ground, drag its corners, delete it. A road a metre or more over a lake bridges it. Lakes show on the race map, scattered props keep out of them, and a ghosted car that drives in is sent back too.
 
 **`v0.13.7`: busier highways, with your cars in them.** Highway traffic goes up to **650 cars** (the Lumen Ring starts on 250 now, up from 150), and Free Drive's highways get the same levels. The busier the road, the more of the cars round you are full physics cars. **Your own garage cars** drive in the traffic, as on the Endless road: most hatchbacks, saloons and SUVs are cars you left on in the Garage's Traffic cars, in their own paints, and each keeps its car all session, so the same ones come round again. Online the host's cars, or everyone's in turn (12 for the session). Online is protocol 18.
