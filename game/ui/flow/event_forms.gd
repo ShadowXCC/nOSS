@@ -294,14 +294,7 @@ static func endless(page: EventSettingsPage) -> void:
 	page.add_row(UiKit.spinner("Drive on", SIDES, e.drive_side, func(v: String) -> void: e.drive_side = v, "The side traffic keeps to"))
 	page.add_row(UiKit.spinner("Traffic", ENDLESS_TRAFFIC, e.endless_traffic, func(v: String) -> void: e.endless_traffic = v,
 		"Other cars on the road"))
-	if page.flow.context == "local":
-		page.add_row(UiKit.spinner("Garage cars", ON, e.garage_traffic, func(v: bool) -> void: e.garage_traffic = v,
-			"Your cars in the traffic"))
-	else:
-		page.add_row(UiKit.spinner("Garage cars", GARAGE_FROM, e.garage_from if e.garage_traffic else "off", func(v: String) -> void:
-			e.garage_traffic = v != "off"
-			if e.garage_traffic:
-				e.garage_from = v, "Whose cars join the traffic"))
+	page.add_row(garage_row(page))
 	page.add_row(UiKit.spinner("Oncoming", ON, e.oncoming, func(v: bool) -> void: e.oncoming = v, "Cars coming the other way"))
 	page.add_row(UiKit.spinner("Speed traps", OFF, e.speed_traps, func(v: bool) -> void: e.speed_traps = v,
 		"Cameras and parked patrols"))
@@ -344,6 +337,8 @@ static func highway(page: EventSettingsPage) -> void:
 		if (v == "run") != (was == "run"):
 			page.rebuild.call_deferred("Mode"), "Cruise: no score. Score attack: near misses. Run: a sprint. Loop: lap times"))
 	page.add_row(traffic_row(e, data))
+	if flow.context == "local":
+		page.add_row(garage_row(page))
 	page.add_row(UiKit.spinner("Police", OFF, e.police, func(v: bool) -> void: e.police = v,
 		"Speed traps; speed, near misses and crashes in their sight bring a chase"))
 	if e.sub == "run":
@@ -376,6 +371,19 @@ static func _way(data: TrackData, dir: int) -> String:
 	if data == null or data.highway == null:
 		return "This way" if dir > 0 else "The other way"
 	return "Clockwise" if data.highway.clockwise(dir) else "Anticlockwise"
+
+
+## Garage cars in the traffic (D191; highways too, D239): On or Off on this PC; hosting, whose
+## (D233: the host's, or everyone's in turn).
+static func garage_row(page: EventSettingsPage) -> Button:
+	var e := page.flow.event
+	if page.flow.context == "local":
+		return UiKit.spinner("Garage cars", ON, e.garage_traffic, func(v: bool) -> void: e.garage_traffic = v,
+			"Your cars in the traffic")
+	return UiKit.spinner("Garage cars", GARAGE_FROM, e.garage_from if e.garage_traffic else "off", func(v: String) -> void:
+		e.garage_traffic = v != "off"
+		if e.garage_traffic:
+			e.garage_from = v, "Whose cars join the traffic")
 
 
 ## A highway's Traffic row (D238): the cars on the road, the track's own count to start with (one
@@ -468,6 +476,8 @@ static func free_drive(page: EventSettingsPage) -> void:
 			page.rebuild.call_deferred("Track")))
 	if was:
 		page.add_row(traffic_row(e, page.track_data(flow.track)))
+		if flow.context == "local":
+			page.add_row(garage_row(page))
 		return
 	if flow.context == "local":
 		var counts := numbers(0, 15)

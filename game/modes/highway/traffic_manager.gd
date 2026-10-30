@@ -4,7 +4,8 @@ extends Node
 ## second; distant traffic drawn from it, one MultiMesh per type; traffic near players turned into
 ## physics cars (TrafficCar) and back into the lane sim when nobody is near; wrecks left where they
 ## stopped until towed; stand-in boxes for lane cars right next to a player that aren't physics
-## cars (yet); and a cap on physics cars that drops when physics gets slow.
+## cars (yet); a cap on physics cars that drops when physics gets slow; and garage cars in the
+## traffic (D239: GarageModels), each car's pick fixed for the session.
 ##
 ## Offline this game decides everything (authority); online the server does (HighwayNet, D109):
 ## its events land a little ahead (`lead`) so they reach every game in time, and each game's lane
@@ -49,6 +50,16 @@ const HAND_S := 1.0
 const HAND_AGAIN_S := 5.0
 ## The lane sim's ticks a second (native traffic_sim.h TICK_HZ).
 const TICK_HZ := 20
+## Garage cars in the traffic (D239): a car's pick holds for the session (the same cars come round
+## again). Looked at every STREAM_S: its far view loads while it's within GARAGE_FAR_M of a camera,
+## its whole model while within GARAGE_NEAR_M of a player here, the nearest MOST_WHOLE at most (on
+## a loop nearly every car comes within 600 m). What a car is drawn as only changes while it's out
+## of sight (VIEW_M + 50 m from every camera), or in the first SETTLE_S while the views are made.
+const STREAM_S := 0.5
+const GARAGE_FAR_M := VIEW_M + 500.0
+const GARAGE_NEAR_M := 400.0
+const MOST_WHOLE := 24
+const SETTLE_S := 5.0
 ## Ids members() gives racers (their index added).
 const RACER_ID := 10000
 ## Event kinds (NossTraffic, D109). HANDOVER moves a physics car to another game; the lane sim
@@ -91,6 +102,9 @@ var promotions := 0
 var demotions := 0
 var tows := 0
 var wrecks := 0
+## Garage cars (D239): their models, and for the dev log those seen as themselves.
+var models: GarageModels
+var garage_seen := {}
 
 var _types: Array[Dictionary] = []
 var _car_type := PackedInt32Array()
@@ -120,6 +134,23 @@ var _clock := 0.0
 var _closure_id := 0
 var _sirens: Array = []
 var _sirens_frame := -1
+var _seed := 1
+var _garage_of := PackedInt32Array() # car -> its garage car (-1: stock), for the session
+var _paint_roll := PackedInt64Array() # car -> its paint draw
+var _garage_count := {} # garage index -> cars that pick it
+var _garage_views := {} # garage index -> MultiMeshInstance3D (its own far mesh)
+var _view_now := PackedInt32Array() # car -> the bucket it's drawn in now (-1: its type's)
+var _color_now := PackedColorArray() # car -> its colour now (alpha 0: its type's palette)
+var _stream_in := 0.0
+
+
+func _init() -> void:
+	models = GarageModels.new()
+	models.most_whole = MOST_WHOLE
+	add_child(models)
+	models.view_made.connect(_on_view_made)
+	models.view_gone.connect(_on_view_gone)
+	models.whole_gone.connect(_on_whole_gone)
 
 
 ## The lane sim for `track`'s highway: `count` cars from `seed`, patrol cars among them with
@@ -132,6 +163,7 @@ func setup(track: TrackData, seed: int, count: int, patrols := false) -> bool:
 			cap_player = c[2]
 			boxes = c[3]
 	cap = cap_game
+	_seed = seed
 	sim = TrafficTypes.sim(track, seed, count, patrols)
 	if sim == null:
 		return false
@@ -142,6 +174,8 @@ func setup(track: TrackData, seed: int, count: int, patrols := false) -> bool:
 	_car_type.resize(sim.get_count())
 	for i in sim.get_count():
 		_car_type[i] = int(sim.car(i).type)
+	_garage_of.resize(sim.get_count())
+	_garage_of.fill(-1)
 	return true
 
 
@@ -150,9 +184,11 @@ func _ready() -> void:
 	if sim == null:
 		return
 	var draws := not (session.dedicated or Game.dev.has("bot"))
+	models.draws = draws
+	models.platforms = _platforms
 	for t in _types.size():
 		_platforms[t] = PlatformLoader.load_official(String(_types[t].platform))
-		_pool[t] = []
+		_pool[Vector2i(t, -1)] = []
 		var pkg := PackageLoader.load_package("res://content/traffic/" + String(_types[t].model), {}, {} if draws else { "models": "none", "audio": false })
 		if pkg.ok():
 			_packages[t] = pkg
@@ -201,6 +237,10 @@ func _physics_process(delta: float) -> void:
 			_promotions()
 	_place_boxes()
 	_adapt(delta)
+	_stream_in -= delta
+	if _stream_in <= 0.0 and not models.cars.is_empty():
+		_stream_in = STREAM_S
+		_stream()
 
 
 func _process(delta: float) -> void:
@@ -546,9 +586,13 @@ func _ask(car: int, kind: int, lane := -1, s := 0.0, v := 0.0) -> void:
 	_event(kind, car, lane, s, v)
 
 
-## A physics car for traffic type `type`: one from the pool, or a new one.
-func _take_vehicle(type: int) -> Vehicle:
-	var pool: Array = _pool[type]
+## A physics car for traffic type `type` (as garage car `g`, whose whole model is loaded; -1 the
+## stock one): one from the pool, or a new one.
+func _take_vehicle(type: int, g := -1) -> Vehicle:
+	var key := Vector2i(type, g)
+	if not _pool.has(key):
+		_pool[key] = []
+	var pool: Array = _pool[key]
 	if not pool.is_empty():
 		var v: Vehicle = pool.pop_back()
 		v.process_mode = Node.PROCESS_MODE_INHERIT
@@ -560,7 +604,7 @@ func _take_vehicle(type: int) -> Vehicle:
 	var platform: PlatformLoader.Result = _platforms[type]
 	if not platform.ok():
 		return null
-	var v := Vehicle.create(platform, PackageLoader.copy(_packages[type]))
+	var v := Vehicle.create(platform, PackageLoader.copy(models.pkgs[g] if g >= 0 else _packages[type]))
 	v.name = "TrafficVehicle"
 	v.visual_every_frame = true
 	session.add_child(v)
@@ -576,6 +620,7 @@ func _release(car: int) -> void:
 	if session.net:
 		session.net.drop_traffic(NetProtocol.FIRST_TRAFFIC_ID + car)
 	var v := tc.vehicle
+	var key := Vector2i(_car_type[car], tc.garage)
 	tc.queue_free()
 	v.traffic_id = -1
 	v.indicators = 0
@@ -587,7 +632,10 @@ func _release(car: int) -> void:
 	v.collision_mask = 0
 	v.global_position = Vector3(0, -2000.0, 0)
 	v.process_mode = Node.PROCESS_MODE_DISABLED
-	(_pool[_car_type[car]] as Array).append(v)
+	if _pool.has(key):
+		(_pool[key] as Array).append(v)
+	else:
+		v.queue_free() # its garage model has gone meanwhile
 
 
 ## Car `car`'s physics car or proxy, where the lane sim has it now: driven here if `owner` is
@@ -599,20 +647,26 @@ func _spawn(car: int, owner: int) -> void:
 	if not _packages.has(type):
 		return
 	var at := shadow_pose(car)
-	var v := _take_vehicle(type)
+	# Its garage car once its whole model is here (D239); till then the stock car, in its paint.
+	var g := _garage_of[car]
+	var own := g if g >= 0 and models.pkgs.has(g) else -1
+	var v := _take_vehicle(type, own)
 	if v == null or at.is_empty():
 		return
-	var info := sim.car(car)
 	v.traffic_id = car
-	var colors := TrafficTypes.colors(type)
 	if v.visual:
-		v.visual.set_paint("primary", colors[int(info.color) % colors.size()], "metallic")
+		if own >= 0:
+			v.visual.apply_choice(models.paint_of(own, _paint_roll[car]))
+			garage_seen[own] = true
+		else:
+			v.visual.set_paint("primary", _color_of(car), "metallic")
 	var tc := TrafficCar.new()
 	tc.name = "Traffic%d" % car
 	tc.manager = self
 	tc.car = car
+	tc.garage = own
 	tc.vehicle = v
-	tc.wrecked = int(info.flags) & WRECK_FLAG != 0 # a wreck in the lane sim stays one
+	tc.wrecked = int(sim.car(car).flags) & WRECK_FLAG != 0 # a wreck in the lane sim stays one
 	_drive_here(tc, is_local(owner), at.xform, at.velocity)
 	add_child(tc)
 	cars[car] = tc
@@ -828,15 +882,208 @@ func _make_views() -> void:
 
 
 func _draw() -> void:
+	var bufs := sim.buffers(alpha(), _cameras(), VIEW_M, _blink < 0.5)
+	for t in _views.size():
+		_fill(_views[t].multimesh, bufs[t])
+	for g: int in _garage_views:
+		var bucket := _types.size() + g
+		var mm := (_garage_views[g] as MultiMeshInstance3D).multimesh
+		if bucket < bufs.size():
+			_fill(mm, bufs[bucket])
+			if int(bufs[bucket][1]) > 0:
+				garage_seen[g] = true
+		else:
+			mm.visible_instance_count = 0
+
+
+func _fill(mm: MultiMesh, buf_count: Array) -> void:
+	var buf: PackedFloat32Array = buf_count[0]
+	var count := mini(int(buf_count[1]), mm.instance_count)
+	buf.resize(mm.instance_count * 20)
+	mm.buffer = buf
+	mm.visible_instance_count = count
+
+
+func _cameras() -> PackedVector3Array:
 	var cameras := PackedVector3Array()
+	if session == null:
+		return cameras
 	for p in session.players:
 		if p.cameras and p.cameras.camera:
 			cameras.append(p.cameras.camera.global_position)
-	var bufs := sim.buffers(alpha(), cameras, VIEW_M, _blink < 0.5)
-	for t in _views.size():
-		var mm := _views[t].multimesh
-		var buf: PackedFloat32Array = bufs[t][0]
-		var count: int = bufs[t][1]
-		buf.resize(mm.instance_count * 20)
-		mm.buffer = buf
-		mm.visible_instance_count = count
+	return cameras
+
+
+# --- garage cars ------------------------------------------------------------------------------
+
+
+## Offline: every car of `pool` (EndlessTraffic.garage_pool) in the traffic (D239). Each one's
+## paint is read now (a stand-in wears it); its models load as it comes near.
+func set_garage(pool: Array[Dictionary]) -> void:
+	var weighted := EndlessTraffic.weighted_types()
+	var mine: Array[Dictionary] = []
+	for d: Dictionary in pool:
+		var e := d.duplicate()
+		e.fits = _type_indexes((d.fits as Array).map(func(i: int) -> String: return String(weighted[i].id)))
+		mine.append(e)
+	models.set_pool(mine)
+	_deal_picks(PackedInt32Array(range(mine.size())))
+
+
+## TrafficTypes indexes of the type ids `ids` (patrols never).
+func _type_indexes(ids: Array) -> Array[int]:
+	var out: Array[int] = []
+	for id: Variant in ids:
+		var i := TrafficTypes.index_of(String(id))
+		if i >= 0 and not _types[i].get("patrol", false) and not i in out:
+			out.append(i)
+	return out
+
+
+## Each car's garage car from the cars of `set` (registry indexes, in order) that fit its type:
+## three draws from the seed and the car, so every game with the same set picks the same.
+func _deal_picks(set: PackedInt32Array) -> void:
+	var by_type := {} # type index -> [garage index]
+	for g: int in set:
+		if not models.cars.has(g):
+			continue
+		for t: int in models.cars[g].fits:
+			if not by_type.has(t):
+				by_type[t] = []
+			(by_type[t] as Array).append(g)
+	_garage_count = {}
+	_paint_roll.resize(_car_type.size())
+	_view_now.resize(_car_type.size())
+	_view_now.fill(-1)
+	_color_now.resize(_car_type.size())
+	_color_now.fill(Color(0, 0, 0, 0))
+	var rng := RandomNumberGenerator.new()
+	for i in _car_type.size():
+		rng.seed = (_seed * 1000003 + i * 7919 + 0x5bd1e995) & 0x7FFFFFFFFFFFFFFF
+		var share := rng.randf()
+		var roll := rng.randi()
+		_paint_roll[i] = rng.randi()
+		var fits: Array = by_type.get(_car_type[i], [])
+		_garage_of[i] = int(fits[roll % fits.size()]) if share < GarageModels.GARAGE_SHARE and not fits.is_empty() else -1
+		if _garage_of[i] >= 0:
+			_garage_count[_garage_of[i]] = int(_garage_count.get(_garage_of[i], 0)) + 1
+	_apply_views(true)
+
+
+## Car `car`'s garage car (-1: a stock car).
+func garage_of(car: int) -> int:
+	return _garage_of[car] if car >= 0 and car < _garage_of.size() else -1
+
+
+## For checks: every car's pick as one number, the same on every game whose sets agree.
+func picks_check() -> String:
+	var sum := 0
+	for g in _garage_of:
+		sum = (sum * 31 + g + 1) & 0xFFFFFFF
+	return "%07x" % sum
+
+
+## Online: some of garage car `h` (a hash) is here now.
+func car_here(h: String) -> void:
+	models.car_here(h)
+
+
+## Car `car`'s colour: its stock one, or its garage car's main paint once that's known.
+func _color_of(car: int) -> Color:
+	var colors := TrafficTypes.colors(_car_type[car])
+	var stock := colors[int(sim.car(car).color) % colors.size()]
+	var g := _garage_of[car]
+	return models.tint_of(g, _paint_roll[car], stock) if g >= 0 else stock
+
+
+## Wants each garage car's models where its cars are, and lets go of the rest (GarageModels).
+func _stream() -> void:
+	var at := _clock
+	var eyes := _cameras()
+	var near := PackedVector3Array()
+	for p in session.players:
+		if p.vehicle and is_instance_valid(p.vehicle):
+			near.append(p.vehicle.global_position)
+	if eyes.is_empty():
+		eyes = near
+	var poses := sim.poses(0.0)
+	for i in _garage_of.size():
+		var g := _garage_of[i]
+		if g < 0 or int(poses[i * 8 + 5]) & ACTIVE == 0:
+			continue
+		var pos := Vector3(poses[i * 8], poses[i * 8 + 1], poses[i * 8 + 2])
+		if _nearest(eyes, pos) > GARAGE_FAR_M:
+			continue
+		var d := _nearest(near, pos)
+		models.want(g, at, d if d < GARAGE_NEAR_M else INF)
+	var driven := {}
+	for car: int in cars:
+		driven[(cars[car] as TrafficCar).garage] = true
+	models.sweep(at, driven)
+	_apply_views(_clock < SETTLE_S)
+
+
+## Each garage car drawn as itself once its far view is made, in its paint once that's known; a
+## change only while the car's out of sight (or with `now`).
+func _apply_views(now: bool) -> void:
+	if _view_now.is_empty():
+		return
+	var eyes := _cameras()
+	var poses := sim.poses(0.0) if not now and not eyes.is_empty() else PackedFloat32Array()
+	var changed := false
+	for i in _garage_of.size():
+		var g := _garage_of[i]
+		if g < 0:
+			continue
+		var view := _types.size() + g if _garage_views.has(g) else -1
+		var color := models.tint_of(g, _paint_roll[i], Color(0, 0, 0, 0)) if models.has_paint(g) else Color(0, 0, 0, 0)
+		if view == _view_now[i] and color == _color_now[i]:
+			continue
+		if not poses.is_empty() and _nearest(eyes, Vector3(poses[i * 8], poses[i * 8 + 1], poses[i * 8 + 2])) < VIEW_M + 50.0:
+			continue
+		_view_now[i] = view
+		_color_now[i] = color
+		changed = true
+	if changed:
+		sim.set_views(_view_now, _color_now)
+
+
+func _on_view_made(g: int, mesh: ArrayMesh) -> void:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.use_custom_data = true
+	mm.mesh = mesh
+	mm.instance_count = maxi(int(_garage_count.get(g, 0)), 1)
+	mm.visible_instance_count = 0
+	var view := MultiMeshInstance3D.new()
+	view.name = "Traffic_garage_%d" % g
+	view.multimesh = mm
+	view.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	view.custom_aabb = AABB(Vector3(-1e5, -1e3, -1e5), Vector3(2e5, 2e3, 2e5))
+	add_child(view)
+	_garage_views[g] = view
+
+
+## A far view goes (nobody's been near its cars for a while): its cars back to their type's.
+func _on_view_gone(g: int) -> void:
+	var changed := false
+	for i in _garage_of.size():
+		if _garage_of[i] == g and _view_now[i] >= 0:
+			_view_now[i] = -1
+			changed = true
+	if changed:
+		sim.set_views(_view_now, _color_now)
+	var view: Node = _garage_views.get(g)
+	if view:
+		view.queue_free()
+	_garage_views.erase(g)
+
+
+## A whole model goes: the physics cars waiting in the pool on it go too.
+func _on_whole_gone(g: int) -> void:
+	for key: Vector2i in _pool.keys():
+		if key.y == g:
+			for v: Vehicle in _pool[key]:
+				v.queue_free()
+			_pool.erase(key)

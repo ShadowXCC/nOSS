@@ -443,7 +443,7 @@ func event_dict() -> Dictionary:
 func session_event() -> RaceEvent:
 	if type == "free" and on_highway():
 		var e := RaceEvent.highway("cruise", false, event.traffic)
-		for key in ["time", "time_rate", "weather", "env_seed"]:
+		for key in ["time", "time_rate", "weather", "env_seed", "garage_traffic", "garage_from"]:
 			e.set(key, event.get(key))
 		return e
 	return event

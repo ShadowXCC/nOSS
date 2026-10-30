@@ -25,6 +25,10 @@ class NossTraffic : public godot::RefCounted {
 	traffic::TrafficSim _sim;
 	bool _ready = false;
 	std::vector<std::vector<float>> _palettes; // per type, RGB triples
+	// Per car, for drawing only (never in the state, its snapshots or the checksum, D239): its
+	// bucket in buffers() (-1: its type's) and its colour (RGB, NAN: its type's palette).
+	std::vector<int32_t> _views;
+	std::vector<float> _view_rgb;
 
 protected:
 	static void _bind_methods();
@@ -79,10 +83,14 @@ public:
 	double desired(int64_t p_car) const;
 	// Each type's paint colours (TrafficTypes.colors), for buffers().
 	void set_palettes(const godot::Array &p_palettes);
-	// MultiMesh buffers for distant traffic, one per type: [buffer, count] with 20 floats a car
-	// (3x4 transform rows, colour, custom: x = light bits 1 brake, 2 left, 4 right). Cars `alpha`
-	// of the way to the next tick, within `p_range` of a camera; shadows and cars in the city
-	// left out. `p_blink`: indicators lit this frame.
+	// Which bucket each car is drawn in (-1: its type's; a garage car's own view, D239) and its
+	// colour (alpha 0: its type's palette), for buffers(). Drawing only: the sim never sees them.
+	// Empty arrays: every car its type's. setup() clears them.
+	void set_views(const godot::PackedInt32Array &p_views, const godot::PackedColorArray &p_colors);
+	// MultiMesh buffers for distant traffic, one per type (and one per view past them, set_views):
+	// [buffer, count] with 20 floats a car (3x4 transform rows, colour, custom: x = light bits 1
+	// brake, 2 left, 4 right). Cars `alpha` of the way to the next tick, within `p_range` of a
+	// camera; shadows and cars in the city left out. `p_blink`: indicators lit this frame.
 	godot::Array buffers(double p_alpha, const godot::PackedVector3Array &p_cameras, double p_range, bool p_blink) const;
 	// Test hook: puts a car on a lane (lab placements; never online).
 	void place(int64_t p_car, int64_t p_lane, double p_s, double p_v);

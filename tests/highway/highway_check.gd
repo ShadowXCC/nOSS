@@ -2,7 +2,7 @@ extends Node
 ## Highway check (M7): a highway session runs headless at a fixed 120 Hz, faster than real time.
 ##   tools/highway_check.sh [--scenario=cruise|loop] [--track=<ref>] [--players=1] [--traffic=150]
 ##                          [--seconds=120] [--laps=3] [--seed=1] [--verbose]
-##                          [--police [--heat=1-5] [--flat-out]] [--platform=<id>]
+##                          [--police [--heat=1-5] [--flat-out]] [--platform=<id>] [--garage-traffic=off]
 ## cruise: autodriven players in traffic; fails if a player gets stuck, the traffic population
 ##   changes, or no traffic became a physics car near a player.
 ## loop (acceptance 3): two players going opposite ways for --laps laps of player 1; fails unless
@@ -58,6 +58,7 @@ func _start() -> void:
 	session.autodrive = true
 	session.platform_id = String(opts.get("platform", "official.highway.street"))
 	session.event = RaceEvent.highway("loop" if opts.scenario == "loop" else "cruise", opts.has("police"), int(opts.traffic))
+	session.event.garage_traffic = opts.get("garage-traffic", "on") != "off"
 	session.traffic_seed = int(opts.seed)
 	var players := 2 if opts.scenario == "loop" else int(opts.players)
 	session.ai_players = players - 1
@@ -154,6 +155,12 @@ func _report() -> void:
 		if tm.promotions == 0 and population > 0:
 			fails.append("no traffic became a physics car")
 	print("Time %.0f s, %s, traffic contacts %d, %.2f ms a frame" % [time, stats, traffic_contacts, _frame_sum / maxi(_frames, 1)])
+	if tm and not tm.models.cars.is_empty():
+		var picked := 0
+		for i in tm.sim.get_count():
+			picked += int(tm.garage_of(i) >= 0)
+		print("  garage: %d cars, %d traffic cars are one, %d whole (most %d), %d far, %d seen, view %.1f ms" % [tm.models.cars.size(), picked,
+			tm.models.pkgs.size(), tm.models.most_loaded, tm.models.far.size(), tm.garage_seen.size(), tm.models.view_ms])
 	for p in session.players:
 		print("  %s: %.1f km, lap %d, dir %d" % [p.display_name, float(travelled.get(p, 0.0)) / 1000.0, p.timer.lap, p.direction])
 	if police_watch:

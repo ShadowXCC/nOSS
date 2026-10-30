@@ -40,7 +40,8 @@ extends Node
 ##   --camera=<mode>      chase_near, chase_far, hood, bumper or cockpit
 ##   --track=<ref>        the track for --drive, --race and --time-trial: an id, a path or a hash
 ##   --highway            a highway session right away (the first highway, or --track): --sub=cruise|score|run|loop,
-##                        --traffic=<cars>, --traffic-seed=<n>, --police, --direction=-1|both, --run=<id>, --players=<n>
+##                        --traffic=<cars>, --traffic-seed=<n>, --garage-traffic=on|off, --police, --direction=-1|both,
+##                        --run=<id>, --players=<n>
 ##   --kart               a kart race right away (the first kart track, or --track; --race-laps, --race-ai, --platform)
 ##   --battle[=hits]      a battle right away (the first arena, or --track; --battle-min, --battle-hits, --race-ai)
 ##   --cup[=<id>]         a cup right away (the Spark Cup, or <id>; --race-ai)
@@ -275,6 +276,7 @@ func start_dev_event() -> void:
 		return
 	if dev.has("highway"):
 		var h := RaceEvent.highway(String(dev.get("sub", "cruise")), dev.has("police"), int(dev.get("traffic", "-1")))
+		h.garage_traffic = dev.get("garage-traffic", "on") != "off"
 		h.direction = 0 if dev.get("direction") == "both" else -1 if int(dev.get("direction", "1")) < 0 else 1
 		h.run = String(dev.get("run", ""))
 		start_event(h, String(dev.get("platform", "official.highway.street")))

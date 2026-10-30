@@ -32,6 +32,8 @@ const NEAR_SEEN_M := 150.0
 
 var manager: TrafficManager
 var car := -1
+## The garage car it is (its model, D239), or -1: the stock car.
+var garage := -1
 var vehicle: Vehicle
 ## Where the driver last had it: lane, s (its front, m), m off the lane's line, heading error.
 var lane := -1

@@ -186,14 +186,14 @@ func test_sumo_teams_mode() -> void:
 func test_highway_run_mode() -> void:
 	var page := _page(EventFlow.make("highway"))
 	await _frames(2)
-	assert_array(_rows(page)).contains_exactly(["Highway", "Mode", "Traffic", "Police", "Way round", "Time", "Time runs", "Weather"])
+	assert_array(_rows(page)).contains_exactly(["Highway", "Mode", "Traffic", "Garage cars", "Police", "Way round", "Time", "Time runs", "Weather"])
 	assert_array(["Way round: Clockwise", "Way round: Anticlockwise"]).contains([String(page.row_named("Way round").accessibility_name)])
 	var mode := page.row_named("Mode")
 	mode.grab_focus()
 	for i in 2: # Score attack, Run
 		(mode as Button).pressed.emit()
 	await _frames(2)
-	assert_array(_rows(page)).contains_exactly(["Highway", "Mode", "Traffic", "Police", "Run", "Time", "Time runs", "Weather"])
+	assert_array(_rows(page)).contains_exactly(["Highway", "Mode", "Traffic", "Garage cars", "Police", "Run", "Time", "Time runs", "Weather"])
 	assert_str(String(_focused().accessibility_name)).is_equal("Mode: Run")
 	assert_str(page.flow.event.run).is_not_empty()
 

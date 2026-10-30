@@ -194,6 +194,7 @@ func test_a_patrol_in_the_traffic_turns_into_a_unit_where_it_is() -> void:
 	s.track_path = FIXTURE
 	s.platform_id = "official.highway.super"
 	s.event = RaceEvent.highway("cruise", true, 200)
+	s.event.garage_traffic = false # stock cars: this PC's garage stays out of it
 	add_child(s)
 	for i in 900:
 		if not s.players.is_empty() and s.players[0].vehicle and s.police and s.police._placed:
@@ -235,6 +236,7 @@ func test_traffic_moves_over_for_a_siren() -> void:
 	s.track_path = FIXTURE
 	s.platform_id = "official.highway.super"
 	s.event = RaceEvent.highway("cruise", true, 150)
+	s.event.garage_traffic = false # stock cars: this PC's garage stays out of it
 	add_child(s)
 	for i in 900:
 		if not s.players.is_empty() and s.players[0].vehicle and s.police and s.police._placed:

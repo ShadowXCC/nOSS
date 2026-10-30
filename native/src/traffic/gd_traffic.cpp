@@ -128,11 +128,14 @@ void NossTraffic::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("closed_ahead", "lane", "s", "ahead"), &NossTraffic::closed_ahead);
 	ClassDB::bind_method(D_METHOD("place", "car", "lane", "s", "v"), &NossTraffic::place);
 	ClassDB::bind_method(D_METHOD("set_palettes", "palettes"), &NossTraffic::set_palettes);
+	ClassDB::bind_method(D_METHOD("set_views", "views", "colors"), &NossTraffic::set_views);
 	ClassDB::bind_method(D_METHOD("buffers", "alpha", "cameras", "range", "blink"), &NossTraffic::buffers);
 }
 
 String NossTraffic::setup(const Dictionary &p_graph, const Array &p_types, int64_t p_seed, int64_t p_count, double p_exit_share) {
 	_ready = false;
+	_views.clear();
+	_view_rgb.clear();
 	traffic::GraphInput in;
 	Array lanes = p_graph.get("lanes", Array());
 	for (int64_t i = 0; i < lanes.size(); i++) {
@@ -496,9 +499,28 @@ void NossTraffic::set_palettes(const Array &p_palettes) {
 	}
 }
 
+void NossTraffic::set_views(const PackedInt32Array &p_views, const PackedColorArray &p_colors) {
+	_views.clear();
+	_view_rgb.clear();
+	for (int64_t i = 0; i < p_views.size(); i++) {
+		_views.push_back(p_views[i]);
+	}
+	for (int64_t i = 0; i < p_colors.size(); i++) {
+		Color c = p_colors[i];
+		bool own = c.a > 0.0f;
+		_view_rgb.push_back(own ? c.r : NAN);
+		_view_rgb.push_back(own ? c.g : NAN);
+		_view_rgb.push_back(own ? c.b : NAN);
+	}
+}
+
 Array NossTraffic::buffers(double p_alpha, const PackedVector3Array &p_cameras, double p_range, bool p_blink) const {
 	size_t types = _sim.types.size();
-	std::vector<std::vector<float>> bufs(types);
+	size_t buckets = types;
+	for (int32_t v : _views) {
+		buckets = std::max(buckets, size_t(std::max(v, 0)) + 1);
+	}
+	std::vector<std::vector<float>> bufs(buckets);
 	double r2 = p_range * p_range;
 	for (int i = 0; i < _sim.count(); i++) {
 		const traffic::Car &c = _sim.st.cars[size_t(i)];
@@ -517,13 +539,17 @@ Array NossTraffic::buffers(double p_alpha, const PackedVector3Array &p_cameras, 
 		if (!seen) {
 			continue;
 		}
-		std::vector<float> &b = bufs[c.type];
+		int32_t view = size_t(i) < _views.size() ? _views[size_t(i)] : -1;
+		std::vector<float> &b = bufs[view >= 0 ? size_t(view) : size_t(c.type)];
 		// Rows of [x y z | origin] with x = up x forward (the car's left), y = up, z = forward.
 		float row[12] = { float(p.dz), 0.0f, float(p.dx), float(cx), 0.0f, 1.0f, 0.0f, float(p.y), float(-p.dx), 0.0f, float(p.dz), float(cz) };
 		b.insert(b.end(), row, row + 12);
 		const std::vector<float> &pal = c.type < _palettes.size() ? _palettes[c.type] : std::vector<float>();
 		size_t n = pal.size() / 3;
-		if (n > 0) {
+		size_t k3 = size_t(i) * 3;
+		if (k3 + 2 < _view_rgb.size() && !std::isnan(_view_rgb[k3])) {
+			b.insert(b.end(), { _view_rgb[k3], _view_rgb[k3 + 1], _view_rgb[k3 + 2], 1.0f });
+		} else if (n > 0) {
 			size_t k = (c.color % n) * 3;
 			b.insert(b.end(), { pal[k], pal[k + 1], pal[k + 2], 1.0f });
 		} else {
@@ -540,7 +566,7 @@ Array NossTraffic::buffers(double p_alpha, const PackedVector3Array &p_cameras, 
 		b.insert(b.end(), { float(bits), 0.0f, 0.0f, 0.0f });
 	}
 	Array out;
-	for (size_t t = 0; t < types; t++) {
+	for (size_t t = 0; t < buckets; t++) {
 		PackedFloat32Array buf;
 		buf.resize(int64_t(bufs[t].size()));
 		if (!bufs[t].empty()) {

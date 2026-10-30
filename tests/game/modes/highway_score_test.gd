@@ -22,6 +22,7 @@ func _session() -> TrackSession:
 	s.track_path = FIXTURE
 	s.platform_id = "official.highway.street"
 	s.event = RaceEvent.highway("score", false, 20)
+	s.event.garage_traffic = false # stock cars: this PC's garage stays out of it
 	s.traffic_seed = 3
 	add_child(s)
 	s.traffic.cap = 0 # every car stays a lane car (the near-miss rows come from the lane sim)

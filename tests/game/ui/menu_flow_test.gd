@@ -144,6 +144,9 @@ func test_keyboard_only_boot_to_a_highway() -> void:
 			break
 		await _key(KEY_RIGHT)
 	await _key(KEY_DOWN) # Traffic
+	assert_str(_focused(runner)).is_equal("Traffic: 250")
+	await _key(KEY_DOWN) # Garage cars (D239)
+	assert_str(_focused(runner)).is_equal("Garage cars: On")
 	await _key(KEY_DOWN) # Police
 	assert_str(_focused(runner)).is_equal("Police: Off")
 	await _key(KEY_DOWN) # Way round
@@ -329,7 +332,7 @@ func test_free_drive_on_a_highway() -> void:
 	assert_str(_focused(runner)).is_equal("Track: Lumen Ring · 8.3 km · Highway")
 	await _frames(2)
 	var rows := settings.body.get_children().map(func(c: Control) -> String: return String(c.accessibility_name).get_slice(":", 0))
-	assert_array(rows).contains_exactly(["Track", "Traffic", "Time", "Time runs", "Weather"])
+	assert_array(rows).contains_exactly(["Track", "Traffic", "Garage cars", "Time", "Time runs", "Weather"])
 	assert_str(_focused(runner)).starts_with("Track: Lumen Ring") # still on the row
 	await _key(KEY_DOWN)
 	assert_str(_focused(runner)).is_equal("Traffic: 250") # the track's own count (D238)

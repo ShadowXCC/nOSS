@@ -23,6 +23,7 @@ func _session(direction := 1, traffic := 150) -> TrackSession:
 	s.track_path = FIXTURE
 	s.platform_id = "official.highway.street"
 	s.event = RaceEvent.highway("cruise", false, traffic)
+	s.event.garage_traffic = false # stock cars: this PC's garage stays out of it
 	s.event.direction = direction
 	s.traffic_seed = 3
 	s.autodrive = true
@@ -334,6 +335,7 @@ func test_a_run_rolls_up_starts_at_the_line_and_finishes() -> void:
 	s.track_path = FIXTURE
 	s.platform_id = "official.highway.street"
 	s.event = RaceEvent.highway("run", false, 30)
+	s.event.garage_traffic = false # stock cars: this PC's garage stays out of it
 	s.event.run = "south_sprint"
 	s.traffic_seed = 3
 	s.autodrive = true

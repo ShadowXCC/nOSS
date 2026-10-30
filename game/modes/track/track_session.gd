@@ -743,6 +743,10 @@ func _ready_highway() -> void:
 		traffic.authority = not is_online() or Net.is_server()
 		if traffic.setup(track, seed, count, event.police):
 			add_child(traffic)
+			# Garage cars in the traffic (D239): every one of this game's left on in the Garage;
+			# online, the server's set (_ready_online).
+			if event.garage_traffic and count != 0 and not is_online():
+				traffic.set_garage(EndlessTraffic.garage_pool(GarageFiles.traffic_paths(PackageLoader.list_available()), seed))
 		else:
 			traffic = null
 	if event.police and (not is_online() or Net.is_server()):
