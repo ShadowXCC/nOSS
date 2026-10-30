@@ -54,6 +54,7 @@ var upnp: UpnpMapper
 var _chat := NetChat.Limiter.new()
 var _ai: Array = [] # the session's AI cars (roster entries)
 var _ai_paths := {} # AI car id -> its package here
+var _livery_wait := {} # player id -> the livery hash it picked, still on its way here
 var _in_session := {} # player ids in the session (a race takes no one mid-way)
 var _dirty := false
 var _names := {} # platform id -> display name
@@ -98,6 +99,7 @@ func _ready() -> void:
 	server.message.connect(handle)
 	if content:
 		content.car_refused.connect(_on_car_refused)
+		content.file_ready.connect(_on_file_ready)
 		content.car_changed.connect(_check_car)
 	_dirty = true
 	if config.lan:
@@ -260,7 +262,7 @@ func lobby_dict() -> Dictionary:
 		"class": platform_id(), "class_name": _class_name(platform_id()), "class_hash": platform_result().hash,
 		"event": event().to_dict(), "players": players, "cup": cup_dict(),
 		"rules": { "own_sounds": config.caps.own_sounds, "custom_platforms": config.caps.custom_platforms,
-			"max_package_mb": config.caps.max_package_mb, "tuning": config.rules.tuning },
+			"custom_liveries": config.caps.custom_liveries, "max_package_mb": config.caps.max_package_mb, "tuning": config.rules.tuning },
 	}
 
 
@@ -466,7 +468,7 @@ func rules_dict() -> Dictionary:
 	return {
 		"assists": config.rules.assists if config.rules.get("assists") is Array else null,
 		"tuning": config.rules.tuning, "fitting": config.rules.fitting, "hotswap": config.rules.hotswap,
-		"own_sounds": config.caps.own_sounds,
+		"own_sounds": config.caps.own_sounds, "custom_liveries": config.caps.custom_liveries,
 	}
 
 
@@ -505,6 +507,7 @@ func _ai_entries() -> Array:
 		for d: Dictionary in _cup_ai.slice(0, count):
 			if content:
 				content.share_car(String(d.car))
+				content.share_livery(String(d.get("livery", "")))
 			out.append(d)
 		return out
 	var platform := platform_result()
@@ -537,6 +540,7 @@ func _ai_entries() -> Array:
 			"class": String(kart_classes[rng.randi() % kart_classes.size()]) if not kart_classes.is_empty() else "",
 			"car_note": "", "ready": true, "device": "", "assists": [], "ping": 0, "ai": true, "skill": skills[i],
 			"paint": CarVisual.random_paint(PackageLoader.read_json(pick[0], "paint.json"), rng),
+			"livery": _ai_livery(pick[1], rng),
 		})
 		_ai_paths[NetProtocol.FIRST_AI_ID + i] = pick[0]
 	if cup:
@@ -875,6 +879,7 @@ func _pick(peer: int, data: Dictionary) -> void:
 	if state == "lobby": # a session keeps the classes it started with
 		p.kart_class = String(picked) if picked is String and platform.ok() and picked in GameModes.kart_classes(platform.platform.id) else ""
 	p.car_note = ""
+	_pick_livery(peer, p, data.get("livery"))
 	var bytes := int(data.get("bytes", -1)) if data.get("bytes") is int else -1
 	if content and p.car:
 		var cap := int(config.caps.max_package_mb) << 20
@@ -887,6 +892,50 @@ func _pick(peer: int, data: Dictionary) -> void:
 			content.fetch_car(p.car, peer, "full", bytes)
 	_roster_changed()
 	_dirty = true
+
+
+## The livery a player's car wears (D242): this game's own players' is here already; a guest's is
+## fetched from them and only goes in the roster once it's here and checked. Off with the host's
+## Custom liveries switch.
+func _pick_livery(peer: int, p: NetPlayer, h: Variant) -> void:
+	p.livery = ""
+	_livery_wait.erase(p.id)
+	if not (h is String and ContentStore.valid_hash(h)) or not config.caps.custom_liveries or content == null:
+		return
+	if ContentStore.has_file("liveries", h):
+		_take_livery(p, h)
+	elif peer != 1:
+		_livery_wait[p.id] = h
+		content.fetch_livery(h, peer)
+
+
+## A livery arrived: the players waiting for it get it, if it's good.
+func _on_file_ready(h: String) -> void:
+	for id: int in _livery_wait.keys():
+		if _livery_wait[id] == h and server.players.has(id):
+			_livery_wait.erase(id)
+			_take_livery(server.players[id], h)
+			_roster_changed()
+			_dirty = true
+
+
+## A bad livery (it changes when cleaned, so it isn't what it says) shows as plain paint.
+func _take_livery(p: NetPlayer, h: String) -> void:
+	if NetContent.cached_livery(h).is_empty():
+		p.livery = ""
+		return
+	p.livery = h
+	content.share_livery(h)
+
+
+## A server AI car's livery (D242): one saved for its garage car, at random; "" for a built-in car
+## (its stock livery is understood) or with Custom liveries off.
+func _ai_livery(manifest: Dictionary, rng: RandomNumberGenerator) -> String:
+	if not config.caps.custom_liveries or content == null or LiveryStore.is_builtin(String(manifest.get("id", ""))):
+		return ""
+	var pkg := VehiclePackage.new()
+	pkg.manifest = manifest
+	return content.offer_livery(LiveryStore.pick_for_ai(pkg, rng))
 
 
 func _on_car_refused(car_hash: String, reason: String) -> void:

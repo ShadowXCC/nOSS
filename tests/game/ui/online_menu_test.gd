@@ -116,7 +116,7 @@ func test_host_a_race_by_keys() -> void:
 	_assert_named(host)
 	assert_bool(online.visible).is_false() # one page at a time
 	assert_str(_step(host)).is_equal("Step 1 of 5")
-	for row in ["Name", "Password", "Players", "Port", "LAN discovery", "Open port", "Next", "Back"]:
+	for row in ["Name", "Password", "Players", "Port", "LAN discovery", "Open port", "Custom liveries", "Next", "Back"]:
 		assert_object(_control(host, row)).override_failure_message("No " + row).is_not_null()
 	assert_str(_focused(runner)).is_equal("Name")
 	await _key(KEY_UP) # wraps to Back, then Next beside it

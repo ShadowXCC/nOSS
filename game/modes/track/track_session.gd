@@ -577,6 +577,8 @@ func _exit_tree() -> void:
 		Net.chat_line.disconnect(_on_chat)
 	if Net.content and Net.content.car_changed.is_connected(_on_net_car):
 		Net.content.car_changed.disconnect(_on_net_car)
+	if Net.content and Net.content.file_ready.is_connected(_on_net_file):
+		Net.content.file_ready.disconnect(_on_net_file)
 	if Net.board_received.is_connected(_on_board_received):
 		Net.board_received.disconnect(_on_board_received)
 	if Net.highway_event.is_connected(_on_highway_event):
@@ -1016,6 +1018,7 @@ func _ready_online() -> void:
 	Net.chat_line.connect(_on_chat)
 	if Net.content:
 		Net.content.car_changed.connect(_on_net_car)
+		Net.content.file_ready.connect(_on_net_file)
 	ai_racers = 0
 
 
@@ -1065,6 +1068,10 @@ func _add_online_racer(d: Dictionary, index: int) -> Racer:
 		a.spawn_at = spot
 		_add_racer(a)
 		var path := Net.host_logic.ai_path(id) if Net.host_logic else ""
+		# Wears what the guests are told (D242): a built-in's stock livery, or the roster's.
+		var car_id := String(PackageLoader.read_manifest(path if path else _default_car).get("id", ""))
+		a.livery_car = car_id
+		a.livery = LiveryStore.builtin(car_id) if LiveryStore.is_builtin(car_id) else NetContent.cached_livery(String(d.get("livery", "")))
 		a.load_car(path if path else _default_car)
 		net.add(a, true)
 		safe_rejoin = true
@@ -1091,6 +1098,7 @@ func _add_online_racer(d: Dictionary, index: int) -> Racer:
 	r.spawn_at = spot
 	_add_racer(r)
 	r.car_hash = String(d.car) if String(d.get("car_note", "")).is_empty() else ""
+	r.livery_hash = _livery_of(d)
 	r.load_net_car()
 	net.add(r, false)
 	return r
@@ -1108,6 +1116,11 @@ func _on_roster(roster: Array) -> void:
 			_add_online_racer(d, _free_online_index())
 		elif r is NetRacer:
 			var car := String(d.car) if String(d.get("car_note", "")).is_empty() else ""
+			var livery := _livery_of(d)
+			if livery != (r as NetRacer).livery_hash:
+				(r as NetRacer).livery_hash = livery
+				Net.fetch_livery(livery)
+				(r as NetRacer).redress()
 			if car != (r as NetRacer).car_hash:
 				(r as NetRacer).car_hash = car
 				(r as NetRacer).load_net_car()
@@ -1125,6 +1138,19 @@ func _on_roster(roster: Array) -> void:
 			net.remove(id)
 			racers.erase(r)
 			r.remove()
+
+
+## A roster entry's livery hash (D242), or "".
+static func _livery_of(d: Dictionary) -> String:
+	var h := String(d.get("livery", ""))
+	return h if ContentStore.valid_hash(h) else ""
+
+
+## A livery arrived: the remote cars wearing it are dressed again.
+func _on_net_file(h: String) -> void:
+	for r: Racer in racers:
+		if r is NetRacer and (r as NetRacer).livery_hash == h:
+			(r as NetRacer).redress()
 
 
 ## The first grid spot no car stands on (for someone joining mid-session).

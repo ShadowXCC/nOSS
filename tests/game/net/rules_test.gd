@@ -129,3 +129,17 @@ func test_drafting_is_plausible() -> void:
 	assert_float(p.top_speed).is_greater(alone * 1.05)
 	var line := RacingLine.for_track(track)
 	assert_float(p.ideal_lap).is_less(line.lap_time(line.speed_profile(car, 1.0)))
+
+
+## The host's Custom liveries switch (D242): on unless the config turns it off.
+func test_custom_liveries_switch() -> void:
+	assert_bool(ServerConfig.defaults().caps.custom_liveries).is_true()
+	var d := ServerConfig.defaults().to_dict()
+	d.caps.custom_liveries = false
+	var errors := PackedStringArray()
+	var c := ServerConfig.from_dict(d, errors)
+	assert_array(Array(errors)).is_empty()
+	assert_bool(c.caps.custom_liveries).is_false()
+	assert_bool(c.to_dict().caps.custom_liveries).is_false()
+	d.caps.custom_liveries = "no"
+	assert_object(ServerConfig.from_dict(d, PackedStringArray())).is_null()

@@ -267,12 +267,19 @@ func pick_car(local_index: int, path: String) -> void:
 	if not ContentIndex.shareable(m):
 		return
 	var h := package_hash(path)
+	# The livery it wears goes on its own (D242): a built-in's stock one needs nothing.
+	var livery := ""
 	if content:
 		content.share_car(h) # the server fetches it from here
+		var car_id := String(m.get("id", ""))
+		if Game.dev.has("livery-pick"): # net_check: this livery, whatever the car
+			livery = content.offer_livery(LiveryData.parse(FileAccess.get_file_as_bytes(String(Game.dev["livery-pick"]))))
+		elif not LiveryStore.is_builtin(car_id):
+			livery = content.offer_livery(LiveryStore.worn_stored(car_id))
 	var profile := Players.slots[local_index].profile if local_index < Players.slots.size() else Settings.primary
 	request(NetProtocol.Msg.PICK, { "player": id, "car": h, "bytes": NetContent.package_bytes(path),
 		"car_name": String(m.get("name", path.get_file())).left(64), "family": String(m.get("family", "car")).left(16),
-		"class": String(profile.data.get("kart_class", "")).left(64) })
+		"class": String(profile.data.get("kart_class", "")).left(64), "livery": livery })
 
 
 func admin(cmd: String, target := "") -> void:
@@ -371,6 +378,13 @@ func _fetch_cars() -> void:
 	for p in roster:
 		if p.car and p.car_note.is_empty() and not p.id in my_ids:
 			content.fetch_car(p.car, 1, content.max_tier)
+			fetch_livery(p.livery)
+
+
+## A roster car's livery (D242), unless this game draws nothing (bots; net_check's livery bots do).
+func fetch_livery(h: String) -> void:
+	if content and ContentStore.valid_hash(h) and not Game.dedicated and (not Game.dev.has("bot") or Game.dev.has("livery-pick")):
+		content.fetch_livery(h, 1)
 
 
 ## A session's sky from the server, checked: {time, time_rate, weather, seed, t0}, or {}.
@@ -421,6 +435,7 @@ func _fetch_session_cars(session_roster: Array) -> void:
 		var id := int(d.id)
 		if String(d.car) and String(d.get("car_note", "")).is_empty() and not id in my_ids:
 			content.fetch_car(String(d.car), 1, content.max_tier)
+			fetch_livery(String(d.get("livery", "")))
 
 
 ## A message from the server (or from this game's NetHost).

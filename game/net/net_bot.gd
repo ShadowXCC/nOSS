@@ -52,6 +52,9 @@ var _kart_hooked: KartItems
 var _tt := {}
 ## A sumo Team Battle (D236): each car's team as this game had it, by car id ("-1": none).
 var _teams := {}
+## --livery-pick: the remote cars whose roster names a livery, and those whose livery is here and
+## checks out (D242), most seen.
+var _liveries := { "named": 0, "here": 0 }
 
 
 func _ready() -> void:
@@ -93,6 +96,7 @@ func _physics_process(delta: float) -> void:
 		_endless_sample(session)
 		_tt_sample(session)
 		_teams_sample(session)
+		_livery_sample(session)
 	for id: int in session.net.owned:
 		var r: Racer = session.net.owned[id]
 		var v := r.vehicle
@@ -181,6 +185,19 @@ func _tt_sample(session: TrackSession) -> void:
 
 
 ## Once a second: the sumo teams as the server's snapshots left them here, the last match's.
+func _livery_sample(session: TrackSession) -> void:
+	var named := 0
+	var here := 0
+	for r: Racer in session.racers:
+		var n := r as NetRacer
+		if n and n.livery_hash:
+			named += 1
+			if not NetContent.cached_livery(n.livery_hash).is_empty():
+				here += 1
+	if named >= int(_liveries.named):
+		_liveries = { "named": named, "here": here }
+
+
 func _teams_sample(session: TrackSession) -> void:
 	if session.sumo == null or not session.sumo.teams_on:
 		return
@@ -274,6 +291,7 @@ func _exit_tree() -> void:
 		"contacts": _contacts, "remote_cars": _remote_cars, "throttle_min": _throttle_min,
 		"rtt_ms": Net.client.rtt_ms() if Net.client else 0.0,
 		"cars": _cars, "preview_s": _preview_s, "full_s": _full_s, "traffic": _traffic, "kart": _kart, "endless": _endless, "tt": _tt, "teams": _teams,
+		"liveries": _liveries,
 	}))
 
 

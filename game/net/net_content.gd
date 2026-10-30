@@ -21,8 +21,10 @@ signal track_refused(h: String, reason: String)
 
 const PRIORITY := { "data": 0, "preview": 10, "full": 20, "audio": 30 }
 const TIER_ORDER := ["data", "preview", "full"]
-## A platform file from a server is at most this big.
+## A platform file from a server is at most this big; a livery (docs/VEHICLE_PACKAGE.md §12) at
+## most this.
 const FILE_CAP := 1 << 20
+const FILE_CAPS := { "liveries": LiveryData.MAX_NET_BYTES }
 ## Tracks come before anything else.
 const TRACK_PRIORITY := -10
 
@@ -320,7 +322,7 @@ func _want(peer: int, h: String, owner: String, rel: String, priority: int, kind
 	if not list.has(entry):
 		list.append(entry)
 	_wanted[h] = list
-	var cap := track_cap if kind == "tracks" else (car_cap if car_cap >= 0 else -1) if owner else FILE_CAP
+	var cap := track_cap if kind == "tracks" else (car_cap if car_cap >= 0 else -1) if owner else int(FILE_CAPS.get(rel, FILE_CAP))
 	link(peer).want(h, priority, cap)
 
 
@@ -434,6 +436,40 @@ func fetch_file(kind: String, h: String, peer: int) -> void:
 	if ContentStore.has_file(kind, h):
 		return
 	_want(peer, h, "", kind, -10)
+
+
+## Fetches a livery (a player's, or an AI car's) by hash from `peer`, unless it's cached.
+func fetch_livery(h: String, peer: int) -> void:
+	if ContentStore.valid_hash(h):
+		fetch_file("liveries", h, peer)
+
+
+## Sends a livery that's in the cache to anyone who asks.
+func share_livery(h: String) -> void:
+	if ContentStore.has_file("liveries", h):
+		share_file(ContentStore.file_path("liveries", h))
+
+
+## Keeps livery `l` (cleaned) in the cache and offers it; its hash, or "" when it can't travel
+## (too big, or none).
+func offer_livery(l: Dictionary) -> String:
+	var blob := LiveryStore.net_blob(l) if not l.is_empty() else PackedByteArray()
+	if blob.is_empty():
+		return ""
+	var h := "sha256:" + PlatformLoader.sha256_hex(blob)
+	if ContentStore.put_file("liveries", h, blob):
+		return ""
+	share_livery(h)
+	return h
+
+
+## The livery cached under `h`, cleaned; {} if it isn't here or isn't one. Only a livery that's
+## exactly what it says (clean changes nothing) counts.
+static func cached_livery(h: String) -> Dictionary:
+	if not ContentStore.has_file("liveries", h):
+		return {}
+	var l := LiveryData.parse(FileAccess.get_file_as_bytes(ContentStore.file_path("liveries", h)), LiveryData.MAX_NET_BYTES)
+	return l if not l.is_empty() and LiveryData.hash_of(l) == h else {}
 
 
 ## The total size of a package's files (what PICK tells the server, and the lobby a track's).

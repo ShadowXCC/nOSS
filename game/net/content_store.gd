@@ -10,7 +10,7 @@ extends RefCounted
 ## Files are written to tmp/ and renamed into place, so several games can share one cache; each
 ## game keeps its own partial downloads (two fetching the same file don't share one).
 
-const KINDS := ["cars", "platforms", "tracks"]
+const KINDS := ["cars", "platforms", "tracks", "liveries"]
 ## Package files for each tier, beyond what lower tiers bring.
 const DATA_FILES := ["manifest.json", "fit.json", "paint.json", "sound/profile.json"]
 

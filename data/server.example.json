@@ -24,6 +24,6 @@
     }
   ],
   "rules": { "classes": [], "tuning": "allow", "fitting": "normal", "hotswap": "practice", "ghost_bad_links": true },
-  "caps": { "max_package_mb": 50, "own_sounds": true, "custom_platforms": false, "transfer_kbps": 2048, "client_kbps": 8192 },
+  "caps": { "max_package_mb": 50, "own_sounds": true, "custom_liveries": true, "custom_platforms": false, "transfer_kbps": 2048, "client_kbps": 8192 },
   "plausibility": "flag"
 }

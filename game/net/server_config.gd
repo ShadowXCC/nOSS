@@ -31,7 +31,7 @@ var rules := {
 	"ghost_bad_links": true,
 }
 var caps := {
-	"max_package_mb": 50, "max_track_mb": 100, "own_sounds": true, "custom_platforms": false,
+	"max_package_mb": 50, "max_track_mb": 100, "own_sounds": true, "custom_platforms": false, "custom_liveries": true,
 	"transfer_kbps": 2048, "client_kbps": 8192,
 }
 ## "off", "warn", "flag" or "kick".

@@ -18,6 +18,8 @@ var peer := 0
 var car_hash := ""
 ## The server's AI cars: their paint job (CarVisual.random_paint, D128); {} for the car's own.
 var paint := {}
+## The livery the car wears (its hash in the content cache, D242), or "" for its own paint.
+var livery_hash := ""
 var buffer := MotionBuffer.new()
 ## Where server time comes from (NetSession.now).
 var clock := Callable()
@@ -107,13 +109,22 @@ func _on_net_car(pkg: VehiclePackage, tier: String) -> void:
 	_mounted()
 
 
-## A remote car's livery: a built-in's stock one. The default car standing in for one still on
-## its way stays plain.
+## A remote car's livery (D242): a built-in's stock one, or the one the roster names once it's
+## here (plain paint until then, or if it never comes). The default car standing in for one still
+## on its way stays plain.
 func _dress() -> void:
 	if _tier == "default":
 		vehicle.visual.apply_livery({})
 		return
-	vehicle.visual.apply_livery(LiveryStore.builtin(String(vehicle.package.manifest.get("id", ""))), str(number))
+	var id := String(vehicle.package.manifest.get("id", ""))
+	var l := LiveryStore.builtin(id) if LiveryStore.is_builtin(id) else NetContent.cached_livery(livery_hash) if livery_hash else {}
+	vehicle.visual.apply_livery(l, str(number))
+
+
+## Its livery arrived, or the roster names another: dressed again.
+func redress() -> void:
+	if vehicle and vehicle.visual and vehicle.package:
+		_dress()
 
 
 func _spawn(pkg: VehiclePackage) -> void:

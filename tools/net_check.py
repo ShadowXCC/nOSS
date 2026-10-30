@@ -26,6 +26,7 @@ and exits 0 (PASS) or 1 (FAIL).
   tools/net_check.py --event sumo --clients 3 --ai 4 --sumo-teams 2         # a sumo Team Battle
   tools/net_check.py --event drag --clients 3 --ai 4 --length 402 --rtt 150 # a drag ladder
   tools/net_check.py --event endless --clients 2 --exported --duration 120  # exported builds (tools/export.sh)
+  tools/net_check.py --clients 2 --liveries on --duration 30           # liveries travel (D242); off: the host's switch
 
 On a highway (--event highway, the Lumen Ring and the Street class unless given) every bot also
 reports its traffic: checksums that disagreed with the server's (must be 0), full states taken
@@ -198,6 +199,8 @@ def main(argv=None):
     p.add_argument("--within", type=float, default=60.0, help="--fresh: seconds allowed for every car")
     p.add_argument("--logs", default="", help="the logs' folder (default reports/net_check/<time>/)")
     p.add_argument("--exported", action="store_true", help="run the exported server, Linux and Windows (Wine) builds")
+    p.add_argument("--liveries", choices=["on", "off"], default="",
+                   help="every bot picks with a livery (D242); on: each sees every other's, off (the host switch): none")
     p.add_argument("--verbose", action="store_true")
     args = p.parse_args(argv)
     # The game's LAN list only asks the standard ports (47800-47815), so an open server uses one.
@@ -260,6 +263,8 @@ def main(argv=None):
         "rotation": [{"track": track, "class": args.klass, "event": event}],
         "plausibility": args.plausibility,
     }
+    if args.liveries:
+        config["caps"] = {"custom_liveries": args.liveries == "on"}
     config_path = logs / "server.json"
     config_path.write_text(json.dumps(config))
     procs = []
@@ -343,6 +348,7 @@ def main(argv=None):
         cheat += ["--kart-debug"] if os.environ.get("KART_DEBUG") else []
         if karts and args.classes == "mixed":
             cheat += ["--p1-profile=" + json.dumps({"kart_class": KART_CLASSES[i % len(KART_CLASSES)]})]
+        cheat += ["--livery-pick=res://tests/schemas/fixtures/livery/valid_stripes.json"] if args.liveries else []
         bots.append(start(f"bot{i:02d}", ["--bot", f"--connect=127.0.0.1:{port}", f"--players={n}",
                                           f"--bot-fps={args.bot_fps}"] + (late or quit_flag) + cheat))
         time.sleep(0.2)
@@ -697,6 +703,17 @@ def main(argv=None):
             fails.append("honest cars failed checks too")
     elif checks:
         fails.append("honest cars failed checks (%d)" % len(checks))
+    if args.liveries:
+        # Every bot's livery travels on its own (D242): on, each sees the others' (here and good);
+        # off (the host's switch), the roster names none.
+        others = players - 1
+        for name in sorted(n for n in reports if n.startswith("bot")):
+            lv = reports[name].get("liveries", {"named": 0, "here": 0})
+            print("%s liveries: %d named, %d here" % (name, lv["named"], lv["here"]))
+            if args.liveries == "on" and (lv["named"] < others or lv["here"] < lv["named"]):
+                fails.append(f"{name}: {lv['here']} of {others} other cars' liveries here")
+            elif args.liveries == "off" and lv["named"] > 0:
+                fails.append(f"{name}: {lv['named']} liveries named with the switch off")
     if worst_down > MAX_DOWN_KB and not args.fresh:  # a fresh client's download isn't steady traffic
         fails.append("%.1f KB/s down, over %g" % (worst_down, MAX_DOWN_KB))
     if highway:  # knocks with traffic happen offline too; a pile-up of players' cars says sync is off

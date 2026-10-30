@@ -1,7 +1,7 @@
 class_name HostOptionsPage
 extends MenuPage
 ## Host (docs/UI_FLOW.md §7.2, MP-01, MP-06): the server's name, password and size, its port, LAN
-## discovery and the router port. Next goes on to the event pages (LocalDrivePage, "host"), whose
+## discovery, the router port and whether players' own liveries show. Next goes on to the event pages (LocalDrivePage, "host"), whose
 ## last one starts the server: this game runs it and plays at the same time. The options are
 ## remembered (the password isn't).
 
@@ -48,6 +48,8 @@ func _build() -> void:
 		"Players on your network see this game"))
 	add_row(UiKit.spinner("Open port", EventForms.ON, config.upnp, func(on: bool) -> void: config.upnp = on,
 		"Ask your router to let players in (UPnP)"))
+	add_row(UiKit.spinner("Custom liveries", EventForms.ON, bool(config.caps.get("custom_liveries", true)), func(on: bool) -> void:
+		config.caps.custom_liveries = on, "Players' own liveries on their cars. Off: their own paint"))
 	var next := UiKit.button("Next", open_event, "Choose the event")
 	next.name = "Next"
 	add_action(next)

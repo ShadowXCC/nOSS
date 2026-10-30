@@ -93,6 +93,8 @@ extends Node
 ##                        cars without models, AI drives, --players=<n> on one connection
 ##   --cheat=<kind>       bot: send false states (speed, teleport, time) to test the server's checks
 ##   --bot-full           bot: fetch every car whole, timing it (net_check --fresh)
+##   --livery-pick=<file> online: the car picked wears this livery, whatever the car; a bot also
+##                        fetches the others' liveries (net_check --liveries)
 ##   --cache=<folder>     keep downloaded content there (an empty one: a fresh client)
 ##   --share-personal     server: send personal-use cars too (only to this PC's bots: net_check --fresh)
 ##   --auto-ready         lobby: ready each player here once their car is picked

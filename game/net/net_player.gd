@@ -20,6 +20,8 @@ var admin := false
 var car := ""
 var car_name := ""
 var family := ""
+## The livery the car wears (its hash in the content cache, D242), or "" for its own paint.
+var livery := ""
 ## A kart session's class this player picked (D149), "" for the server's.
 var kart_class := ""
 ## Why the car can't be shown ("Car too large for this server"), or "".
@@ -39,7 +41,7 @@ func to_dict() -> Dictionary:
 		"id": id, "peer": peer, "local": local_index, "name": name, "color": color.to_html(false),
 		"fp": NetIdentity.short(fingerprint) if fingerprint else "", "admin": admin,
 		"car": car, "car_name": car_name, "family": family, "class": kart_class, "car_note": car_note, "ready": ready,
-		"device": device, "assists": Array(assists), "ping": ping,
+		"device": device, "assists": Array(assists), "ping": ping, "livery": livery,
 	}
 
 
@@ -65,6 +67,7 @@ static func from_dict(d: Dictionary) -> NetPlayer:
 	p.family = d.family
 	p.kart_class = d["class"]
 	p.car_note = d.car_note
+	p.livery = String(d.get("livery", "")) if ContentStore.valid_hash(String(d.get("livery", ""))) else ""
 	p.ready = d.ready
 	p.device = d.device if d.device in DEVICES else ""
 	p.assists = clean_assists(d.assists)
