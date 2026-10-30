@@ -141,6 +141,7 @@ var _garage_count := {} # garage index -> cars that pick it
 var _garage_views := {} # garage index -> MultiMeshInstance3D (its own far mesh)
 var _view_now := PackedInt32Array() # car -> the bucket it's drawn in now (-1: its type's)
 var _color_now := PackedColorArray() # car -> its colour now (alpha 0: its type's palette)
+var _tint := PackedColorArray() # car -> its garage car's paint colour, once known (alpha 0: not yet)
 var _stream_in := 0.0
 
 
@@ -972,6 +973,8 @@ func _deal_picks(set: PackedInt32Array) -> void:
 	_view_now.fill(-1)
 	_color_now.resize(_car_type.size())
 	_color_now.fill(Color(0, 0, 0, 0))
+	_tint.resize(_car_type.size())
+	_tint.fill(Color(0, 0, 0, 0))
 	var rng := RandomNumberGenerator.new()
 	for i in _car_type.size():
 		rng.seed = (_seed * 1000003 + i * 7919 + 0x5bd1e995) & 0x7FFFFFFFFFFFFFFF
@@ -1007,8 +1010,22 @@ func car_here(h: String) -> void:
 func _color_of(car: int) -> Color:
 	var colors := TrafficTypes.colors(_car_type[car])
 	var stock := colors[int(sim.car(car).color) % colors.size()]
+	var tint := _tint_of(car)
+	return tint if tint.a > 0.0 else stock
+
+
+## Car `car`'s garage car's paint colour, worked out once its paint is here (alpha 0 till then, or
+## for a stock car).
+func _tint_of(car: int) -> Color:
 	var g := _garage_of[car]
-	return models.tint_of(g, _paint_roll[car], stock) if g >= 0 else stock
+	if g < 0 or car >= _tint.size():
+		return Color(0, 0, 0, 0)
+	if _tint[car].a == 0.0 and models.has_paint(g):
+		var colors := TrafficTypes.colors(_car_type[car])
+		var c := models.tint_of(g, _paint_roll[car], colors[int(sim.car(car).color) % colors.size()])
+		c.a = 1.0
+		_tint[car] = c
+	return _tint[car]
 
 
 ## Wants each garage car's models where its cars are, and lets go of the rest (GarageModels).
@@ -1035,26 +1052,27 @@ func _stream() -> void:
 	for car: int in cars:
 		driven[(cars[car] as TrafficCar).garage] = true
 	models.sweep(at, driven)
-	_apply_views(_clock < SETTLE_S)
+	_apply_views(_clock < SETTLE_S, poses)
 
 
 ## Each garage car drawn as itself once its far view is made, in its paint once that's known; a
-## change only while the car's out of sight (or with `now`).
-func _apply_views(now: bool) -> void:
+## change only while the car's out of sight (or with `now`). `poses`: the lane sim's, if made.
+func _apply_views(now: bool, poses := PackedFloat32Array()) -> void:
 	if _view_now.is_empty():
 		return
 	var eyes := _cameras()
-	var poses := sim.poses(0.0) if not now and not eyes.is_empty() else PackedFloat32Array()
+	if not now and not eyes.is_empty() and poses.is_empty():
+		poses = sim.poses(0.0)
 	var changed := false
 	for i in _garage_of.size():
 		var g := _garage_of[i]
 		if g < 0:
 			continue
 		var view := _types.size() + g if _garage_views.has(g) else -1
-		var color := models.tint_of(g, _paint_roll[i], Color(0, 0, 0, 0)) if models.has_paint(g) else Color(0, 0, 0, 0)
+		var color := _tint_of(i)
 		if view == _view_now[i] and color == _color_now[i]:
 			continue
-		if not poses.is_empty() and _nearest(eyes, Vector3(poses[i * 8], poses[i * 8 + 1], poses[i * 8 + 2])) < VIEW_M + 50.0:
+		if not now and not eyes.is_empty() and _nearest(eyes, Vector3(poses[i * 8], poses[i * 8 + 1], poses[i * 8 + 2])) < VIEW_M + 50.0:
 			continue
 		_view_now[i] = view
 		_color_now[i] = color

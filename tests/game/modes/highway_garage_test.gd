@@ -93,6 +93,9 @@ func test_picks_hold_for_the_seed_and_fit_their_type() -> void:
 		if g >= 0:
 			picked += 1
 			assert_bool(type in tm.models.cars[g].fits).override_failure_message("car %d: type %d" % [i, type]).is_true()
+			# Drawn in its own paint from the start (its paint is read up front offline).
+			assert_float(tm._color_now[i].a).is_equal(1.0)
+			assert_bool(tm._color_now[i].is_equal_approx(tm._color_of(i))).is_true()
 	assert_float(float(picked) / fitting).override_failure_message("%d of %d" % [picked, fitting]).is_equal_approx(GarageModels.GARAGE_SHARE, 0.06)
 	assert_str(tm.picks_check()).is_equal(again.picks_check())
 	assert_str(tm.picks_check()).is_not_equal(stock.picks_check())
