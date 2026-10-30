@@ -152,8 +152,8 @@ func _scatter(root: Node3D, group: Dictionary) -> void:
 
 
 ## Scatter points in a circle: dart throwing with a minimum spacing, off the road (and its
-## curbs and run-off, plus a margin), not on slopes steeper than the prop takes. Deterministic
-## for a seed. Returns xf numbers [x, z, yaw, scale]*.
+## curbs and run-off, plus a margin) and out of lakes (D240), not on slopes steeper than the prop
+## takes. Deterministic for a seed. Returns xf numbers [x, z, yaw, scale]*.
 func scatter_points(id: String, center: Vector2, radius: float, density_per_100m2: float, seed: int, scale_range := Vector2(0.8, 1.2), existing := PackedFloat32Array()) -> PackedFloat32Array:
 	var t: Dictionary = PropLibrary.TYPES.get(id, {})
 	var spacing := float(t.get("spacing", 3.0))
@@ -177,7 +177,8 @@ func scatter_points(id: String, center: Vector2, radius: float, density_per_100m
 		var a := rng.randf() * TAU
 		var r := radius * sqrt(rng.randf())
 		var p := center + Vector2(cos(a), sin(a)) * r
-		if _near_road(p, float(t.get("clear_m", 0.0))) or _too_steep(p, slope) or _crowded(grid, p, spacing, cell):
+		if _near_road(p, float(t.get("clear_m", 0.0))) or _too_steep(p, slope) or _crowded(grid, p, spacing, cell) \
+				or not track.water_at(p.x, p.y).is_empty():
 			continue
 		add.call(p)
 		out.append_array([p.x, p.y, rng.randf() * TAU, rng.randf_range(scale_range.x, scale_range.y)])

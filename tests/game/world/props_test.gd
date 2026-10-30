@@ -1,7 +1,7 @@
 extends GdUnitTestSuite
 ## Props (EDT-03, D100): every prop builds, the Proving Ground's set pieces and trees came over
-## where they stood, scatter keeps off the road and repeats for a seed, and only solid props
-## collide.
+## where they stood, scatter keeps off the road and out of lakes (D240) and repeats for a seed,
+## and only solid props collide.
 
 
 func test_every_prop_builds() -> void:
@@ -150,3 +150,13 @@ func _part_named(id: String, suffix: String) -> Dictionary:
 		if part.suffix == suffix:
 			return part
 	return {}
+
+
+func test_scatter_keeps_out_of_lakes() -> void:
+	var d := TrackTemplates.make("oval")
+	d.add_lake({ "name": "", "y": -0.5, "points": [[-60, -30], [60, -30], [60, 30], [-60, 30]] })
+	var t := d.track()
+	var xf := PropBuilder.new(t, d.terrain).scatter_points("tree_pine", Vector2.ZERO, 80.0, 1.0, 3)
+	assert_int(xf.size()).is_greater(40)
+	for k in range(0, xf.size(), 4):
+		assert_bool(t.water_at(xf[k], xf[k + 1]).is_empty()).override_failure_message("a pine in the lake at (%.0f, %.0f)" % [xf[k], xf[k + 1]]).is_true()
