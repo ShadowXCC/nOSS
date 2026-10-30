@@ -524,6 +524,36 @@ first (D223-).*
 - [ ] Frame rate drawn at 650 with garage cars, on the dev PC and the i7-7700. *Not measured: the
   displays were asleep (no frames).*
 
+## Track editor: the Water tool
+
+*Draw a lake, set its level, dig its bed, delete it (D240, v0.13.8). Track files had lakes since
+D224; the editor showed and kept them but couldn't draw them.*
+
+- **Water** tool after Paint: corners by click (first corner or Finish closes it), a lake picked
+  by click or [ ]; corners dragged, set, inserted, deleted; name, Level, Pick height, Dig bed
+  (Bed depth, Shore), Delete lake. Mouse, keys and controller, every action a panel button too.
+- **Checks:** road 1 m or more over a lake bridges it; "Lake crosses itself", "Lake edge floats",
+  "Lake under the ground".
+- **Along with it:** ghosted cars caught by water, scatter kept out of lakes, lakes on the race
+  HUD's map and in `minimap.png`.
+
+- [x] Clicks draw a lake in one step, just under the ground round it; crossing outlines and a 17th
+  lake refused; Delete takes off the last corner. *`water_tool_test`.*
+- [x] A corner drag is one step and rebuilds only the water; one that crosses goes back; corners
+  inserted and deleted; level, name, Pick height; Delete lake hashes as before. *`water_tool_test`;
+  `track_editor_test` (every Water control works and is named).*
+- [x] Dig bed lowers the ground inside, level at the outline, one step; "Already dug" after.
+  *`water_tool_test`.*
+- [x] Bridges, "Lake crosses itself", "Lake edge floats", "Lake under the ground"; none on Halifax.
+  *`water_test`, `halifax_speedway_test` (its generator's files come out the same with the shared
+  fill).*
+- [x] A ghosted car in a lake is sent back. *`water_test` (on layer 0 it stays in).*
+- [x] Scatter keeps out; the maps show lakes. *`props_test`, `water_test`.*
+- [x] Drawn in a window: a lake drawn, closed, dug and seen low down on the Circuit template (a
+  scratch scene driving the tool). `tools/a11y_check.py --editor-only` passes with the Water tab.
+- [ ] By hand (the owner): drawing with the mouse and with a controller, and a test drive into a
+  dug lake.
+
 ## M10+: Backlog (order to be decided)
 
 | Item | IDs |

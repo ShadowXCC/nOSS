@@ -26,6 +26,7 @@ Endless mode generates its roads procedurally and doesn't use editor tracks. It 
 | **Surfaces** | Fitted scenes only (§7.1): what each material is to a car, rules by name, style, Measure widths. |
 | **Terrain** | Raise, lower, smooth, flatten (with "Pick height") and noise brushes; size, strength, falloff. "Fit terrain to track". |
 | **Paint** | Eight layers: grass, dirt, sand, gravel, rock, snow, concrete, asphalt. Wheels drive on what's painted. |
+| **Water** | Lakes (D224, D240), on tracks with terrain. Click the ground corner by corner to draw an outline; the first corner again (or Finish lake) closes it, as one step, at a level just under the lowest ground round it (0.2 m under, read 2 m out). Delete takes off the last corner drawn; Cancel throws the outline away. An outline that crosses itself, a 17th lake or a 2001st corner isn't taken. Click a lake to pick it (or [ ] through them, or its button in the list): drag its corners (one that would make it cross itself goes back), set them by field, insert one halfway to the next, delete one (three stay); its name and **Level** (with Pick height, the ground at the cursor); **Dig bed**: the ground inside goes down from the level at the outline to **Bed depth** (2.5 m) under it, **Shore** (8 m) in, only ever lowered, one step (the water shows only where the ground is under its level; move a lake and its old bed stays: undo or the Terrain tool fills it); Delete lake. |
 | **Props** | Place (by kind: nature, buildings, trackside, ground), move, turn, scale, size; scatter and erase with a brush (kept off the road, spaced, random turns and sizes). |
 | **Stunts** | Kart pieces (M8, D136–D138), on road circuits and arenas: Add at cursor (boost pad, item boxes, jump, wall-ride, loop; in an arena boost pads and jumps anywhere), the list of pieces, pick one and drag it along the road (pads also sideways; in an arena anywhere) or step it 10 m, its fields by kind, Delete; item boxes Automatic (rows every third of a lap unless you place rows), Placed or None. In an arena: Add spawn at cursor (facing the middle), Add item boxes at cursor (a cluster of four), delete the last of each. A drag rebuilds only that piece. |
 | **Race** | Start line, sectors, checkpoints, grid, rolling start, gantry, AI caution, and the AI line: drag it sideways to pin it (§4). On a highway: the lap line, runs (click where one starts, then where it ends), speed traps, zones (speed limit, tunnel, which way) and the traffic (cars, share taking exits); no grid or AI line. |
@@ -48,7 +49,7 @@ Templates: Empty, Oval (1.2 km), Circuit (2.5 km), Figure 8 with a bridge, each 
 | Map view (from above) | | M | Y |
 | Test drive (from the cursor; Shift: the grid) | | F5 | Start |
 | To the panel and back | | F6 or Esc | B |
-| Tools | | 1–8 | |
+| Tools | | 1–9 | |
 
 The keyboard and controller work round a crosshair in the middle of the view. Editor shortcuts can't be rebound yet (D103).
 
@@ -191,7 +192,7 @@ my_track.nosstrack
   "points":[{ "p":[x,y,z], "bank_deg":-24 }, …] }]                // two or more
 ```
 
-- Water (D224) goes in a `water` list: lakes off the road, each a flat surface at height `y` over its outline on the map (`[x, z]` corners in order, not crossing themselves; 16 at most). Under each surface is a catch volume 6 m deep: a car that goes in is sent back to the road ("In the water"), as from a fitted scene's water. It counts in the layout hash. The ground under a lake is the track's own (a generator lowers it); the editor shows the water and keeps it, with no tool to draw it yet. Water on the road or its pit lane is an error; a prop in it is a warning.
+- Water (D224) goes in a `water` list: lakes off the road, each a flat surface at height `y` over its outline on the map (`[x, z]` corners in order, not crossing themselves; 16 at most). Under each surface is a catch volume 6 m deep: a car that goes in is sent back to the road ("In the water"), as from a fitted scene's water, a ghosted car too (D240: on a layer of its own that only water looks at); never another game's car online. It counts in the layout hash. The ground under a lake is the track's own: the Water tool's Dig bed lowers it (D240), as a generator can. Water under the road or its pit lane is an error, unless the road is 1 m or more over it (a bridge or a causeway); a prop in it is a warning, and the Props tool's scatter keeps out of it. The race HUD's map and `minimap.png` show lakes under the road.
 
 ```jsonc
 "water": [{ "name":"Lake Lloyd", "y":1.5, "points":[[x,z], [x,z], [x,z], …] }]   // three corners or more
@@ -243,7 +244,10 @@ my_track.nosstrack
 | The grid takes more than 40% of the lap | Grid too long | error |
 | Sector lines out of order or under 100 m apart | Sector 2 out of order | error |
 | A prop (that cars hit) on the road / blocking it | Prop on the road / Road blocked at 300 m | warning / error |
-| Water over the road or its pit lane (D224) | Water on the road / Water on the pit lane | error |
+| Water under the road or its pit lane, less than 1 m below it (D224, D240) | Water on the road / Water on the pit lane | error |
+| A lake's outline crosses itself (it builds nothing) | Lake crosses itself | error |
+| The ground 2 m out from a lake more than 0.3 m under its level (its edge hangs in the air) | Lake edge floats | warning |
+| The ground over a lake's level on half of it or more (it's hidden; less is islands) | Lake under the ground | warning |
 | A prop standing in water | Prop in the water | warning |
 | The road within 50 m of the terrain's edge | Road leaves the terrain at 2.4 km | error |
 | The AI line out of the road, kinked, or slower than a walk | AI line error at 2.1 km | error |
