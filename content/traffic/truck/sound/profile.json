@@ -1,5 +1,5 @@
 {
-  "base": "v8_crossplane",
+  "base": "diesel",
   "name": "Traffic",
   "schema": "noss.sound/1"
 }

@@ -1,7 +1,7 @@
 class_name TrafficSound
 extends Node
 ## Traffic going by (docs/ART_AUDIO.md §7): an engine hum on the few traffic cars nearest a
-## camera, pitched by their speed. Cars and vans hum like an I4, trucks and buses like a big V8
+## camera, pitched by their speed. Cars and vans hum like an I4, trucks and buses like a diesel
 ## at low revs. Synthesized once (NossAudio), shared by every player.
 
 const VOICES := 6
@@ -16,10 +16,10 @@ var _time := 0.0
 
 func _ready() -> void:
 	for kind: String in ["light", "heavy"]:
-		var path := EngineSound.PROFILE_DIR + ("i4" if kind == "light" else "v8_crossplane") + ".json"
+		var path := EngineSound.PROFILE_DIR + ("i4" if kind == "light" else "diesel") + ".json"
 		var profile: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
 		var synth: Dictionary = profile.get("synth", {}) if profile is Dictionary else {}
-		var r: Dictionary = NossAudio.render_loop(synth, 2300.0 if kind == "light" else 1100.0, 0.35, "exhaust", 0.5)
+		var r: Dictionary = NossAudio.render_loop(synth, 2300.0 if kind == "light" else 1300.0, 0.35, "exhaust", 0.5)
 		_streams[kind] = EngineSound._wav(r.data)
 	for i in VOICES:
 		var p := AudioStreamPlayer3D.new()

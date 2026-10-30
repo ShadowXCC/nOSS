@@ -78,7 +78,7 @@ func _make(id: String) -> String:
 	var files := {
 		"fit.json": _json(_fit()),
 		"paint.json": _json({ "schema": "noss.paint/1", "slots": { "primary": { "materials": ["Paint_Primary"], "color": _t.color, "finish": "metallic" } } }),
-		"sound/profile.json": _json({ "schema": "noss.sound/1", "name": "Traffic", "base": "i4" if _t.family == "car" else "v8_crossplane" }),
+		"sound/profile.json": _json({ "schema": "noss.sound/1", "name": "Traffic", "base": "i4" if _t.family == "car" else "diesel" }),
 	}
 	for rel: String in files:
 		_write(dir + rel, files[rel].to_utf8_buffer())

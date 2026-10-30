@@ -7,7 +7,7 @@
     "model/body.glb": "sha256:b3c703aaa49bac27dd96e2caccc5f0ba9c689342bcadc40d9e50ae484b96041b",
     "model/lod1.glb": "sha256:c856a174cea9d57044c5ec28e042a16923038b1835427ca7033678d691d578d1",
     "paint.json": "sha256:25d298dc235e6ad426888a7e9b6d31472b2920ecd3ede42790ec820588976e5a",
-    "sound/profile.json": "sha256:ee56c05773958c9b373f20a8debeb9de39ed94df6987d32f0ba7bf25840d2c2f"
+    "sound/profile.json": "sha256:d7364d1ccf7a9588f1b91be4df1ca96d295e502f29119f0e4c23edb97164c217"
   },
   "game_min_version": "0.7.0",
   "id": "f5bad7c9-be66-40b3-8f81-6d7e8f9a0b16",
