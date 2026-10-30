@@ -127,7 +127,8 @@ func _server_tick(delta: float) -> void:
 			"handovers": handovers, "events": _events_sent, "full_sent": resyncs, "server_owned": session.net.traffic_owned.size(),
 			"physics": t.cars.size(), "lead_ticks": t.lead, "tick": t.sim.get_tick(),
 			"pursuits": session.police.pursuits if session.police else 0, "busts": session.police.busts if session.police else 0,
-			"evades": session.police.evades if session.police else 0, "roadblocks": session.police.roadblocks if session.police else 0 }))
+			"evades": session.police.evades if session.police else 0, "roadblocks": session.police.roadblocks if session.police else 0,
+			"garage": t.picks_check(), "garage_cars": t.models.cars.size() }))
 		if loop:
 			print("NETCHECK_LOOP " + JSON.stringify({ "a": loop.a.display_name, "b": loop.b.display_name, "lap": loop.a.timer.lap, "b_lap": loop.b.timer.lap, "rows": loop.rows(),
 				"a_at": [roundi(loop.a.distance), roundi(loop.a.speed * 3.6)], "b_at": [roundi(loop.b.distance), roundi(loop.b.speed * 3.6)] }))

@@ -48,8 +48,16 @@ func test_highway_settings_go_only_with_highway_events() -> void:
 	# What a server's config file holds passes its schema.
 	assert_array(JsonSchema.validate({ "schema": "noss.server/1", "rotation": [{ "track": "t", "class": "official.highway.street", "event": h.to_dict() }] }, JsonSchema.load_schema("server"))).is_empty()
 	assert_int(RaceEvent.from_dict({ "kind": "highway", "traffic": 9000 }).traffic).is_equal(RaceEvent.TRAFFIC_MAX)
-	# The busiest level (D238) goes through as it is, and a server may save it.
+	# The busiest level (D238) goes through as it is, and a server may save it, with whose garage
+	# cars (D239); a race or a free drive doesn't carry them.
 	var busy := RaceEvent.highway("cruise", false, 650)
+	busy.garage_from = "everyone"
+	busy.garage_traffic = false
+	var busy_back := RaceEvent.from_dict(busy.to_dict())
+	assert_str(busy_back.garage_from).is_equal("everyone")
+	assert_bool(busy_back.garage_traffic).is_false()
+	assert_bool(RaceEvent.free_drive().to_dict().has("garage_traffic")).is_false()
+	busy.garage_traffic = true
 	assert_int(RaceEvent.from_dict(busy.to_dict()).traffic).is_equal(650)
 	assert_array(JsonSchema.validate({ "schema": "noss.server/1", "rotation": [{ "track": "t", "class": "official.highway.street", "event": busy.to_dict() }] }, JsonSchema.load_schema("server"))).is_empty()
 

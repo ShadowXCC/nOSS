@@ -101,8 +101,8 @@ var env_seed := 0
 ## order), traffic ("light", "normal", "heavy" or "off"), oncoming traffic on, and what happens when local
 ## players drift far apart ("bring": the one behind is brought up; "hold": the leader is held); the
 ## road's lanes (2 or 4: one or two each way) and the side they're driven on ("right" or "left",
-## D190); garage cars in the traffic (D191) and online whose (D233: the host's, or everyone's in
-## turn); speed traps (D193) and, with `police`, the police (D194).
+## D190); garage cars in the traffic (D191; highways too, D239) and online whose (D233: the
+## host's, or everyone's in turn); speed traps (D193) and, with `police`, the police (D194).
 var road_seed := 1
 var biome := 1
 var endless_traffic := "light"
@@ -159,7 +159,9 @@ const SUMO_KEYS := ["sumo_tiers", "sumo_hazard", "sumo_shrink", "sumo_secs", "su
 const DRAG_KEYS := ["drag_length_m", "drag_boost", "drag_timing", "drag_qtes", "drag_tree",
 	"drag_two_step", "drag_burnout", "drag_shake", "drag_chain", "drag_money_shift", "drag_centreline"]
 ## Written only for endless events.
-const ENDLESS_KEYS := ["road_seed", "biome", "endless_traffic", "oncoming", "spread", "lanes", "drive_side", "garage_traffic", "garage_from", "speed_traps"]
+const ENDLESS_KEYS := ["road_seed", "biome", "endless_traffic", "oncoming", "spread", "lanes", "drive_side", "speed_traps"]
+## Written only for endless and highway events (garage cars in the traffic: D191, D239).
+const GARAGE_KEYS := ["garage_traffic", "garage_from"]
 ## Traffic cars at most.
 const TRAFFIC_MAX := 650
 
@@ -271,6 +273,8 @@ func to_dict() -> Dictionary:
 		if key in DRAG_KEYS and kind != "drag":
 			continue
 		if key in ENDLESS_KEYS and kind != "endless":
+			continue
+		if key in GARAGE_KEYS and kind not in ["endless", "highway"]:
 			continue
 		if key in TRACK_KEYS and kind not in ["free", "race", "time_trial"]:
 			continue

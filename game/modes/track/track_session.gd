@@ -1002,6 +1002,9 @@ func _ready_online() -> void:
 		hn.t0 = float(online.highway.t0)
 		traffic.net = hn
 		add_child(hn)
+		# The server's garage cars (D239): one set for the session.
+		if event.garage_traffic and Net.endless_garage:
+			traffic.use_garage(Net.endless_garage)
 	if not dedicated:
 		Players.primary_slot()
 	var roster: Array = online.roster
@@ -1136,6 +1139,8 @@ func _on_net_car(car_hash: String) -> void:
 			(r as NetRacer).load_net_car()
 	if endless_traffic and endless_traffic.garage_sets:
 		endless_traffic.car_here(car_hash)
+	if traffic and not traffic.models.cars.is_empty():
+		traffic.car_here(car_hash)
 
 
 ## Racer `r`'s class: in a kart session a player's own pick (their profile's `kart_class`) or an AI

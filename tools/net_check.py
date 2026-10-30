@@ -163,6 +163,7 @@ def main(argv=None):
     p.add_argument("--size", choices=["regular", "expanded"], default="regular", help="sumo: the platforms' size")
     p.add_argument("--minutes", type=int, default=5, help="battle: its length at most; tt: the session's length")
     p.add_argument("--traffic", type=int, default=150, help="highway: traffic cars")
+    p.add_argument("--garage", choices=["off", "host", "everyone"], default="host", help="highway: whose garage cars drive in the traffic (D239)")
     p.add_argument("--dirs", choices=["same", "opposite"], default="same", help="highway: players start one way, or turn about")
     p.add_argument("--sub", choices=["cruise", "score", "loop", "run"], default="cruise", help="highway: the sub-mode")
     p.add_argument("--run", default="", help="highway --sub run: the run's id (the track's first unless given)")
@@ -227,7 +228,8 @@ def main(argv=None):
     builtin_track = (ROOT / "content" / "tracks" / args.track).is_dir() or endless or sumo or drag
     event = {"kind": "race" if args.event == "kart" else "time_trial" if tt else args.event}
     if highway:
-        event.update({"sub": args.sub, "traffic": args.traffic, "direction": 0 if args.dirs == "opposite" else 1, "police": args.police})
+        event.update({"sub": args.sub, "traffic": args.traffic, "direction": 0 if args.dirs == "opposite" else 1, "police": args.police,
+                      "garage_traffic": args.garage != "off", "garage_from": "everyone" if args.garage == "everyone" else "host"})
         if run:
             event["run"] = args.run
     if tt:
@@ -452,6 +454,12 @@ def main(argv=None):
                 fails.append(f"{name}: only {t['beats']} traffic checksums compared")
             if 0 <= t["tick_rate_min"] < 18:
                 fails.append(f"{name}: its lane sim fell behind ({t['tick_rate_min']:.0f} ticks/s)")
+        # Garage cars (D239): every game picks the same car for each traffic car.
+        picks = {name: reports[name].get("traffic", {}).get("garage") for name in reports if name.startswith("bot")}
+        if server_stats and "garage" in server_stats:
+            picks["server"] = server_stats["garage"]
+        if len(set(v for v in picks.values() if v is not None)) > 1:
+            fails.append("garage picks differ: " + ", ".join(f"{k} {v}" for k, v in sorted(picks.items())))
         if server_stats:
             print("server traffic: " + ", ".join(f"{k} {v}" for k, v in server_stats.items()))
             if args.police and server_stats.get("pursuits", 0) < 1:

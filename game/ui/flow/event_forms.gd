@@ -337,8 +337,7 @@ static func highway(page: EventSettingsPage) -> void:
 		if (v == "run") != (was == "run"):
 			page.rebuild.call_deferred("Mode"), "Cruise: no score. Score attack: near misses. Run: a sprint. Loop: lap times"))
 	page.add_row(traffic_row(e, data))
-	if flow.context == "local":
-		page.add_row(garage_row(page))
+	page.add_row(garage_row(page))
 	page.add_row(UiKit.spinner("Police", OFF, e.police, func(v: bool) -> void: e.police = v,
 		"Speed traps; speed, near misses and crashes in their sight bring a chase"))
 	if e.sub == "run":
@@ -476,8 +475,7 @@ static func free_drive(page: EventSettingsPage) -> void:
 			page.rebuild.call_deferred("Track")))
 	if was:
 		page.add_row(traffic_row(e, page.track_data(flow.track)))
-		if flow.context == "local":
-			page.add_row(garage_row(page))
+		page.add_row(garage_row(page))
 		return
 	if flow.context == "local":
 		var counts := numbers(0, 15)

@@ -128,7 +128,8 @@ func _traffic_sample(session: TrackSession) -> void:
 	e.sort()
 	_traffic = { "mismatches": hn.mismatches, "resyncs": hn.resyncs, "late": hn.late, "handovers": hn.handovers, "beats": hn.beats,
 		"owned_max": _owned_max, "tick_rate_min": _tick_rate_min if _tick_rate_min < INF else -1.0, "physics_max": session.traffic.cars.size(),
-		"err_n": e.size(), "err_p95": e[int(e.size() * 0.95)] if not e.is_empty() else 0.0 }
+		"err_n": e.size(), "err_p95": e[int(e.size() * 0.95)] if not e.is_empty() else 0.0,
+		"garage": session.traffic.picks_check(), "garage_cars": session.traffic.models.cars.size() }
 
 
 ## Once a second: an endless road's counters.

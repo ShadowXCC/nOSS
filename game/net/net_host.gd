@@ -453,7 +453,7 @@ func session_dict() -> Dictionary:
 	var out := { "track": t.hash, "track_id": t.id, "track_name": t.name, "track_bytes": t.bytes,
 		"class": platform_id(), "class_hash": platform_result().hash, "event": event().to_dict(), "roster": roster(), "rules": rules_dict() }
 	if not _highway.is_empty():
-		out.highway = _highway
+		out.highway = _highway.merged({ "garage": endless_garage.to_dict() if endless_garage and event().kind == "highway" else {} })
 	if not _env.is_empty():
 		out.environment = _env
 	if not _endless.is_empty():
@@ -546,19 +546,28 @@ func _ai_entries() -> Array:
 
 
 ## An endless session's garage traffic (D191, D233): sets 0 and 1 dealt and fetched, if the event
-## has it.
+## has it. A highway's (D239): set 0 alone, for the whole session.
 func _start_garage() -> void:
 	endless_garage = null
 	_garage_ids = {}
 	_hands = {}
 	var e := event()
-	if e.kind != "endless" or not e.garage_traffic or e.endless_traffic == "off":
+	if not e.garage_traffic:
+		return
+	if e.kind == "endless" and e.endless_traffic == "off" or e.kind == "highway" and int(_highway.get("count", 0)) == 0 \
+			or e.kind not in ["endless", "highway"]:
 		return
 	endless_garage = EndlessGarage.new()
 	_host_hand = _endless_cars()
-	for id in 2:
+	for id in (1 if e.kind == "highway" else 2):
 		endless_garage.sets[id] = _deal(id)
 		_fetch_set(id)
+
+
+## What the garage cars are shuffled by: the road's seed, or a highway session's traffic seed
+## (a highway event has no road).
+func _garage_seed() -> int:
+	return int(_highway.seed) if event().kind == "highway" and _highway.has("seed") else event().road_seed
 
 
 ## This game's cars for the traffic: those that may be shared and are left on in the Garage
@@ -571,7 +580,7 @@ func _endless_cars() -> PackedStringArray:
 		if ContentIndex.shareable(manifest) and GarageFiles.in_traffic(String(manifest.get("id", ""))):
 			paths.append(path)
 	var types := EndlessTraffic.weighted_types()
-	for g: Dictionary in EndlessTraffic.garage_pool(paths, event().road_seed):
+	for g: Dictionary in EndlessTraffic.garage_pool(paths, _garage_seed()):
 		var h := ContentIndex.package_hash(g.path)
 		if h.is_empty() or h in out:
 			continue
@@ -619,7 +628,7 @@ func _guest_hand(peer: int) -> PackedStringArray:
 		return not (_car_fits.get(h, PackedStringArray()) as PackedStringArray).is_empty())
 	list.sort()
 	var rng := RandomNumberGenerator.new()
-	rng.seed = event().road_seed
+	rng.seed = _garage_seed()
 	for i in range(list.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
 		var swap: Variant = list[i]

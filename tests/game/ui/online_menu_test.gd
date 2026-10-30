@@ -298,6 +298,12 @@ func test_hosting_highway_modes() -> void:
 	var highway := await _settings(runner, "highway")
 	assert_object(highway.row_named("Mode")).is_not_null()
 	assert_object(highway.row_named("Way round")).is_not_null()
+	# Whose garage cars drive in the traffic (D239).
+	var garage := highway.row_named("Garage cars") as Button
+	assert_str(String(garage.accessibility_name)).is_equal("Garage cars: Host")
+	garage.pressed.emit()
+	assert_str(String(garage.accessibility_name)).is_equal("Garage cars: Everyone")
+	assert_str(highway.flow.event.garage_from).is_equal("everyone")
 	highway.flow.event.sub = "run"
 	highway.rebuild("Mode")
 	await _frames(2)
@@ -309,6 +315,7 @@ func test_hosting_highway_modes() -> void:
 	await _frames(6)
 	assert_str(Net.host_logic.event().kind).is_equal("highway")
 	assert_str(Net.host_logic.event().sub).is_equal("run")
+	assert_str(Net.host_logic.event().garage_from).is_equal("everyone") # it went with the event
 	assert_array(Array(Net.host_logic.event().sessions())).contains_exactly(["run"])
 	assert_bool(Net.host_logic.takes_joiners()).is_false() # a run under way waits for the next
 	assert_str((_find(runner.scene(), "LobbyPage") as LobbyPage).event_label.text).starts_with("Highway run")

@@ -930,6 +930,21 @@ func set_garage(pool: Array[Dictionary]) -> void:
 	_deal_picks(PackedInt32Array(range(mine.size())))
 
 
+## Online: the server's set (Net.endless_garage, D239): its cars, each fetched in full now (one
+## not here yet drives as a stock car in its paint), and each car's pick from them.
+func use_garage(sets: EndlessGarage) -> void:
+	var registry := {}
+	for g: int in sets.cars:
+		var d: Dictionary = sets.cars[g]
+		registry[g] = { "car": String(d.car), "path": "", "fits": _type_indexes(Array(d.fits)), "paint": {} }
+	models.cars = registry
+	for g: int in registry:
+		models.car_here(String(registry[g].car))
+		if String(registry[g].path).is_empty() and Net.content:
+			Net.content.fetch_car(String(registry[g].car), 1, Net.content.max_tier)
+	_deal_picks(sets.sets.get(sets.k, PackedInt32Array()))
+
+
 ## TrafficTypes indexes of the type ids `ids` (patrols never).
 func _type_indexes(ids: Array) -> Array[int]:
 	var out: Array[int] = []

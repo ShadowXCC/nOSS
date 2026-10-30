@@ -31,7 +31,8 @@ signal highway_event(data: Dictionary)
 signal endless_state(data: Dictionary)
 ## The sky changed mid-session (an admin's /time or /weather): {time, time_rate, weather, seed, t0}.
 signal env_changed(env: Dictionary)
-## The server swapped an endless road's garage traffic to its next set (endless_garage, D233).
+## The server swapped an endless road's garage traffic to its next set (endless_garage, D233; a
+## highway's has one set, D239, and never swaps).
 signal endless_garage_changed
 
 const CHAT_KEEP := 100
@@ -393,9 +394,9 @@ func track_here() -> bool:
 	return not ContentStore.valid_hash(h) or content != null and content.track_path(h) != ""
 
 
-## A guest's cars for an endless road's traffic (D233; the server uses them in Everyone): those
-## that may be shared, are left on in the Garage's Traffic cars (D222) and fit a traffic type, at
-## most EndlessGarage.MOST_OFFERED. Sent on joining and when Traffic cars changes.
+## A guest's cars for an endless road's or a highway's traffic (D233, D239; the server uses them in
+## Everyone): those that may be shared, are left on in the Garage's Traffic cars (D222) and fit a
+## traffic type, at most EndlessGarage.MOST_OFFERED. Sent on joining and when Traffic cars changes.
 func offer_traffic_cars() -> void:
 	if client == null or client.state != NetClient.State.JOINED or content == null:
 		return
@@ -464,14 +465,17 @@ func _handle(type: int, data: Dictionary) -> void:
 			session = { "track": data.track, "track_name": String(data.get("track_name", "")), "track_bytes": int(data.get("track_bytes", -1)),
 				"class": data["class"], "class_hash": String(data.get("class_hash", "")),
 				"event": data.event, "roster": roster, "rules": data.get("rules", {}) if data.get("rules") is Dictionary else {} }
+			endless_garage = null
 			var hw: Variant = data.get("highway")
 			if hw is Dictionary and NetProtocol.has_fields(hw, { "seed": TYPE_INT, "count": TYPE_INT, "t0": TYPE_FLOAT }):
 				session.highway = { "seed": hw.seed, "count": clampi(hw.count, -1, RaceEvent.TRAFFIC_MAX), "t0": float(hw.t0) }
+				# Its garage cars (D239): one set for the session.
+				if hw.get("garage") is Dictionary and not (hw.garage as Dictionary).is_empty():
+					endless_garage = EndlessGarage.from_dict(hw.garage)
 			var env := _env_of(data.get("environment"))
 			if not env.is_empty():
 				session.environment = env
 			var el: Variant = data.get("endless")
-			endless_garage = null
 			if el is Dictionary and NetProtocol.has_fields(el, { "t0": TYPE_FLOAT, "at": TYPE_DICTIONARY }) and (el.at as Dictionary).size() <= NetProtocol.MAX_PLAYERS:
 				session.endless = { "t0": float(el.t0), "at": el.at }
 				endless_garage = EndlessGarage.from_dict(el.get("garage"))
