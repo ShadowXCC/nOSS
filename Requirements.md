@@ -70,7 +70,7 @@ Detail: [VEHICLE_PACKAGE.md](docs/VEHICLE_PACKAGE.md)
 | PKG-07 | Recolorable paint slots (primary, secondary, tertiary) with finishes. | M2 |
 | PKG-08 | Packages are validated (size, triangle count, texture size, file types) before parsing. No executable content is ever loaded. | M1 |
 | PKG-09 | FM4 converter: turns a ripped FM4 car folder into a `.noss` (local use only). | M1 |
-| PKG-10 | Livery editor: decals, vinyls, shareable liveries. | M10 |
+| PKG-10 | Livery editor: decals, vinyls, shareable liveries. Done in v0.14.0 (D242-D245): shapes, text and race numbers placed on the car in the Fitting Bay, seen in races and online, shared as `.nosslivery` files. | M10 |
 
 ### 4.3 Gamemodes (`MODE`)
 

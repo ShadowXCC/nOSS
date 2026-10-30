@@ -140,6 +140,8 @@ These match the FM4 rips, so those convert with no manual work. Models that don'
 
 Finishes are `solid`, `metallic`, `pearl`, `matte` and `chrome`. Each maps to metallic, roughness and clearcoat values.
 
+`glass` (optional, written only when there are some): the materials that are the car's glass, `"glass": ["Glass_Windshield"]`. Livery layers may land on them (§12). The Fitting Bay's import suggests named or see-through materials that aren't a lamp's lens.
+
 ## 6. Engine and tire sound (`sound/`)
 
 *Requirements: AV-05, AV-06. Sound system and how players customize it: [ART_AUDIO.md §6](ART_AUDIO.md#6-engine-sound).*
@@ -212,10 +214,11 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 | 2. Orient | The yellow arrow shows the front. Buttons turn it 90°/180° or tip and roll it. | Yes, overridable |
 | 3. Wheels | Found wheels are shown as rings. Without any (or by choice), `stock` or `static` wheels are placed with sliders: front and rear axle, track, radius, height. **Wheel** picks one wheel (its ring turns yellow, its parts are tinted): Across, Height, Along, Radius and Width move and size it, and with **Mirror** (on by default) the wheel across the car follows. Its parts are listed with the parts near it, each lit up in the view while focused; ticking one adds it (a part of a bigger mesh is split out), unticking drops it back to the body, and the wheel is measured again from its parts. A click on the model does the same: a part of the picked wheel is dropped, another wheel's part picks that wheel, anything else is added. **Remove wheel** takes it out (not the last wheels of an axle front or back); **New wheel** makes one from a clicked or listed round part. A wheel with no parts (no wheels were found) becomes the model's own once a part is added. **Find wheels again** runs the wheel finder on the model again, for cars fitted before it improved; only the wheels change. Wheels on the model's own hubs (FM4 style) can only be removed. **Ride height** raises or lowers the body on its wheels. A body more than 2 cm in the ground is reported ("Body 5 cm in the ground"), and **Lift clear** raises it to 1 cm over. A wheel off the ground (an older import's roof part) is reported and can be removed. Neither changes the car until pressed. | Mostly |
 | 4. Scale | From the wheelbase. The player can type the real length; the class may still scale it to fit (shown, e.g. "Scaled to 92%"). | Yes, overridable |
-| 5. Paint | Each material can be primary, secondary, tertiary or not painted; then colour and finish per slot. | `Paint_*` materials, or the body's main material |
-| 6. Cockpit | Sliders for the driver's eye, hood and bumper cameras, with a view from each. | Guessed |
-| 7. Sound | Pick a built-in profile and tune it (§6); Rev to listen. **Own recordings** (M5): pick what a file is for (an emitter at an rpm and load, or an extra), then Add file; each is listed and removed by pressing it; Recorded idle and top set the range they stand for. | Type default |
-| 8. Save | Pick a class and test-drive on the Proving Ground (the pause menu leads back), or save to the garage. **Save and drive** is there from step 1 on. | — |
+| 5. Paint | Each material can be primary, secondary, tertiary, glass (livery layers may land on it, §12) or not painted; then colour and finish per slot. | `Paint_*` materials, or the body's main material; glass by name or see-through |
+| 6. Livery | The car's liveries (§12): which it wears, which is edited, and the edited one's layers, each placed from the list or by pointing at the car in the view. | — (built-in copies start with their stock livery) |
+| 7. Cockpit | Sliders for the driver's eye, hood and bumper cameras, with a view from each. | Guessed |
+| 8. Sound | Pick a built-in profile and tune it (§6); Rev to listen. **Own recordings** (M5): pick what a file is for (an emitter at an rpm and load, or an extra), then Add file; each is listed and removed by pressing it; Recorded idle and top set the range they stand for. | Type default |
+| 9. Save | Pick a class and test-drive on the Proving Ground (the pause menu leads back), or save to the garage. **Save and drive** is there from step 1 on. | — |
 
 - **Preview:** the car is always shown as the game will draw it, fitted to the chosen class, with that class's notes ("Scaled to 92%", "Wheels moved 4 cm in").
 - **Saving** generates the LODs (meshoptimizer, D50) and renders the 512×288 thumbnail.
@@ -232,6 +235,7 @@ A sound is either a **tuned built-in** (`base` + `tweaks`, no audio files) or **
 - **From online games**, in the Fitting Bay's Import step, lists the cars that arrived from a host and sit in the content cache ([NETWORKING.md](NETWORKING.md) §7), each with Save to garage, Export… and Open in bay (fit it first; the cache itself is never written to). The cache is cleared from time to time, so this is how a car from an online session is kept. A part-finished download is listed but can't be used yet.
 - A car without `thumb.png` gets one rendered from the turntable, kept in `user://cache/thumbs/`.
 - Editing a car keeps its own LODs and thumbnail while its model stays the same.
+- **Liveries** (§12) live beside the car, not in it: the turntable shows the worn one (the Paint page shows the car without it while open), Duplicate copies them to the new car, Delete takes them with it, and **Export…** stays the package as it is (liveries go as `.nosslivery` files from the bay).
 - **Hotswap** replaces only the visuals, engine sound and collision envelope. The platform and the physics state carry on, so the car keeps moving.
   - Allowed in lobby, practice, cruise, free roam and endless mode.
   - Locked mid-race unless the server allows it.
@@ -318,3 +322,46 @@ From `car.json`:
 - **Front track at the hubs:** 2 × 0.7963 = **1.593 m**. Rear: 2 × 0.7757 = 1.551 m. Average **1.572 m**.
 - **Ground:** front 0.1568 − 0.2999 = −0.1431 m, matching `front_ride_height` 0.143124 ✓. Rear 0.1680 − 0.3139 = −0.1459 m, matching `rear_ride_height` 0.145856 ✓. Mean `ground_y` = **−0.1445 m**.
 - **Mounted on Track / GT** (wheelbase 2.30–2.95, track 1.45–1.75): both are in range, so there is **no scaling and no clamping**. The geometry adapts and the §4.2 invariants keep handling identical to the reference.
+
+## 12. Liveries
+
+*Requirements: PKG-10. Decisions D242-D245.*
+
+A livery is decoration on top of a car's paint: base paint per slot (optional) and up to **100 layers** of shapes, text and race numbers. Each car keeps up to 32, and wears one of them (or plain paint).
+
+**Where they're kept.** Outside the package, so editing one never changes the car's hash or its downloads: `user://liveries/<car id>/<livery id>.json`, with `index.json` naming the worn one (`""` for plain paint) and their order. A built-in car wears one stock livery, `content/liveries/<car>.json` (made by `tools/make_builtin_liveries.gd`): no base paint, every colour linked to the car's paint. Duplicate copies a car's liveries, Delete removes them. A livery shared as a file is a `.nosslivery` (the same JSON).
+
+**The file** (`noss.livery/1`, `data/schemas/livery.schema.json`):
+
+```json
+{
+  "schema": "noss.livery/1", "id": "…", "name": "Twin stripes",
+  "car": { "id": "<manifest id>", "model": "sha256:<model/body.glb>", "name": "nOSS Box" },
+  "frame": { "to_car": [12 numbers: basis x, y, z, origin], "bounds": { "min": [x, y, z], "max": [x, y, z] } },
+  "base": { "primary": { "color": "#1F4FB5", "finish": "metallic" } },
+  "groups": [{ "id": 1, "name": "Stripes" }],
+  "layers": [
+    { "kind": "shape", "shape": "stripes", "params": [0.1, 0.6], "at": [0, 1.2, 0], "normal": [0, 1, 0],
+      "right": [-1, 0, 0], "size": [0.7, 4.6], "depth": 0.5, "color": "secondary", "opacity": 1,
+      "finish": "gloss", "on": ["primary", "secondary"], "group": 1 },
+    { "kind": "number", "number": "auto", "font": "russo_one", "at": [0.9, 0.6, -0.2], "normal": [1, 0, 0],
+      "right": [0, 0, -1], "size": [0.46, 0.4], "color": "contrast", "mirror": true }
+  ]
+}
+```
+
+- **Layers**, bottom first. `kind` is `shape` (an id from `content/liveries/catalog.json`, with its `params`), `text` (32 characters at most, a catalog `font`) or `number` (1-3 digits, or `auto`: the racer's own number).
+- **Placement** is in the model's own space (`at`, `normal` out of the surface, `right`, `size` in model units, negative to flip; `depth` along the normal each way), so a layer stays put through Orient, Scale and a class's fitting, on any model, without UVs. `frame` maps that space to the car frame in metres; it moves a livery to another model.
+- **Look**: `color` is `#RRGGBB` or linked to the car's `primary`, `secondary`, `tertiary` or `contrast` (near white on dark paint, near black on light); `opacity`; `finish` (`paint`: the slot's own, or gloss, satin, matte, metallic, chrome, pearl); `on`: the paint slots and/or `glass` (the materials paint.json lists as glass, §5).
+- **Tools**: `cut` cuts the layers under it (in its group, or every one under it when ungrouped) instead of drawing; `mirror` also draws it across the car's middle (text, numbers and logos still read there); `group` keeps layers together; `hidden` keeps a layer without drawing it.
+- **Cleaning.** A livery can come from anywhere, so `LiveryData.clean()` reads every one: unknown keys, shapes and fonts go, numbers are clamped and snapped, axes squared, each group's layers put together. Cleaning a clean livery changes nothing, so its hash holds (online, a livery that changes is refused).
+- **Limits**: 100 layers, 32 groups, 32 liveries a car, names 48 characters; a file imported at most 256 KB, one sent online 64 KB.
+
+**Drawing.** Live, in the paint shader: a slot with layers switches to `noss_paint_livery.gdshader`; cars without a livery (and all traffic) keep the plain one. Per slot (and the glass, only while a layer reaches it) the layers are packed 6 vec4 each; the fragment walks them top first and stops once covered. Each layer is a box test, a fade where the surface turns away from it (no bleeding round to the far side or onto inside trim) and towards the end of its depth, then its picture: 16 shapes are distance fields in the shader (rectangle, ellipse, ring, triangle, diamond, star, arrow, chevrons, stripes, pinstripes, checker, fade, glow, halftone, speed lines, slash), 23 are cells of `content/liveries/shapes.png` (flames, splatters, torn edge, lightning, wing, camo, sunburst, plates, roundel, shield, banner and 10 invented sponsor logos), made by `tools/make_livery_art.gd`; text and numbers are multi-channel distance fields set on the CPU from the font's glyphs (`LiveryText`), packed per livery. The model's detail texture and normal map go over the layers, so they look painted on. Cost on the RTX 3080, 20 cars each with 100 layers on every slot, 4 views: +0.55 ms GPU (the worst case).
+
+**Editing** is the Fitting Bay's Livery step (§7, [UI_FLOW.md](UI_FLOW.md) §12). **Sharing**: Export… writes a `.nosslivery`; Import… and From car… bring one in: on the same model as it was, on another fitted by the two cars' bounds and cast back onto the body.
+
+**Who wears what** (D244): players their worn livery, AI in a garage car one of its saved liveries (or random paint, D128), built-in cars their stock livery, online cars the roster's ([NETWORKING.md](NETWORKING.md) §7). Police, ghosts and traffic stay plain; Sumo Team Battle hides liveries.
+
+**Not done**: the Forza livery-mask guide (shading the areas a Forza model's masks keep clear); the masks' mapping onto the model is still to fit.
+

@@ -123,11 +123,18 @@ Every car carries its own engine sound inside its `.noss` (`sound/`, format in [
 
 **Splitscreen mix:** see [ARCHITECTURE.md §6](ARCHITECTURE.md#6-local-players-splitscreen-and-multi-monitor).
 
-## 8. Later extras
+## 8. Liveries (PKG-10, D242)
+
+Players decorate their cars in the Fitting Bay's Livery step: up to 100 layers of shapes, text and race numbers over the paint, each projected onto the body from the model's own space (no UVs needed, so any import takes one), drawn live by the paint shader and shared as small files ([VEHICLE_PACKAGE.md §12](VEHICLE_PACKAGE.md#12-liveries)).
+
+- **Shapes:** 16 drawn by the shader as distance fields (rectangle, ellipse, ring, triangle, diamond, star, arrow, chevrons, stripes, pinstripes, checker, fade, glow, halftone, speed lines, slash; their params change counts, widths and softness) and 23 drawn once into `content/liveries/shapes.png` by `tools/make_livery_art.gd` (seeded): flames, a flame, splatter, splash, torn edge, lightning, wing, camo, sunburst; a plate, roundel, shield and banner; and ten **invented sponsor logos** (Torqwell, Pistonfly, Gearhound, Sparkmoth, Quokka Lube, Brakebird, Fizzbolt, Grip Owl, Kettlecomet, Apexberry; names checked against real brands). The atlas is one-channel distance fields, 16 × 16 cells of 128 px, a shape one to three cells wide. All original, CC-BY-SA like the rest.
+- **Fonts** for text and numbers, unmodified OFL fonts: Clear (Atkinson Hyperlegible Bold), Racing (Racing Sans One), Blocky (Russo One), Tech (Orbitron at weight 800), Condensed (Bebas Neue), Stencil (Saira Stencil One), Script (Pacifico) and Retro (Monoton). Set as multi-channel distance fields, so they stay sharp at any size.
+- **Built-in cars** each wear one stock livery (stripes, door roundels and numbers on the Box; a stripe and numbers on the Open; number plates on the Kart), its colours linked to the car's paint so presets and AI paint carry through.
+
+## 9. Later extras
 
 | Extra | Notes |
 |---|---|
-| **Livery editor** (PKG-10) | Decals and vinyl layers on paint slots, projected in UV or object space, shareable as small files. Uses FM4-style livery masks when a model includes them. |
 | **Replays and photo mode** (AV-08) | Built on the network state stream. TV cameras, free cam, depth of field, filters. |
 | **Telemetry out** (AV-10) | UDP packets with the sim outputs ([PHYSICS.md §14](PHYSICS.md#14-outputs)) for SimHub, motion rigs and dash displays. Documented format, configurable rate and port. |
 | **VR** (AV-09) | Godot OpenXR cockpit view. Monado or SteamVR on Linux. |

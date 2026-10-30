@@ -580,13 +580,49 @@ model loads at once took every worker thread while the physics waited on them (D
 - [x] Endless as before. *FOREST-0000002 heavy, windowed: 6.16 ms a frame, 19 far views in 11 s.*
 - [ ] On the i7-7700, and a drive by hand (the owner).
 
+## Liveries (PKG-10)
+
+*Shapes, text and race numbers over a car's paint, made in the Fitting Bay, seen in races and
+online, shared as small files (D242-D245, v0.14.0).*
+
+- **Data and store:** `noss.livery/1`, cleaned on every read, kept beside the car
+  (`user://liveries/<car id>/`), 32 per car, one worn; built-ins wear a stock one.
+- **Drawn live:** a livery shader on the slots (and glass) that carry layers; shapes as distance
+  fields (16 in the shader, 23 in a generated atlas, 10 invented sponsors), text in 8 OFL fonts.
+- **The bay's Livery step:** the list does everything; the 3D view points at the car (mouse, keys,
+  pad); undo and redo; export, import and copy from another car, fitted to this one.
+- **Races and online:** players, AI and built-ins dress on every mount; traffic, police and ghosts
+  stay plain; Sumo Team Battle hides them; protocol 19 sends liveries apart from cars; the host's
+  Custom liveries switch.
+
+- [x] Liveries clean safely and hash stably; the store keeps, copies and deletes them. *`livery_data_test`,
+  `livery_store_test`, `garage_test`.*
+- [x] Layers pack per surface, slots switch shader only with layers, linked colours follow the
+  paint, glass only when reached. *`livery_render_test`*; drawn in a window on the Box (stripes,
+  cut-outs, mirrored numbers that read on both sides, glass).
+- [x] Every shape has its picture, every font sets digits, text packs per livery. *`livery_art_test`,
+  `livery_text_test`.*
+- [x] The Livery step builds and edits; layers land on the body; groups, cut-out scope, mirror
+  copies, undo with a drag as one step; pointing with keys and a pad; B never leaves the bay.
+  *`livery_edit_test`, `livery_view_test`, `fitting_bay_test`.*
+- [x] Racers wear what they should; traffic stays plain; cups keep liveries; Team Battle hides them.
+  *`livery_racers_test`, `highway_garage_test`, `endless_traffic_test`, `sumo_control_test`.*
+- [x] A file out and back, the same model as is, another fitted; a car's Export unchanged.
+  *`livery_share_test`.*
+- [x] Online: a livery reaches the roster, a hostile one never does, the switch keeps them off.
+  *`livery_net_test`, `rules_test`; `tools/net_check.py --clients 2 --liveries on` and `off` pass.*
+- [x] `tools/a11y_check.py --garage-only` passes through Edit → Livery → Add shape → back.
+- [x] Cost: +0.55 ms GPU with 20 cars each wearing 100 layers on every slot, 4 views fullscreen
+  (RTX 3080; `--livery-stress --perf --no-vsync`).
+- [ ] The Forza livery-mask guide (optional): not done; the masks' mapping is still to fit.
+- [ ] By hand (the owner): a livery on a Forza garage car and on the Box, with a pad.
+
 ## M10+: Backlog (order to be decided)
 
 | Item | IDs |
 |---|---|
 | Cosmetic and mechanical damage | AV-07, PLT-10 |
 | Light career | MODE-07 |
-| Livery editor | PKG-10 |
 | Replays and photo mode | AV-08 |
 | UDP telemetry out | AV-10 |
 | VR (OpenXR) | AV-09 |

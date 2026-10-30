@@ -382,7 +382,8 @@ closed").
 Title "Host", breadcrumb "Drive Online › Host", "Step 1 of 5".
 
 Rows: "Name", "Password", "Players", "Port", "LAN discovery", "Open port" (today's Host rows, with
-the same descriptions; LAN discovery and Open port are On/Off spinners). At the bottom: "Next"
+the same descriptions; LAN discovery and Open port are On/Off spinners), "Custom liveries" (On/Off,
+"Players' own liveries on their cars. Off: their own paint", D245). At the bottom: "Next"
 ("Choose the event") and "Back" ("Back to Drive Online").
 
 Then the same Event, Settings and Class pages as Local Drive (in the "host" context), and the
@@ -607,6 +608,30 @@ up; it waits about 150 ms after the focus stops before loading a car.
   return to the Garage** ("Back to the Garage"): on the car being fitted, on its page when a car's
   page opened the bay (the car it came from when nothing was saved). A test drive's "Back to
   Fitting Bay" keeps that. Opened any other way, they go to the main menu.
+- **The bay's Livery step** (D243, [VEHICLE_PACKAGE.md §12](VEHICLE_PACKAGE.md#12-liveries)), after
+  Paint. Rows, top down: "Liveries": "Wears" (a spinner, "Plain paint" first), "Editing", "Name",
+  then New, Copy, Delete and Import…, Export…, From car…; "Layers": "Add shape…" (focused when the
+  step opens), "Add text", "Add number", then Undo, Redo, "Layers…" and the "Layer" spinner, each
+  layer read in full ("Layer 3 of 7: Chevrons, group 1"); "Look": the shape's params or the text
+  or number, "Font", "Colour from", "Colour", "Opacity", "Finish", "On primary"…"On glass",
+  "Cut-out", "Mirror", "Hidden", "Group", "Whole group"; "Place": "Side", "Along", "Height",
+  "Size", "Stretch", "Turn", "Flip", "Depth", then "Place on car", "Duplicate", "Mirror copy",
+  Up, Down, Top, Bottom and "Delete layer"; "Paint": the livery's base colour and finish per
+  slot. Add shape… opens a picker over the step: the shapes by kind (Basic, Racing, Graphics,
+  Plates, Sponsors), each a picture and its name, and Cancel. Status lines are short: "Chevrons
+  added", "Placed", "Nothing here", "Undone: Move", "Too many layers", "Livery saved". **The 3D
+  view** takes the focus in this step ("Car view"): the mouse clicks a layer to pick it and drags
+  it over the body (right drag turns, the wheel zooms, with Shift sizes, with Ctrl turns); keys
+  move a crosshair (arrows), turn (WASD) and zoom (Z/X), Enter picks up and puts down, R turns,
+  minus and equals size, brackets change layer, F flips, M mirrors, Delete deletes, Ctrl+D
+  duplicates, Tab or Esc go back to the "Layer" row; a pad: left stick the crosshair, right stick
+  turns, triggers zoom, A picks up and puts down, B back to the list (never out of the bay), X
+  deletes, Y duplicates, the D-pad turns and sizes a carried layer and otherwise undoes, redoes and
+  changes layer; LB/RB stay the steps. Ctrl+Z and Ctrl+Y undo and redo anywhere in the bay but a
+  text field. Exit with livery changes unsaved asks "Livery changes aren't saved." with Save,
+  Discard and Cancel.
+- **The turntable** wears the car's worn livery; the Paint page shows the car without it while it's
+  open.
 - **Downloads move into the bay's Import step** as a "From online games" list, under the import
   folder's files. Each car there ("Skyline R34 · by Kaz · 14 MB") has "Save to garage" ("Keep
   Skyline R34 in your garage"), "Export…" ("Write Skyline R34 out as a .noss file") and "Open in
@@ -768,6 +793,7 @@ AT-SPI. Each phase updates its routes:
 | P9 | The online route's lobby: "Ready" (not pressed: the countdown would start), "Change event", "Playlist" and "Force start"; Change event (the lobby hidden under it) and back, Playlist (its events) and back; P1's own roster row to This PC's "Profile", "Car", "Controls" and "Driving Settings" (rows that start below the fold are out of the screen-reader tree until focused: the row press makes them again in view); Driving Settings and back, then "Leave". |
 | P10 | The online route: on the host's Racing page, the "Time Trial" switch → Regular → its Settings page has "Minutes" → back, "Race" again → Regular as before. |
 | P11 | The final routes, one table in the script (`ROUTES`, then the own-game walks): the race adds the results' "Event menu" back to the Settings page and out, then Drive again → Players and out; `--settings-only` adds Reset to defaults and Clear downloads asking first (Keep) and Profiles; `--garage-only` adds a car's Drive → the class page; the pause walk adds the pause menu's Driving Settings in a player's view; new `--first-boot-only`: the Accessibility screen, its Driving Settings, Done. `--<route>-only` takes any route's name. |
+| Liveries (D243) | `--garage-only` adds nOSS Box's "Edit" → the bay's "Livery" step (it opens on "Add shape…") → "Add shape…" (the picker, "Chevrons" among its shapes) → "Cancel" → "Exit" back to the car's page. |
 
 ## 13. Phases
 

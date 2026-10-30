@@ -91,6 +91,10 @@ The first-boot screen includes a short photosensitivity notice.
 | Button prompts | Each page ([UI_FLOW.md](UI_FLOW.md) §4) ends in a prompt bar: what confirm, back and left/right do there, with the glyphs of the device last used (keyboard, Xbox or PlayStation). In splitscreen each player's prompts show their own device and their own bindings, so a left-hand pad shows LB for confirm. A wheel's buttons, or any input without a glyph, show as their name in a box ("Button 3"). Every glyph is named for screen readers. |
 | No mashing, no timers | No action needs rapid repeated presses. Menus never time out. |
 
+### 5.1a Fitting Bay's Livery step (D243)
+
+The Livery step works from its list alone: every layer is added, picked ("Layer 3 of 7: Chevrons, group 1"), changed and placed there (Side, Along, Height, Size, Stretch, Turn, Flip, Depth, each in metres or degrees). The 3D view adds pointing at the car, with the mouse, or keys and a pad driving a crosshair (Enter or A picks a layer up and puts it down: a toggle, never a hold). Tab, Esc or B go back to the list and never leave the bay. Every action has a short spoken status ("Chevrons added", "Placed", "Nothing here", "Undone: Move"), and Ctrl+Z and Ctrl+Y undo and redo. The step opens on its main action, Add shape, whose picker names every shape under its picture.
+
 ### 5.1b Track editor (M6)
 
 The editor works with a mouse, the keyboard alone, or a controller (D95):
@@ -161,7 +165,7 @@ Each new local player who joins (press-to-join, [INPUT.md §3](INPUT.md#3-joinin
 | online | Drive Online → Host → the event pages (a time trial's Minutes too) → the class, which hosts → the lobby: Change event, Playlist, P1's roster row to This PC's rows, Driving Settings → Leave; Join's tabs, Official off ("Coming soon") | M5, P8-P10 |
 | highway, kart, endless, sumo, drag, free | each type's Settings page → the class (where there is one) → Players, and back out a page at a time; Kart's cup and Cup builder, Mini Games' Kart Battle | M7-M9, P5 |
 | settings | every tab of Settings and Driving Settings; Reset to defaults and Clear downloads asking first (Keep); Profiles | P3, P11 |
-| garage | the tabs, a car's page and its Drive's class page, Traffic cars (a car a switch) and Done, the Fitting Bay's Import step ("From online games"), Exit back to the Garage | P7, P7b, P11, D222 |
+| garage | the tabs, a car's page and its Drive's class page, its Edit: the Fitting Bay's Livery step, Add shape's picker and back, Exit to the car's page; Traffic cars (a car a switch) and Done, the Fitting Bay's Import step ("From online games"), Exit back to the Garage | P7, P7b, P11, D222, D243 |
 | editor | every tool (Water too, D240), a new oval's race setup and checks, a highway loop and its Ramps tool, the Stunts tool on a kart circuit and an arena | M6-M8 |
 | pause | a highway session's pause menu in a player's view (opened with `--pause-at`: no keys on Wayland): its Driving Settings, then Join a friend | M7, P11 |
 | first-boot | the Accessibility screen (§7), its Driving Settings, Done | P11 |
