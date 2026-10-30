@@ -338,11 +338,11 @@ The sky rows are "Time", "Time runs" and "Weather" (`SkyRows`), at the end of ev
 | Custom | "Preset", "Save preset", "Delete preset", then today's Race menu: "Track", "Practice", "Qualifying", "Race length", "Race", "AI cars", "AI skill", "AI cars look", "Start", "Drafting", "Fuel use", "Tire wear", "Restrictor", "Grid", "Collisions", "Track limits", then "Items" (description "Kart classes only"), sky. |
 | Custom TT | "Preset", "Save preset", "Delete preset", "Track", "Track limits", sky. Hosting adds "Minutes" (§7.7). |
 | Endless | Today's: "Road code", "New road", "Start in", "Lanes", "Drive on", "Traffic", "Garage cars", "Oncoming", "Speed traps", "Police", "Far apart", sky. Hosting, "Garage cars" is Off, Host or Everyone ("Whose cars join the traffic", D233). |
-| Highway | "Highway" (the highway itself), then today's: "Mode", "Traffic", "Police", "Way round" (or "Run" for a run), sky. |
+| Highway | "Highway" (the highway itself), then today's: "Mode", "Traffic" (Off, 75, 150, 250, 400 or 650, from the track's own count, D238), "Garage cars" (On or Off; hosting Off, Host or Everyone, D239), "Police", "Way round" (or "Run" for a run), sky. |
 | Sumo Wrestling | "Mode" (Free-for-all or Teams; Teams adds "Teams" and "Friendly fire", D234), "Platforms", "Platform size" (D235), "Underneath", "Shrink", "Length", "Sudden death", "Drift", "AI cars", "AI skill", "AI models", sky. |
 | Drag Strip | Today's without "Class" (it moves to the Class step): "Length", "Boost", "Timing shifts", "Quick time events", the "Gimmicks" rows, the "Field" rows, sky. |
 | Kart Battle | "Arena", "Rule", "Hits to win" (Most hits only), "Minutes", "AI karts", "AI skill", sky. |
-| Free Drive | "Track", then on a circuit "AI cars", "AI skill", "AI cars look", "Collisions", "Track limits"; on a highway "Traffic" ("Off" or "On") in their place; then sky. |
+| Free Drive | "Track", then on a circuit "AI cars", "AI skill", "AI cars look", "Collisions", "Track limits"; on a highway "Traffic" and "Garage cars" as on the Highway page in their place (D238, D239); then sky. |
 
 - **Presets** (Custom, P5): "Save preset" asks for a name (a page titled "Save preset": "Name",
   and "Save" in the action bar) and saves the settings and the class as
@@ -584,7 +584,7 @@ up; it waits about 150 ms after the focus stops before loading a car.
 - **Focus:** up from the grid's top row reaches the tabs; down from its last row, "Fitting Bay",
   then "Traffic cars", then "Back" (left of them in the bar), then round to the tabs. Confirm on a car opens its page;
   cancel there comes back to its card. A built-in car's Paint, Sound and Delete are off.
-- **Traffic cars** (D222) is a mode of the grid, for picking which cars drive in endless traffic.
+- **Traffic cars** (D222) is a mode of the grid, for picking which cars drive in endless and highway traffic (D239).
   Each card shows its state: a border in the player's palette's good colour and an "In traffic"
   tag, its bad colour and "Out", or greyed with "Doesn't fit" (no traffic type takes it as it is).
   The yellow focus ring sits outside the border. Confirm on a car that fits switches it (it's a

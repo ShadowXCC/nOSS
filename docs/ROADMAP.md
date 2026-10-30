@@ -496,6 +496,34 @@ first (D223-).*
 - [x] Hosting says whose. *`local_types_test`: "Garage cars" is On/Off offline, Host, Everyone and
   Off hosting, and saved events still load.*
 
+## Highway: busier traffic, garage cars
+
+*A 650-car level, more physics cars on busy roads, the Lumen Ring at 250 (D238, v0.13.5, protocol
+18); garage cars in the traffic, offline and online (D239, v0.13.6-0.13.7).*
+
+- **Traffic:** Off / 75 / 150 / 250 / 400 / 650 on the Highway page, hosting and Free Drive's
+  highways (which were On/Off). Physics cars by the count: 12 a player under 400, 16 from 400, 24
+  at 650 (24 / 32 / 48 a PC); slow physics still drops a few.
+- **Garage cars:** like Endless, 80% of the hatchbacks, saloons and SUVs, each traffic car's pick
+  fixed for the session; the nearest 24 load whole. Online one set of 12 (Host or Everyone).
+
+- [x] 650 drives. *`tools/highway_check.sh --track=lumen_ring --traffic=650 --players=2
+  --seconds=180`: PASS, 40 physics cars at most, 3.53 ms a frame headless (400: 20, 1.73 ms).*
+- [x] Caps go with the count and the slow-physics net climbs back to them. *`highway_session_test`.*
+- [x] A joiner takes 650 cars in one message, and resyncs. *`highway_session_test`;
+  `net_check.py --event highway --clients 3 --traffic 650 --desync`: PASS.*
+- [x] Picks hold for the seed, fit their type, about 80%, never patrols; the lane sim never sees
+  them. *`highway_garage_test`.*
+- [x] A garage car drives as itself; whole models only near a player, the nearest at most, gone
+  after a minute. *`highway_garage_test`; with the user's garage (27 fit) 465 of 650 traffic cars
+  were garage cars, 24 whole at most.*
+- [x] Online every game picks the same. *`highway_garage_net_test`; `net_check.py` in Host and
+  Everyone: the server's and every bot's picks agree.*
+- [x] Endless unchanged on the shared streamer. *The endless suites; `endless_check.sh --windowed`
+  PASS; a drive's far views and whole models as before.*
+- [ ] Frame rate drawn at 650 with garage cars, on the dev PC and the i7-7700. *Not measured: the
+  displays were asleep (no frames).*
+
 ## M10+: Backlog (order to be decided)
 
 | Item | IDs |
