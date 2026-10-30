@@ -159,6 +159,9 @@ func test_a_garage_car_drives_as_itself_and_models_come_and_go() -> void:
 			if tc.garage >= 0:
 				assert_int(tc.garage).is_equal(tm.garage_of(car))
 				assert_str(tc.vehicle.package.path).is_equal(String(tm.models.cars[tc.garage].path))
+				# Garage cars in traffic wear their own paint, never a livery (a built-in's stock one either).
+				if tc.vehicle.visual:
+					assert_dict(tc.vehicle.visual.livery).is_empty()
 				seen = true
 		if seen:
 			break

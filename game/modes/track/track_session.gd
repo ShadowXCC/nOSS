@@ -1224,11 +1224,14 @@ func _add_racer(r: Racer) -> void:
 ## An AI racer on the next grid spot, with a random car from `pool`.
 func _add_ai(index: int, pool: PackedStringArray, skill: float) -> AiRacer:
 	var a := AiRacer.new()
-	# A cup keeps its field from race to race: the same car, paint and skill.
+	# A cup keeps its field from race to race: the same car, paint, livery and skill.
 	var kept: Dictionary = cup.roster[index] if cup and index < cup.roster.size() else {}
 	a.configure(index, float(kept.get("skill", skill)))
 	if kept.has("paint"):
 		a.paint = kept.paint
+	if kept.get("livery") is Dictionary:
+		a.livery = kept.livery
+		a.livery_car = String(kept.get("livery_car", ""))
 	var i := racers.size()
 	a.spawn_at = arena_spawn(i) if sumo else \
 		track.transform_at(_grid_distance(i), _grid_lateral(i)) if _spot_clear(_grid_distance(i), _grid_lateral(i)) else _free_grid_spot()

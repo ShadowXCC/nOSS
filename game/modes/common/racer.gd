@@ -225,7 +225,7 @@ func _on_car_loaded(pkg: VehiclePackage) -> void:
 		return
 	else:
 		_swap(pkg)
-	_car_changed()
+	_mounted()
 
 
 ## A package arrived (before it's mounted).
@@ -233,7 +233,41 @@ func _car_loaded(_pkg: VehiclePackage) -> void:
 	pass
 
 
-## The mounted car changed (spawn or swap).
+static var _stress := {}
+
+
+## A car was mounted (spawn or swap): dressed, then the racer hears of it.
+func _mounted() -> void:
+	if vehicle and vehicle.visual and vehicle.package:
+		_dress()
+	_car_changed()
+
+
+## The mounted car's paint and livery (docs/VEHICLE_PACKAGE.md §12). Plain here: police and
+## ghosts wear their package's paint.
+func _dress() -> void:
+	pass
+
+
+## A test livery for --livery-stress: 100 layers, every one on every slot (frame-time checks).
+static func stress_livery() -> Dictionary:
+	if not _stress.is_empty():
+		return _stress
+	var l := LiveryData.new_livery("Stress")
+	var shapes: Array = LiveryData.catalog().shape_list
+	for i in LiveryData.MAX_LAYERS:
+		var a := TAU * i / LiveryData.MAX_LAYERS
+		var layer := LiveryData.new_layer("shape", Vector3(sin(a), 0.6, cos(a) * 2.0), Vector3(sin(a), 0.3, cos(a)).normalized(),
+			Vector3(cos(a), 0.0, -sin(a)), Vector2(0.8, 0.5), String(shapes[i % shapes.size()].id))
+		layer.color = ["primary", "secondary", "contrast", "#E8721C"][i % 4]
+		layer.depth = 1.0
+		layer.mirror = i % 3 == 0
+		l.layers.append(layer)
+	_stress = LiveryData.clean(l)
+	return _stress
+
+
+## The mounted car changed (spawn or swap), after it was dressed.
 func _car_changed() -> void:
 	pass
 
@@ -322,7 +356,7 @@ func _physics_process(delta: float) -> void:
 		var pkg := _pending_swap
 		_pending_swap = null
 		_swap(pkg, _pending_time >= PENDING_SWAP_S)
-		_car_changed()
+		_mounted()
 
 
 ## Called by the RaceField once per physics tick, before the drivers: projects the car's centre

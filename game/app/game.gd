@@ -72,6 +72,7 @@ extends Node
 ##                        "traffic": in Traffic cars)
 ##   --import=<path>      Fitting Bay: import this model
 ##   --livery=<file>      P1's car wears this livery (a .nosslivery or .json, docs/VEHICLE_PACKAGE.md §12)
+##   --livery-stress      every racer's car wears a 100-layer livery (frame-time checks)
 ##   --bay-auto           Fitting Bay: save and drive as soon as the import is in (timed runs)
 ##   --bay-step=<step>    Fitting Bay: show this step after the import (screenshots)
 ##   --bay-wheel=<id>     Fitting Bay: pick this wheel in the Wheels step (screenshots)

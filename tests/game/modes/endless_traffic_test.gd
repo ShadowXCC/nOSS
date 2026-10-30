@@ -368,6 +368,9 @@ func test_a_garage_car_drives_as_itself() -> void:
 			assert_int(car.garage).is_equal(g)
 			if g >= 0 and t.models.pkgs.has(g) and car.vehicle.package.path == String(t.garage[g].path):
 				seen = true
+				# Garage cars in traffic wear their own paint, never a livery (a built-in's stock one either).
+				if car.vehicle.visual:
+					assert_dict(car.vehicle.visual.livery).is_empty()
 		if seen:
 			break
 		await _ticks(30)

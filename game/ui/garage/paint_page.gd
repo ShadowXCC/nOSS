@@ -1,7 +1,8 @@
 class_name PaintPage
 extends MenuPage
 ## A car's colours (docs/UI_FLOW.md §8): its presets, then each paint slot's colour and finish, on
-## the turntable as they change. Save writes them into the car; Back leaves it as it was.
+## the turntable as they change (the car shown without its livery meanwhile). Save writes them
+## into the car; Back leaves it as it was.
 
 var garage: Garage
 ## The car (a package path), and its name for the crumbs.
@@ -21,9 +22,16 @@ func _ready() -> void:
 	back_hint = "Without saving"
 	_was = paint.duplicate(true)
 	super._ready()
+	var visual := garage.preview.visual if is_instance_valid(garage.preview) else null
+	if visual:
+		visual.apply_livery({})
+		_apply(paint)
 	closed.connect(func() -> void:
 		if not _saved:
-			_apply(_was))
+			_apply(_was)
+		var shown := garage.preview.visual if is_instance_valid(garage.preview) else null
+		if shown:
+			shown.apply_livery(LiveryStore.worn(shown.package)))
 
 
 func _build() -> void:

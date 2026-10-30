@@ -8,11 +8,12 @@ extends RefCounted
 
 ## Where a layer is put from: its side of the car, the way it projects (car frame), and which
 ## way is right on it, as someone facing that side sees it.
+## Vehicle frame: +X left, +Z forward (Godot's Vector3.BACK is +Z, FORWARD -Z). Facing the car's
+## left side, right is towards its tail; from above, right is the car's right and up its nose.
 const SIDES := {
-	"left": [Vector3.RIGHT, Vector3.BACK], "right": [Vector3.LEFT, Vector3.FORWARD], "top": [Vector3.UP, Vector3.LEFT],
+	"left": [Vector3.RIGHT, Vector3.FORWARD], "right": [Vector3.LEFT, Vector3.BACK], "top": [Vector3.UP, Vector3.LEFT],
 	"front": [Vector3.BACK, Vector3.RIGHT], "back": [Vector3.FORWARD, Vector3.LEFT],
 }
-## Vehicle frame: +X left, +Z forward. Vector3.BACK is +Z, FORWARD -Z.
 const SIDE_NAMES := [["left", "Left"], ["right", "Right"], ["top", "Top"], ["front", "Front"], ["back", "Back"]]
 const FLIPS := [["none", "None"], ["across", "Across"], ["up", "Up and down"], ["both", "Both"]]
 ## Undo steps kept.

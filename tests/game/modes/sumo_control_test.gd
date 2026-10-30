@@ -264,6 +264,8 @@ func test_a_team_match_shows_who_is_on_which_team() -> void:
 		var paint: ShaderMaterial = r.vehicle.visual._paint.get("primary")
 		if paint:
 			assert_object(paint.get_shader_parameter("paint_color")).is_equal(colour)
+		# The team colour is the whole look: liveries (a built-in's stock one too) are hidden.
+		assert_bool(r.vehicle.visual.livery_shown()).is_false()
 	# A's tag for a bot ahead of its camera: the bot's name and team, in its colour.
 	var p := a as SessionPlayer
 	b.vehicle.reset_to(Transform3D(a.vehicle.global_basis, a.vehicle.global_position + a.vehicle.global_basis.z * 10.0))

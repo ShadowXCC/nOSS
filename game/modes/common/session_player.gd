@@ -122,8 +122,17 @@ func _car_loaded(pkg: VehiclePackage) -> void:
 
 func _car_changed() -> void:
 	hud.set_car_name("%s · %s%s" % [platform.platform.name, vehicle.package.display_name(), _fit_notes()])
-	if slot.index == 0 and Game.dev.has("livery") and vehicle.visual:
-		vehicle.visual.apply_livery(LiveryData.parse(FileAccess.get_file_as_bytes(String(Game.dev.livery))), str(number))
+
+
+## The livery the player's car wears (a built-in's stock one, or the one picked in the Fitting
+## Bay; the bay's draft during a test drive).
+func _dress() -> void:
+	var l := LiveryStore.worn(vehicle.package)
+	if slot.index == 0 and Game.dev.has("livery"):
+		l = LiveryData.parse(FileAccess.get_file_as_bytes(String(Game.dev.livery)))
+	if Game.dev.has("livery-stress"):
+		l = Racer.stress_livery()
+	vehicle.visual.apply_livery(l, str(number))
 
 
 func _make_driver() -> Node:

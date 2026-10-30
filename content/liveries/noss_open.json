@@ -1,0 +1,217 @@
+{
+  "car": {
+    "id": "3f6c2b8e-91d4-4f0a-b7e2-5c8a1d9e4f20",
+    "model": "sha256:57adc042041e9415902fa53eb9c12030962d2a990e888d72907ba6533d0492be",
+    "name": "nOSS Open"
+  },
+  "frame": {
+    "bounds": {
+      "max": [
+        0.97,
+        0.98,
+        2.53
+      ],
+      "min": [
+        -0.97,
+        0.0,
+        -2.18
+      ]
+    },
+    "to_car": [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "groups": [],
+  "id": "noss-open-stock",
+  "layers": [
+    {
+      "at": [
+        0.0,
+        0.596,
+        0.2
+      ],
+      "color": "secondary",
+      "depth": 0.6,
+      "finish": "paint",
+      "kind": "shape",
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "on": [
+        "primary",
+        "secondary",
+        "tertiary"
+      ],
+      "opacity": 1.0,
+      "params": [
+        0.0,
+        0.5
+      ],
+      "right": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "shape": "stripes",
+      "size": [
+        4.2,
+        0.26
+      ]
+    },
+    {
+      "at": [
+        0.69,
+        0.42,
+        -0.55
+      ],
+      "color": "contrast",
+      "depth": 0.25,
+      "finish": "paint",
+      "kind": "shape",
+      "mirror": true,
+      "normal": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "on": [
+        "primary",
+        "secondary",
+        "tertiary"
+      ],
+      "opacity": 1.0,
+      "params": [
+        0.0
+      ],
+      "right": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "shape": "ellipse",
+      "size": [
+        0.42,
+        0.42
+      ]
+    },
+    {
+      "at": [
+        0.69,
+        0.42,
+        -0.55
+      ],
+      "color": "primary",
+      "depth": 0.25,
+      "finish": "paint",
+      "font": "atkinson_bold",
+      "kind": "number",
+      "mirror": true,
+      "normal": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "number": "auto",
+      "on": [
+        "primary",
+        "secondary",
+        "tertiary"
+      ],
+      "opacity": 1.0,
+      "right": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "size": [
+        0.32,
+        0.2783
+      ]
+    },
+    {
+      "at": [
+        0.0,
+        0.3632,
+        1.75
+      ],
+      "color": "contrast",
+      "depth": 0.25,
+      "finish": "paint",
+      "font": "atkinson_bold",
+      "kind": "number",
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "number": "auto",
+      "on": [
+        "primary",
+        "secondary",
+        "tertiary"
+      ],
+      "opacity": 1.0,
+      "right": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "size": [
+        0.3,
+        0.2609
+      ]
+    },
+    {
+      "at": [
+        0.34,
+        0.4,
+        0.45
+      ],
+      "color": "secondary",
+      "depth": 0.25,
+      "finish": "paint",
+      "kind": "shape",
+      "mirror": true,
+      "normal": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "on": [
+        "primary",
+        "secondary",
+        "tertiary"
+      ],
+      "opacity": 1.0,
+      "params": [
+        0.3,
+        0.4
+      ],
+      "right": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "shape": "chevrons",
+      "size": [
+        0.5,
+        0.2
+      ]
+    }
+  ],
+  "name": "Stock",
+  "schema": "noss.livery/1"
+}

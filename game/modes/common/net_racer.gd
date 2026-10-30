@@ -104,7 +104,16 @@ func _on_net_car(pkg: VehiclePackage, tier: String) -> void:
 		vehicle.visual.set_paint("primary", color, "solid")
 	elif not paint.is_empty():
 		vehicle.visual.apply_choice(paint)
-	_car_changed()
+	_mounted()
+
+
+## A remote car's livery: a built-in's stock one. The default car standing in for one still on
+## its way stays plain.
+func _dress() -> void:
+	if _tier == "default":
+		vehicle.visual.apply_livery({})
+		return
+	vehicle.visual.apply_livery(LiveryStore.builtin(String(vehicle.package.manifest.get("id", ""))), str(number))
 
 
 func _spawn(pkg: VehiclePackage) -> void:

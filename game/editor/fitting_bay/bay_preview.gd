@@ -104,12 +104,14 @@ func show_draft(draft: FittingDraft, platform: Dictionary, rebuild := true) -> v
 	_update_camera()
 
 
-## Shows a loaded package (takes ownership of its LOD scenes), fitted to `platform`.
+## Shows a loaded package (takes ownership of its LOD scenes), fitted to `platform`, wearing
+## its livery.
 func show_package(pkg: VehiclePackage, platform: Dictionary) -> void:
 	clear()
 	fitted = Fitting.fit(platform, pkg.fit)
 	visual = CarVisual.create(pkg, fitted)
 	_car_root.add_child(visual)
+	visual.apply_livery(LiveryStore.worn(pkg))
 	for i in visual.wheel_count():
 		visual.set_wheel(i, 0.0, 0.0, 0.0)
 	_car_root.position.y = -fitted.ground_y

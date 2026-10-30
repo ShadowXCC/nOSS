@@ -13,6 +13,10 @@ var skill := 80.0
 ## Its paint job (CarVisual.random_paint, D128): picked when its car first comes, or the
 ## server's (online); null until then.
 var paint: Variant = null
+## Its livery (LiveryStore.pick_for_ai: one saved for its car, or a built-in's stock one; {} for
+## none), and the car it was picked for: picked when that car first comes, or kept (a cup).
+var livery: Variant = null
+var livery_car := ""
 
 
 func _init() -> void:
@@ -29,12 +33,19 @@ func configure(index: int, ai_skill: float) -> void:
 	is_human = false
 
 
-func _car_changed() -> void:
-	if vehicle == null or vehicle.visual == null or vehicle.package == null:
-		return
-	if paint == null:
-		paint = CarVisual.random_paint(vehicle.package.paint)
-	vehicle.visual.apply_choice(paint)
+## A livery for its car, and paint: the car's presets or a stock colour (D128) only under a
+## livery without its own base paint.
+func _dress() -> void:
+	var car_id := String(vehicle.package.manifest.get("id", ""))
+	if livery == null or livery_car != car_id:
+		livery = LiveryStore.pick_for_ai(vehicle.package)
+		livery_car = car_id
+	var l: Dictionary = Racer.stress_livery() if Game.dev.has("livery-stress") else livery
+	if not l.has("base"):
+		if paint == null:
+			paint = CarVisual.random_paint(vehicle.package.paint)
+		vehicle.visual.apply_choice(paint)
+	vehicle.visual.apply_livery(l, str(number))
 
 
 func _make_driver() -> Node:

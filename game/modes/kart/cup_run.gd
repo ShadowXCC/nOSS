@@ -179,7 +179,8 @@ func keep_roster(session: TrackSession) -> void:
 		var i := a.number - 5
 		while roster.size() <= i:
 			roster.append({})
-		roster[i] = { "car": a.vehicle.package.path, "paint": a.paint, "skill": a.skill, "class": a.platform.platform.id }
+		roster[i] = { "car": a.vehicle.package.path, "paint": a.paint, "livery": a.livery, "livery_car": a.livery_car,
+			"skill": a.skill, "class": a.platform.platform.id }
 
 
 ## The table in order: [{key, name, points, wins, places}], points first, then wins, then the

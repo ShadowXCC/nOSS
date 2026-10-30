@@ -4,7 +4,7 @@ extends Node
 ## the car, so a team reads from the chase camera and from over the arena alike. Wherever there
 ## are words (the nameplates, the HUD, the results) the team's name goes with its colour; out here
 ## the colour is a second cue, not the only one. Only the primary paint changes: the trim keeps
-## the car's own. Not made on a game with no screen.
+## the car's own, and liveries are hidden. Not made on a game with no screen.
 
 const RING_NAME := &"TeamRing"
 ## The ring: its radius against the car's footprint, how wide its band is, and how far it sits
@@ -45,6 +45,7 @@ func _dress(v: Vehicle, t: int) -> void:
 	var colour := SumoTeams.color_of(t)
 	if v.visual:
 		v.visual.set_paint("primary", colour)
+		v.visual.set_livery_shown(false) # the team's colour is the whole look
 	if ring == null:
 		ring = _ring(v)
 		v.add_child(ring)

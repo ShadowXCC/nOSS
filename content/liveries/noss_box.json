@@ -1,0 +1,184 @@
+{
+  "car": {
+    "id": "6e0c6a51-5d0f-4a2b-9a52-3b1f0d7c2e11",
+    "model": "sha256:7bc24a99815863f64802c14bf11bee76bac11100a109bbabf9cd588e371aa294",
+    "name": "nOSS Box"
+  },
+  "frame": {
+    "bounds": {
+      "max": [
+        0.89,
+        1.28,
+        2.16
+      ],
+      "min": [
+        -0.89,
+        0.0,
+        -2.16
+      ]
+    },
+    "to_car": [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "groups": [],
+  "id": "noss-box-stock",
+  "layers": [
+    {
+      "at": [
+        0.0,
+        1.1565,
+        0.0
+      ],
+      "color": "secondary",
+      "depth": 0.7,
+      "finish": "paint",
+      "kind": "shape",
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "on": [
+        "primary",
+        "secondary",
+        "tertiary"
+      ],
+      "opacity": 1.0,
+      "params": [
+        0.09,
+        0.62
+      ],
+      "right": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "shape": "stripes",
+      "size": [
+        4.5,
+        0.72
+      ]
+    },
+    {
+      "at": [
+        0.86,
+        0.6,
+        -0.15
+      ],
+      "color": "contrast",
+      "depth": 0.25,
+      "finish": "paint",
+      "kind": "shape",
+      "mirror": true,
+      "normal": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "on": [
+        "primary",
+        "secondary",
+        "tertiary"
+      ],
+      "opacity": 1.0,
+      "params": [
+        0.0
+      ],
+      "right": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "shape": "ellipse",
+      "size": [
+        0.6,
+        0.6
+      ]
+    },
+    {
+      "at": [
+        0.86,
+        0.6,
+        -0.15
+      ],
+      "color": "primary",
+      "depth": 0.25,
+      "finish": "paint",
+      "font": "atkinson_bold",
+      "kind": "number",
+      "mirror": true,
+      "normal": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "number": "auto",
+      "on": [
+        "primary",
+        "secondary",
+        "tertiary"
+      ],
+      "opacity": 1.0,
+      "right": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "size": [
+        0.46,
+        0.4
+      ]
+    },
+    {
+      "at": [
+        0.89,
+        0.5,
+        1.2
+      ],
+      "color": "secondary",
+      "depth": 0.25,
+      "finish": "paint",
+      "kind": "shape",
+      "mirror": true,
+      "normal": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "on": [
+        "primary",
+        "secondary",
+        "tertiary"
+      ],
+      "opacity": 1.0,
+      "params": [
+        0.25,
+        0.6
+      ],
+      "right": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "shape": "speed_lines",
+      "size": [
+        0.9,
+        0.3462
+      ]
+    }
+  ],
+  "name": "Stock",
+  "schema": "noss.livery/1"
+}
