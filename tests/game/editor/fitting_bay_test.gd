@@ -134,6 +134,70 @@ func test_paint_assignment() -> void:
 	assert_bool(_bay.draft.paint.slots.has("primary")).is_false()
 
 
+## A material can be the glass instead of paint (livery layers may land on it).
+func test_glass_assignment() -> void:
+	_bay._assign_material("glass", "colormap")
+	assert_array(_bay.draft.paint.glass).contains_exactly(["colormap"])
+	assert_bool(_bay.draft.paint.get("slots", {}).has("primary")).is_false()
+	_bay._assign_material("primary", "colormap")
+	assert_bool(_bay.draft.paint.has("glass")).is_false()
+	assert_array(_bay.draft.paint.slots.primary.materials).contains_exactly(["colormap"])
+
+
+## The Livery step: a livery made and a layer added from the list, on the car in the preview
+## there only; packing the car saves them beside it; leaving with changes unsaved asks first.
+func test_livery_step() -> void:
+	var was := LiveryStore.root
+	LiveryStore.root = "user://tests/bay_liveries/"
+	_bay._assign_material("primary", "colormap")
+	_bay._show_step("Livery")
+	_button("New livery").pressed.emit()
+	assert_int(_bay.draft.liveries.size()).is_equal(1)
+	assert_str(_bay._status.text).is_equal("Livery added")
+	_button("Add text").pressed.emit()
+	assert_str(_bay._status.text).is_equal("Text nOSS added")
+	var primary: ShaderMaterial = _bay._preview.visual._paint.primary
+	assert_object(primary.shader).is_equal(CarVisual.LIVERY_SHADER)
+	assert_object(_button("Mirror copy")).is_not_null()
+	_bay._show_step("Paint")
+	assert_object(primary.shader).is_equal(CarVisual.PAINT_SHADER)
+	assert_bool(_bay.draft.liveries_unsaved()).is_true()
+	_bay._exit()
+	assert_bool(is_instance_valid(_bay._overlay)).is_true()
+	_bay._close_overlay()
+	if FileAccess.file_exists(_bay.draft.edit_path):
+		DirAccess.remove_absolute(_bay.draft.edit_path)
+	var result := _bay.draft.pack()
+	assert_str(result.error).is_empty()
+	assert_bool(_bay.draft.liveries_unsaved()).is_false()
+	var saved := LiveryStore.list(_bay.draft.id)
+	assert_int(saved.size()).is_equal(1)
+	assert_str(String(saved[0].car.model)).starts_with("sha256:")
+	assert_str(LiveryStore.index(_bay.draft.id).worn).is_equal(saved[0].id)
+	# Editing the saved car brings them back.
+	var pkg := PackageLoader.load_package(result.path)
+	var again := FittingDraft.from_package(pkg)
+	pkg.free_scenes()
+	assert_int(again.liveries.size()).is_equal(1)
+	assert_str(again.editing).is_equal(saved[0].id)
+	again.free_scene()
+	LiveryStore.delete_car(_bay.draft.id)
+	LiveryStore.root = was
+
+
+## A built-in car's copy starts with its stock livery.
+func test_a_built_in_copy_keeps_its_stock_livery() -> void:
+	var pkg := PackageLoader.load_package("res://content/cars/noss_box")
+	var d := FittingDraft.from_package(pkg)
+	pkg.free_scenes()
+	var stock := LiveryStore.builtin(String(pkg.manifest.id))
+	assert_int(d.liveries.size()).is_equal(0 if stock.is_empty() else 1)
+	if not stock.is_empty():
+		assert_str(d.worn).is_equal(d.liveries[0].id)
+		assert_str(d.liveries[0].id).is_not_equal(stock.id)
+	d.free_scene()
+
+
 func test_draft_packs() -> void:
 	if FileAccess.file_exists(_bay.draft.edit_path):
 		DirAccess.remove_absolute(_bay.draft.edit_path)

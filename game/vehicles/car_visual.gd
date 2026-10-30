@@ -249,6 +249,13 @@ func wheel_count() -> int:
 	return _wheels.size()
 
 
+## Back to the package's own paint on every slot (a livery's base paint off).
+func reset_paint() -> void:
+	var slots: Dictionary = package.paint.get("slots", {})
+	for slot: String in slots:
+		set_paint(slot, Color.html(slots[slot].color), slots[slot].finish)
+
+
 ## Puts on a livery (LiveryData, cleaned; {} takes it off): its base paint on the slots it names,
 ## and its layers on the slots and glass they land on. `number`: what race-number layers set to
 ## auto show.

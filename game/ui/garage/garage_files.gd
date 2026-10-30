@@ -89,13 +89,16 @@ static func update(path: String, changes: Dictionary) -> Dictionary:
 	return PackageWriter.write(path, info_of(PackageLoader.read_manifest(path)), files)
 
 
-## A copy with a new id in the garage. Returns PackageWriter's result.
+## A copy with a new id in the garage, with copies of its liveries. Returns PackageWriter's result.
 static func copy_car(path: String) -> Dictionary:
 	var manifest := PackageLoader.read_manifest(path)
 	var info := info_of(manifest)
 	info.id = PackageWriter.new_uuid()
 	info.name = (String(manifest.name) + " copy").left(96)
-	return PackageWriter.write(PackageWriter.garage_path(info.name, info.id), info, read_files(path))
+	var result := PackageWriter.write(PackageWriter.garage_path(info.name, info.id), info, read_files(path))
+	if result.ok:
+		LiveryStore.copy_car(String(manifest.get("id", "")), String(info.id))
+	return result
 
 
 ## The garage file holding the car with this id, or "". Built-in cars don't count: editing or
@@ -130,11 +133,16 @@ static func export_car(path: String, dest: String) -> Dictionary:
 		return check.error)
 
 
-## Deletes a garage car. Official cars can't be deleted. Returns an error or "".
+## Deletes a garage car and its liveries. Official cars can't be deleted. Returns an error or "".
 static func delete(path: String) -> String:
 	if not path.begins_with(PackageLoader.GARAGE_DIR):
 		return "Built-in cars can't be deleted"
-	return "" if DirAccess.remove_absolute(path) == OK else "Can't delete " + path.get_file()
+	var id := String(PackageLoader.read_manifest(path).get("id", ""))
+	if DirAccess.remove_absolute(path) != OK:
+		return "Can't delete " + path.get_file()
+	if id and with_id(id).is_empty(): # no other file of the same car
+		LiveryStore.delete_car(id)
+	return ""
 
 
 ## Gives `target` the engine sound of `source`. Returns PackageWriter's result.

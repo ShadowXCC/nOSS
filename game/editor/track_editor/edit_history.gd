@@ -1,16 +1,16 @@
 class_name EditHistory
 extends RefCounted
-## Undo and redo for the track editor (EDT-06, D96): Godot's UndoRedo, kept by the draft so it
-## lasts through test drives. Each action is a pair of callables; a brush stroke is applied as it
-## goes and recorded once it ends (execute = false).
+## Undo and redo for the track editor (EDT-06, D96) and the Fitting Bay's liveries: Godot's
+## UndoRedo, kept by the draft so it lasts through test drives. Each action is a pair of
+## callables; a brush stroke is applied as it goes and recorded once it ends (execute = false).
 
 const MAX_STEPS := 1000
 
 var _undo := UndoRedo.new()
 
 
-func _init() -> void:
-	_undo.max_steps = MAX_STEPS
+func _init(max_steps := MAX_STEPS) -> void:
+	_undo.max_steps = max_steps
 
 
 func _notification(what: int) -> void:
@@ -18,9 +18,10 @@ func _notification(what: int) -> void:
 		_undo.free()
 
 
-## Records (and, unless `execute` is off, does) an action named `name`.
-func act(name: String, do_fn: Callable, undo_fn: Callable, execute := true) -> void:
-	_undo.create_action(name)
+## Records (and, unless `execute` is off, does) an action named `name`. With `merge`, it joins
+## the action before it of the same name (a slider's drag is one step).
+func act(name: String, do_fn: Callable, undo_fn: Callable, execute := true, merge := false) -> void:
+	_undo.create_action(name, UndoRedo.MERGE_ENDS if merge else UndoRedo.MERGE_DISABLE)
 	_undo.add_do_method(do_fn)
 	_undo.add_undo_method(undo_fn)
 	_undo.commit_action(execute)

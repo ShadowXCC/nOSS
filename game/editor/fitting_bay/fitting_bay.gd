@@ -8,7 +8,7 @@ extends Control
 
 signal closed
 
-const STEPS := ["Import", "Orient", "Wheels", "Scale", "Paint", "Cockpit", "Sound", "Save"]
+const STEPS := ["Import", "Orient", "Wheels", "Scale", "Paint", "Livery", "Cockpit", "Sound", "Save"]
 const IMPORT_DIR := "user://import/"
 const FONT_SIZE := 24
 const FAMILIES := [["car", "Car"], ["open", "Open-wheel"], ["truck", "Truck"]]
@@ -67,6 +67,9 @@ var _rec_kind := "on"
 var _wheel_edit: WheelEdit
 var _wheel_id := ""
 var _mirror := true
+## Livery step: its edits (kept per draft) and its list.
+var _livery: LiveryEdit
+var _livery_ui: LiveryStep
 
 
 func _ready() -> void:
@@ -454,7 +457,9 @@ func _step_paint() -> Array:
 	for slot: String in slots:
 		for m: String in slots[slot].materials:
 			slot_of[m] = slot
-	var options := [["", "Not painted"], ["primary", "Primary"], ["secondary", "Secondary"], ["tertiary", "Tertiary"]]
+	for m: String in draft.paint.get("glass", []):
+		slot_of[m] = "glass"
+	var options := [["", "Not painted"], ["primary", "Primary"], ["secondary", "Secondary"], ["tertiary", "Tertiary"], ["glass", "Glass"]]
 	for m: String in _material_names():
 		out.append(UiKit.option(m, options, slot_of.get(m, ""), _assign_material.bind(m)))
 	for slot in ["primary", "secondary", "tertiary"]:
@@ -468,6 +473,41 @@ func _step_paint() -> Array:
 			data.finish = v
 			_preview.visual.set_paint(slot, Color.html(data.color), v)))
 	return out
+
+
+func _step_livery() -> Array:
+	if _livery_ui == null:
+		_livery_ui = LiveryStep.new(self)
+	return _livery_ui.build()
+
+
+## The draft's livery edits (one per draft).
+func _livery_edit() -> LiveryEdit:
+	if _livery == null or _livery.draft != draft:
+		_livery = LiveryEdit.new(draft)
+	return _livery
+
+
+## The preview wears the livery being edited in the Livery step, and plain paint otherwise.
+func _show_livery() -> void:
+	var visual := _preview.visual if _preview else null
+	if visual == null or draft == null:
+		return
+	var l := _livery_edit().livery() if _step == "Livery" else {}
+	if l.is_empty() and visual.livery.is_empty():
+		return
+	visual.reset_paint()
+	visual.apply_livery(l)
+
+
+## Snaps the picked layer onto the body where it is.
+func _place_on_car() -> void:
+	var e := _livery_edit()
+	if e.current().is_empty():
+		return
+	var said := e.place_side(String(e.placement().side))
+	_show_step("Livery", true)
+	_set_status(said)
 
 
 func _step_cockpit() -> Array:
@@ -865,7 +905,12 @@ func _pack(then_drive: bool) -> void:
 	_busy = true
 	_set_status("Saving")
 	await get_tree().process_frame
+	# The garage's picture of the car is its own paint, without a livery.
+	if _preview.visual:
+		_preview.visual.reset_paint()
+		_preview.visual.apply_livery({})
 	var thumb: PackedByteArray = await _preview.thumbnail()
+	_show_livery()
 	var t0 := Time.get_ticks_msec()
 	var result := draft.pack(thumb)
 	_busy = false
@@ -896,6 +941,35 @@ func _test_drive() -> void:
 ## Back where the bay was opened from: the Garage on the car being fitted (on its page when a car's
 ## page opened the bay), else the main menu.
 func _exit() -> void:
+	if draft and draft.liveries_unsaved() and not _busy:
+		_ask_unsaved_liveries()
+		return
+	_leave_bay()
+
+
+## Livery changes aren't saved: save the car, leave them, or stay.
+func _ask_unsaved_liveries() -> void:
+	var menu := Control.new()
+	menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var list := UiKit.panel(menu, "Livery changes aren't saved.", 760)
+	var choices := [
+		UiKit.button("Save", func() -> void:
+			_close_overlay()
+			await _pack(false)
+			if draft == null or not draft.liveries_unsaved():
+				_leave_bay(), "Save the car and its liveries, then leave"),
+		UiKit.button("Discard", func() -> void:
+			_close_overlay()
+			_leave_bay(), "Leave without them"),
+		UiKit.button("Cancel", _close_overlay, "Stay in the bay"),
+	]
+	for b: Button in choices:
+		list.add_child(b)
+	_show_overlay(menu)
+	UiKit.chain_focus(choices)
+
+
+func _leave_bay() -> void:
 	var car: String = _saved_path if _saved_path else draft.edit_path if draft and draft.edit_path else ""
 	if car.is_empty() and Game.bay_from == "car":
 		car = Game.bay_car # left without saving: back to the car it came from
@@ -928,6 +1002,7 @@ func _discard_draft() -> void:
 		draft.free_scene()
 	draft = null
 	_wheel_edit = null
+	_livery = null
 
 
 func _rotate(axis: Vector3, degrees: float) -> void:
@@ -964,6 +1039,8 @@ func _remove_wheels(ids: PackedStringArray) -> void:
 	_show_step("Wheels", true)
 
 
+## Gives `material` to paint slot `slot`, to the glass ("glass", where livery layers may land
+## too), or to neither ("").
 func _assign_material(slot: String, material: String) -> void:
 	var slots: Dictionary = draft.paint.get("slots", {})
 	draft.paint.slots = slots
@@ -971,7 +1048,14 @@ func _assign_material(slot: String, material: String) -> void:
 		slots[s].materials = slots[s].materials.filter(func(m: String) -> bool: return m != material)
 		if slots[s].materials.is_empty():
 			slots.erase(s)
-	if slot:
+	var glass: Array = (draft.paint.get("glass", []) as Array).filter(func(m: String) -> bool: return m != material)
+	if slot == "glass":
+		glass.append(material)
+	if glass.is_empty():
+		draft.paint.erase("glass")
+	else:
+		draft.paint.glass = glass
+	if slot and slot != "glass":
 		if not slots.has(slot):
 			slots[slot] = { "materials": [], "color": "#E8B71A" if slot == "primary" else "#1B1D22", "finish": "metallic" if slot == "primary" else "solid" }
 		slots[slot].materials.append(material)
@@ -1123,6 +1207,7 @@ func _refresh(rebuild := true) -> void:
 	if not loaded.ok():
 		return
 	_preview.show_draft(draft, loaded.platform, rebuild)
+	_show_livery()
 	var notes := PackedStringArray(draft.notes)
 	notes.append_array(_preview.fitted.notes)
 	var clip := _clip_depth()
@@ -1183,6 +1268,17 @@ func _step_by(d: int) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key and key.pressed and not key.echo and key.ctrl_pressed and key.keycode in [KEY_Z, KEY_Y] and draft and not is_instance_valid(_overlay):
+		var focus := UiKit.focus_owner(self)
+		if not (focus is LineEdit and (focus as LineEdit).is_editing()):
+			get_viewport().set_input_as_handled()
+			var redo := key.keycode == KEY_Y or key.shift_pressed
+			var said := _livery_edit().redo() if redo else _livery_edit().undo()
+			if _step == "Livery":
+				_show_step("Livery", true)
+			_set_status(said)
+			return
 	var d := -1 if event.is_action_pressed("ui_tab_prev") else 1 if event.is_action_pressed("ui_tab_next") else 0
 	if d != 0:
 		var focus := UiKit.focus_owner(self)

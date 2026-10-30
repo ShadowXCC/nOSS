@@ -73,6 +73,30 @@ func test_duplicate_paint_sound_delete() -> void:
 	assert_bool(FileAccess.file_exists(other.path)).is_false()
 
 
+## Liveries live outside the car: a duplicate takes copies of them, deleting a car takes its own.
+func test_liveries_go_with_the_car() -> void:
+	var was := LiveryStore.root
+	LiveryStore.root = "user://tests/garage_liveries/"
+	var copy := GarageFiles.copy_car(BOX)
+	_made.append(copy.path)
+	var id := String(PackageLoader.read_manifest(copy.path).id)
+	var l := LiveryData.new_livery("Stripes", { "id": id })
+	l.layers.append(LiveryData.new_layer("shape", Vector3.ZERO, Vector3.UP, Vector3.LEFT, Vector2.ONE, "stripes"))
+	LiveryStore.save_car(id, [l], l.id)
+	var bytes_before := FileAccess.get_file_as_bytes(copy.path)
+	var other := GarageFiles.copy_car(copy.path)
+	_made.append(other.path)
+	var other_id := String(PackageLoader.read_manifest(other.path).id)
+	assert_str(LiveryStore.worn_stored(other_id).name).is_equal("Stripes")
+	# The car's own file never changed for its liveries.
+	assert_bool(FileAccess.get_file_as_bytes(copy.path) == bytes_before).is_true()
+	assert_str(GarageFiles.delete(other.path)).is_empty()
+	assert_int(LiveryStore.list(other_id).size()).is_equal(0)
+	assert_int(LiveryStore.list(id).size()).is_equal(1)
+	LiveryStore.delete_car(id)
+	LiveryStore.root = was
+
+
 func test_editing_keeps_lods_and_thumbnail() -> void:
 	var result := ModelImport.import_file("res://tests/fixtures/models/kenney/kart-oobi.glb")
 	var draft := FittingDraft.from_import(result)

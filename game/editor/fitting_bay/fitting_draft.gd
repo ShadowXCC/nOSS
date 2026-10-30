@@ -34,9 +34,15 @@ var kept_thumbnail := PackedByteArray()
 ## Own engine recordings (AV-06): "sound/<file>" -> bytes, each named in `sound`.
 var sound_files := {}
 ## The car's liveries (docs/VEHICLE_PACKAGE.md §12), kept with the draft so they last through
-## test drives, and the worn one's id ("" for plain paint).
+## test drives: the worn one's id ("" for plain paint), the one being edited, their undo history
+## and its version when they were last saved.
 var liveries: Array = []
 var worn := ""
+var editing := ""
+## The layer picked in the edited livery (-1: none).
+var livery_layer := -1
+var livery_history: EditHistory
+var liveries_saved := 0
 var _streams := {} # file (relative to sound/) -> AudioStream, for the bay's engine
 ## body_bottom()'s scan, and what it was made for.
 var _bottom := INF
@@ -92,6 +98,7 @@ static func from_package(pkg: VehiclePackage) -> FittingDraft:
 				d.sound_files[rel] = source.read(rel)
 	source.close()
 	d.scene = ModelImport._parse_glb(d.glb, "")
+	d._load_liveries(String(m.id), official)
 	for key in ["lod_materials", "lod_distances_m"]:
 		if d.fit.has(key):
 			d.kept_lod_fit[key] = d.fit[key]
@@ -100,12 +107,46 @@ static func from_package(pkg: VehiclePackage) -> FittingDraft:
 	return d
 
 
+## True if the liveries changed since they were loaded or saved.
+func liveries_unsaved() -> bool:
+	return livery_history != null and livery_history.version() != liveries_saved
+
+
 ## The livery the car wears, or {} for plain paint.
 func worn_livery() -> Dictionary:
 	for l: Dictionary in liveries:
 		if l.id == worn:
 			return l
 	return {}
+
+
+## The car's liveries from the store. A built-in car's copy starts with its stock livery.
+func _load_liveries(car_id: String, official: bool) -> void:
+	if official:
+		var stock := LiveryStore.builtin(car_id)
+		if not stock.is_empty():
+			var l: Dictionary = stock.duplicate(true)
+			l.id = PackageWriter.new_uuid()
+			l.car = { "id": id, "name": car_name }
+			liveries = [l]
+			worn = l.id
+	else:
+		liveries = LiveryStore.list(car_id)
+		worn = String(LiveryStore.index(car_id).worn)
+	editing = worn if worn else String(liveries[0].id) if not liveries.is_empty() else ""
+
+
+## Saves the liveries beside the packed car (outside it: they never change its hash), with
+## the car they belong to and its frame as it is now.
+func save_liveries(model_hash := "") -> String:
+	var frame := LiveryData.frame_of(fit)
+	for l: Dictionary in liveries:
+		l.car = { "id": id, "model": model_hash, "name": car_name } if model_hash else { "id": id, "name": car_name }
+		l.frame = frame
+	var err := LiveryStore.save_car(id, liveries, worn)
+	if not err:
+		liveries_saved = livery_history.version() if livery_history else 0
+	return err
 
 
 func info() -> Dictionary:
@@ -350,6 +391,10 @@ func pack(thumbnail := PackedByteArray()) -> Dictionary:
 	var result := PackageWriter.write(path, info(), files(true, thumbnail))
 	if result.ok:
 		edit_path = path
+		var err := save_liveries(String((result.manifest as Dictionary).get("files", {}).get("model/body.glb", "")))
+		if err:
+			result.ok = false
+			result.error = err
 	return result
 
 
