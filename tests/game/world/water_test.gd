@@ -1,7 +1,9 @@
 extends GdUnitTestSuite
 ## Water in track files (D224): a lake's outline and level are read and hashed with the layout
 ## (older tracks hash as before), it builds as a surface over a catch volume, the editor keeps it,
-## and a car that goes in is sent back to the road.
+## and a car that goes in is sent back to the road, a ghosted one too (D240). The checks keep it
+## off the road unless the road bridges it, and say when it floats, hides or crosses itself; the
+## maps show it (D240).
 
 const DIR := "user://tests/water"
 
@@ -55,6 +57,7 @@ func test_a_lake_builds_a_surface_over_a_catch_volume() -> void:
 	var area := root.get_node("Water0") as Area3D
 	assert_bool(area.has_meta(&"noss_water")).is_true()
 	assert_int(area.collision_mask & Vehicle.LAYER_VEHICLES).is_not_equal(0)
+	assert_int(area.collision_mask & Vehicle.LAYER_GHOSTS).is_not_equal(0)
 	assert_int(area.get_child_count()).is_equal(4)
 	root.free()
 	# A dedicated server has the catch volume and no surface.
@@ -85,7 +88,66 @@ func test_the_checks_keep_water_off_the_road() -> void:
 	assert_array(texts.call(d)).contains(["warning: Prop in the water"])
 
 
+## A road a metre or more over the water bridges it; lower, it's in it.
+func test_a_bridge_may_cross_a_lake() -> void:
+	var d := _with_lake()
+	d.layout.water[0].points = [[-60, -30], [60, -30], [60, 0], [0, 0], [0, 130], [-60, 130]] # under the top straight (about 0 m)
+	d.layout.water[0].y = -1.5
+	d._track = null
+	var errors := TrackValidator.errors(TrackValidator.check(d))
+	assert_array(errors).not_contains(["Water on the road"])
+	d.layout.water[0].y = -0.5
+	d._track = null
+	assert_array(TrackValidator.errors(TrackValidator.check(d))).contains(["Water on the road"])
+
+
+func test_the_checks_say_when_a_lake_floats_hides_or_crosses_itself() -> void:
+	var lakes := func(of: TrackDraft) -> Array:
+		return TrackValidator.check(of).filter(func(p: Dictionary) -> bool: return "Lake" in String(p.text)).map(func(p: Dictionary) -> String: return p.level + ": " + p.text)
+	var d := _with_lake() # 0.23 m over the ground round it
+	assert_array(lakes.call(d)).is_empty()
+	d.layout.water[0].y = 0.5
+	d._track = null
+	assert_array(lakes.call(d)).is_equal(["warning: Lake edge floats"])
+	d.layout.water[0].y = -1.0
+	d._track = null
+	assert_array(lakes.call(d)).is_equal(["warning: Lake under the ground"])
+	d.layout.water[0].y = 0.2
+	d.layout.water[0].points = [[-60, -30], [60, 30], [60, -30], [-60, 30]]
+	d._track = null
+	assert_array(lakes.call(d)).contains(["error: Lake crosses itself"])
+
+
+func test_lakes_are_on_the_maps() -> void:
+	var water := func(img: Image) -> int:
+		var n := 0
+		for y in img.get_height():
+			for x in img.get_width():
+				var c := img.get_pixel(x, y)
+				if absf(c.r - TrackMap.WATER.r) < 0.01 and absf(c.g - TrackMap.WATER.g) < 0.01 and absf(c.b - TrackMap.WATER.b) < 0.01 and c.a > 0.99:
+					n += 1
+		return n
+	var t := _with_lake().track()
+	assert_int(water.call(TrackEditor.minimap(t))).is_greater(200)
+	assert_int(water.call(TrackEditor.minimap(TrackTemplates.make("oval").track()))).is_equal(0)
+	assert_int(TrackMap.lakes_in(t, Rect2(-1000, -1000, 2000, 2000)).size()).is_equal(1)
+	# Cut to the map's extent.
+	var cut := TrackMap.lakes_in(t, Rect2(0, -100, 200, 200))
+	assert_int(cut.size()).is_equal(1)
+	for p in cut[0]:
+		assert_float(p.x).is_greater_equal(-0.001)
+
+
 func test_a_car_in_the_lake_is_back_on_the_road() -> void:
+	await _drop_in_the_lake(false)
+
+
+## With collisions off (or rejoining) a car is a ghost, on a layer of its own that water sees too.
+func test_a_ghosted_car_in_the_lake_is_back_on_the_road() -> void:
+	await _drop_in_the_lake(true)
+
+
+func _drop_in_the_lake(ghost: bool) -> void:
 	DirAccess.make_dir_recursive_absolute(DIR)
 	var path := DIR + "/lake.json"
 	var f := FileAccess.open(path, FileAccess.WRITE)
@@ -104,6 +166,10 @@ func test_a_car_in_the_lake_is_back_on_the_road() -> void:
 	var r: Racer = s.players[0]
 	for i in 60:
 		await get_tree().physics_frame
+	if ghost:
+		r.forced_ghost = true
+		r.set_ghost(true)
+		assert_int(r.vehicle.collision_layer).is_equal(Vehicle.LAYER_GHOSTS)
 	r.vehicle.reset_to(Transform3D(Basis(), Vector3(-30.0, 1.5, 15.0)))
 	var back := false
 	for i in 240:

@@ -31,7 +31,7 @@ static func build(data: TrackData, root: Node3D, visual := true) -> void:
 		area.set_meta(&"noss_water", true)
 		area.monitorable = false
 		area.collision_layer = 0
-		area.collision_mask = Vehicle.LAYER_VEHICLES
+		area.collision_mask = Vehicle.LAYER_VEHICLES | Vehicle.LAYER_GHOSTS # ghosted cars too (D240)
 		for k in range(0, tris.size(), 3):
 			var shape := ConvexPolygonShape3D.new()
 			var points := PackedVector3Array()

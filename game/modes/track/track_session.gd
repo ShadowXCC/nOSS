@@ -660,10 +660,11 @@ func is_online() -> bool:
 	return not online.is_empty()
 
 
-## A car in a fitted scene's water: back on the road.
+## A car in the water (a track's lakes, a fitted scene's water): back on the road. Ghosted cars
+## too (D240); never another game's car (its own game sends it back).
 func _on_water(body: Node3D) -> void:
 	for r in racers:
-		if r.vehicle == body and not r.waiting:
+		if r.vehicle == body and not r.waiting and not r.vehicle.remote:
 			r.notify("In the water", 2.0)
 			r.reset_car()
 

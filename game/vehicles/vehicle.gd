@@ -8,6 +8,8 @@ signal package_changed(pkg: VehiclePackage)
 
 const LAYER_WORLD := 1
 const LAYER_VEHICLES := 2
+## A ghosted car (set_ghost) is on this layer alone: no car looks at it, water does (D240).
+const LAYER_GHOSTS := 4
 ## Collision box floor above the model's ground, so curbs and crests don't snag it.
 const BODY_CLEARANCE := 0.12
 ## A kart's is higher: the wheels hold it, and its body mustn't scrape inside loops and
@@ -613,7 +615,7 @@ func drifting() -> bool:
 ## No contact with other cars (a car rejoining, or a ghosted session), drawn see-through
 ## if `see_through`.
 func set_ghost(on: bool, see_through := true) -> void:
-	collision_layer = 0 if on else LAYER_VEHICLES
+	collision_layer = LAYER_GHOSTS if on else LAYER_VEHICLES
 	collision_mask = LAYER_WORLD if on else LAYER_WORLD | LAYER_VEHICLES
 	if visual:
 		for mi: GeometryInstance3D in visual.find_children("*", "GeometryInstance3D", true, false):
