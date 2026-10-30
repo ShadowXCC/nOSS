@@ -161,7 +161,7 @@ const DRAG_KEYS := ["drag_length_m", "drag_boost", "drag_timing", "drag_qtes", "
 ## Written only for endless events.
 const ENDLESS_KEYS := ["road_seed", "biome", "endless_traffic", "oncoming", "spread", "lanes", "drive_side", "garage_traffic", "garage_from", "speed_traps"]
 ## Traffic cars at most.
-const TRAFFIC_MAX := 400
+const TRAFFIC_MAX := 650
 
 
 static func free_drive() -> RaceEvent:

@@ -198,6 +198,22 @@ func test_highway_run_mode() -> void:
 	assert_str(page.flow.event.run).is_not_empty()
 
 
+## Highway traffic (D238): the Lumen Ring starts on its own 250 cars, and the row steps through
+## every level up to 650 (and round to Off).
+func test_highway_traffic_levels() -> void:
+	var page := _page(EventFlow.make("highway"))
+	await _frames(2)
+	var row := page.row_named("Traffic") as Button
+	assert_str(String(row.accessibility_name)).is_equal("Traffic: 250")
+	var seen := []
+	for i in EventForms.HIGHWAY_TRAFFIC.size():
+		row.pressed.emit()
+		await _frames(1)
+		seen.append(page.flow.event.traffic)
+	assert_array(seen).contains_exactly([400, 650, 0, 75, 150, 250])
+	assert_int(RaceEvent.TRAFFIC_MAX).is_equal(650)
+
+
 ## Drive again for Kart Battle: its Players page over its Settings page, over Mini Games (Kart
 ## Battle focused), over Local Drive; back a page at a time.
 func test_drive_again_through_mini_games() -> void:

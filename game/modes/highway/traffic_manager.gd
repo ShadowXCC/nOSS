@@ -20,12 +20,18 @@ const R_OUT := 200.0
 const FORCE_BACK_S := 3.0
 ## A proxy within this of a car this game drives moves every tick (see TrafficCar.FAR_EVERY).
 const NEAR_DRIVEN_M := 80.0
-## Physics cars at most: in each game, and near one player. This game's own cap (`cap`) drops
-## from CAP_GAME when its physics gets slow; online it limits only the cars this game drives.
+## Physics cars at most: in each game, and near one player, by the traffic's count (D238: the
+## busier the road, the more cars near a player): [cars from, per game, per player, stand-in
+## boxes]. This game's own cap (`cap`) drops from its per-game cap when its physics gets slow;
+## online it limits only the cars this game drives.
+const CAPS := [[0, 24, 12, 16], [400, 32, 16, 16], [650, 48, 24, 24]]
 const CAP_GAME := 24
 const CAP_PLAYER := 12
 const CAP_MIN := 4
-## Stand-in boxes for lane cars this close to a player.
+## Physics this slow (ms a frame) for 2 s trims the cap by 2; under half of it for 10 s, it grows
+## back by 1.
+const SLOW_MS := 6.0
+## Stand-in boxes for lane cars this close to a player (at most `boxes` of them).
 const BOX_M := 40.0
 const BOXES := 16
 ## Distant traffic is drawn this far from a camera.
@@ -66,6 +72,10 @@ var sim: NossTraffic
 ## This game decides promotions (offline, and the server online).
 var authority := true
 var cap := CAP_GAME
+## The caps for this traffic's count (CAPS).
+var cap_game := CAP_GAME
+var cap_player := CAP_PLAYER
+var boxes := BOXES
 ## Car index -> TrafficCar (its physics car, or a proxy of another game's).
 var cars := {}
 ## Online (null offline): the network side; events land this many ticks ahead.
@@ -116,6 +126,12 @@ var _sirens_frame := -1
 ## `patrols` (D192). False (and why, pushed) if it can't be set up.
 func setup(track: TrackData, seed: int, count: int, patrols := false) -> bool:
 	_types = TrafficTypes.list()
+	for c: Array in CAPS:
+		if count >= int(c[0]):
+			cap_game = c[1]
+			cap_player = c[2]
+			boxes = c[3]
+	cap = cap_game
 	sim = TrafficTypes.sim(track, seed, count, patrols)
 	if sim == null:
 		return false
@@ -146,7 +162,7 @@ func _ready() -> void:
 		sound.name = "TrafficSound"
 		sound.manager = self
 		add_child(sound)
-	for i in BOXES:
+	for i in boxes:
 		var body := AnimatableBody3D.new()
 		body.name = "TrafficBox%d" % i
 		body.sync_to_physics = false
@@ -463,7 +479,7 @@ func _promotions() -> void:
 	for c: Array in candidates:
 		var owner: int = c[2]
 		var game := _peer_of(owner) if session.net else 1
-		if int(per.get(owner, 0)) >= CAP_PLAYER or int(games.get(game, 0)) >= (cap if game == 1 else CAP_GAME):
+		if int(per.get(owner, 0)) >= cap_player or int(games.get(game, 0)) >= (cap if game == 1 else cap_game):
 			continue
 		if _promote(c[1], owner if session.net else 0, poses):
 			per[owner] = int(per.get(owner, 0)) + 1
@@ -769,18 +785,21 @@ func _place_boxes() -> void:
 
 
 
-## Fewer physics cars while physics runs slow (over 6 ms a frame for 2 s), more again once there's
-## room (under 3 ms for 10 s).
+## Fewer physics cars while physics runs slow (over SLOW_MS a frame for 2 s), more again once
+## there's room (under half that for 10 s), up to the count's cap.
 func _adapt(delta: float) -> void:
-	var ms := Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
-	_slow_time = _slow_time + delta if ms > 6.0 else 0.0
-	_fast_time = _fast_time + delta if ms < 3.0 else 0.0
+	adapt_to(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0, delta)
+
+
+func adapt_to(ms: float, delta: float) -> void:
+	_slow_time = _slow_time + delta if ms > SLOW_MS else 0.0
+	_fast_time = _fast_time + delta if ms < SLOW_MS / 2.0 else 0.0
 	if _slow_time > 2.0:
 		_slow_time = 0.0
 		cap = maxi(CAP_MIN, cap - 2)
 	elif _fast_time > 10.0:
 		_fast_time = 0.0
-		cap = mini(CAP_GAME, cap + 1)
+		cap = mini(cap_game, cap + 1)
 
 
 # --- drawing --------------------------------------------------------------------------------

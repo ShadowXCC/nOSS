@@ -139,6 +139,37 @@ func test_the_cap_holds_and_boxes_stand_in() -> void:
 	await get_tree().process_frame
 
 
+## Busier traffic (D238), more physics cars: the caps and stand-in boxes go with the count, and
+## slow physics still trims the cap, which grows back no higher than the count's.
+func test_busier_traffic_gets_more_physics_cars() -> void:
+	var pkg := TrackLoader.load_package("res://content/tracks/lumen_ring", {}, { "terrain": false })
+	for c: Array in [[250, 24, 12, 16], [400, 32, 16, 16], [650, 48, 24, 24]]:
+		var tm := TrafficManager.new()
+		assert_bool(tm.setup(pkg.track, 7, c[0])).is_true()
+		assert_int(tm.sim.get_count()).is_equal(c[0])
+		assert_int(tm.cap_game).is_equal(c[1])
+		assert_int(tm.cap_player).is_equal(c[2])
+		assert_int(tm.boxes).is_equal(c[3])
+		assert_int(tm.cap).is_equal(c[1])
+		tm.adapt_to(TrafficManager.SLOW_MS + 1.0, 2.1)
+		assert_int(tm.cap).is_equal(c[1] - 2)
+		for i in 5:
+			tm.adapt_to(0.5, 10.1)
+		assert_int(tm.cap).is_equal(c[1])
+		tm.free()
+
+
+## A joiner gets the server's traffic in one message (TRAFFIC_FULL), at 650 cars too.
+func test_a_joiner_takes_650_cars_in_one_message() -> void:
+	var pkg := TrackLoader.load_package("res://content/tracks/lumen_ring", {}, { "terrain": false })
+	var sim := TrafficTypes.sim(pkg.track, 7, 650, true)
+	sim.step_to(2000)
+	var state := sim.full_state()
+	var msg := { "tick": sim.get_tick(), "state": state.compress(HighwayNet.COMPRESSION), "size": state.size(), "events": PackedByteArray(),
+		"owners": PackedInt32Array(), "graph": str(sim.graph_hash()) }
+	assert_int(var_to_bytes(msg).size()).is_less(NetProtocol.MAX_CONTROL_BYTES / 2)
+
+
 func test_wrong_way_only_against_the_traffic() -> void:
 	var s := _session(1, 0)
 	await _wait_for_car(s)

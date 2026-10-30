@@ -48,6 +48,10 @@ func test_highway_settings_go_only_with_highway_events() -> void:
 	# What a server's config file holds passes its schema.
 	assert_array(JsonSchema.validate({ "schema": "noss.server/1", "rotation": [{ "track": "t", "class": "official.highway.street", "event": h.to_dict() }] }, JsonSchema.load_schema("server"))).is_empty()
 	assert_int(RaceEvent.from_dict({ "kind": "highway", "traffic": 9000 }).traffic).is_equal(RaceEvent.TRAFFIC_MAX)
+	# The busiest level (D238) goes through as it is, and a server may save it.
+	var busy := RaceEvent.highway("cruise", false, 650)
+	assert_int(RaceEvent.from_dict(busy.to_dict()).traffic).is_equal(650)
+	assert_array(JsonSchema.validate({ "schema": "noss.server/1", "rotation": [{ "track": "t", "class": "official.highway.street", "event": busy.to_dict() }] }, JsonSchema.load_schema("server"))).is_empty()
 
 
 ## A race session with AI cars that have network ids (no network needed).

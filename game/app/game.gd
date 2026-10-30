@@ -94,7 +94,8 @@ extends Node
 ##   --share-personal     server: send personal-use cars too (only to this PC's bots: net_check --fresh)
 ##   --auto-ready         lobby: ready each player here once their car is picked
 ##   --auto-start=<n>     hosting: the countdown waits for n players (everyone ready starts it)
-##   --traffic-selftest[=<track>]  step a highway's traffic 1000 s, print its checksum and quit
+##   --traffic-selftest[=<track>]  step a highway's traffic 1000 s (--traffic=<cars>: not the
+##                        track's count), print its checksum and quit
 ##                        (compare builds: tools/traffic_determinism.sh)
 
 const TITLE := "res://game/ui/title/title_screen.tscn"
@@ -167,7 +168,7 @@ func _ready() -> void:
 	if dev.has("perf-log"):
 		add_child(PerfLog.new())
 	if dev.has("traffic-selftest"):
-		print(TrafficTypes.selftest(String(dev["traffic-selftest"])))
+		print(TrafficTypes.selftest(String(dev["traffic-selftest"]), int(dev.get("traffic", "-1"))))
 		get_tree().quit.call_deferred()
 		return
 	if dev.has("endless-selftest"):

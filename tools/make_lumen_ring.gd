@@ -104,7 +104,7 @@ static func build() -> TrackDraft:
 	], "Add runs")
 	d.set_traps([{ "dir": 1, "at_m": at.call(500, -HALF_Z) }, { "dir": 1, "at_m": at.call(-600, HALF_Z) },
 		{ "dir": -1, "at_m": at.call(HALF_X, 0) }, { "dir": -1, "at_m": at.call(-HALF_X, 0) }], "Add speed traps")
-	d.set_highway("traffic/count", 150, "Traffic")
+	d.set_highway("traffic/count", 250, "Traffic")
 	d.set_highway("traffic/seed", 7, "Traffic seed")
 	# The lap line ("Ring Line") a little way into the NE corner.
 	var corner := Vector2(HALF_X - CORNER_R, -HALF_Z + CORNER_R)

@@ -12,6 +12,7 @@ func test_the_generator_makes_the_committed_ring() -> void:
 	var d: TrackDraft = (load("res://tools/make_lumen_ring.gd") as GDScript).call("build")
 	var t := d.track()
 	assert_str(t.layout_hash).is_equal(String(manifest.layout))
+	assert_int(int(t.highway.settings.traffic.count)).is_equal(250)
 	assert_array(TrackValidator.errors(TrackValidator.check(d))).is_empty()
 
 
@@ -32,6 +33,7 @@ func test_the_ring_has_what_its_plan_says() -> void:
 		assert_int(h.ramps.filter(func(r: RampData) -> bool: return r.kind == "exit" and int(r.from.dir) == dir).size()).is_equal(3)
 		assert_int(h.traps.filter(func(x: Dictionary) -> bool: return x.dir == dir).size()).is_equal(2)
 	assert_int(h.runs.size()).is_equal(3)
+	assert_int(int(h.settings.traffic.count)).is_equal(250) # D238: 150 was sparse
 	assert_bool(h.zones.any(func(z: Dictionary) -> bool: return z.tunnel and z.name == "Cathedral Tunnel")).is_true()
 	var lifted := 0.0
 	var tightest := 0.0

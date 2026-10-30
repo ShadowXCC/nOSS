@@ -913,7 +913,7 @@
     "shoulder_out_m": 3.0,
     "speed_kmh": 110.0,
     "traffic": {
-      "count": 150,
+      "count": 250,
       "exit_share": 0.15,
       "seed": 7
     },

@@ -3,7 +3,7 @@
   "author": "nOSS contributors",
   "created": "2026-10-14",
   "files": {
-    "track.json": "sha256:e2809a630b3fe67ebe4d6f808f3efd22ba0b586617752973914030f9191d7652"
+    "track.json": "sha256:e0aff83f166005d41bc746aff52c59a00bdec833237dcc525a3e2f46c32f8ed4"
   },
   "game_min_version": "0.7.0",
   "id": "lumen_ring",

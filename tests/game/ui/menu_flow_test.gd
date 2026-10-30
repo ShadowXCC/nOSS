@@ -332,9 +332,9 @@ func test_free_drive_on_a_highway() -> void:
 	assert_array(rows).contains_exactly(["Track", "Traffic", "Time", "Time runs", "Weather"])
 	assert_str(_focused(runner)).starts_with("Track: Lumen Ring") # still on the row
 	await _key(KEY_DOWN)
-	assert_str(_focused(runner)).is_equal("Traffic: On")
+	assert_str(_focused(runner)).is_equal("Traffic: 250") # the track's own count (D238)
 	await _key(KEY_RIGHT)
-	assert_str(_focused(runner)).is_equal("Traffic: Off")
+	assert_str(_focused(runner)).is_equal("Traffic: 400")
 	settings.focus_next()
 	await _frames(2)
 	await _key(KEY_ENTER)
@@ -350,5 +350,5 @@ func test_free_drive_on_a_highway() -> void:
 	var e: RaceEvent = _requested[0][0]
 	assert_str(e.kind).is_equal("highway")
 	assert_str(e.sub).is_equal("cruise")
-	assert_int(e.traffic).is_zero()
+	assert_int(e.traffic).is_equal(400)
 	assert_str(String(_requested[0][1])).is_equal("official.track.gt")

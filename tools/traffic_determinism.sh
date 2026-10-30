@@ -2,7 +2,8 @@
 # Traffic determinism across builds (D108, D109): the exported Linux build and the exported Windows
 # build (under Wine, in a throwaway prefix) each step a built-in highway's traffic for 1000 s
 # (--traffic-selftest) and print the lane graph's hash and the sim's checksum; they must match.
-# Exports first unless --no-export. Needs tools/setup_export.sh and Wine.
+# Exports first unless --no-export; --traffic=<cars> steps that many (default: the track's).
+# Needs tools/setup_export.sh and Wine.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -11,10 +12,12 @@ if [[ " $* " != *" --no-export "* ]]; then
 fi
 linux="$(ls export/linux/*.x86_64 | head -1)"
 windows="$(ls export/windows/*.exe | head -1)"
+count=""
+for arg in "$@"; do [[ "$arg" == --traffic=* ]] && count="$arg"; done
 prefix="$(mktemp -d)"
 trap 'rm -rf "$prefix"' EXIT
-a="$("$linux" --headless -- --traffic-selftest 2>&1 | grep TRAFFIC_SELFTEST)"
-b="$(WINEPREFIX="$prefix" WINEDLLOVERRIDES="winemenubuilder.exe=d" wine "$windows" --headless -- --traffic-selftest 2>/dev/null | tr -d '\r' | grep TRAFFIC_SELFTEST)"
+a="$("$linux" --headless -- --traffic-selftest $count 2>&1 | grep TRAFFIC_SELFTEST)"
+b="$(WINEPREFIX="$prefix" WINEDLLOVERRIDES="winemenubuilder.exe=d" wine "$windows" --headless -- --traffic-selftest $count 2>/dev/null | tr -d '\r' | grep TRAFFIC_SELFTEST)"
 echo "linux:   $a"
 echo "windows: $b"
 strip() { echo "$1" | sed -E 's/ [0-9.]+ us\/tick//'; }

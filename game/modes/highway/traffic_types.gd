@@ -68,7 +68,8 @@ static func sim(track: TrackData, seed: int, count: int, patrols := false) -> No
 
 ## Dev: --traffic-selftest[=<track>] steps a highway's traffic 20 000 ticks (1000 s) and prints the
 ## lane graph's hash and the sim's checksum, so two builds (Linux and Windows) can be compared.
-static func selftest(ref: String) -> String:
+## `count`: that many cars (-1: the track's).
+static func selftest(ref: String, count := -1) -> String:
 	var path := TrackLibrary.resolve(ref) if ref and ref != "true" else ""
 	if path.is_empty():
 		var highways := TrackLibrary.list(true, true, "highway")
@@ -76,7 +77,7 @@ static func selftest(ref: String) -> String:
 	var pkg := TrackLoader.load_package(path, {}, { "terrain": false })
 	if not pkg.ok() or pkg.track.highway == null:
 		return "TRAFFIC_SELFTEST failed: no highway at " + path
-	var traffic := sim(pkg.track, int(pkg.track.highway.settings.traffic.seed), int(pkg.track.highway.settings.traffic.count))
+	var traffic := sim(pkg.track, int(pkg.track.highway.settings.traffic.seed), count if count >= 0 else int(pkg.track.highway.settings.traffic.count))
 	if traffic == null:
 		return "TRAFFIC_SELFTEST failed: setup"
 	var t0 := Time.get_ticks_usec()

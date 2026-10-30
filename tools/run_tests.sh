@@ -74,8 +74,8 @@ tools/endless_check.sh --minutes=10 --traffic=normal | grep -E "^(Endless|  |Tim
 step "Endless check (5 minutes, four lanes on the left, heavy traffic, traps and police)"
 tools/endless_check.sh --minutes=5 --traffic=heavy --lanes=4 --side=left --traps --police --speed-factor=1.4 | grep -E "^(Endless|  |Time|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("endless police check")
 
-step "Highway check (2 players, 400 traffic, 60 s)"
-tools/highway_check.sh --players=2 --traffic=400 --seconds=60 | grep -E "^(Highway|Time|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("highway check")
+step "Highway check (2 players, 650 traffic, 60 s)"
+tools/highway_check.sh --players=2 --traffic=650 --seconds=60 | grep -E "^(Highway|Time|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("highway check")
 
 step "Online check (3 bots and an AI car race a lap, 150 ms)"
 .venv/bin/python tools/net_check.py --clients 3 --event race --laps 1 --ai 1 --rtt 150 --jitter 10 --loss 1 | grep -E "^(net_check|PASS|FAIL)" ; [[ ${PIPESTATUS[0]} -eq 0 ]] || failed+=("net check")

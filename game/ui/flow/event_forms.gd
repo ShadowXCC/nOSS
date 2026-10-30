@@ -17,7 +17,7 @@ const GARAGE_FROM := [["off", "Off"], ["host", "Host"], ["everyone", "Everyone"]
 const SIDES := [["right", "Right"], ["left", "Left"]]
 ## Highway.
 const HIGHWAY_MODES := [["cruise", "Cruise"], ["score", "Score attack"], ["run", "Run"], ["loop", "Loop"]]
-const HIGHWAY_TRAFFIC := [[0, "Off"], [75, "75"], [150, "150"], [250, "250"], [400, "400"]]
+const HIGHWAY_TRAFFIC := [[0, "Off"], [75, "75"], [150, "150"], [250, "250"], [400, "400"], [650, "650"]]
 ## Kart and Kart Battle.
 const KART_PLAY := [["race", "Race"], ["cup", "Cup"]]
 const BATTLE_RULES := [["standing", "Last one standing"], ["hits", "Most hits"]]
@@ -338,18 +338,12 @@ static func highway(page: EventSettingsPage) -> void:
 		return
 	page.add_row(track_row(page, "Highway", func(_path: String) -> void: page.rebuild.call_deferred("Highway")))
 	var data := page.track_data(flow.track)
-	var layout: Variant = data.highway if data else null
-	if e.traffic < 0 and layout:
-		e.traffic = int(layout.settings.traffic.count)
 	page.add_row(UiKit.spinner("Mode", HIGHWAY_MODES, e.sub, func(v: String) -> void:
 		var was := e.sub
 		e.sub = v
 		if (v == "run") != (was == "run"):
 			page.rebuild.call_deferred("Mode"), "Cruise: no score. Score attack: near misses. Run: a sprint. Loop: lap times"))
-	var counts := HIGHWAY_TRAFFIC.duplicate()
-	if not counts.any(func(c: Array) -> bool: return c[0] == e.traffic):
-		counts.append([e.traffic, str(e.traffic)])
-	page.add_row(UiKit.spinner("Traffic", counts, e.traffic, func(v: int) -> void: e.traffic = v, "Cars on the road"))
+	page.add_row(traffic_row(e, data))
 	page.add_row(UiKit.spinner("Police", OFF, e.police, func(v: bool) -> void: e.police = v,
 		"Speed traps; speed, near misses and crashes in their sight bring a chase"))
 	if e.sub == "run":
@@ -382,6 +376,18 @@ static func _way(data: TrackData, dir: int) -> String:
 	if data == null or data.highway == null:
 		return "This way" if dir > 0 else "The other way"
 	return "Clockwise" if data.highway.clockwise(dir) else "Anticlockwise"
+
+
+## A highway's Traffic row (D238): the cars on the road, the track's own count to start with (one
+## that isn't a level is offered too).
+static func traffic_row(e: RaceEvent, data: TrackData) -> Button:
+	var layout: Variant = data.highway if data else null
+	if e.traffic < 0 and layout:
+		e.traffic = int(layout.settings.traffic.count)
+	var counts := HIGHWAY_TRAFFIC.duplicate()
+	if not counts.any(func(c: Array) -> bool: return c[0] == e.traffic):
+		counts.append([e.traffic, str(e.traffic) if e.traffic >= 0 else "Track's"])
+	return UiKit.spinner("Traffic", counts, e.traffic, func(v: int) -> void: e.traffic = v, "Cars on the road")
 
 
 ## Sumo Wrestling (D162): every car for itself or in teams (D234), the platforms, their size
@@ -461,8 +467,7 @@ static func free_drive(page: EventSettingsPage) -> void:
 		if flow.on_highway() != was:
 			page.rebuild.call_deferred("Track")))
 	if was:
-		page.add_row(UiKit.spinner("Traffic", [[-1, "On"], [0, "Off"]], 0 if e.traffic == 0 else -1,
-			func(v: int) -> void: e.traffic = v, "Cars on the road"))
+		page.add_row(traffic_row(e, page.track_data(flow.track)))
 		return
 	if flow.context == "local":
 		var counts := numbers(0, 15)

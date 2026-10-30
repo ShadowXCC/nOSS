@@ -439,10 +439,10 @@ func event_dict() -> Dictionary:
 	return d
 
 
-## The event as it runs: Free Drive on a highway is a Cruise with or without its traffic.
+## The event as it runs: Free Drive on a highway is a Cruise with its traffic (none with Off).
 func session_event() -> RaceEvent:
 	if type == "free" and on_highway():
-		var e := RaceEvent.highway("cruise", false, 0 if event.traffic == 0 else -1)
+		var e := RaceEvent.highway("cruise", false, event.traffic)
 		for key in ["time", "time_rate", "weather", "env_seed"]:
 			e.set(key, event.get(key))
 		return e
