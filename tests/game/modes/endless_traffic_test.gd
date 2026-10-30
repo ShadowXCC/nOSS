@@ -356,17 +356,17 @@ func test_a_garage_car_drives_as_itself() -> void:
 	var t: EndlessTraffic = s.endless_traffic
 	assert_int(t.garage.size()).is_greater(0)
 	for i in 60:
-		if not t._garage_pkgs.is_empty():
+		if not t.models.pkgs.is_empty():
 			break
 		await _ticks(10)
-	assert_int(t._garage_pkgs.size()).is_greater(0)
+	assert_int(t.models.pkgs.size()).is_greater(0)
 	var seen := false
 	for i in 240:
 		for key: Vector2i in t.cars:
 			var car: EndlessTrafficCar = t.cars[key]
 			var g := t.garage_of(key)
 			assert_int(car.garage).is_equal(g)
-			if g >= 0 and t._garage_pkgs.has(g) and car.vehicle.package.path == String(t.garage[g].path):
+			if g >= 0 and t.models.pkgs.has(g) and car.vehicle.package.path == String(t.garage[g].path):
 				seen = true
 		if seen:
 			break
@@ -385,27 +385,27 @@ func test_garage_models_stream_in_and_out() -> void:
 	var t: EndlessTraffic = s.endless_traffic
 	assert_int(t.garage_sets.sets[0].size()).is_equal(t.garage.size())
 	for i in 60:
-		if not t._garage_pkgs.is_empty():
+		if not t.models.pkgs.is_empty():
 			break
 		await _ticks(10)
-	assert_int(t._garage_pkgs.size()).is_greater(0)
-	assert_bool(t._garage_far.is_empty()).is_true()
+	assert_int(t.models.pkgs.size()).is_greater(0)
+	assert_bool(t.models.far.is_empty()).is_true()
 	var d := float(s.players[0].distance)
 	var near := {}
 	for c: Dictionary in t.scheduled():
 		if int(c.garage) >= 0 and absf(float(c.s) - d) < EndlessTraffic.NEAR_M:
 			near[int(c.garage)] = true
-	for g: int in t._garage_pkgs:
-		assert_bool(t._wanted_near.has(g)).is_true()
-	for g: int in t._wanted_near:
-		assert_bool(t._wanted.has(g)).is_true()
-	assert_bool(near.keys().any(func(g: int) -> bool: return t._garage_pkgs.has(g) or t._loading.has(Vector2i(g, 0)))).is_true()
+	for g: int in t.models.pkgs:
+		assert_bool(t.models.wanted_near.has(g)).is_true()
+	for g: int in t.models.wanted_near:
+		assert_bool(t.models.wanted.has(g)).is_true()
+	assert_bool(near.keys().any(func(g: int) -> bool: return t.models.pkgs.has(g) or t.models.loading.has(Vector2i(g, 0)))).is_true()
 	# A loaded car no physics car is: the slots stop drawing it (a set without it).
 	var driven := {}
 	for key: Vector2i in t.cars:
 		driven[t.cars[key].garage] = true
 	var gone := -1
-	for g: int in t._garage_pkgs:
+	for g: int in t.models.pkgs:
 		if not driven.has(g):
 			gone = g
 			break
@@ -416,26 +416,26 @@ func test_garage_models_stream_in_and_out() -> void:
 			others.append(g)
 	t.garage_sets.sets[0] = others
 	t._sets_changed()
-	var key := PackageLoader._shared_key(String(t.garage[gone].path), t._load_opts())
+	var key := PackageLoader._shared_key(String(t.garage[gone].path), t.models.load_opts())
 	assert_bool(PackageLoader._shared.has(key)).is_true()
 	var now := t._time
 	t.stream(now + EndlessTraffic.UNLOAD_S * 0.5)
-	assert_bool(t._garage_pkgs.has(gone)).is_true()
+	assert_bool(t.models.pkgs.has(gone)).is_true()
 	t.stream(now + EndlessTraffic.UNLOAD_S + 1.0)
-	assert_bool(t._garage_pkgs.has(gone)).is_false()
+	assert_bool(t.models.pkgs.has(gone)).is_false()
 	assert_bool(PackageLoader._shared.has(key)).is_false()
 	# (One car fewer in the set, the other slots picked again.) What's near now is loaded or on its
 	# way; anything else loaded is a physics car or was near within UNLOAD_S.
 	d = float(s.players[0].distance)
 	for c: Dictionary in t.scheduled():
 		if int(c.garage) >= 0 and absf(float(c.s) - d) < EndlessTraffic.NEAR_M:
-			assert_bool(t._garage_pkgs.has(int(c.garage)) or t._loading.has(Vector2i(int(c.garage), 0))).is_true()
+			assert_bool(t.models.pkgs.has(int(c.garage)) or t.models.loading.has(Vector2i(int(c.garage), 0))).is_true()
 	driven.clear()
 	for k: Vector2i in t.cars:
 		driven[t.cars[k].garage] = true
-	for g: int in t._garage_pkgs:
-		assert_bool(driven.has(g) or now + EndlessTraffic.UNLOAD_S + 1.0 - float(t._wanted_near[g]) <= EndlessTraffic.UNLOAD_S).is_true()
-	assert_int(t.most_loaded).is_greater_equal(t._garage_pkgs.size())
+	for g: int in t.models.pkgs:
+		assert_bool(driven.has(g) or now + EndlessTraffic.UNLOAD_S + 1.0 - float(t.models.wanted_near[g]) <= EndlessTraffic.UNLOAD_S).is_true()
+	assert_int(t.models.most_loaded).is_greater_equal(t.models.pkgs.size())
 	s.queue_free()
 	await get_tree().process_frame
 

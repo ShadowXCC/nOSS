@@ -46,21 +46,13 @@ const SIREN_PACE := 0.45
 ## (they'd drive through it); physics cars stop before it.
 const CLOSED_BEFORE_M := 150.0
 ## Garage traffic (D191): of the slots of a type some garage car fits, this share are garage cars.
-## Their models stream (D233), looked at every STREAM_S: a car's smallest LOD (its far view, about 1
-## MB of an FM4 car's 38) while a slot in the road window has it, its whole model while one within
-## NEAR_M of a player does (it turns physical at PROMOTE_M); each goes UNLOAD_S after the last
-## (the whole one not while a physics car is it). A far view's mesh is merged on a worker, one at a
-## time (on the main thread one took up to 33 ms).
-const GARAGE_SHARE := 0.8
+## Their models stream (D233, GarageModels), looked at every STREAM_S: a car's smallest LOD while a
+## slot in the road window has it, its whole model while one within NEAR_M of a player does (it
+## turns physical at PROMOTE_M).
+const GARAGE_SHARE := GarageModels.GARAGE_SHARE
 const STREAM_S := 0.5
 const NEAR_M := 600.0
-const UNLOAD_S := 60.0
-const FAR_OPTS := { "models": "smallest", "audio": false }
-const VIEW_TIMEOUT_S := 30.0
-## Once cars have gone, the memory they had goes back to the system (NossCore.trim_memory, on a
-## worker), at most every TRIM_S: a 10-minute drive grew from 3.4 to 5.3 GB without it, and stayed
-## near 2 GB with it.
-const TRIM_S := 10.0
+const UNLOAD_S := GarageModels.UNLOAD_S
 
 var session: TrackSession
 var world: EndlessWorld
@@ -84,15 +76,17 @@ var closures := {}
 var sirens: Array = []
 ## The garage cars in the traffic (D191) by registry index (EndlessGarage), the same on every game
 ## online: {car (a path offline, a hash online), path (where it is here; "" until all its files
-## are), fits: [type index], paint}.
-var garage := {}
+## are), fits: [type index], paint}. Their models: `models`.
+var garage: Dictionary:
+	get:
+		return models.cars
+	set(v):
+		models.cars = v
+var models: GarageModels
 ## Which set of them each slot draws from (offline: one set of every car).
 var garage_sets: EndlessGarage
-## For the dev log (D233): garage cars seen as themselves, the most loaded at once, and the longest
-## far-view merge (ms, on its worker).
+## For the dev log (D233): garage cars seen as themselves.
 var garage_seen := {}
-var most_loaded := 0
-var view_ms := 0.0
 
 var _types: Array[Dictionary] = []
 var _weights := 0
@@ -108,24 +102,23 @@ var _closure_id := 0
 var _car_types := {} # type index -> true: the ones on the car platform (patrols come among them)
 var _set_fits := {} # set id -> {type index: [garage index]}
 var _picks := 0 # goes up when the sets change: slots pick their garage car again
-var _garage_pkgs := {} # garage index -> VehiclePackage (its whole model), while loaded
-var _garage_far := {} # garage index -> VehiclePackage (its smallest LOD), while loaded
 var _garage_views := {} # garage index -> MultiMeshInstance3D (its own far mesh)
-var _wanted := {} # garage index -> when a slot in the road window last had it (this node's clock)
-var _wanted_near := {} # garage index -> when a slot within NEAR_M of a player last had it
-var _loading := {} # Vector2i(garage index, 1 far or 0 whole) -> true
-var _view_queue: Array[int] = [] # loaded cars whose far view is still to be made
-var _viewing := false # a far view is being merged
-var _freed := false # a car went since the last trim
-var _trim_at := -INF
-var _trim_task := -1
 var _stream_in := 0.0
+
+
+func _init() -> void:
+	models = GarageModels.new()
+	add_child(models)
+	models.view_made.connect(_garage_view)
+	models.view_gone.connect(_drop_view)
 
 
 func _ready() -> void:
 	name = "EndlessTraffic"
 	process_physics_priority = -58
 	_draws = not (session.dedicated or Game.dev.has("bot"))
+	models.draws = _draws
+	models.platforms = _platforms
 	for t: Dictionary in TrafficTypes.list():
 		if int(t.weight) > 0:
 			_types.append(t)
@@ -163,14 +156,8 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	if _trim_task >= 0:
-		WorkerThreadPool.wait_for_task_completion(_trim_task)
 	for t: int in _packages:
 		(_packages[t] as VehiclePackage).free_scenes()
-	for pkgs: Dictionary in [_garage_pkgs, _garage_far]:
-		for g: int in pkgs:
-			(pkgs[g] as VehiclePackage).free_scenes()
-		pkgs.clear()
 
 
 func now() -> float:
@@ -193,8 +180,6 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(_delta: float) -> void:
-	if not _view_queue.is_empty() and not _viewing:
-		_next_view()
 	if _draws:
 		_draw()
 
@@ -323,12 +308,9 @@ static func _fits_of(path: String, types: Array[Dictionary], platforms: Dictiona
 ## Offline: every car of `pool` (garage_pool) in the traffic, in one set. Each one's paint is read
 ## now (a stand-in wears it); its model loads when a slot near the players has it (stream).
 func set_garage(pool: Array[Dictionary]) -> void:
-	garage = {}
+	models.set_pool(pool)
 	var one := EndlessGarage.new()
 	one.sets[0] = PackedInt32Array(range(pool.size()))
-	for g in pool.size():
-		garage[g] = pool[g].duplicate()
-		garage[g].paint = PackageLoader.read_json(String(pool[g].path), "paint.json")
 	garage_sets = one
 	_sets_changed()
 
@@ -393,22 +375,9 @@ func _sets_changed() -> void:
 	_picks += 1
 
 
-## Online: some of garage car `car` (a hash) is here now: its paint once its data is, its model
-## once all of it is.
+## Online: some of garage car `car` (a hash) is here now (GarageModels.car_here).
 func car_here(car: String) -> void:
-	var c: Dictionary = Net.content.car(car) if Net.content else {}
-	if not c.has("path"):
-		return
-	for g: int in garage:
-		var e: Dictionary = garage[g]
-		if e.car != car:
-			continue
-		if (e.paint as Dictionary).is_empty():
-			e.paint = PackageLoader.read_json(String(c.path), "paint.json")
-		if not c.partial and String(e.path).is_empty():
-			e.path = String(c.path)
-			if Game.dev.has("endless-debug"):
-				print("garage: car %d here (%s)" % [g, car.substr(7, 8)])
+	models.car_here(car)
 
 
 ## Slot `key`'s garage car (its index in `garage`), or -1 (a stock car): of the cars in its set
@@ -458,9 +427,8 @@ func _fits_in(set_id: int) -> Dictionary:
 	return _set_fits[set_id]
 
 
-## Loads the garage cars slots in the road window have (at time `at`, this node's clock): their
-## smallest LOD, and their whole model near a player; and lets go of those none has had for
-## UNLOAD_S (a whole model not while a physics car is it).
+## Wants the garage cars slots in the road window have (at time `at`, this node's clock): their
+## smallest LOD, and their whole model near a player; GarageModels loads them and lets them go.
 func stream(at: float) -> void:
 	if garage.is_empty():
 		return
@@ -472,101 +440,14 @@ func stream(at: float) -> void:
 		var g := int(c.garage)
 		if g < 0:
 			continue
-		_wanted[g] = at
+		var near := INF
 		for d in players:
-			if absf(float(c.s) - d) < NEAR_M:
-				_wanted_near[g] = at
-				break
+			near = minf(near, absf(float(c.s) - d))
+		models.want(g, at, near if near < NEAR_M else INF)
 	var driven := {}
 	for key: Vector2i in cars:
 		driven[(cars[key] as EndlessTrafficCar).garage] = true
-	var far_views := _draws and MeshBatch.threaded()
-	for g: int in _wanted.keys():
-		if at - float(_wanted[g]) > UNLOAD_S:
-			_wanted.erase(g)
-			_unload(g, true)
-		elif far_views:
-			_load(g, true)
-	for g: int in _wanted_near.keys():
-		if at - float(_wanted_near[g]) > UNLOAD_S and not driven.has(g):
-			_wanted_near.erase(g)
-			_unload(g, false)
-		else:
-			_load(g, false)
-	most_loaded = maxi(most_loaded, _garage_pkgs.size())
-	if _freed and at - _trim_at > TRIM_S:
-		_freed = false
-		_trim_at = at
-		if _trim_task >= 0:
-			WorkerThreadPool.wait_for_task_completion(_trim_task) # done long since
-		_trim_task = WorkerThreadPool.add_task(NossCore.trim_memory)
-
-
-## A whole model only where it's drawn (and not headless, where models can't load on a worker).
-func _load_opts() -> Dictionary:
-	return {} if _draws and MeshBatch.threaded() else { "models": "none", "audio": false }
-
-
-## Loads garage car `g`'s smallest LOD (`far`, for its far view) or its whole model, if its files
-## are here and it isn't loaded or loading.
-func _load(g: int, far: bool) -> void:
-	var into := _garage_far if far else _garage_pkgs
-	var key := Vector2i(g, int(far))
-	if into.has(g) or _loading.has(key) or String(garage[g].path).is_empty() or garage[g].get("broken", false):
-		return
-	_loading[key] = true
-	PackageLoader.load_shared(String(garage[g].path), func(pkg: VehiclePackage) -> void:
-		_loading.erase(key)
-		if not pkg.ok():
-			garage[g].broken = true
-			return
-		into[g] = pkg
-		if far:
-			_view_queue.append(g), FAR_OPTS if far else _load_opts())
-
-
-func _unload(g: int, far: bool) -> void:
-	var into := _garage_far if far else _garage_pkgs
-	var pkg: VehiclePackage = into.get(g)
-	if pkg == null:
-		return
-	into.erase(g)
-	pkg.free_scenes()
-	_freed = true
-	if far:
-		var view: Node = _garage_views.get(g)
-		if view:
-			view.queue_free()
-			_garage_views.erase(g)
-		_view_queue.erase(g)
-	PackageLoader.drop_shared(String(garage[g].path), FAR_OPTS if far else _load_opts())
-
-
-## The next queued far view, merged on a worker from a copy of the car's smallest LOD (its loaded
-## one stays as it is).
-func _next_view() -> void:
-	var g: int = _view_queue.pop_front()
-	var pkg: VehiclePackage = _garage_far.get(g)
-	if pkg == null or _garage_views.has(g) or pkg.lods.is_empty():
-		return
-	var own := VehiclePackage.new()
-	own.fit = pkg.fit
-	own.paint = pkg.paint
-	own.lods.append(pkg.lods[pkg.lods.size() - 1].duplicate() as Node3D)
-	var platform: Dictionary = (_platforms[int(garage[g].fits[0])] as PlatformLoader.Result).platform
-	_viewing = true
-	WorkerJob.start(self, func() -> Array:
-		var t0 := Time.get_ticks_usec()
-		return [TrafficModels.far_mesh_of(own, platform), (Time.get_ticks_usec() - t0) / 1000.0],
-		func(made: Variant) -> void:
-			_viewing = false
-			if not made is Array:
-				return # timed out: the copy goes when the merge ends (discard)
-			own.free_scenes()
-			view_ms = maxf(view_ms, float(made[1]))
-			if made[0] and _garage_far.get(g) == pkg and not _garage_views.has(g):
-				_garage_view(g, made[0]),
-		VIEW_TIMEOUT_S, func() -> Variant: return null, own.free_scenes.unbind(1))
+	models.sweep(at, driven)
 
 
 ## A garage car's own far view (`mesh`, from its smallest LOD; one too heavy has none, and is drawn
@@ -589,17 +470,17 @@ func _garage_view(g: int, mesh: ArrayMesh) -> void:
 	_garage_views[g] = view
 
 
+func _drop_view(g: int) -> void:
+	var view: Node = _garage_views.get(g)
+	if view:
+		view.queue_free()
+		_garage_views.erase(g)
+
+
 ## Garage car `g`'s paint in slot `sl`, as CarVisual.random_paint picks from the car's presets ({}:
 ## its own).
 func garage_paint(g: int, sl: Dictionary) -> Dictionary:
-	var paint: Dictionary = garage[g].get("paint", {})
-	var presets: Array = (paint.get("presets", []) as Array).filter(func(p: Variant) -> bool: return p is Dictionary)
-	var roll := int(sl.paint_roll)
-	if presets.is_empty():
-		var c: Array = CarVisual.STOCK_COLORS[roll % CarVisual.STOCK_COLORS.size()]
-		return { "primary": c[0], "finish": c[1] }
-	var i := roll % (presets.size() + 1)
-	return CarVisual.clean_paint(presets[i]) if i < presets.size() else {}
+	return models.paint_of(g, int(sl.paint_roll))
 
 
 ## A slot's colour: its stock one, or its garage car's (`g`) main paint once its paint is known.
@@ -608,11 +489,9 @@ func _color_of(sl: Dictionary, g: int) -> Color:
 		return sl.color
 	if sl.has("tint"):
 		return sl.tint
-	var paint: Dictionary = garage[g].get("paint", {})
-	if paint.is_empty():
+	if not models.has_paint(g):
 		return sl.color
-	var primary: Variant = garage_paint(g, sl).get("primary", paint.get("slots", {}).get("primary", {}).get("color", ""))
-	sl.tint = Color.html(primary) if primary is String and Color.html_is_valid(primary) else sl.color
+	sl.tint = models.tint_of(g, int(sl.paint_roll), sl.color)
 	return sl.tint
 
 
@@ -933,7 +812,7 @@ func _promote(c: Dictionary, xf: Transform3D) -> void:
 		return
 	# A garage car once it's loaded; till then the stock car, in its paint.
 	var g := int(c.get("garage", -1))
-	var own: VehiclePackage = _garage_pkgs.get(g)
+	var own: VehiclePackage = models.pkgs.get(g)
 	if own:
 		garage_seen[g] = true
 	var v := Vehicle.create(_platforms[type], PackageLoader.copy(own if own else _packages[type]))

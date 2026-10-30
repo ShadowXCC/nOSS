@@ -87,8 +87,8 @@ func _physics_process(delta: float) -> void:
 		if session.endless_traffic:
 			var t: EndlessTraffic = session.endless_traffic
 			print("traffic: %d scheduled, %d physics, %d gone; garage %d cars, %d whole (most %d), %d far, %d drawn as themselves, %d seen, view %.1f ms, set %d, picks %s" % [
-				t.scheduled().size(), t.cars.size(), t.gone.size(), t.garage.size(), t._garage_pkgs.size(), t.most_loaded, t._garage_far.size(), t._garage_views.size(),
-				t.garage_seen.size(), t.view_ms, t.garage_sets.k if t.garage_sets else -1, t.picks_check()])
+				t.scheduled().size(), t.cars.size(), t.gone.size(), t.garage.size(), t.models.pkgs.size(), t.models.most_loaded, t.models.far.size(), t._garage_views.size(),
+				t.garage_seen.size(), t.models.view_ms, t.garage_sets.k if t.garage_sets else -1, t.picks_check()])
 			print("memory: %d MB, %d objects, %d resources, %d nodes, %d orphans, textures %d MB" % [OS.get_static_memory_usage() >> 20,
 				Performance.get_monitor(Performance.OBJECT_COUNT), Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT),
 				Performance.get_monitor(Performance.OBJECT_NODE_COUNT), Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT),
