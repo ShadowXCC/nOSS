@@ -33,6 +33,10 @@ var kept_lod_fit := {}
 var kept_thumbnail := PackedByteArray()
 ## Own engine recordings (AV-06): "sound/<file>" -> bytes, each named in `sound`.
 var sound_files := {}
+## The car's liveries (docs/VEHICLE_PACKAGE.md §12), kept with the draft so they last through
+## test drives, and the worn one's id ("" for plain paint).
+var liveries: Array = []
+var worn := ""
 var _streams := {} # file (relative to sound/) -> AudioStream, for the bay's engine
 ## body_bottom()'s scan, and what it was made for.
 var _bottom := INF
@@ -94,6 +98,14 @@ static func from_package(pkg: VehiclePackage) -> FittingDraft:
 	d.fit.erase("lod_materials")
 	d.fit.lod_distances_m = [0]
 	return d
+
+
+## The livery the car wears, or {} for plain paint.
+func worn_livery() -> Dictionary:
+	for l: Dictionary in liveries:
+		if l.id == worn:
+			return l
+	return {}
 
 
 func info() -> Dictionary:

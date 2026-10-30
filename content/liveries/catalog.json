@@ -1,0 +1,24 @@
+{
+  "fonts": [
+    { "id": "atkinson_bold", "name": "Clear", "file": "res://content/fonts/atkinson_hyperlegible/AtkinsonHyperlegible-Bold.ttf" }
+  ],
+  "schema": "noss.livery_catalog/1",
+  "shapes": [
+    { "id": "rect", "name": "Rectangle", "category": "basic", "kind": "proc", "index": 0, "params": [0.0, 0.0], "param_names": ["Corners", "Outline"] },
+    { "id": "ellipse", "name": "Ellipse", "category": "basic", "kind": "proc", "index": 1, "params": [0.0], "param_names": ["Outline"] },
+    { "id": "ring", "name": "Ring", "category": "basic", "kind": "proc", "index": 2, "params": [0.3], "param_names": ["Thickness"] },
+    { "id": "triangle", "name": "Triangle", "category": "basic", "kind": "proc", "index": 3, "params": [0.5, 0.0], "param_names": ["Peak", "Outline"] },
+    { "id": "diamond", "name": "Diamond", "category": "basic", "kind": "proc", "index": 4, "params": [0.0], "param_names": ["Outline"] },
+    { "id": "star", "name": "Star", "category": "basic", "kind": "proc", "index": 5, "params": [0.22, 0.45], "param_names": ["Points", "Inner"] },
+    { "id": "arrow", "name": "Arrow", "category": "basic", "kind": "proc", "index": 6, "params": [0.4, 0.4], "param_names": ["Shaft", "Head"] },
+    { "id": "chevrons", "name": "Chevrons", "category": "racing", "kind": "proc", "index": 7, "params": [0.3, 0.5], "param_names": ["Count", "Thickness"] },
+    { "id": "stripes", "name": "Stripes", "category": "racing", "kind": "proc", "index": 8, "params": [0.1, 0.5], "param_names": ["Count", "Width"] },
+    { "id": "pinstripes", "name": "Pinstripes", "category": "racing", "kind": "proc", "index": 9, "params": [0.1, 0.15], "param_names": ["Count", "Width"] },
+    { "id": "checker", "name": "Checker", "category": "racing", "kind": "proc", "index": 10, "params": [0.4], "param_names": ["Squares"] },
+    { "id": "gradient", "name": "Fade", "category": "racing", "kind": "proc", "index": 11, "params": [1.0], "param_names": ["Softness"] },
+    { "id": "radial", "name": "Glow", "category": "racing", "kind": "proc", "index": 12, "params": [1.0], "param_names": ["Softness"] },
+    { "id": "halftone", "name": "Halftone", "category": "racing", "kind": "proc", "index": 13, "params": [0.4], "param_names": ["Dots"] },
+    { "id": "speed_lines", "name": "Speed lines", "category": "racing", "kind": "proc", "index": 14, "params": [0.4, 0.5], "param_names": ["Count", "Taper"] },
+    { "id": "slash", "name": "Slash", "category": "racing", "kind": "proc", "index": 15, "params": [0.5, 0.0], "param_names": ["Slant", "Outline"] }
+  ]
+}

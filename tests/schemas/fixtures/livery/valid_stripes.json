@@ -1,0 +1,19 @@
+{
+  "schema": "noss.livery/1",
+  "id": "1f0c5a2e-8d7b-4c1e-9a3f-2b6d4e8f0a11",
+  "name": "Twin stripes",
+  "car": { "id": "6e0c6a51-5d0f-4a2b-9a52-3b1f0d7c2e11", "model": "sha256:7bc24a99815863f64802c14bf11bee76bac11100a109bbabf9cd588e371aa294", "name": "nOSS Box" },
+  "frame": { "to_car": [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0], "bounds": { "min": [-0.9, 0, -2.2], "max": [0.9, 1.3, 2.2] } },
+  "base": { "primary": { "color": "#1F4FB5", "finish": "metallic" } },
+  "groups": [{ "id": 1, "name": "Stripes" }],
+  "layers": [
+    { "kind": "shape", "shape": "stripes", "params": [0.1, 0.5], "at": [0, 1.3, 0], "normal": [0, 1, 0], "right": [1, 0, 0], "size": [0.6, 4.4], "depth": 0.6,
+      "color": "#F2F2F2", "opacity": 1, "finish": "gloss", "on": ["primary"], "group": 1 },
+    { "kind": "shape", "shape": "rect", "params": [0, 0], "at": [0, 1.3, 0], "normal": [0, 1, 0], "right": [1, 0, 0], "size": [0.1, 4.4], "depth": 0.6,
+      "color": "primary", "cut": true, "group": 1 },
+    { "kind": "number", "number": "auto", "font": "atkinson_bold", "at": [0.9, 0.7, 0], "normal": [1, 0, 0], "right": [0, 0, -1], "size": [0.5, -0.5],
+      "color": "contrast", "mirror": true },
+    { "kind": "text", "text": "nOSS", "font": "atkinson_bold", "at": [0, 0.9, 2.2], "normal": [0, 0, 1], "right": [-1, 0, 0], "size": [0.8, 0.2],
+      "on": ["primary", "glass"], "hidden": true }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noss:schema:livery:1",
+  "title": "nOSS livery",
+  "description": "A livery for one car: base paint and up to 100 layers (shapes, text, race numbers) projected onto the body. Kept outside the car's package (user://liveries/<car id>/), exported as .nosslivery and sent online on its own. See docs/VEHICLE_PACKAGE.md §12. The game cleans every livery it reads (LiveryData.clean): unknown keys, shapes and fonts are dropped and numbers clamped.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "name", "layers"],
+  "properties": {
+    "schema": { "const": "noss.livery/1" },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9-]{1,64}$" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 48 },
+    "car": {
+      "description": "The car it was made on: its package id, a hash of its model (model/body.glb) and its name.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "model": { "type": "string", "maxLength": 80 },
+        "name": { "type": "string", "maxLength": 96 }
+      }
+    },
+    "frame": {
+      "description": "How the layers' model space sits in the car frame (metres, before a class scales the car), for moving a livery to another car.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["to_car", "bounds"],
+      "properties": {
+        "to_car": { "description": "Basis columns x, y, z, then the origin.", "type": "array", "minItems": 12, "maxItems": 12, "items": { "type": "number" } },
+        "bounds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["min", "max"],
+          "properties": { "min": { "$ref": "#/$defs/vec3" }, "max": { "$ref": "#/$defs/vec3" } }
+        }
+      }
+    },
+    "base": {
+      "description": "Paint under the layers, per slot. Left out (built-in liveries), the car's own paint shows.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "primary": { "$ref": "#/$defs/slot" },
+        "secondary": { "$ref": "#/$defs/slot" },
+        "tertiary": { "$ref": "#/$defs/slot" }
+      }
+    },
+    "groups": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name"],
+        "properties": {
+          "id": { "type": "integer", "minimum": 1, "maximum": 999 },
+          "name": { "type": "string", "maxLength": 48 }
+        }
+      }
+    },
+    "layers": {
+      "description": "Bottom layer first.",
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/layer" }
+    }
+  },
+  "$defs": {
+    "vec3": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+    "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+    "slot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["color", "finish"],
+      "properties": {
+        "color": { "$ref": "#/$defs/color" },
+        "finish": { "enum": ["solid", "metallic", "pearl", "matte", "chrome"] }
+      }
+    },
+    "layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "at", "normal", "right", "size"],
+      "properties": {
+        "kind": { "enum": ["shape", "text", "number"] },
+        "shape": { "description": "A shape id from content/liveries/catalog.json.", "type": "string", "pattern": "^[a-z0-9_]{1,32}$" },
+        "params": { "type": "array", "maxItems": 4, "items": { "type": "number", "minimum": 0, "maximum": 1 } },
+        "text": { "type": "string", "maxLength": 32 },
+        "number": { "description": "Digits, or auto: the racer's own number.", "type": "string", "pattern": "^(auto|[0-9]{1,3})$" },
+        "font": { "description": "A font id from content/liveries/catalog.json.", "type": "string", "pattern": "^[a-z0-9_]{1,32}$" },
+        "at": { "description": "Centre, in model space.", "$ref": "#/$defs/vec3" },
+        "normal": { "description": "Out of the surface; the layer projects along its reverse.", "$ref": "#/$defs/vec3" },
+        "right": { "$ref": "#/$defs/vec3" },
+        "size": { "description": "Width and height in model units; negative flips.", "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+        "depth": { "description": "How far it reaches along the normal each way, in model units.", "type": "number", "exclusiveMinimum": 0 },
+        "color": { "anyOf": [{ "$ref": "#/$defs/color" }, { "enum": ["primary", "secondary", "tertiary", "contrast"] }] },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "finish": { "enum": ["paint", "gloss", "satin", "matte", "metallic", "chrome", "pearl"] },
+        "on": {
+          "type": "array",
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": { "enum": ["primary", "secondary", "tertiary", "glass"] }
+        },
+        "cut": { "description": "Cuts the layers under it (in its group, or all of them when ungrouped) instead of drawing.", "type": "boolean" },
+        "mirror": { "description": "Also drawn on the other side of the car.", "type": "boolean" },
+        "group": { "type": "integer", "minimum": 0, "maximum": 999 },
+        "hidden": { "type": "boolean" }
+      }
+    }
+  }
+}
