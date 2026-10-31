@@ -9,8 +9,9 @@ extends Node
 ## and no two in a lane ever meet. Two lanes each way, the passing lane's cars overtake the other's,
 ## and trucks and buses keep out of it. Garage cars (D191) drive in place of most of the stock cars
 ## of a type they fit, picked after a slot's own draws so the stock schedule stays as it was: offline
-## every car, online the server's sets (EndlessGarage, D233), their models loaded while they're
-## near the players and let go after. Cars near a player become physics cars (EndlessTrafficCar) that keep to their
+## every car, loaded before the drive (D246), online the server's sets (EndlessGarage, D233), their
+## models loaded while they're near the players and let go after. Cars near a player become physics
+## cars (EndlessTrafficCar, kept in a pool by kind once made, D246) that keep to their
 ## slot unless something's in the way; knocked or left far behind, a car leaves its slot (the slot
 ## stays empty) and goes once nobody's near. Cars further off are drawn, one MultiMesh per type.
 ## Online (D159) one game drives each physics car (EndlessNet's owners) and the others show it from
@@ -104,6 +105,7 @@ var _set_fits := {} # set id -> {type index: [garage index]}
 var _picks := 0 # goes up when the sets change: slots pick their garage car again
 var _garage_views := {} # garage index -> MultiMeshInstance3D (its own far mesh)
 var _stream_in := 0.0
+var _pool := {} # Vector2i(type, garage car; -1 the stock one) -> [Vehicle] parked, ready
 
 
 func _init() -> void:
@@ -111,6 +113,7 @@ func _init() -> void:
 	add_child(models)
 	models.view_made.connect(_garage_view)
 	models.view_gone.connect(_drop_view)
+	models.whole_gone.connect(_on_whole_gone)
 
 
 func _ready() -> void:
@@ -135,6 +138,7 @@ func _ready() -> void:
 		var pkg := PackageLoader.load_package("res://content/traffic/" + String(_types[i].model), {}, {} if _draws else { "models": "none", "audio": false })
 		if pkg.ok():
 			_packages[i] = pkg
+	prebuild.call_deferred()
 	if _draws:
 		for i in _types.size():
 			var mm := MultiMesh.new()
@@ -313,6 +317,7 @@ func set_garage(pool: Array[Dictionary]) -> void:
 	one.sets[0] = PackedInt32Array(range(pool.size()))
 	garage_sets = one
 	_sets_changed()
+	models.adopt_loaded() # loaded before the drive (D246)
 
 
 ## Online: the server's sets (Net.endless_garage, D233); garage_changed() after each swap.
@@ -802,7 +807,7 @@ func _remove(key: Vector2i) -> void:
 	if session.net:
 		session.net.drop_traffic(car_id_of(slot_of(key)))
 	if car.vehicle and is_instance_valid(car.vehicle):
-		car.vehicle.queue_free()
+		_park(car.vehicle, car.kind)
 	car.queue_free()
 
 
@@ -812,17 +817,17 @@ func _promote(c: Dictionary, xf: Transform3D) -> void:
 		return
 	# A garage car once it's loaded; till then the stock car, in its paint.
 	var g := int(c.get("garage", -1))
-	var own: VehiclePackage = models.pkgs.get(g)
-	if own:
+	var own := g if g >= 0 and models.pkgs.has(g) else -1
+	if own >= 0:
 		garage_seen[g] = true
-	var v := Vehicle.create(_platforms[type], PackageLoader.copy(own if own else _packages[type]))
+	var v := _take_vehicle(type, own)
+	if v == null:
+		return
 	v.name = "EndlessTraffic%d_%d" % [c.key.x, c.key.y]
 	var slot := slot_of(c.key)
 	v.traffic_id = car_id_of(slot) - NetProtocol.FIRST_TRAFFIC_ID
-	v.visual_every_frame = true
-	session.add_child(v)
 	if v.visual:
-		if own:
+		if own >= 0:
 			v.visual.apply_choice(garage_paint(g, slot(c.key.x, c.key.y)))
 		else:
 			v.visual.set_paint("primary", c.color, "metallic")
@@ -830,6 +835,7 @@ func _promote(c: Dictionary, xf: Transform3D) -> void:
 	car.traffic = self
 	car.key = c.key
 	car.garage = g
+	car.kind = Vector2i(type, own)
 	car.vehicle = v
 	car.s = c.s
 	car.speed = c.speed
@@ -841,6 +847,87 @@ func _promote(c: Dictionary, xf: Transform3D) -> void:
 	_drive_here(car, owner < 0 or net.is_mine(owner), xf, xf.basis.z * float(c.speed))
 	if net:
 		net.want(slot)
+
+
+## A physics car for type `type` (as garage car `g`, whose whole model is loaded; -1 the stock one):
+## one from the pool, or a new one.
+func _take_vehicle(type: int, g := -1) -> Vehicle:
+	var key := Vector2i(type, g)
+	if not _pool.has(key):
+		_pool[key] = []
+	var pool: Array = _pool[key]
+	if not pool.is_empty():
+		var v: Vehicle = pool.pop_back()
+		v.process_mode = Node.PROCESS_MODE_INHERIT
+		v.freeze = false
+		v.visible = true
+		v.collision_layer = Vehicle.LAYER_VEHICLES
+		v.collision_mask = Vehicle.LAYER_WORLD | Vehicle.LAYER_VEHICLES
+		v.add_to_group(&"vehicles")
+		return v
+	return _build_vehicle(type, g)
+
+
+## A new physics car (20-40 ms of work: the drive's start makes those it needs, prebuild).
+func _build_vehicle(type: int, g := -1) -> Vehicle:
+	if (g >= 0 and not models.pkgs.has(g)) or not _packages.has(type) or not (_platforms[type] as PlatformLoader.Result).ok():
+		return null
+	var v := Vehicle.create(_platforms[type], PackageLoader.copy(models.pkgs[g] if g >= 0 else _packages[type]))
+	v.name = "EndlessTrafficVehicle"
+	v.visual_every_frame = true
+	session.add_child(v)
+	return v
+
+
+## Physics car `v` out of the way, into its pool (`key`: its type and garage car), or freed if that
+## model has gone.
+func _park(v: Vehicle, key: Vector2i) -> void:
+	v.traffic_id = -1
+	v.indicators = 0
+	v.set_ghost(false)
+	v.set_remote(false)
+	v.freeze = true
+	v.visible = false
+	v.collision_layer = 0
+	v.collision_mask = 0
+	v.global_position = Vector3(0, -2000.0, 0)
+	v.process_mode = Node.PROCESS_MODE_DISABLED
+	v.remove_from_group(&"vehicles") # what looks at every car (weather, tire tracks) passes it by
+	if _pool.has(key):
+		(_pool[key] as Array).append(v)
+	else:
+		v.queue_free()
+
+
+## Before the first frame (D246): one physics car of each kind the traffic has (each type's stock
+## car, and each loaded garage car in each type it fits), parked in the pool, so the drive makes
+## none of them in a physics frame.
+func prebuild() -> void:
+	if session == null or not is_inside_tree():
+		return
+	var kinds := {}
+	for t: int in _packages:
+		if t != _patrol_type or patrols or session.event.speed_traps:
+			kinds[Vector2i(t, -1)] = true
+	for g: int in models.pinned:
+		for t: int in garage[g].fits:
+			kinds[Vector2i(t, g)] = true
+	for key: Vector2i in kinds:
+		if not _pool.has(key):
+			_pool[key] = []
+		if (_pool[key] as Array).is_empty():
+			var v := _build_vehicle(key.x, key.y)
+			if v:
+				_park(v, key)
+
+
+## A whole model goes: the physics cars waiting in the pool on it go too.
+func _on_whole_gone(g: int) -> void:
+	for key: Vector2i in _pool.keys():
+		if key.y == g:
+			for v: Vehicle in _pool[key]:
+				v.queue_free()
+			_pool.erase(key)
 
 
 ## Makes `car` driven here (a physics car) or shown from its owner's states (a proxy), from

@@ -4,7 +4,8 @@ extends GdUnitTestSuite
 ## touches the lane sim. In a drive a garage car turns physical as itself once its model is here;
 ## whole models load near a player only, the nearest MOST_WHOLE at most, and go a while after.
 ## Models load a few at a time, nearest first, and a physics car that started as the stock car
-## becomes its garage car out of sight (D241).
+## becomes its garage car out of sight (D241). Loaded before the drive (D246), they're kept, each
+## physics car is its garage car from the start, and a car of each kind is made before it.
 
 const FIXTURE := "res://tests/fixtures/tracks/highway_ring_small.json"
 const LUMEN := "res://content/tracks/lumen_ring"
@@ -17,6 +18,10 @@ func before() -> void:
 func after() -> void:
 	Players.clear()
 	Settings.use_folder("user://")
+
+
+func after_test() -> void:
+	GaragePreload.clear() # the other tests stream theirs
 
 
 ## The built-in cars that fit the traffic (the tests never load this PC's garage).
@@ -295,5 +300,70 @@ func test_stock_physics_cars_become_garage_cars_out_of_view() -> void:
 			break
 	assert_int(swapped).is_greater(0)
 	rig.unwatch()
+	s.queue_free()
+	await get_tree().process_frame
+
+
+## Loaded before the drive (D246), as Game does behind the loading screen: every car's pinned (kept,
+## never wanted), each physics car is its garage car from the start (never a stand-in), one car of
+## each kind is made before the first frame and parked out of the way, and the drawn traffic isn't
+## interpolated.
+func test_cars_loaded_before_the_drive_drive_as_themselves_from_the_start() -> void:
+	var pool := _pool()
+	var batch: GaragePreload = auto_free(GaragePreload.new())
+	batch.items = GaragePreload.items_of(pool)
+	var done := [false]
+	batch.finished.connect(func(_loaded: int, _left: int) -> void: done[0] = true)
+	add_child(batch)
+	for i in 300:
+		if done[0]:
+			break
+		await get_tree().process_frame
+	assert_bool(done[0]).is_true()
+	Players.clear()
+	var s := TrackSession.new()
+	s.track_path = FIXTURE
+	s.platform_id = "official.highway.street"
+	s.event = RaceEvent.highway("cruise", false, 150)
+	s.traffic_seed = 3
+	s.autodrive = true
+	s.garage_preloaded = true
+	s._garage_pool = pool # the test's, not this PC's garage
+	add_child(s)
+	await _wait_for_car(s)
+	var tm := s.traffic
+	assert_int(tm.models.cars.size()).is_equal(pool.size())
+	for g: int in tm.models.cars:
+		assert_bool(tm.models.pinned.has(g) and tm.models.pkgs.has(g)).override_failure_message("car %d" % g).is_true()
+	# A car of each kind made: parked (out of the way, not among the cars) or driving.
+	var kinds := {}
+	for i in tm.sim.get_count():
+		kinds[Vector2i(int(tm.sim.car(i).type), tm.garage_of(i))] = true
+	for kind: Vector2i in kinds:
+		var parked: Array = tm._pool.get(kind, [])
+		for v: Vehicle in parked:
+			assert_bool(v.is_in_group(&"vehicles") or v.process_mode != Node.PROCESS_MODE_DISABLED or not v.freeze).is_false()
+		var driving := tm.cars.keys().filter(func(car: int) -> bool:
+			return Vector2i(int(tm.sim.car(car).type), (tm.cars[car] as TrafficCar).garage) == kind).size()
+		assert_int(parked.size() + driving).override_failure_message("kind %s" % kind).is_greater(0)
+	for view: MultiMeshInstance3D in tm._views:
+		assert_int(view.physics_interpolation_mode).is_equal(Node.PHYSICS_INTERPOLATION_MODE_OFF)
+	# Physics cars: their garage cars from the start.
+	var seen := 0
+	for i in 40:
+		for car: int in tm.cars:
+			var tc: TrafficCar = tm.cars[car]
+			assert_int(tc.garage).override_failure_message("car %d" % car).is_equal(tm.garage_of(car))
+			if tc.garage >= 0:
+				assert_str(tc.vehicle.package.path).is_equal(String(tm.models.cars[tc.garage].path))
+				seen += 1
+		if seen > 20:
+			break
+		await _ticks(30)
+	assert_int(seen).is_greater(0)
+	# Nothing loads in the drive, and nothing goes.
+	assert_bool(tm.models.loading.is_empty()).is_true()
+	tm.models.sweep(tm._clock + GarageModels.UNLOAD_S * 3.0, {})
+	assert_int(tm.models.pkgs.size()).is_equal(pool.size())
 	s.queue_free()
 	await get_tree().process_frame

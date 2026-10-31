@@ -13,6 +13,10 @@ func after() -> void:
 	Settings.use_folder("user://")
 
 
+func after_test() -> void:
+	GaragePreload.clear() # the other tests stream theirs
+
+
 func _session(density := "normal", lanes := 2, side := "right") -> TrackSession:
 	Players.clear()
 	var s := TrackSession.new()
@@ -486,5 +490,63 @@ func test_a_trap_patrol_parks_on_the_verge() -> void:
 	var car: EndlessTrafficCar = t.cars[key]
 	assert_float(car.vehicle.global_position.distance_to(at.origin)).is_less(2.0)
 	assert_float(absf(car.vehicle.speed())).is_less(0.5)
+	s.queue_free()
+	await get_tree().process_frame
+
+
+## Loaded before the drive (D246): every car's pinned, a car of each kind is made before the first
+## frame, and a physics car that goes is parked out of the way and is the next of its kind; one
+## whose model goes is freed.
+func test_cars_loaded_before_the_drive_and_physics_cars_kept() -> void:
+	var built_in := PackedStringArray(Array(PackageLoader.list_available()).filter(func(p: String) -> bool: return p.begins_with("res://")))
+	var pool := EndlessTraffic.garage_pool(built_in, 31337)
+	var batch: GaragePreload = auto_free(GaragePreload.new())
+	batch.items = GaragePreload.items_of(pool)
+	var done := [false]
+	batch.finished.connect(func(_loaded: int, _left: int) -> void: done[0] = true)
+	add_child(batch)
+	for i in 300:
+		if done[0]:
+			break
+		await get_tree().process_frame
+	Players.clear()
+	var s := TrackSession.new()
+	s.platform_id = "official.endless.cruiser"
+	s.event = RaceEvent.endless(31337, 2)
+	s.event.endless_traffic = "heavy"
+	s.autodrive = true
+	s.garage_preloaded = true
+	s._garage_pool = pool # the test's, not this PC's garage
+	add_child(s)
+	await _wait_for_car(s)
+	var t: EndlessTraffic = s.endless_traffic
+	assert_int(t.garage.size()).is_equal(pool.size())
+	for g: int in t.garage:
+		assert_bool(t.models.pinned.has(g) and t.models.pkgs.has(g)).is_true()
+		for type: int in t.garage[g].fits:
+			assert_bool(t._pool.has(Vector2i(type, g))).override_failure_message("car %d as %d" % [g, type]).is_true()
+	for i in 120:
+		if not t.cars.is_empty():
+			break
+		await _ticks(30)
+	assert_int(t.cars.size()).is_greater(0)
+	var key: Vector2i = t.cars.keys()[0]
+	var car: EndlessTrafficCar = t.cars[key]
+	assert_object(car.kind).is_equal(Vector2i(t.slot_type(key), car.garage))
+	var v := car.vehicle
+	var kind := car.kind
+	t._remove(key)
+	assert_bool((t._pool[kind] as Array).has(v)).is_true()
+	assert_bool(v.is_in_group(&"vehicles")).is_false()
+	assert_int(v.process_mode).is_equal(Node.PROCESS_MODE_DISABLED)
+	var again := t._take_vehicle(kind.x, kind.y)
+	assert_object(again).is_same(v)
+	assert_bool(again.is_in_group(&"vehicles")).is_true()
+	t._park(again, kind)
+	if kind.y >= 0:
+		t._on_whole_gone(kind.y)
+		assert_bool(t._pool.has(kind)).is_false()
+		await get_tree().process_frame
+		assert_bool(is_instance_valid(v)).is_false()
 	s.queue_free()
 	await get_tree().process_frame

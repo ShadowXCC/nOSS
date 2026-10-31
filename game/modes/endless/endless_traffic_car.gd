@@ -25,6 +25,8 @@ var traffic: EndlessTraffic
 var key: Vector2i
 ## The garage car it is (EndlessTraffic.garage), or -1.
 var garage := -1
+## Its physics car's kind (EndlessTraffic's pool): Vector2i(type, garage car; -1 the stock one).
+var kind := Vector2i(0, -1)
 var vehicle: Vehicle
 ## Where it is: absolute distance along the road, and its speed (m/s, its own way).
 var s := 0.0

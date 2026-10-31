@@ -56,7 +56,9 @@ const TICK_HZ := 20
 ## a loop nearly every car comes within 600 m). What a car is drawn as only changes while it's out
 ## of sight (VIEW_M + 50 m from every camera), or in the first SETTLE_S while the views are made.
 ## A physics car that started as the stock car (its model wasn't here yet) becomes its garage car
-## once it is, while no player's camera sees it (D241): SWAPS_PER_STREAM at most a time.
+## once it is, while no player's camera sees it (D241): SWAPS_PER_STREAM at most a time. Offline
+## every car's loaded before the drive (D246), so none starts as a stand-in; a stand-in is an
+## online car not in by the start.
 const STREAM_S := 0.5
 const GARAGE_FAR_M := VIEW_M + 500.0
 const GARAGE_NEAR_M := 400.0
@@ -113,7 +115,7 @@ var _types: Array[Dictionary] = []
 var _car_type := PackedInt32Array()
 var _packages := {} # type -> VehiclePackage (copied for each physics car)
 var _platforms := {} # type -> PlatformLoader.Result
-var _pool := {} # type -> [Vehicle] not in use
+var _pool := {} # Vector2i(type, garage car; -1 the stock one) -> [Vehicle] parked, ready
 var _views: Array[MultiMeshInstance3D] = []
 var _boxes: Array[AnimatableBody3D] = []
 var _time := 0.0
@@ -196,6 +198,7 @@ func _ready() -> void:
 		var pkg := PackageLoader.load_package("res://content/traffic/" + String(_types[t].model), {}, {} if draws else { "models": "none", "audio": false })
 		if pkg.ok():
 			_packages[t] = pkg
+	prebuild.call_deferred()
 	if draws:
 		_make_views()
 		var sound := TrafficSound.new()
@@ -604,15 +607,42 @@ func _take_vehicle(type: int, g := -1) -> Vehicle:
 		v.visible = true
 		v.collision_layer = Vehicle.LAYER_VEHICLES
 		v.collision_mask = Vehicle.LAYER_WORLD | Vehicle.LAYER_VEHICLES
+		v.add_to_group(&"vehicles")
 		return v
+	return _build_vehicle(type, g)
+
+
+## A new physics car for traffic type `type` (as garage car `g`; -1 the stock one), in the session:
+## 20-40 ms of work, so the drive's start makes those it needs (prebuild).
+func _build_vehicle(type: int, g := -1) -> Vehicle:
 	var platform: PlatformLoader.Result = _platforms[type]
-	if not platform.ok():
+	if not platform.ok() or (g >= 0 and not models.pkgs.has(g)) or (g < 0 and not _packages.has(type)):
 		return null
 	var v := Vehicle.create(platform, PackageLoader.copy(models.pkgs[g] if g >= 0 else _packages[type]))
 	v.name = "TrafficVehicle"
 	v.visual_every_frame = true
 	session.add_child(v)
 	return v
+
+
+## Before the first frame (D246): one physics car of each kind the traffic has (each type's stock
+## car, and each loaded garage car in each type it's picked for), parked in the pool, so the drive
+## makes none of them in a physics frame.
+func prebuild() -> void:
+	if sim == null or session == null or not is_inside_tree():
+		return
+	var kinds := {}
+	for i in _car_type.size():
+		var g := garage_of(i)
+		kinds[Vector2i(_car_type[i], g if g >= 0 and models.pkgs.has(g) else -1)] = true
+	for key: Vector2i in kinds:
+		if not _pool.has(key):
+			_pool[key] = []
+		if not (_pool[key] as Array).is_empty():
+			continue
+		var v := _build_vehicle(key.x, key.y)
+		if v:
+			_park(v, key)
 
 
 ## Physics car (or proxy) `car` goes back into the pool.
@@ -640,6 +670,7 @@ func _park(v: Vehicle, key: Vector2i) -> void:
 	v.collision_mask = 0
 	v.global_position = Vector3(0, -2000.0, 0)
 	v.process_mode = Node.PROCESS_MODE_DISABLED
+	v.remove_from_group(&"vehicles") # what looks at every car (weather, tire tracks) passes it by
 	if _pool.has(key):
 		(_pool[key] as Array).append(v)
 	else:
@@ -958,6 +989,9 @@ func set_garage(pool: Array[Dictionary]) -> void:
 		mine.append(e)
 	models.set_pool(mine)
 	_deal_picks(PackedInt32Array(range(mine.size())))
+	# Loaded before the drive (D246): each drives and is drawn as itself from the start.
+	models.adopt_loaded()
+	_apply_views(true)
 
 
 ## Online: the server's set (Net.endless_garage, D239): its cars, each fetched in full now (one
