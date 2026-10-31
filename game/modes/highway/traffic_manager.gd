@@ -1006,7 +1006,12 @@ func use_garage(sets: EndlessGarage) -> void:
 		models.car_here(String(registry[g].car))
 		if String(registry[g].path).is_empty() and Net.content:
 			Net.content.fetch_car(String(registry[g].car), 1, Net.content.max_tier)
-	_deal_picks(sets.sets.get(sets.k, PackedInt32Array()))
+	var held := sets.sets.get(sets.k, PackedInt32Array()) as PackedInt32Array
+	_deal_picks(held)
+	# Kept from an earlier event (D246); the rest load while the start waits.
+	models.adopt_loaded(true)
+	models.hold_for = func() -> Array:
+		return Array(held) if session and session.race.phase == RaceControl.Phase.LOADING else []
 
 
 ## TrafficTypes indexes of the type ids `ids` (patrols never).

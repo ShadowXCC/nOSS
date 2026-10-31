@@ -111,14 +111,15 @@ func _on_end(kind: String, results: Array) -> void:
 
 
 ## This game's part of the start (D127): how many of the session's cars are here and loaded
-## (own cars spawned, others' whole as this game fetches them), sent when it changes.
+## (own cars spawned, others' whole as this game fetches them), and of the garage cars in the
+## traffic (D246), sent when it changes.
 func report_sync() -> void:
 	var have := 0
 	for r in session.racers:
 		var here := (r as NetRacer).settled() if r is NetRacer else r.vehicle != null
 		if here:
 			have += 1
-	var now := Vector2i(have, session.racers.size())
+	var now := Vector2i(have, session.racers.size()) + session.garage_sync()
 	if now != _sync_sent:
 		_sync_sent = now
 		Net.request(NetProtocol.Msg.SYNCED, { "have": now.x, "of": now.y })

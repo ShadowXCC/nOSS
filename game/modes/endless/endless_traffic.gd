@@ -320,10 +320,16 @@ func set_garage(pool: Array[Dictionary]) -> void:
 	models.adopt_loaded() # loaded before the drive (D246)
 
 
-## Online: the server's sets (Net.endless_garage, D233); garage_changed() after each swap.
+## Online: the server's sets (Net.endless_garage, D233); garage_changed() after each swap. While
+## the start waits, the cars of this set and the next load (D246).
 func use_garage(sets: EndlessGarage) -> void:
 	garage_sets = sets
 	garage_changed()
+	models.adopt_loaded(true) # kept from an earlier event
+	models.hold_for = func() -> Array:
+		if session == null or session.race.phase != RaceControl.Phase.LOADING:
+			return []
+		return Array(garage_sets.sets.get(garage_sets.k, PackedInt32Array())) + Array(garage_sets.sets.get(garage_sets.k + 1, PackedInt32Array()))
 
 
 ## The server's sets changed: new cars join `garage`, the newest set's cars and the next one's (a
