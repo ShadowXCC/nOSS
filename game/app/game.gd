@@ -370,18 +370,56 @@ func selected_track(type := "") -> String:
 
 
 ## Starts `session`, its track loaded off the main thread first behind a loading screen (a
-## preloaded track_package goes straight in).
+## preloaded track_package goes straight in), then the garage cars in its traffic (_after_track).
 func open_session(session: TrackSession) -> void:
 	# Endless makes its own road; sumo its platforms (D162) and drag its strip (D168): none of
 	# them loads a track file.
 	if (session.track_package and session.track_package.ok()) or session.event.kind in ["endless", "sumo", "drag"]:
-		_switch(session)
+		_after_track(session)
 		return
-	_switch(LoadingScreen.new())
+	_loading = LoadingScreen.new()
+	_switch(_loading)
 	TrackLoader.load_async(self, session.track_path, func(pkg: TrackPackage) -> void:
 		if pkg.ok():
 			session.track_package = pkg
-		_switch(session))
+		_after_track(session))
+
+
+## The loading screen up now (open_session), if any.
+var _loading: LoadingScreen
+
+
+## The track's here: the garage cars its traffic has load before the drive, behind the loading
+## screen (D246); those that don't fit in memory are left out of it. They stay loaded for the next
+## drive; a drive without them lets them go.
+func _after_track(session: TrackSession) -> void:
+	var pool: Array[Dictionary] = []
+	if not hold_scenes: # tests looking where a button leads
+		pool = session.garage_pool_here()
+	if pool.is_empty():
+		GaragePreload.clear()
+		_loading = null
+		_switch(session)
+		return
+	GaragePreload.keep_only(pool.map(func(d: Dictionary) -> String: return String(d.path)))
+	session.garage_preloaded = true
+	var batch := GaragePreload.new()
+	batch.items = GaragePreload.items_of(pool)
+	if GaragePreload.missing(batch.items) == 0:
+		batch.free()
+		_loading = null
+		_switch(session)
+		return
+	batch.draws = Vehicle.drawn
+	batch.finished.connect(func(loaded: int, left_out: int) -> void:
+		if batch.memory_full:
+			session.garage_note = "Garage cars: %d/%d (memory)" % [loaded, loaded + left_out]
+		_loading = null
+		_switch(session), CONNECT_ONE_SHOT)
+	if _loading == null or not is_instance_valid(_loading):
+		_loading = LoadingScreen.new()
+		_switch(_loading)
+	_loading.load_garage(batch)
 
 
 ## `solo`: only P1 drives (garage and Fitting Bay); otherwise every joined player. `track`: a
@@ -565,6 +603,7 @@ func _on_net_cut_off(reason: String) -> void:
 ## on that car's page.
 func open_garage(select := "", page := "") -> void:
 	get_tree().paused = false
+	GaragePreload.clear() # its cars may change (D246)
 	var garage := Garage.new()
 	garage.start_car = select
 	garage.start_page = page
@@ -671,6 +710,8 @@ func go_event_menu() -> void:
 func go_title() -> void:
 	cup = null # leaving a cup ends it
 	get_tree().paused = false
+	if not reopen_flow and not Net.online():
+		GaragePreload.clear() # the next drive may be another (D246); online, the lobby's next event may want them
 	if hold_scenes:
 		scene_requested.emit("TitleScreen", null)
 		return
@@ -680,6 +721,7 @@ func go_title() -> void:
 func _exit_tree() -> void:
 	if bay_draft is FittingDraft:
 		bay_draft.free_scene()
+	GaragePreload.clear()
 
 
 func quit() -> void:

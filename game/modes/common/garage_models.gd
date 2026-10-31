@@ -12,6 +12,11 @@ extends Node
 ## main thread now and then (reading a texture back); some 50 at once at a highway's start took
 ## every worker, so Jolt's jobs, which share the pool, waited on them while they waited on the
 ## main thread: the game froze.
+##
+## Offline every car's loaded before the drive (GaragePreload, D246): the traffic adopts them,
+## pinned (never wanted, never let go), and the streaming above is only for cars that aren't
+## (online, those not in by the start). Online, while the start waits (D127), the cars `hold_for`
+## gives load in a batch of their own wherever they are, and are pinned as they come in.
 
 ## Of the cars of a type some garage car fits, this share are garage cars.
 const GARAGE_SHARE := 0.8
@@ -25,6 +30,8 @@ const VIEW_TIMEOUT_S := 30.0
 ## worker), at most every TRIM_S: a 10-minute drive grew from 3.4 to 5.3 GB without it, and stayed
 ## near 2 GB with it.
 const TRIM_S := 10.0
+## How often the start's hold looks for cars that have come in.
+const HOLD_S := 0.25
 
 ## A car's far view is made (its smallest LOD merged, fitted to its first type's platform).
 signal view_made(g: int, mesh: ArrayMesh)
@@ -53,6 +60,11 @@ var loading := {}
 ## For the dev log: the most whole models loaded at once, the longest far-view merge (ms).
 var most_loaded := 0
 var view_ms := 0.0
+## Garage index -> true: loaded before the drive (adopt) and kept for it.
+var pinned := {}
+## Online, while the start waits: () -> [garage index] to load now; [] once it's over (then never
+## again). Unset: no hold.
+var hold_for := Callable()
 
 var _near_d := {} # garage index -> how near a player it was wanted this sweep (m)
 var _far_d := {} # garage index -> how near a camera it was wanted this sweep (m)
@@ -62,15 +74,23 @@ var _viewing := false # a far view is being merged
 var _freed := false # a car went since the last trim
 var _trim_at := -INF
 var _trim_task := -1
+var _hold: GaragePreload # the start's batch
+var _hold_cars := {} # garage index -> true: the cars the start waits for
+var _hold_in := 0.0
 
 
 func _init() -> void:
 	name = "GarageModels"
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not _view_queue.is_empty() and not _viewing:
 		_next_view()
+	if hold_for.is_valid():
+		_hold_in -= delta
+		if _hold_in <= 0.0:
+			_hold_in = HOLD_S
+			_hold_step(hold_for.call())
 
 
 func _exit_tree() -> void:
@@ -111,8 +131,10 @@ func car_here(car: String) -> void:
 
 
 ## The traffic has car `g` at `at` (its clock): within `near_m` of a player (INF: not near one),
-## `far_m` from the nearest camera (its far view loads nearest first).
+## `far_m` from the nearest camera (its far view loads nearest first). A pinned car has all it needs.
 func want(g: int, at: float, near_m := INF, far_m := INF) -> void:
+	if pinned.has(g):
+		return
 	wanted[g] = at
 	_far_d[g] = minf(float(_far_d.get(g, INF)), far_m)
 	if near_m < INF:
@@ -176,7 +198,7 @@ func _sweep_nearest(at: float, driven: Dictionary) -> void:
 	var out := -1
 	var out_d := -1.0
 	for g: int in pkgs:
-		if driven.has(g) or keep.has(g):
+		if driven.has(g) or keep.has(g) or pinned.has(g):
 			continue
 		var d := float(_near_d.get(g, INF))
 		if d > out_d:
@@ -202,8 +224,9 @@ func _loading(far_lod: bool) -> int:
 	return loading.keys().filter(func(k: Vector2i) -> bool: return k.y == int(far_lod)).size()
 
 
+## Whole models streamed: loaded (pinned ones aside) and loading.
 func _whole() -> int:
-	return pkgs.size() + _loading(false)
+	return pkgs.size() - pinned.size() + _loading(false)
 
 
 func _has_whole(g: int) -> bool:
@@ -220,13 +243,18 @@ func load_opts() -> Dictionary:
 func _load(g: int, far_lod: bool) -> void:
 	var into := far if far_lod else pkgs
 	var key := Vector2i(g, int(far_lod))
-	if into.has(g) or loading.has(key) or not cars.has(g) or String(cars[g].path).is_empty() or cars[g].get("broken", false):
+	if into.has(g) or loading.has(key) or not cars.has(g) or String(cars[g].path).is_empty() or cars[g].get("broken", false) \
+			or pinned.has(g) or (_hold and _hold_cars.has(g)):
 		return
 	loading[key] = true
 	PackageLoader.load_shared(String(cars[g].path), func(pkg: VehiclePackage) -> void:
 		loading.erase(key)
 		if not pkg.ok():
 			cars[g].broken = true
+			return
+		if pinned.has(g): # adopted meanwhile
+			pkg.free_scenes()
+			PackageLoader.drop_shared(String(cars[g].path), FAR_OPTS if far_lod else load_opts())
 			return
 		into[g] = pkg
 		if far_lod:
@@ -236,7 +264,7 @@ func _load(g: int, far_lod: bool) -> void:
 func _unload(g: int, far_lod: bool) -> void:
 	var into := far if far_lod else pkgs
 	var pkg: VehiclePackage = into.get(g)
-	if pkg == null:
+	if pkg == null or pinned.has(g):
 		return
 	into.erase(g)
 	pkg.free_scenes()
@@ -249,6 +277,83 @@ func _unload(g: int, far_lod: bool) -> void:
 	else:
 		whole_gone.emit(g)
 	PackageLoader.drop_shared(String(cars[g].path), FAR_OPTS if far_lod else load_opts())
+
+
+## Garage car `g` from the loaded cars (`entry`, GaragePreload.get_car): its whole model and its far
+## view, kept for the session (pinned). One streamed in already keeps its whole model.
+func adopt(g: int, entry: Dictionary) -> void:
+	if entry.is_empty() or not cars.has(g) or pinned.has(g):
+		return
+	pinned[g] = true
+	wanted.erase(g)
+	wanted_near.erase(g)
+	if not pkgs.has(g):
+		pkgs[g] = PackageLoader.copy(entry.pkg)
+	var mesh: ArrayMesh = entry.get("far")
+	if mesh == null or _made.has(g):
+		return
+	if far.has(g):
+		(far[g] as VehiclePackage).free_scenes()
+		far.erase(g)
+		_view_queue.erase(g)
+		PackageLoader.drop_shared(String(cars[g].path), FAR_OPTS)
+	_made[g] = true
+	view_made.emit(g, mesh)
+
+
+## Adopts every car of ours that's loaded already (GaragePreload); online, lets go of loaded cars
+## we don't have (an earlier event's).
+func adopt_loaded(online := false) -> void:
+	var paths := []
+	for g: int in cars:
+		var path := String(cars[g].path)
+		if path:
+			paths.append(path)
+			adopt(g, GaragePreload.get_car(path))
+	if online:
+		GaragePreload.keep_only(paths)
+
+
+## Online, while the start waits (hold_for): the cars `gs` that are here load now (a batch of their
+## own, low priority), pinned as they come in. Empty: the start's gone; those still missing stream
+## as the rest do.
+func _hold_step(gs: Array) -> void:
+	if gs.is_empty():
+		hold_for = Callable()
+		if _hold:
+			_hold.stop() # it goes once what's in flight lands
+		_hold = null
+		_hold_cars.clear()
+		return
+	if _hold == null and draws:
+		_hold = GaragePreload.new()
+		_hold.in_session = true
+		_hold.car_loaded.connect(_on_held)
+		add_child(_hold)
+	for g: int in gs:
+		_hold_cars[g] = true
+		if _hold == null or pinned.has(g) or not cars.has(g) or String(cars[g].path).is_empty():
+			continue
+		var fits: Array = cars[g].fits
+		var platform: PlatformLoader.Result = platforms.get(int(fits[0])) if not fits.is_empty() else null
+		_hold.add({ "path": String(cars[g].path), "platform": platform.platform if platform and platform.ok() else {} })
+
+
+## A car the start's batch loaded: whichever of ours it is, adopted.
+func _on_held(path: String) -> void:
+	for g: int in cars:
+		if String(cars[g].path) == path:
+			adopt(g, GaragePreload.get_car(path))
+
+
+## Online, while the start waits: (cars it waits for that are in or given up, cars it waits for).
+func sync() -> Vector2i:
+	var done := 0
+	for g: int in _hold_cars:
+		var path := String(cars[g].path) if cars.has(g) else ""
+		if pinned.has(g) or not cars.has(g) or cars[g].get("broken", false) or (_hold and _hold.left.has(path)):
+			done += 1
+	return Vector2i(done, _hold_cars.size())
 
 
 ## The next queued far view, merged on a worker from a copy of the car's smallest LOD (its loaded

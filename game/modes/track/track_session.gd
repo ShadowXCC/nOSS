@@ -152,6 +152,11 @@ var _ai_classes := {} # AI index -> class id
 var traffic: TrafficManager
 ## Dev and tests: the traffic's seed (-1: the track's).
 var traffic_seed := -1
+## Its garage cars were loaded before the drive (Game, D246): the traffic has only those loaded.
+var garage_preloaded := false
+## For P1 at the start: some were left out ("Garage cars: 20/27 (memory)"), or "".
+var garage_note := ""
+var _garage_pool: Variant = null # garage_pool_here(), once worked out
 ## Highways: each player's starting direction by player order ([] or missing: the event's).
 var directions: Array = []
 ## An endless drive (docs/GAMEMODES.md §4, D157): its rules, its world (the road window is the
@@ -334,7 +339,7 @@ func _ready_endless() -> void:
 		# Garage cars in the traffic (D191): every one of this game's left on in the Garage (D222,
 		# D233); online, the server's sets (_ready_online).
 		if event.garage_traffic and not is_online():
-			traffic.set_garage(EndlessTraffic.garage_pool(GarageFiles.traffic_paths(PackageLoader.list_available()), event.road_seed))
+			traffic.set_garage(_garage_for_drive())
 	if event.speed_traps and not dedicated:
 		endless_traps = EndlessTraps.new()
 		endless_traps.session = self
@@ -533,6 +538,8 @@ func _ready() -> void:
 		skills.shuffle()
 		for i in ai_racers:
 			_add_ai(i, pool, skills[i])
+		if garage_note and not players.is_empty():
+			players[0].notify.call_deferred(garage_note, 4.0) # once its HUD's up
 	Players.remember_all()
 	Players.joined.connect(_on_joined)
 	Players.left.connect(_on_left)
@@ -730,8 +737,9 @@ func _ready_highway() -> void:
 				run.run = runs[0]
 				add_child(run)
 	var settings: Dictionary = track.highway.settings.traffic
-	var count := event.traffic if event.traffic >= 0 else int(settings.count)
-	var seed := traffic_seed if traffic_seed >= 0 else int(Game.dev.get("traffic-seed", settings.get("seed", 1)))
+	var here := _highway_traffic(track)
+	var seed := here.x
+	var count := here.y
 	if is_online():
 		# Online every game runs the server's traffic: its seed and count (D109).
 		var hw: Dictionary = online.get("highway", {})
@@ -750,7 +758,7 @@ func _ready_highway() -> void:
 			# Garage cars in the traffic (D239): every one of this game's left on in the Garage;
 			# online, the server's set (_ready_online).
 			if event.garage_traffic and count != 0 and not is_online():
-				traffic.set_garage(EndlessTraffic.garage_pool(GarageFiles.traffic_paths(PackageLoader.list_available()), seed))
+				traffic.set_garage(_garage_for_drive())
 		else:
 			traffic = null
 	if event.police and (not is_online() or Net.is_server()):
@@ -761,6 +769,58 @@ func _ready_highway() -> void:
 		police.police_class = String(GameModes.list().filter(func(m: Dictionary) -> bool: return m.id == "highway").map(
 			func(m: Dictionary) -> String: return String(m.get("police_class", "official.highway.interceptor"))).front())
 		add_child(police)
+
+
+## A highway's traffic offline: Vector2i(seed, cars), from the event, dev options and the track.
+func _highway_traffic(on: TrackData) -> Vector2i:
+	var settings: Dictionary = on.highway.settings.traffic
+	return Vector2i(traffic_seed if traffic_seed >= 0 else int(Game.dev.get("traffic-seed", settings.get("seed", 1))),
+		event.traffic if event.traffic >= 0 else int(settings.count))
+
+
+## The garage cars this game's traffic will have (EndlessTraffic.garage_pool: every car of this
+## game's left on in the Garage that some traffic type takes): offline with garage traffic on, on a
+## highway or endless road with traffic. Worked out once; Game loads them before the drive (D246),
+## the track loaded but the session not started yet.
+func garage_pool_here() -> Array[Dictionary]:
+	if _garage_pool is Array:
+		return _garage_pool
+	var pool: Array[Dictionary] = []
+	_garage_pool = pool
+	if not event.garage_traffic or is_online() or dedicated or Game.dev.has("bot"):
+		return pool
+	var seed := -1
+	if event.kind == "highway":
+		var on: TrackData = track if track else track_package.track if track_package and track_package.ok() else null
+		if on == null or on.highway == null or _highway_traffic(on).y == 0:
+			return pool
+		seed = _highway_traffic(on).x
+	elif event.kind == "endless" and event.endless_traffic != "off":
+		seed = event.road_seed
+	else:
+		return pool
+	_garage_pool = EndlessTraffic.garage_pool(GarageFiles.traffic_paths(PackageLoader.list_available()), seed)
+	return _garage_pool
+
+
+## The garage cars in this drive's traffic: after a preload, only those it loaded (the rest are left
+## out, D246); otherwise all of them, loaded as they come near (D241).
+func _garage_for_drive() -> Array[Dictionary]:
+	var pool := garage_pool_here()
+	if not garage_preloaded:
+		return pool
+	var loaded: Array[Dictionary] = []
+	for d in pool:
+		if not GaragePreload.get_car(String(d.path)).is_empty():
+			loaded.append(d)
+	return loaded
+
+
+## Online, while the start waits (D127): (garage cars in or given up, cars it waits for), on a game
+## that draws them (D246).
+func garage_sync() -> Vector2i:
+	var models: GarageModels = traffic.models if traffic else (endless_traffic as EndlessTraffic).models if endless_traffic else null
+	return models.sync() if models and models.draws else Vector2i.ZERO
 
 
 ## Kart (D129): the kart node next to an ordinary session. No track limits: falling off is
@@ -946,6 +1006,10 @@ func _ready_online() -> void:
 	net.name = "NetSession"
 	net.session = self
 	add_child(net)
+	# Garage cars kept from an earlier event (D246): the traffic keeps those it has (use_garage);
+	# without garage traffic they go.
+	if not (event.garage_traffic and Net.endless_garage and (traffic or endless_traffic)):
+		GaragePreload.clear()
 	if highway:
 		if Net.host_logic:
 			Net.host_logic.board_requested.connect(_on_board_requested)
