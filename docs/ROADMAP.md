@@ -617,6 +617,45 @@ online, shared as small files (D242-D245, v0.14.0).*
 - [ ] The Forza livery-mask guide (optional): not done; the masks' mapping is still to fit.
 - [ ] By hand (the owner): a livery on a Forza garage car and on the Box, with a pad.
 
+## Garage traffic: loaded before the drive
+
+*Loading garage cars during the drive (D241) kept physics slow all drive: the physics-car cap fell,
+near cars stayed low-poly lane cars, stand-ins swapped in. Now they load in a short pause behind
+the loading screen (D246, v0.14.1).*
+
+- **The pause:** after the track, "Loading garage cars" and a bar; every car whole, its far view from
+  its smallest LOD. Cars that don't fit in memory (free RAM, 3.5 GB of video memory) are left out of
+  that drive, and P1 is told.
+- **Kept:** loaded cars stay for the next drive; the main menu, the garage and a drive without
+  garage traffic let them go.
+- **In the drive:** every loaded car is pinned (never let go), every physics car is its garage car
+  from the start, one car of each kind is made before the first frame (endless keeps its physics
+  cars now too).
+- **Online:** the start's hold (3-30 s) waits for each game's garage cars too.
+- **Small fixes:** highway views not interpolated (cars blinked); the cap ignores the first 5 s;
+  `cap_min=` in PERF_LOG.
+
+- [x] A batch loads its cars with progress; the next loads none; let go, a changed file, out of
+  memory (the rest left out), quitting mid-batch. *`garage_preload_test`.*
+- [x] Pinned cars, physics cars as themselves from the start, a car of each kind made, views not
+  interpolated. *`highway_garage_test`; `endless_traffic_test` (a physics car parked and used
+  again).*
+- [x] The online hold counts the cars it waits for. *`garage_preload_test`.*
+- [x] Windowed on the dev PC, highway 650, 4 min: the cap holds (40-48), physics p95 22 ms against
+  37, no interpolation warnings, RSS flat. *16 of 27 cars fit under 3.5 GB of video memory (about
+  210 MB each; all 27 need 5.5 GB).*
+- [x] Endless heavy: 3.16 ms a frame against 3.43, physics p95 1.7 ms against 26.9; every car drawn
+  as itself from the first second. A second drive starts at once; quitting during the pause exits.
+- [x] Online, a server and two windowed guests on one PC: the start waits for the cars (30 s here:
+  one guest took 36 s).
+- [ ] **Frame time on highways: 14.5 ms against 5.4** (650, no vsync). With the cap holding, 24
+  physics cars near a player are mostly FM4 garage cars (about 550 nodes over 5 LODs each), and
+  moving them costs about 10 ms a frame. The owner decides: merge each traffic car's model, fewer
+  garage physics cars, or accept.
+- [ ] **The video memory ceiling** (3.5 GB, the owner's to pick): only 16 of 27 cars fit on the
+  dev PC.
+- [ ] On the i7-7700, and a drive by hand (the owner).
+
 ## M10+: Backlog (order to be decided)
 
 | Item | IDs |
