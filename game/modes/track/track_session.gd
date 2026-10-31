@@ -577,6 +577,14 @@ func _ready() -> void:
 		add_child(time_trial)
 
 
+## A session that never started (the game quit while it loaded): the nodes made for it go too.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		for n: Node in [views, field, race]:
+			if is_instance_valid(n) and n.get_parent() == null:
+				n.free()
+
+
 func _exit_tree() -> void:
 	if Net.roster_changed.is_connected(_on_roster):
 		Net.roster_changed.disconnect(_on_roster)

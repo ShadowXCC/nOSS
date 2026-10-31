@@ -379,26 +379,30 @@ func open_session(session: TrackSession) -> void:
 		return
 	_loading = LoadingScreen.new()
 	_switch(_loading)
+	_waiting = session
 	TrackLoader.load_async(self, session.track_path, func(pkg: TrackPackage) -> void:
 		if pkg.ok():
 			session.track_package = pkg
 		_after_track(session))
 
 
-## The loading screen up now (open_session), if any.
+## The loading screen up now (open_session), if any, and the session waiting behind it.
 var _loading: LoadingScreen
+var _waiting: TrackSession
 
 
 ## The track's here: the garage cars its traffic has load before the drive, behind the loading
 ## screen (D246); those that don't fit in memory are left out of it. They stay loaded for the next
 ## drive; a drive without them lets them go.
 func _after_track(session: TrackSession) -> void:
+	_waiting = session
 	var pool: Array[Dictionary] = []
 	if not hold_scenes: # tests looking where a button leads
 		pool = session.garage_pool_here()
 	if pool.is_empty():
 		GaragePreload.clear()
 		_loading = null
+		_waiting = null
 		_switch(session)
 		return
 	GaragePreload.keep_only(pool.map(func(d: Dictionary) -> String: return String(d.path)))
@@ -408,6 +412,7 @@ func _after_track(session: TrackSession) -> void:
 	if GaragePreload.missing(batch.items) == 0:
 		batch.free()
 		_loading = null
+		_waiting = null
 		_switch(session)
 		return
 	batch.draws = Vehicle.drawn
@@ -415,6 +420,7 @@ func _after_track(session: TrackSession) -> void:
 		if batch.memory_full:
 			session.garage_note = "Garage cars: %d/%d (memory)" % [loaded, loaded + left_out]
 		_loading = null
+		_waiting = null
 		_switch(session), CONNECT_ONE_SHOT)
 	if _loading == null or not is_instance_valid(_loading):
 		_loading = LoadingScreen.new()
@@ -721,6 +727,8 @@ func go_title() -> void:
 func _exit_tree() -> void:
 	if bay_draft is FittingDraft:
 		bay_draft.free_scene()
+	if is_instance_valid(_waiting) and not _waiting.is_inside_tree():
+		_waiting.free() # quit while it loaded
 	GaragePreload.clear()
 
 

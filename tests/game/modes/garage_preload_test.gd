@@ -204,7 +204,7 @@ func test_a_drive_has_only_the_cars_loaded_before_it() -> void:
 		o.event = RaceEvent.highway("cruise", false, 0 if off[0] == "traffic" else 150)
 		o.event.garage_traffic = off[0] != "garage"
 		assert_int(o.garage_pool_here().size()).override_failure_message(str(off)).is_equal(0)
-		_free_session(o)
+		o.free()
 	var endless := TrackSession.new()
 	endless.event = RaceEvent.endless(31337, 2)
 	endless.event.endless_traffic = "off"
@@ -212,14 +212,5 @@ func test_a_drive_has_only_the_cars_loaded_before_it() -> void:
 	endless.event.endless_traffic = "heavy"
 	endless._garage_pool = null
 	assert_int(endless.garage_pool_here().size()).is_equal(pool.size())
-	_free_session(endless)
-	_free_session(s)
-
-
-## A session that never started, and the nodes it made to add then.
-func _free_session(s: TrackSession) -> void:
-	for p: Dictionary in s.get_property_list():
-		var v: Variant = s.get(String(p.name))
-		if v is Node and is_instance_valid(v) and v != s and (v as Node).get_parent() == null:
-			(v as Node).free()
-	s.free()
+	for never_started: TrackSession in [endless, s]: # the nodes they made go with them
+		never_started.free()
