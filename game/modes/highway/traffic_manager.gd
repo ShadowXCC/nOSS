@@ -30,7 +30,7 @@ const CAP_GAME := 24
 const CAP_PLAYER := 12
 const CAP_MIN := 4
 ## Physics this slow (ms a frame) for 2 s trims the cap by 2; under half of it for 10 s, it grows
-## back by 1.
+## back by 1. Not in the first SETTLE_S (the start's frames are slow anyway).
 const SLOW_MS := 6.0
 ## Stand-in boxes for lane cars this close to a player (at most `boxes` of them).
 const BOX_M := 40.0
@@ -885,6 +885,8 @@ func _adapt(delta: float) -> void:
 
 
 func adapt_to(ms: float, delta: float) -> void:
+	if _clock < SETTLE_S:
+		return
 	_slow_time = _slow_time + delta if ms > SLOW_MS else 0.0
 	_fast_time = _fast_time + delta if ms < SLOW_MS / 2.0 else 0.0
 	if _slow_time > 2.0:
@@ -916,6 +918,9 @@ func _make_views() -> void:
 		view.multimesh = mm
 		view.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		view.custom_aabb = AABB(Vector3(-1e5, -1e3, -1e5), Vector3(2e5, 2e3, 2e5))
+		# Filled every frame from the lane sim, whose cars move between instances as they're
+		# promoted: nothing for physics interpolation to smooth (it blended one car into another).
+		view.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 		add_child(view)
 		_views.append(view)
 
@@ -1210,6 +1215,7 @@ func _on_view_made(g: int, mesh: ArrayMesh) -> void:
 	view.multimesh = mm
 	view.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	view.custom_aabb = AABB(Vector3(-1e5, -1e3, -1e5), Vector3(2e5, 2e3, 2e5))
+	view.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	add_child(view)
 	_garage_views[g] = view
 

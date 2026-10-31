@@ -1,15 +1,17 @@
 class_name PerfLog
 extends Node
 ## Dev (--perf-log, M7 acceptance 1): how this game ran, as one line every SUMMARY_S and at exit:
-##   PERF_LOG frames=… avg=…ms p95=… p99=… fps_avg=… physics_avg=…ms physics_p95=… owned_max=…
+##   PERF_LOG frames=… avg=…ms p95=… p99=… fps_avg=… physics_avg=…ms physics_p95=… owned_max=… cap_min=…
 ## Frame times from the start of a session on (menus and loading don't count); owned_max is the
-## most highway traffic cars this game drove at once (online: those it owned).
+## most highway traffic cars this game drove at once (online: those it owned), cap_min the lowest
+## its cap on them went (TrafficManager.cap; 0 with no highway traffic).
 
 const SUMMARY_S := 30.0
 
 var _frames := PackedFloat32Array()
 var _physics := PackedFloat32Array()
 var _owned_max := 0
+var _cap_min := -1
 var _since := 0.0
 
 
@@ -26,6 +28,7 @@ func _process(delta: float) -> void:
 	if session.traffic:
 		var owned := session.net.traffic_owned.size() if session.net else session.traffic.cars.size()
 		_owned_max = maxi(_owned_max, owned)
+		_cap_min = session.traffic.cap if _cap_min < 0 else mini(_cap_min, session.traffic.cap)
 	_since += delta
 	if _since >= SUMMARY_S:
 		_since = 0.0
@@ -44,8 +47,8 @@ func summary() -> String:
 	f.sort()
 	ph.sort()
 	var avg := _mean(f)
-	return "PERF_LOG frames=%d avg=%.2fms p95=%.2fms p99=%.2fms fps_avg=%.1f physics_avg=%.2fms physics_p95=%.2fms owned_max=%d" % [
-		f.size(), avg, _at(f, 0.95), _at(f, 0.99), 1000.0 / maxf(avg, 0.001), _mean(ph), _at(ph, 0.95), _owned_max]
+	return "PERF_LOG frames=%d avg=%.2fms p95=%.2fms p99=%.2fms fps_avg=%.1f physics_avg=%.2fms physics_p95=%.2fms owned_max=%d cap_min=%d" % [
+		f.size(), avg, _at(f, 0.95), _at(f, 0.99), 1000.0 / maxf(avg, 0.001), _mean(ph), _at(ph, 0.95), _owned_max, maxi(_cap_min, 0)]
 
 
 static func _mean(a: Array) -> float:

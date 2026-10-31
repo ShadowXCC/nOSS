@@ -152,6 +152,10 @@ func test_busier_traffic_gets_more_physics_cars() -> void:
 		assert_int(tm.cap_player).is_equal(c[2])
 		assert_int(tm.boxes).is_equal(c[3])
 		assert_int(tm.cap).is_equal(c[1])
+		# Not in the first SETTLE_S: the start's frames are slow anyway (D246).
+		tm.adapt_to(TrafficManager.SLOW_MS + 1.0, 2.1)
+		assert_int(tm.cap).is_equal(c[1])
+		tm._clock = TrafficManager.SETTLE_S
 		tm.adapt_to(TrafficManager.SLOW_MS + 1.0, 2.1)
 		assert_int(tm.cap).is_equal(c[1] - 2)
 		for i in 5:
