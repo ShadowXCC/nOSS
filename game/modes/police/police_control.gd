@@ -527,7 +527,7 @@ func way_through(r: Racer, reach: float) -> Dictionary:
 		if to_go < -(PoliceRoad.STAGGER_M + THROUGH_PAST_M) or to_go > reach:
 			continue
 		var at_m := float(b.at_m)
-		var lat := float(road.project(r.vehicle.global_position).lateral)
+		var lat := r.lateral
 		var lats: Array[float] = []
 		for slot in road.block_slots(dir):
 			if not slot in b.slots:

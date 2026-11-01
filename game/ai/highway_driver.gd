@@ -210,7 +210,7 @@ func _through_block(tm: TrafficManager, through: Dictionary, delta: float) -> Di
 		_through_lat = float(through.lat)
 		_blocked = 0.0
 	var main := racer.session.track
-	var proj := main.project(v.global_position)
+	var proj := { "distance": racer.distance, "lateral": racer.lateral } # kept by the racer (a full project() costs)
 	var speed := v.speed()
 	var ahead := _line_ahead(tm, proj, _through_lat)
 	_blocked = _blocked + delta if ahead.x < THROUGH_CLEAR_M and absf(speed) < 1.0 else 0.0
@@ -246,7 +246,6 @@ func _through_block(tm: TrafficManager, through: Dictionary, delta: float) -> Di
 ## its speed), INF without: traffic and every other car.
 func _line_ahead(tm: TrafficManager, proj: Dictionary, lat: float) -> Vector2:
 	var v := racer.vehicle
-	var main := racer.session.track
 	var way := (racer as Racer).direction if racer.session.track.highway else 1
 	var speed := v.speed()
 	var gap := INF
@@ -263,8 +262,7 @@ func _line_ahead(tm: TrafficManager, proj: Dictionary, lat: float) -> Vector2:
 			continue
 		var d := r.vehicle.global_position - v.global_position
 		var along := d.dot(v.global_basis.z)
-		var r_lat := float(main.project(r.vehicle.global_position).lateral)
-		if along > 0.0 and along < 80.0 and absf(r_lat - lat) < reach and along - 5.0 < gap:
+		if along > 0.0 and along < 80.0 and absf(r.lateral - lat) < reach and along - 5.0 < gap:
 			gap = along - 5.0
 			lead_v = r.vehicle.speed()
 	return Vector2(gap, lead_v)
@@ -279,9 +277,8 @@ func _back_to_lanes(tm: TrafficManager) -> void:
 		lane = -1
 		return
 	var way := (racer as Racer).direction
-	var proj := layout.main.project(racer.vehicle.global_position)
-	var d := float(proj.distance)
-	var lat := float(proj.lateral)
+	var d := racer.distance
+	var lat := racer.lateral
 	if absf(lat) > layout.inner + layout.lanes * layout.lane_m:
 		lat = layout.lane_lateral(way, 0)
 	var found := tm.sim.locate(layout.main.transform_at(d, lat).origin + Vector3.UP * 0.5)
