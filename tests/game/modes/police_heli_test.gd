@@ -40,6 +40,7 @@ func _session() -> TrackSession:
 	var p := s.players[0]
 	p.driver.set_physics_process(false)
 	p.vehicle.throttle = 0.0
+	s.police_heli.set_process(false) # updated by hand: its own look every LOOK_S would undo what a test sets
 	return s
 
 
