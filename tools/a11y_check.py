@@ -22,7 +22,8 @@ in the order the full walk runs them (docs/UI_FLOW.md §12):
   drag      Mini Games -> Drag Strip -> its Settings -> the class -> Players (P5)
   free      Free Drive -> its Settings -> the class -> Players (P5)
   settings  Settings: every tab, Reset to defaults and Clear downloads asking first (Keep),
-            Profiles; Driving Settings: every tab, Comfort's reset asking first (P3, P11)
+            Profiles; Driving Settings: every tab, Comfort's reset asking first, HUD & Display's
+            Hide police warnings (P3, P11, D250)
   garage    the Garage's tabs, a car's page and its Drive's class page, Edit: the Fitting Bay's
             Livery step and its shape picker (D242), the Fitting Bay's Import step ("From online
             games"), Exit back to the Garage (P7, P7b, P11)
@@ -450,6 +451,10 @@ def settings_menus():
     ok = ok and asks("Driving Settings: Comfort", "Reset to defaults", "Reset to defaults")
     for tab in ("Vision & Hearing", "HUD & Display", "Controls", "Assists"):
         ok = ok and step(f"Driving Settings: to {tab}", tab, role="toggle button")
+        # HUD & Display's Hide police warnings (D250): named, a toggle as Godot reports a check.
+        if ok and tab == "HUD & Display" and find("Hide police warnings", "toggle button", timeout=10.0) is None:
+            problems.append("Driving Settings: HUD & Display: no 'Hide police warnings' toggle button (D250)")
+            ok = False
     ok = ok and back_from("Driving Settings: Assists", "Auto gearbox")
     ok = ok and back_from("Settings: Players again", "Profiles")
     if ok and find("Local Drive", "button", timeout=20.0) is None:
