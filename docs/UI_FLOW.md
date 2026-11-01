@@ -693,7 +693,7 @@ controls").
 | "Assists" | "Assists": "ABS", "Traction control", "Stability control", "Auto gearbox", "Auto clutch", "Steer aid", "Racing line"; "Access assists": "Auto-throttle", "Brake assist", "Steering assist", "Autodrive", "Item assist" |
 | "Comfort" | "Camera shake", "Head movement", "Speed FOV", "Horizon lock", "Game speed" |
 | "Vision & Hearing" | "Colours" (and the custom colours), "Reduce flashing", "Narration", "Speech rate", "Spotter", "Captions", "Shift light", "Slip indicator", "Close-car arrows" |
-| "HUD & Display" | "HUD size", "Menu text", "High-contrast HUD", "Font", "Brightness", "HUD", the "Show …" rows |
+| "HUD & Display" | "HUD size", "Menu text", "High-contrast HUD", "Font", "Brightness", "HUD", "Hide police warnings" (on by default: "Police ahead", "Spikes ahead" and "Roadblock ahead" stay off the screen, D250), the "Show …" rows |
 | "Controls" | "Keyboard", "Controller", "Controller rumble", "Stick deadzone", the "Toggle …" rows, "Menu repeat after", "Menu repeat speed", "Buttons and keys", "Wheel setup" |
 
 - Controls stay here only.
