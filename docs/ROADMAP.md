@@ -624,8 +624,8 @@ near cars stayed low-poly lane cars, stand-ins swapped in. Now they load in a sh
 the loading screen (D246, v0.14.1).*
 
 - **The pause:** after the track, "Loading garage cars" and a bar; every car whole, its far view from
-  its smallest LOD. Cars that don't fit in memory (free RAM, 3.5 GB of video memory) are left out of
-  that drive, and P1 is told.
+  its smallest LOD. Cars that don't fit in memory (free RAM, and the video memory set in Settings ›
+  Display, D247) are left out of that drive, and P1 is told.
 - **Kept:** loaded cars stay for the next drive; the main menu, the garage and a drive without
   garage traffic let them go.
 - **In the drive:** every loaded car is pinned (never let go), every physics car is its garage car
@@ -652,8 +652,10 @@ the loading screen (D246, v0.14.1).*
   physics cars near a player are mostly FM4 garage cars (about 550 nodes over 5 LODs each), and
   moving them costs about 10 ms a frame. The owner decides: merge each traffic car's model, fewer
   garage physics cars, or accept.
-- [ ] **The video memory ceiling** (3.5 GB, the owner's to pick): only 16 of 27 cars fit on the
-  dev PC.
+- [x] **The video memory ceiling:** Settings › Display › Video memory (D247, v0.14.2): Auto (75%
+  of the card), 2-24 GB or No limit. *Auto on the dev PC is 7.5 GB: all 27 cars (5.5 GB); 4 GB
+  fits 20 on the highway, 19 on endless, and P1 sees "Garage cars: 20/27 (video memory)" after
+  Go. Mac's Metal path is written, not built.*
 - [ ] On the i7-7700, and a drive by hand (the owner).
 
 ## M10+: Backlog (order to be decided)

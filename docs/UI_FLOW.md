@@ -658,7 +658,7 @@ Title "Settings", breadcrumb "Settings" (in a session: "Pause › Settings").
 
 | Tab | Rows |
 |---|---|
-| "Display" | "Graphics" ("Detail and smoothing. Low runs fastest"), "Fullscreen" |
+| "Display" | "Graphics" ("Detail and smoothing. Low runs fastest"), "Video memory" ("Auto (7.5 GB)", "2 GB" … "24 GB", "No limit"; "Garage cars in traffic load until the game uses this. Card: 10 GB", D247), "Fullscreen" |
 | "Sound" | "Volume", "Own engine", "Other engines", "Tires and wind", "Effects", "Ambience", "Music", "Menus", "Spotter voice", "Narration", "Mono" |
 | "Splitscreen" | "2 players", "3 players", "Sound from", "Auto resolution" ("Lowers each view's detail to hold the frame rate") |
 | "General" | "Units" ("Speeds and distances"), "Discord status", "Clear downloads" ("Cars and tracks from online games") |
