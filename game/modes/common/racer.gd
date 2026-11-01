@@ -190,8 +190,13 @@ func note_assists(on: Dictionary) -> void:
 			assists_used[key] = true
 
 
-## A short message for this racer ("Lap invalid"): players see it on their HUD.
-func notify(_text: String, _seconds := 2.0) -> void:
+## Racer.notify's kind for the police's warnings ahead (D250): a player may hide them.
+const KIND_POLICE_AHEAD := "police_ahead"
+
+
+## A short message for this racer ("Lap invalid"): players see it on their HUD. `kind` says what
+## it is where a player may hide it (KIND_POLICE_AHEAD).
+func notify(_text: String, _seconds := 2.0, _kind := "") -> void:
 	pass
 
 

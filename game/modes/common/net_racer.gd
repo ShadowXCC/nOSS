@@ -143,8 +143,8 @@ func _on_lap(time: float, valid: bool, _best: bool) -> void:
 
 
 ## The server's word for its driver goes to their game (NetRace.note).
-func notify(text: String, seconds := 2.0) -> void:
-	NetRace.note(self, text, seconds)
+func notify(text: String, seconds := 2.0, kind := "") -> void:
+	NetRace.note(self, text, seconds, kind)
 
 
 ## Nobody drives it here.

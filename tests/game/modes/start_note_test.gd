@@ -7,7 +7,7 @@ extends GdUnitTestSuite
 class Noting extends Racer:
 	var said: Array[String] = []
 
-	func notify(text: String, _seconds := 2.0) -> void:
+	func notify(text: String, _seconds := 2.0, _kind := "") -> void:
 		said.append(text)
 
 	func _spawn(_pkg: VehiclePackage) -> void:

@@ -78,8 +78,11 @@ func setup() -> void:
 	cameras.camera.global_transform = Transform3D(Basis.looking_at(spawn_at.basis.z), spawn_at.origin + Vector3(0, 3, 0) - spawn_at.basis.z * 8.0)
 
 
-func notify(text: String, seconds := 2.0) -> void:
-	hud.show_message(text, seconds)
+## A "police_ahead" warning stays off the screen with Hide police warnings on (D250); narration
+## (and its caption) still says it.
+func notify(text: String, seconds := 2.0, kind := "") -> void:
+	if not (kind == KIND_POLICE_AHEAD and bool(slot.profile.data.get("hide_police_warnings", true))):
+		hud.show_message(text, seconds)
 	speak(text)
 
 

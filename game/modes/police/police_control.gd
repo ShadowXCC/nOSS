@@ -421,7 +421,7 @@ func _roadblocks() -> void:
 		_last_lanes[p] = picked
 		_count_pattern("block", picked, slots)
 		roadblocks += 1
-		p.notify("Roadblock ahead", 3.0)
+		p.notify("Roadblock ahead", 3.0, Racer.KIND_POLICE_AHEAD)
 
 
 ## Units free for a roadblock: chase units in the pool first, then the ones kept for roadblocks.
@@ -626,7 +626,7 @@ func _wait_ahead(u: PoliceRacer, p: Racer, m: float) -> bool:
 		u.ai.mode = PoliceAI.Mode.READY
 		_waits[u] = [float(spot.at_m), road.way(p)]
 		aheads += 1
-		p.notify("Police ahead", 2.5)
+		p.notify("Police ahead", 2.5, Racer.KIND_POLICE_AHEAD)
 		return true
 	return false
 
@@ -708,7 +708,7 @@ func lay_spikes(p: Racer, d: float, slots: Array = []) -> Array[SpikeStrip]:
 		road.strip_laid(strip)
 		out.append(strip)
 	spikes_laid += 1
-	p.notify("Spikes ahead", 2.5)
+	p.notify("Spikes ahead", 2.5, Racer.KIND_POLICE_AHEAD)
 	return out
 
 

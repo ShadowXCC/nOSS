@@ -14,7 +14,7 @@ const RESETS := {
 	"Comfort": ["camera_shake", "head_movement", "speed_fov", "horizon_lock", "game_speed"],
 	"Vision & Hearing": ["palette", "palette_custom", "reduce_flashing", "narration", "narration_rate", "spotter",
 		"captions", "shift_light", "slip_indicator", "sound_arrows"],
-	"HUD & Display": ["hud_scale", "text_scale", "high_contrast", "font", "brightness", "hud_preset", "hud_hidden"],
+	"HUD & Display": ["hud_scale", "text_scale", "high_contrast", "font", "brightness", "hud_preset", "hud_hidden", "hide_police_warnings"],
 	"Controls": ["input.presets", "input.bindings", "input.toggles", "input.menu_delay", "input.menu_rate", "rumble", "pad_deadzone"],
 }
 
@@ -105,6 +105,8 @@ func _build_tab(which: String) -> void:
 				"Your view's brightness"))
 			add_row(UiKit.spinner("HUD", [["full", "Full"], ["minimal", "Minimal"], ["off", "Off"]], d.hud_preset,
 				func(v: String) -> void: profile.set_value("hud_preset", v), "Everything, the essentials, or nothing; or pick below"))
+			add_row(UiKit.check("Hide police warnings", d.hide_police_warnings, func(on: bool) -> void: profile.set_value("hide_police_warnings", on),
+				"Hides Police ahead, Spikes ahead and Roadblock ahead"))
 			for element: Array in Hud.ELEMENTS:
 				var id: String = element[0]
 				add_row(UiKit.check("Show " + String(element[1]).to_lower(), id not in d.hud_hidden, func(on: bool) -> void:

@@ -460,3 +460,41 @@ func test_the_end_of_a_chase_parks_a_waiting_unit() -> void:
 	assert_bool(u.vehicle.light_bar).is_false()
 	s.queue_free()
 	await get_tree().process_frame
+
+
+## Hide police warnings (D250, on by default): "Police ahead", "Spikes ahead" and "Roadblock ahead"
+## stay off the HUD, other messages don't; off, they show; with narration on they're still said
+## and captioned.
+func test_police_warnings_hide_from_the_hud_but_not_from_narration() -> void:
+	assert_bool(PlayerProfile.DEFAULTS.hide_police_warnings).is_true()
+	var s := await _session()
+	var p := s.players[0]
+	var data: Dictionary = p.slot.profile.data
+	var was := [data.get("hide_police_warnings", true), data.get("narration", "off"), data.get("captions", true)]
+	data.hide_police_warnings = true
+	data.narration = "off"
+	p.hud._message.text = ""
+	p.notify("Roadblock ahead", 3.0, Racer.KIND_POLICE_AHEAD)
+	assert_str(p.hud._message.text).is_empty()
+	p.notify("Heat 4", 2.5)
+	assert_str(p.hud._message.text).is_equal("Heat 4")
+	# The police's own warnings come as that kind.
+	p.hud._message.text = ""
+	s.police.lay_spikes(p, s.police.road.along(p, 400.0), [0])
+	assert_str(p.hud._message.text).is_empty()
+	data.hide_police_warnings = false
+	p.notify("Police ahead", 2.5, Racer.KIND_POLICE_AHEAD)
+	assert_str(p.hud._message.text).is_equal("Police ahead")
+	# Narration still says them, captioned.
+	data.hide_police_warnings = true
+	data.narration = "race"
+	data.captions = true
+	p.hud._message.text = ""
+	p.notify("Spikes ahead", 2.5, Racer.KIND_POLICE_AHEAD)
+	assert_str(p.hud._message.text).is_empty()
+	assert_bool(p.hud._caption_lines.any(func(l: Array) -> bool: return l[0] == "Spikes ahead")).is_true()
+	data.hide_police_warnings = was[0]
+	data.narration = was[1]
+	data.captions = was[2]
+	s.queue_free()
+	await get_tree().process_frame

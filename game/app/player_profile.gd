@@ -56,6 +56,9 @@ const DEFAULTS := {
 	"shift_light": true,
 	"slip_indicator": false,
 	"sound_arrows": false,
+	## The "Police ahead", "Spikes ahead" and "Roadblock ahead" popups hidden (D250; narration and
+	## its captions still say them).
+	"hide_police_warnings": true,
 	"game_speed": 1.0,
 	# Wheel and pedals (WheelInput config). Each axis may name the device it's on ("guid").
 	"wheel": {},

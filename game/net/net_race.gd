@@ -147,10 +147,10 @@ func _bad_link(r: Racer) -> bool:
 	return r is NetRacer and _bad_peers.has((r as NetRacer).peer)
 
 
-## A message for car `r`'s driver, wherever they are.
-static func note(r: Racer, text: String, seconds: float) -> void:
+## A message for car `r`'s driver, wherever they are (`kind`: Racer.notify's).
+static func note(r: Racer, text: String, seconds: float, kind := "") -> void:
 	if Net.server and r is NetRacer:
-		Net.server.send((r as NetRacer).peer, NetProtocol.Msg.NOTE, { "id": r.net_id, "text": text.left(80), "seconds": seconds })
+		Net.server.send((r as NetRacer).peer, NetProtocol.Msg.NOTE, { "id": r.net_id, "text": text.left(80), "seconds": seconds, "kind": kind.left(24) })
 
 
 func _on_assists(id: int, used: Dictionary) -> void:
@@ -272,8 +272,9 @@ func _on_message(type: int, d: Dictionary) -> void:
 		NetProtocol.Msg.NOTE:
 			if NetProtocol.has_fields(d, { "id": TYPE_INT, "text": [TYPE_STRING, 80], "seconds": TYPE_FLOAT }):
 				var r: Racer = net.owned.get(d.id)
+				var kind: Variant = d.get("kind", "")
 				if r:
-					r.notify(NetChat.clean(d.text), clampf(d.seconds, 0.5, 10.0))
+					r.notify(NetChat.clean(d.text), clampf(d.seconds, 0.5, 10.0), String(kind).left(24) if kind is String else "")
 
 
 ## Results rows with each car's Racer here (a stand-in for one that left).
