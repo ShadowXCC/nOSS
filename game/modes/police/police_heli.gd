@@ -5,8 +5,8 @@ extends Node3D
 ## fin, skids, a two-bladed rotor with a faint blur disc and a tail rotor, red and green
 ## navigation lights and a white strobe (steady on Flash.LAYER_CALM, for Reduce flashing).
 ##
-## It flies in from ahead (ARRIVE), then holds above and behind its target to one side, its
-## searchlight on the car (TRACK). While the player is getting away (their evade clock running)
+## It flies in from ahead (ARRIVE), then holds above and ahead of its target to one side, where a
+## chase camera sees it, its searchlight turned back on the car (TRACK). While the player is getting away (their evade clock running)
 ## it lags and sweeps the road round where they were last seen (SEARCH). Evaded or busted, it
 ## climbs away and is gone in LEAVE_S (LEAVE). The searchlight (a light with no shadows, and a
 ## beam that fades along its length and near any camera) is on only while lights are
@@ -15,10 +15,10 @@ extends Node3D
 
 enum State { ARRIVE, TRACK, SEARCH, LEAVE }
 
-## Where it holds over its target: this high, this far behind, this far to one side.
-const HEIGHT_M := 45.0
-const BEHIND_M := 30.0
-const SIDE_M := 14.0
+## Where it holds over its target: this high, this far ahead, this far to one side.
+const HEIGHT_M := 40.0
+const AHEAD_M := 55.0
+const SIDE_M := 16.0
 ## Arriving: from this far ahead of the target, this much higher; tracking once this near its
 ## spot. It flies at most this fast, closing on its spot at this rate (1/s; a lag searching).
 const ARRIVE_FROM_M := 600.0
@@ -34,9 +34,9 @@ const LEAVE_MPS := 55.0
 const LEAVE_S := 8.0
 ## The searchlight: its cone (degrees), reach and brightness; the beam stays on the car to within
 ## a wobble this big; searching, it sweeps this far round the last spot seen.
-const BEAM_DEG := 12.0
+const BEAM_DEG := 6.0
 const BEAM_RANGE_M := 140.0
-const BEAM_ENERGY := 14.0
+const BEAM_ENERGY := 8.0
 const WOBBLE_M := 0.7
 const SWEEP_M := 22.0
 ## Rotor: turns a second (main, tail); the sound's blade slap a second.
@@ -160,7 +160,7 @@ func _fly(tv: Vehicle, delta: float) -> void:
 		tvel = tv.remote_velocity if tv.remote else tv.linear_velocity
 	var fwd := _flat_forward(tv)
 	var side := Vector3(fwd.z, 0.0, -fwd.x) * _side
-	var spot_at := (tv.global_position if tracking else _last_seen) - fwd * BEHIND_M + side * SIDE_M + Vector3.UP * HEIGHT_M
+	var spot_at := (tv.global_position if tracking else _last_seen) + fwd * AHEAD_M + side * SIDE_M + Vector3.UP * HEIGHT_M
 	var gain := SEARCH_GAIN if not tracking else TRACK_GAIN
 	var want := (tvel if tracking else Vector3.ZERO) + (spot_at - position) * gain
 	if want.length() > MAX_MPS:

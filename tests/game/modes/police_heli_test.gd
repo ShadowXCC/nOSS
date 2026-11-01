@@ -67,7 +67,13 @@ func test_only_over_a_player_at_heat_five_searching_and_leaving() -> void:
 		if heli.state != PoliceHeli.State.ARRIVE:
 			break
 	assert_int(heli.state).is_equal(PoliceHeli.State.TRACK)
-	assert_float(heli.global_position.distance_to(p.vehicle.global_position)).is_less(90.0)
+	var settle := heli._t + 4.0
+	while heli._t < settle:
+		await get_tree().process_frame
+	# Ahead of the car, high up and to one side, where a chase camera sees it.
+	var rel := heli.global_position - p.vehicle.global_position
+	assert_float(rel.length()).is_less(85.0)
+	assert_float(rel.dot(p.vehicle.global_basis.z)).is_greater(PoliceHeli.AHEAD_M * 0.6)
 	# Getting away: it searches.
 	heli.searching = true
 	await _frames(2)
