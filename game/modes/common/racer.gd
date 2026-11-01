@@ -130,6 +130,7 @@ var pit_hold := false
 var pit_plan := false
 
 var _loading := false
+var _start_note := "" # note_after_go before the car came in
 var _rejoin_at := 0.0
 var _wait_time := 0.0
 var _ghost_time := 0.0
@@ -194,6 +195,15 @@ func notify(_text: String, _seconds := 2.0) -> void:
 	pass
 
 
+## A message for the start ("Garage cars: 20/27 (video memory)"), shown for 4 s once "Go" (said as
+## the car comes in, on the same line) has had its second.
+func note_after_go(text: String) -> void:
+	if vehicle == null:
+		_start_note = text
+	else:
+		get_tree().create_timer(1.0).timeout.connect(notify.bind(text, 4.0))
+
+
 func load_car(path: String) -> void:
 	if _loading:
 		return
@@ -218,6 +228,9 @@ func _on_car_loaded(pkg: VehiclePackage) -> void:
 	if vehicle == null:
 		_spawn(pkg)
 		notify("Go", 1.0)
+		if _start_note:
+			note_after_go(_start_note)
+			_start_note = ""
 	elif not vehicle.fits_here(pkg):
 		_pending_swap = pkg # waits for room, then nudges
 		_pending_time = 0.0

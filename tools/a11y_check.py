@@ -431,6 +431,9 @@ def settings_menus():
     log("Settings")
     ok = step("Main menu (settings)", "Settings")
     ok = ok and hidden("Settings", "Local Drive")
+    if ok and find("Video memory: ", "button", timeout=20.0, prefix=True) is None:  # D247
+        problems.append("Settings: Display: no 'Video memory' row")
+        ok = False
     ok = ok and asks("Settings: Display", "Reset to defaults", "Graphics: ")  # Display is open first
     for tab in ("Sound", "Splitscreen", "General"):
         ok = ok and step(f"Settings: to {tab}", tab, role="toggle button")

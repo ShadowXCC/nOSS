@@ -540,7 +540,7 @@ func _ready() -> void:
 		for i in ai_racers:
 			_add_ai(i, pool, skills[i])
 		if garage_note and not players.is_empty():
-			players[0].notify.call_deferred(garage_note, 4.0) # once its HUD's up
+			players[0].note_after_go(garage_note)
 	Players.remember_all()
 	Players.joined.connect(_on_joined)
 	Players.left.connect(_on_left)
