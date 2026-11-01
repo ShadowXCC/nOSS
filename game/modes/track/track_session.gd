@@ -114,6 +114,9 @@ var run: RunControl
 var server_boards := {}
 ## The police (event.police), where the session is decided: offline here, online the server.
 var police: PoliceControl
+## The police helicopters over players at heat 5 (D251): wherever the police are, online clients
+## too; none on a dedicated server or a bot.
+var police_heli: PoliceHeliControl
 ## Kart sessions (D129): tow, slipstream, items. Null otherwise.
 var kart: KartControl
 ## Drafting (D208): with the event's drafting on, in Track mode.
@@ -149,6 +152,7 @@ var cup: CupRun
 var ai_class_mix := true
 var _classes := {} # class id -> PlatformLoader.Result
 var _ai_classes := {} # AI index -> class id
+var _heat_seen := {} # online highway client: SessionPlayer -> Vector2i(level, getting away), from HW_EVENT
 var traffic: TrafficManager
 ## Dev and tests: the traffic's seed (-1: the track's).
 var traffic_seed := -1
@@ -360,6 +364,7 @@ func _ready_endless() -> void:
 		add_child(police)
 		if endless_traps:
 			endless_traps.snapped.connect(police.camera_snap)
+		_add_police_heli()
 	if not dedicated and not Game.dev.has("bot"):
 		var music := EndlessMusic.new()
 		music.seed_base = event.road_seed
@@ -778,6 +783,33 @@ func _ready_highway() -> void:
 		police.police_class = String(GameModes.list().filter(func(m: Dictionary) -> bool: return m.id == "highway").map(
 			func(m: Dictionary) -> String: return String(m.get("police_class", "official.highway.interceptor"))).front())
 		add_child(police)
+	if event.police:
+		_add_police_heli()
+
+
+func _add_police_heli() -> void:
+	if dedicated or Game.dev.has("bot") or police_heli:
+		return
+	police_heli = PoliceHeliControl.new()
+	police_heli.name = "PoliceHeli"
+	police_heli.session = self
+	add_child(police_heli)
+
+
+## Racer `r`'s heat as this game knows it (D251): Vector2i(level, 1 while they're getting away).
+## The police's own word where they run here; online, a highway client's from the server's news
+## for its own players, and another game's car's from its state flags.
+func heat_state(r: Racer) -> Vector2i:
+	if police and police.heat.has(r):
+		var h: Heat = police.heat[r]
+		return Vector2i(h.level(), 1 if h.evading() > 0.0 else 0)
+	if _heat_seen.has(r):
+		return _heat_seen[r]
+	var v := r.vehicle
+	if r is NetRacer and v and is_instance_valid(v) and v.remote_state:
+		var f := v.remote_state.flags
+		return Vector2i(Heat.LEVELS.size() if f & CarState.FLAG_HELI else 0, 1 if f & CarState.FLAG_SEARCH else 0)
+	return Vector2i.ZERO
 
 
 ## A highway's traffic offline: Vector2i(seed, cars), from the event, dev options and the track.
@@ -1585,6 +1617,7 @@ func _on_highway_event(data: Dictionary) -> void:
 			panel.name = "HeatPanel"
 			p.hud.add_child(panel)
 		panel.show_heat(int(data.level), float(data.evading))
+		_heat_seen[p] = Vector2i(int(data.level), 1 if float(data.evading) > 0.0 else 0)
 		if String(data.text):
 			p.notify(String(data.text), 2.5)
 			if Narrator.race_on(p.slot.profile):

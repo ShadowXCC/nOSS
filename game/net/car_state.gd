@@ -18,6 +18,8 @@ const FLAG_WAITING := 4 # hidden, rejoining
 const FLAG_TELEPORT := 8 # placed (reset, grid): snap, don't smooth
 const FLAG_HANDBRAKE := 16
 const FLAG_KNOCK := 32 # just took a knock (a wall, a car): a sudden stop isn't a cheat
+const FLAG_HELI := 64 # wanted at heat 5: a police helicopter's over it (D251, for show)
+const FLAG_SEARCH := 128 # ... and getting away: the helicopter searches
 ## flags2: lights, horn and siren (D119), and a traffic car's driver (D110).
 const FLAG2_HORN := 1
 const FLAG2_HEAD_FLASH := 2

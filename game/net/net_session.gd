@@ -471,6 +471,10 @@ func _own_state(id: int) -> CarState:
 		s.flags |= CarState.FLAG_GHOSTED
 	if r.waiting:
 		s.flags |= CarState.FLAG_WAITING
+	if r is SessionPlayer:
+		var heat := session.heat_state(r) # the helicopter over it, for every game to show (D251)
+		if heat.x >= Heat.LEVELS.size():
+			s.flags |= CarState.FLAG_HELI | (CarState.FLAG_SEARCH if heat.y != 0 else 0)
 	var seen: Array = _resets.get(id, [r.vehicle.reset_count, 0])
 	if r.vehicle.reset_count != seen[0]:
 		seen = [r.vehicle.reset_count, TELEPORT_REPEAT]

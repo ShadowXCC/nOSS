@@ -455,6 +455,7 @@ func _update_captions(delta: float) -> void:
 ## Close cars out of view (sound direction, docs/ACCESSIBILITY.md §3): an arrow at the edge.
 func _update_arrows() -> void:
 	_arrows.dirs.clear()
+	_arrows.rotors.clear()
 	if not _show_arrows or camera == null or racer == null or racer.vehicle == null or racer.session == null:
 		_arrows.queue_redraw()
 		return
@@ -483,6 +484,17 @@ func _update_arrows() -> void:
 		if local.z < -to.length() * 0.6:
 			continue # well in front, in view
 		_arrows.dirs.append(dir.normalized())
+	# Police helicopters (D251): heard from as far as a siren, shown while out of view.
+	var helis := racer.session.police_heli
+	if helis:
+		for h in helis.all():
+			var to := h.global_position - me
+			if to.length() > Arrows.SIREN_RANGE_M:
+				continue
+			var local := cam_basis.inverse() * to
+			if local.z < -to.length() * 0.6:
+				continue # in view
+			_arrows.rotors.append(Vector2(local.x, local.z).normalized())
 	_arrows.queue_redraw()
 
 
@@ -700,6 +712,8 @@ class Arrows:
 	const SIREN_RANGE_M := 300.0
 	var dirs: Array[Vector2] = []
 	var sirens: Array[Vector2] = []
+	## Police helicopters out of view (D251), drawn like sirens.
+	var rotors: Array[Vector2] = []
 	## Items coming for this player (kart): [[direction, "Seeker"]], drawn like sirens.
 	var incoming: Array = []
 	var left_car := false:
@@ -722,7 +736,7 @@ class Arrows:
 			var side := Vector2(-d.y, d.x) * 18.0
 			draw_colored_polygon(PackedVector2Array([tip + d * 22.0, tip - d * 10.0 + side, tip - d * 10.0 - side]), Color(1, 1, 1, 0.85))
 		var font := get_theme_default_font()
-		for hollow: Array in sirens.map(func(v: Vector2) -> Array: return [v, "Siren"]) + incoming:
+		for hollow: Array in sirens.map(func(v: Vector2) -> Array: return [v, "Siren"]) + rotors.map(func(v: Vector2) -> Array: return [v, "Helicopter"]) + incoming:
 			var d: Vector2 = hollow[0]
 			var label: String = hollow[1]
 			var t := minf((size.x / 2.0 - 70.0) / maxf(absf(d.x), 1e-3), (size.y / 2.0 - 70.0) / maxf(absf(d.y), 1e-3))
