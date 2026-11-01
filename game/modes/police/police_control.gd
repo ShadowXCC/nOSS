@@ -4,9 +4,10 @@ extends Node
 ## highway, run where the session is decided; the endless road, run by each game for its own
 ## players). A unit waits at each speed trap, parked on the shoulder, watching. Each player has
 ## heat (Heat) from what any unit sees; the level (PoliceTuning) says how many units come after
-## them, sent in from behind out of their sight, how hard they drive, and when the lanes ahead
-## close bar one, with two units parked across them. From heat 2 more wait on the side of the road
-## ahead of them, light bars on, and pull out as they come (D201). Busted: what the road says (a
+## them, sent in from behind out of their sight, how hard they drive, and when lanes ahead close
+## with a unit parked across each (any of them, more with more heat; every one closed, the
+## shoulder is the way through, D248). From heat 2 more wait on the side of the road ahead of
+## them, light bars on, and pull out as they come (D201). Busted: what the road says (a
 ## highway takes the unbanked score and puts the car on the shoulder). Evaded: the units head off
 ## and go back to the pool. Every change reaches its player as a caption (and narration) and on
 ## their HUD's heat meter.
@@ -28,6 +29,16 @@ const KNOCK_AGAIN_S := 2.0
 const ROADBLOCK_AHEAD_M := 900.0
 const ROADBLOCK_LENGTH_M := 60.0
 const ROADBLOCK_PAST_M := 150.0
+## Units kept for roadblocks (D248), on top of the chasers: a block takes free chase units first.
+const ROADBLOCK_UNITS := 3
+## Every lane closed: the block moves on up to this far, in VERGE_STEP_M steps, to where the
+## shoulder's free (PoliceRoad.verge_clear); nowhere, one lane stays open.
+const VERGE_SEARCH_M := 300.0
+const VERGE_STEP_M := 20.0
+## A lone lane's unit parked slanted leaves this much of its lane clear, both sides together.
+const BLOCK_CLEAR_M := 0.3
+## A driver's way through (way_through) holds until it's this far past a block's line.
+const THROUGH_PAST_M := 8.0
 ## Sight (line of sight is a ray) and near misses are looked at every this many ticks per player.
 const LOOK_EVERY := 2
 ## Spike strips: this far ahead of the player (the first straight in it), on a straight this long.
@@ -72,12 +83,20 @@ var aheads := 0
 var launches := 0
 ## The spike strips down now.
 var strips: Array[SpikeStrip] = []
+## Which lanes close (PoliceLanes, D248): random each drive (dev --police-seed pins it).
+var rng := RandomNumberGenerator.new()
+## Patterns closed so far, as the driver sees them left to right ("#.#": the middle lane open):
+## "block #.#" / "spikes ##." -> count (checks).
+var patterns := {}
 
 var _trap_units := {} # PoliceRacer -> trap index
 var _ahead_units := {} # PoliceRacer -> true: the ones that wait ahead (D201)
+var _block_units := {} # PoliceRacer -> true: the ones kept for roadblocks (D248)
 var _miss := {} # Racer -> NearMiss
 var _knocked := {} # Racer -> time of the last crash or ram counted
-var _blocks := {} # Racer -> {closures, at_m, units}
+var _blocks := {} # Racer -> {closures, at_m, way, slots, units}
+var _last_lanes := {} # Racer -> the slots their last roadblock closed
+var _last_strip := {} # Racer -> the slots their last spike strips covered
 var _clock := 0.0
 var _placed := false
 var _told := {} # NetRacer -> [level, evading] last sent to its game
@@ -90,13 +109,18 @@ var _next_ahead := {} # Racer -> when one may go ahead again after nowhere was c
 
 func _ready() -> void:
 	process_physics_priority = -44 # after the drivers and the score
+	if Game.dev.has("police-seed"):
+		rng.seed = int(Game.dev["police-seed"])
+	else:
+		rng.randomize()
 	_make_units.call_deferred() # after the players: their places and directions come first
 
 
 func _make_units() -> void:
 	var traps: Array = road.traps()
 	var chase := road.chase_units()
-	for i in traps.size() + chase + road.ahead_units():
+	var ahead := road.ahead_units()
+	for i in traps.size() + chase + ahead + road.roadblock_units():
 		var u := PoliceRacer.new()
 		u.configure(i)
 		u.police_class = police_class
@@ -109,6 +133,8 @@ func _make_units() -> void:
 		units.append(u)
 		if i < traps.size():
 			_trap_units[u] = i
+		elif i >= traps.size() + chase + ahead:
+			_block_units[u] = true
 		elif i >= traps.size() + chase:
 			_ahead_units[u] = true
 
@@ -349,8 +375,9 @@ func _chase(u: PoliceRacer, p: Racer) -> void:
 	u.ai.mode = PoliceAI.Mode.PURSUE
 
 
-## From the level that calls for it, a roadblock ahead of each player chased: their way's lanes
-## closed bar one, two units parked across; it opens once they're past (or the chase ends).
+## From the level that calls for it, a roadblock ahead of each player chased: lanes PoliceLanes
+## picks closed (any of them, more with more heat, D248), a unit parked across each; it opens once
+## they're past (or the chase ends). Every lane closed, it goes where the shoulder's free.
 func _roadblocks() -> void:
 	for key: Variant in heat.keys():
 		if not is_instance_valid(key):
@@ -367,20 +394,150 @@ func _roadblocks() -> void:
 		if not PoliceTuning.at(h.level()).roadblock or h.level() == 0:
 			continue
 		var dir := road.way(p)
+		var slots := road.block_slots(dir)
+		var free := _free_block_units()
+		if slots <= 0 or free.is_empty():
+			continue
+		var picked := PoliceLanes.pick(h.level(), slots, rng, _last_lanes.get(p, []))
+		while picked.size() > free.size():
+			picked.remove_at(rng.randi_range(0, picked.size() - 1))
 		var at_m := road.along(p, ROADBLOCK_AHEAD_M)
-		var closures := road.close_lanes(p, dir, at_m - dir * ROADBLOCK_LENGTH_M, ROADBLOCK_LENGTH_M * 2.0)
+		if picked.size() >= slots:
+			var spot := _verge_spot(dir, at_m)
+			if is_nan(spot):
+				picked.remove_at(rng.randi_range(0, picked.size() - 1))
+			else:
+				at_m = spot
+		if picked.is_empty():
+			continue
 		var parked := []
-		var across := road.block_lanes(dir)
-		for i in mini(across.size(), 2):
-			var u := _pool_unit()
-			if u == null:
-				break
-			u.deploy(road.across_xform(dir, int(across[i]), at_m, i), Vector3.ZERO)
+		for spot in _block_laterals(dir, picked, at_m, free[0]):
+			var u: PoliceRacer = free[parked.size()]
+			u.deploy(road.block_xform(dir, spot.x, at_m, parked.size(), spot.y), Vector3.ZERO)
 			u.ai.mode = PoliceAI.Mode.READY # parked, its light bar on
 			parked.append(u)
-		_blocks[p] = { "closures": closures, "at_m": at_m, "units": parked }
+		var closures := road.close_slots(p, dir, at_m - dir * ROADBLOCK_LENGTH_M, ROADBLOCK_LENGTH_M * 2.0, picked)
+		_blocks[p] = { "closures": closures, "at_m": at_m, "way": dir, "slots": picked, "units": parked }
+		_last_lanes[p] = picked
+		_count_pattern("block", picked, slots)
 		roadblocks += 1
 		p.notify("Roadblock ahead", 3.0)
+
+
+## Units free for a roadblock: chase units in the pool first, then the ones kept for roadblocks.
+func _free_block_units() -> Array[PoliceRacer]:
+	var out: Array[PoliceRacer] = []
+	for u in units:
+		if not _trap_units.has(u) and not _ahead_units.has(u) and not _block_units.has(u) and u.waiting and u.vehicle:
+			out.append(u)
+	for u: PoliceRacer in _block_units:
+		if u.waiting and u.vehicle:
+			out.append(u)
+	return out
+
+
+## Where across the road each unit of a block over `picked` slots parks, in the slots' order:
+## Vector2(lateral, its angle off the road's line). Nothing sticks out into an open lane, so
+## traffic gets through them (a truck too): side by side ones spread over their run, the end ones
+## inside it; a lone lane's unit at a road edge goes over to that edge (into the shoulder or the
+## median's); a lone lane between open ones parks slanted, as square as fits in its lane.
+func _block_laterals(dir: int, picked: Array, at_m: float, unit: PoliceRacer) -> Array[Vector2]:
+	var env := unit.vehicle.fitted.envelope if unit.vehicle.fitted else AABB(Vector3(-0.95, 0, -2.45), Vector3(1.9, 1.5, 4.9))
+	var length := env.size.z
+	var width := env.size.x
+	var slots := road.block_slots(dir)
+	var out: Array[Vector2] = []
+	for run in PoliceLanes.runs(picked):
+		var a := road.slot_span(dir, run.x, at_m)
+		var b := road.slot_span(dir, run.y, at_m)
+		var lo := minf(a.x, b.x)
+		var hi := maxf(a.y, b.y)
+		var n := run.y - run.x + 1
+		# Slots run left to right: from the higher lateral down for +1, up for -1.
+		var first := hi if dir > 0 else lo
+		var last := lo if dir > 0 else hi
+		if n > 1 and hi - lo >= length:
+			var inset := signf(first - last) * length / 2.0
+			for k in n:
+				out.append(Vector2(lerpf(first - inset, last + inset, float(k) / (n - 1)), PI / 2.0))
+			continue
+		for k in n:
+			var span := road.slot_span(dir, run.x + k, at_m)
+			var mid := (span.x + span.y) / 2.0
+			var over := maxf(length - (span.y - span.x), 0.0) / 2.0
+			if n > 1 or over <= 0.0:
+				out.append(Vector2(mid, PI / 2.0))
+			elif run.x == 0:
+				out.append(Vector2(mid + dir * over, PI / 2.0)) # to the driver's left edge
+			elif run.x == slots - 1:
+				out.append(Vector2(mid - dir * over, PI / 2.0))
+			else:
+				out.append(Vector2(mid, _slant(length, width, span.y - span.x - BLOCK_CLEAR_M)))
+	return out
+
+
+## The angle off the road's line at which a car `length` by `width` takes up `room` m across it
+## (as square as fits; along the line if it can't fit at all).
+static func _slant(length: float, width: float, room: float) -> float:
+	if room <= width:
+		return 0.0
+	var lo := 0.0
+	var hi := atan2(length, width) # widest across here
+	if length * sin(hi) + width * cos(hi) <= room:
+		return PI / 2.0
+	for i in 20:
+		var mid := (lo + hi) / 2.0
+		if length * sin(mid) + width * cos(mid) <= room:
+			lo = mid
+		else:
+			hi = mid
+	return lo
+
+
+## The first spot from `at_m` on, the way `dir` drives, where the shoulder's free, or NAN.
+func _verge_spot(dir: int, at_m: float) -> float:
+	var m := 0.0
+	while m <= VERGE_SEARCH_M:
+		var d := at_m + dir * m
+		if road.verge_clear(dir, d):
+			return d
+		m += VERGE_STEP_M
+	return NAN
+
+
+func _count_pattern(what: String, picked: Array, slots: int) -> void:
+	var key := what + " "
+	for i in slots:
+		key += "#" if i in picked else "."
+	patterns[key] = int(patterns.get(key, 0)) + 1
+
+
+## The way past a roadblock coming up for `r` (anyone's, D248), within `reach` m: {at_m, to_go,
+## lat, lats, open}: `lat` the middle of the open lane nearest them, or with every lane closed the
+## shoulder (open false); `lats` every way by, nearest first, the shoulder last. {} with none.
+## Drivers (HighwayDriver, EndlessDriver) steer for it.
+func way_through(r: Racer, reach: float) -> Dictionary:
+	if r.vehicle == null or not is_instance_valid(r.vehicle):
+		return {}
+	for b: Dictionary in _blocks.values():
+		var dir := int(b.way)
+		if dir != road.way(r):
+			continue
+		var to_go := -road.past(r, float(b.at_m))
+		if to_go < -(PoliceRoad.STAGGER_M + THROUGH_PAST_M) or to_go > reach:
+			continue
+		var at_m := float(b.at_m)
+		var lat := float(road.project(r.vehicle.global_position).lateral)
+		var lats: Array[float] = []
+		for slot in road.block_slots(dir):
+			if not slot in b.slots:
+				var span := road.slot_span(dir, slot, at_m)
+				lats.append((span.x + span.y) / 2.0)
+		var open := not lats.is_empty()
+		lats.sort_custom(func(a: float, c: float) -> bool: return absf(a - lat) < absf(c - lat))
+		lats.append(road.through_lateral(dir, at_m)) # the shoulder, last
+		return { "at_m": at_m, "to_go": to_go, "lat": lats[0], "lats": lats, "open": open }
+	return {}
 
 
 ## Units waiting ahead of each player chased at a level that calls for them (D201): parked on the
@@ -490,8 +647,8 @@ func _clear_to_wait(u: PoliceRacer, spot: Dictionary) -> bool:
 	return true
 
 
-## From the level that calls for them, now and then a spike strip on a straight ahead of each
-## player chased, half a lane left open; each comes up once they're well past it.
+## From the level that calls for them, now and then spike strips on a straight ahead of each
+## player chased, over lanes PoliceLanes picks (D248); each comes up once they're well past it.
 func _spikes() -> void:
 	for strip in strips.duplicate():
 		if strip.done():
@@ -522,22 +679,37 @@ func _spikes() -> void:
 			m += 25.0
 
 
-## A strip for `p` at distance `d` across their way.
-func lay_spikes(p: Racer, d: float) -> SpikeStrip:
-	var strip := SpikeStrip.new()
-	strip.road = road
-	strip.at_m = d
-	var span := road.strip_span(road.way(p), d)
-	strip.lat_from = span.x
-	strip.lat_to = span.y
-	strip.for_racer = p
-	strip.watch = players()
-	session.add_child(strip)
-	strips.append(strip)
+## Strips for `p` at distance `d` across their way: over `slots` (none: PoliceLanes picks), one
+## strip a run of lanes side by side. Every lane covered, the shoulder must be free there, or one
+## stays open.
+func lay_spikes(p: Racer, d: float, slots: Array = []) -> Array[SpikeStrip]:
+	var way := road.way(p)
+	var count := road.block_slots(way)
+	var picked: Array = slots
+	if picked.is_empty():
+		picked = PoliceLanes.pick((heat_of(p) as Heat).level(), count, rng, _last_strip.get(p, []))
+		if picked.size() >= count and count > 1 and not road.verge_clear(way, d):
+			picked.remove_at(rng.randi_range(0, picked.size() - 1))
+	_last_strip[p] = picked
+	_count_pattern("spikes", picked, count)
+	var out: Array[SpikeStrip] = []
+	for run in PoliceLanes.runs(picked):
+		var a := road.slot_span(way, run.x, d)
+		var b := road.slot_span(way, run.y, d)
+		var strip := SpikeStrip.new()
+		strip.road = road
+		strip.at_m = d
+		strip.lat_from = minf(a.x, b.x)
+		strip.lat_to = maxf(a.y, b.y)
+		strip.for_racer = p
+		strip.watch = players()
+		session.add_child(strip)
+		strips.append(strip)
+		road.strip_laid(strip)
+		out.append(strip)
 	spikes_laid += 1
 	p.notify("Spikes ahead", 2.5)
-	road.strip_laid(strip)
-	return strip
+	return out
 
 
 ## Online (D195): a strip another game's police laid; it catches this game's players too.
@@ -555,7 +727,7 @@ func add_remote_strip(at_m: float, lat_from: float, lat_to: float) -> SpikeStrip
 
 func _pool_unit() -> PoliceRacer:
 	for u in units:
-		if not _trap_units.has(u) and not _ahead_units.has(u) and u.waiting and u.vehicle:
+		if not _trap_units.has(u) and not _ahead_units.has(u) and not _block_units.has(u) and u.waiting and u.vehicle:
 			return u
 	return null
 

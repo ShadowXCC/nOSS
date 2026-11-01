@@ -95,11 +95,16 @@ func ahead_spot(p: Racer, m: float) -> Dictionary:
 	return { "xform": session.highway.shoulder_spot(p.direction, d), "at_m": d }
 
 
-## Across the carriageway as it lies (the units don't turn round for the way they face).
-func across_xform(way_dir: int, lane: int, d: float, i: int) -> Transform3D:
-	var spot := layout.main.transform_at(d, layout.lane_lateral(way_dir, lane))
-	spot.basis = Basis(Vector3.UP, PI / 2.0 * (1 if i == 0 else -1)) * spot.basis
-	return spot
+## Slots count from the median out (the driver's left to right): slot k is lane lanes - 1 - k.
+func slot_span(way_dir: int, slot: int, _d: float) -> Vector2:
+	var a := -way_dir * (layout.inner + slot * layout.lane_m)
+	var b := -way_dir * (layout.inner + (slot + 1) * layout.lane_m)
+	return Vector2(minf(a, b), maxf(a, b))
+
+
+## Halfway across the outer shoulder from the outer lane's edge.
+func through_lateral(way_dir: int, _d: float) -> float:
+	return -way_dir * (layout.inner + layout.lanes * layout.lane_m + layout.half) / 2.0
 
 
 ## Nearly straight (no bend tighter than 600 m) for `length` m on.
@@ -118,23 +123,16 @@ func spikes_allowed() -> bool:
 	return not session.is_online()
 
 
-## The carriageway from the median's edge out, half its outer lane left open.
-func strip_span(way_dir: int, _d: float) -> Vector2:
-	var a := -way_dir * layout.inner
-	var b := -way_dir * (layout.inner + (layout.lanes - 0.5) * layout.lane_m)
-	return Vector2(minf(a, b), maxf(a, b))
-
-
 func near_rows(v: Vehicle, radius: float) -> Array:
 	return session.traffic.near_rows(v, radius) if session.traffic else []
 
 
-## Every lane but the outer one.
-func close_lanes(_p: Racer, way_dir: int, d: float, length: float) -> Array:
+## Each slot's lane on its own.
+func close_slots(_p: Racer, way_dir: int, d: float, length: float, slots: Array) -> Array:
 	var out := []
 	if session.traffic:
-		for lane in range(1, layout.lanes):
-			var id := session.traffic.close_lane(way_dir, lane, d, length)
+		for slot: int in slots:
+			var id := session.traffic.close_lane(way_dir, layout.lanes - 1 - slot, d, length)
 			if id >= 0:
 				out.append(id)
 	return out
@@ -144,10 +142,6 @@ func open_lanes(closures: Array) -> void:
 	for id: int in closures:
 		if session.traffic:
 			session.traffic.open_lanes(id)
-
-
-func block_lanes(_way: int) -> Array:
-	return [1, 2]
 
 
 func patrols(pos: Vector3, radius: float) -> Array:

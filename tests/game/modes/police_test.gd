@@ -42,7 +42,7 @@ func test_a_trap_sees_speeding_and_units_give_chase() -> void:
 	var pc := s.police
 	assert_object(pc).is_not_null()
 	var traps: Array = s.track.highway.traps
-	assert_int(pc.units.size()).is_equal(traps.size() + PoliceControl.CHASE_UNITS + pc.road.ahead_units())
+	assert_int(pc.units.size()).is_equal(traps.size() + PoliceControl.CHASE_UNITS + pc.road.ahead_units() + pc.road.roadblock_units())
 	# The trap units sit at their traps; the rest wait out of play.
 	var trap_unit := pc.units[0]
 	assert_bool(trap_unit.waiting).is_false()
@@ -96,7 +96,7 @@ func test_busted_when_slow_with_a_unit_alongside() -> void:
 	var at := s.track.transform_at(300.0, s.track.highway.lane_lateral(1, 1))
 	p.vehicle.reset_to(at)
 	p.vehicle.throttle = 0.0 # whatever its controller last set (a pad plugged in)
-	var u := pc.units[pc.units.size() - 1 - pc.road.ahead_units()] # a chase unit
+	var u := pc.units[pc.units.size() - 1 - pc.road.ahead_units() - pc.road.roadblock_units()] # a chase unit
 	u.deploy(Transform3D(at.basis, at.origin - at.basis.z * 4.6), Vector3.ZERO)
 	u.ai.mode = PoliceAI.Mode.PARKED
 	await _ticks(120 * 4)
@@ -151,12 +151,25 @@ func test_units_close_in_and_heat_four_brings_a_roadblock() -> void:
 	var u: PoliceRacer = chasing[0]
 	var gap := u.vehicle.global_position.distance_to(p.vehicle.global_position)
 	assert_float(gap).is_greater(PoliceControl.SEND_BEHIND_M - 50.0) # sent in out of sight
-	# A roadblock ahead: every lane but the outer one closed, two units parked across.
+	# A roadblock ahead (D248): 1 or 2 lanes at heat 4, any of them, a unit across each and only
+	# those lanes closed.
 	assert_bool(pc._blocks.has(p)).is_true()
 	var b: Dictionary = pc._blocks[p]
-	assert_int((b.closures as Array).size()).is_equal(s.track.highway.lanes - 1) # all but the outer lane
-	assert_int((b.units as Array).size()).is_equal(2)
+	var picked: Array = b.slots
+	assert_int(picked.size()).is_between(1, 2)
+	assert_int((b.closures as Array).size()).is_equal(picked.size())
+	assert_int((b.units as Array).size()).is_equal(picked.size())
 	assert_int(pc.roadblocks).is_equal(1)
+	var hw := s.track.highway
+	for i in picked.size():
+		var bu: PoliceRacer = b.units[i]
+		var span: Vector2 = pc.road.slot_span(p.direction, picked[i], float(b.at_m))
+		assert_float(float(hw.main.project(bu.vehicle.global_position).lateral)).is_between(span.x - 0.3, span.y + 0.3)
+	await _ticks(4) # the closures reach the lane sim
+	for slot in hw.lanes:
+		var lane_lat := hw.lane_lateral(p.direction, hw.lanes - 1 - slot)
+		var at := s.traffic.sim.locate(hw.main.transform_at(float(b.at_m) - p.direction * 150.0, lane_lat).origin + Vector3.UP * 0.5)
+		assert_bool(s.traffic.sim.closed_ahead(int(at.lane), float(at.s), 200.0)).is_equal(slot in picked)
 	# The chasing unit closes in on the autodriven player.
 	await _ticks(120 * 8)
 	assert_float(u.vehicle.global_position.distance_to(p.vehicle.global_position)).is_less(gap - 100.0)

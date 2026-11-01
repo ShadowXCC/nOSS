@@ -9,7 +9,10 @@ extends Node
 ## lanes) or on its side or roof for a while, it resets (to the shoulder). With `lateral` set
 ## (police after a target, D201; dev --flat-out) it goes at its own speed instead of the lane's:
 ## up to `want_speed`, as fast as the bends ahead allow taking `lateral` sideways and braking at
-## it, on pedals of its own; the lane driver then only steers and says what's ahead.
+## it, on pedals of its own; the lane driver then only steers and says what's ahead. A roadblock
+## ahead (D248): with every lane closed it gets by on the shoulder; held up in the queue for one,
+## down the middle of an open lane (or the shoulder) past cars only nosing into it, another way if
+## that one stays blocked; then back into the lanes.
 
 ## Held up this long: over a lane; not again for this long; back out after this long clear.
 const OVERTAKE_AFTER_S := 1.5
@@ -34,6 +37,23 @@ const OWN_GAP_S := 0.8
 const LANE_LATERAL := 2.5
 ## Dev --flat-out: a player's autodrive at this share of its tyres' grip, with no limit.
 const FLAT_OUT_GRIP := 0.85
+## A roadblock ahead (D248) with every lane closed, this far ahead or held up in the queue for it
+## (as far back as SHOULDER_QUEUE_M; not the police); with a lane open, held up this far short of
+## it: over to its way through (the shoulder, or an open lane's middle), at most this fast, behind
+## anything there that a car this wide would touch, steering at a point at least this far on.
+const SHOULDER_REACH_M := 220.0
+const SHOULDER_QUEUE_M := 900.0
+const QUEUE_REACH_M := 160.0
+const SHOULDER_MPS := 20.0
+const THROUGH_HALF_M := 1.0
+const SHOULDER_LOOK_M := 14.0
+## Going by: a way is clear with nothing on it this far ahead; blocked this long, it tries another,
+## and with none, further than THROUGH_GIVE_UP_M from the block (a unit parked on the shoulder),
+## it goes back to the lanes for THROUGH_AGAIN_S.
+const THROUGH_CLEAR_M := 30.0
+const THROUGH_BLOCKED_S := 2.0
+const THROUGH_GIVE_UP_M := 90.0
+const THROUGH_AGAIN_S := 4.0
 
 var racer: Racer
 ## Changes lanes to get by (autodrive, bots, police); a guide never does (the player steers).
@@ -63,6 +83,14 @@ var _clock := 0.0
 var _changed_at := -INF
 var _stuck := 0.0
 var _upset := 0.0
+var _going_through := false # off its lane, by a roadblock (D248)
+var _through_at := NAN # that roadblock's line, and the way by it taken (a lateral)
+var _through_lat := NAN
+var _blocked := 0.0
+var _through_again := 0 # the physics tick from when it may go by again
+var _gap := INF # the lane driver's last word on what's ahead: gap (m), its speed, and the tick
+var _lead_v := 0.0
+var _gap_tick := -1
 
 
 func _ready() -> void:
@@ -116,6 +144,17 @@ func controls(delta: float) -> Dictionary:
 	if racer.held or racer.waiting:
 		return { "steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": 1.0 }
 	var pos := v.global_position
+	var through := _way_through()
+	if _going_through and (through.is_empty() or float(through.at_m) != _through_at):
+		_back_to_lanes(tm) # past it, or reset somewhere new
+	if not through.is_empty() and (_going_through or Engine.get_physics_frames() >= _through_again):
+		# Held up in a queue (not the police: they'd crowd the shoulder behind their target).
+		var queued := not racer is PoliceRacer and _gap_tick >= Engine.get_physics_frames() - 1 and _gap < 25.0 and _lead_v < 2.0 and absf(v.speed()) < 4.0
+		var to_go := float(through.to_go)
+		if _going_through or (not bool(through.open) and (to_go < SHOULDER_REACH_M or queued)) or (queued and to_go < QUEUE_REACH_M):
+			var c := _through_block(tm, through, delta)
+			if not c.is_empty():
+				return c
 	if lane < 0:
 		var found := tm.sim.locate(pos + Vector3.UP * 0.5)
 		lane = int(found.lane)
@@ -131,6 +170,9 @@ func controls(delta: float) -> Dictionary:
 	var out := tm.sim.follow(lane, _s, limit, tm.member_id(racer), pos, v.global_basis.z, v.speed(),
 		float(p.geometry.wheelbase_m.ref), deg_to_rad(float(p.steering.max_road_angle_deg)), Vector2(e.size.z / 2.0, e.size.x / 2.0), _members(tm))
 	_s = out[5]
+	_gap = out[10]
+	_lead_v = out[11]
+	_gap_tick = Engine.get_physics_frames()
 	if overtakes and not as_guide:
 		_overtake(delta, float(out[10]), float(out[11]), limit)
 	# Off the end of a ramp, or far from the lane: find the lane it's on now.
@@ -147,6 +189,104 @@ func controls(delta: float) -> Dictionary:
 		c.steer = out[0]
 		return c
 	return { "steer": out[0], "throttle": out[1], "brake": out[2], "handbrake": out[3] }
+
+
+## A roadblock coming up (PoliceControl.way_through), or {}: not for a guide, which only helps.
+func _way_through() -> Dictionary:
+	var police: PoliceControl = racer.session.police
+	if as_guide or police == null or racer is PoliceRacer and (racer as PoliceRacer).waiting:
+		return {}
+	return police.way_through(racer, SHOULDER_QUEUE_M)
+
+
+## By a roadblock: along a way by it (the shoulder, or an open lane's middle; another once this
+## one's been blocked THROUGH_BLOCKED_S) at up to SHOULDER_MPS, behind anything a car there would
+## touch; steered by pure pursuit along the main road. {} once it gives up (back to the lanes).
+func _through_block(tm: TrafficManager, through: Dictionary, delta: float) -> Dictionary:
+	var v := racer.vehicle
+	if not _going_through:
+		_going_through = true
+		_through_at = float(through.at_m)
+		_through_lat = float(through.lat)
+		_blocked = 0.0
+	var main := racer.session.track
+	var proj := main.project(v.global_position)
+	var speed := v.speed()
+	var ahead := _line_ahead(tm, proj, _through_lat)
+	_blocked = _blocked + delta if ahead.x < THROUGH_CLEAR_M and absf(speed) < 1.0 else 0.0
+	if _blocked > THROUGH_BLOCKED_S:
+		_blocked = 0.0
+		var moved := false
+		for other: float in through.lats:
+			if other != _through_lat and _line_ahead(tm, proj, other).x >= THROUGH_CLEAR_M:
+				_through_lat = other
+				ahead = _line_ahead(tm, proj, other)
+				moved = true
+				break
+		if not moved and float(through.to_go) > THROUGH_GIVE_UP_M:
+			_back_to_lanes(tm)
+			_through_again = Engine.get_physics_frames() + int(THROUGH_AGAIN_S * Engine.physics_ticks_per_second)
+			return {}
+	var lat := _through_lat
+	var way := (racer as Racer).direction if racer.session.track.highway else 1
+	var aim := main.transform_at(float(proj.distance) + way * maxf(SHOULDER_LOOK_M, speed * 0.8), lat).origin
+	var local := v.global_basis.inverse() * (aim - v.global_position)
+	var look := maxf(Vector2(local.x, local.z).length(), 1.0)
+	var alpha := atan2(local.x, maxf(local.z, 0.5))
+	var p := v.platform
+	var wheelbase := float(p.geometry.wheelbase_m.ref)
+	var max_steer := deg_to_rad(float(p.steering.max_road_angle_deg))
+	var steer := clampf(-atan(2.0 * wheelbase * sin(alpha) / look) / max_steer, -1.0, 1.0)
+	var c := _own_pedals(minf(SHOULDER_MPS, want_speed), ahead.x, ahead.y, speed, 4.0 * _grip(v))
+	c.steer = steer
+	return c
+
+
+## What's on the line at lateral `lat` ahead that a car going down it would touch: Vector2(gap m,
+## its speed), INF without: traffic and every other car.
+func _line_ahead(tm: TrafficManager, proj: Dictionary, lat: float) -> Vector2:
+	var v := racer.vehicle
+	var main := racer.session.track
+	var way := (racer as Racer).direction if racer.session.track.highway else 1
+	var speed := v.speed()
+	var gap := INF
+	var lead_v := 0.0
+	var my_lat := float(proj.lateral)
+	var reach := v.fitted.envelope.size.x / 2.0 + THROUGH_HALF_M + 0.15 if v.fitted else THROUGH_HALF_M * 2.0 + 0.15
+	for row: Array in tm.near_rows(v, 80.0):
+		var along: float = row[2]
+		if along > 0.0 and absf(my_lat + float(row[3]) * way - lat) < reach and along - float(row[5]) < gap:
+			gap = along - float(row[5])
+			lead_v = speed - float(row[4])
+	for r in racer.session.racers:
+		if r == racer or r.vehicle == null or not is_instance_valid(r.vehicle) or r.waiting:
+			continue
+		var d := r.vehicle.global_position - v.global_position
+		var along := d.dot(v.global_basis.z)
+		var r_lat := float(main.project(r.vehicle.global_position).lateral)
+		if along > 0.0 and along < 80.0 and absf(r_lat - lat) < reach and along - 5.0 < gap:
+			gap = along - 5.0
+			lead_v = r.vehicle.speed()
+	return Vector2(gap, lead_v)
+
+
+## Past the block: its lane found again where it is (off the lanes, the outer one).
+func _back_to_lanes(tm: TrafficManager) -> void:
+	_going_through = false
+	_through_at = NAN
+	var layout: HighwayLayout = racer.session.track.highway
+	if layout == null:
+		lane = -1
+		return
+	var way := (racer as Racer).direction
+	var proj := layout.main.project(racer.vehicle.global_position)
+	var d := float(proj.distance)
+	var lat := float(proj.lateral)
+	if absf(lat) > layout.inner + layout.lanes * layout.lane_m:
+		lat = layout.lane_lateral(way, 0)
+	var found := tm.sim.locate(layout.main.transform_at(d, lat).origin + Vector3.UP * 0.5)
+	lane = int(found.lane)
+	_s = float(found.get("s", -1.0))
 
 
 ## The cars the lane driver follows and keeps clear of (TrafficManager.members()).

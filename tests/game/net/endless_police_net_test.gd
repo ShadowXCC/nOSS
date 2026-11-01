@@ -30,7 +30,7 @@ func test_police_ids_name_their_game_and_meet_nothing_else() -> void:
 	for id: int in [1, 150, NetProtocol.FIRST_AI_ID, NetProtocol.FIRST_POLICE_ID, NetProtocol.FIRST_TRAFFIC_ID,
 			EndlessTraffic.car_id_of(EndlessTraffic.slot_of(Vector2i(3, 999999))), NetProtocol.FIRST_TRAFFIC_ID + EndlessTraffic.TRAFFIC_IDS - 1]:
 		assert_bool(NetProtocol.is_endless_police(id)).is_false()
-	assert_int(EndlessPoliceRoad.CHASE_UNITS + PoliceControl.AHEAD_UNITS).is_less_equal(NetProtocol.POLICE_PER_GAME)
+	assert_int(EndlessPoliceRoad.CHASE_UNITS + PoliceControl.AHEAD_UNITS + PoliceControl.ROADBLOCK_UNITS).is_less_equal(NetProtocol.POLICE_PER_GAME)
 
 
 ## A hosted endless session (not run): the host's player, and a guest's game on peer 2.
@@ -74,11 +74,13 @@ func test_a_units_states_come_only_from_its_game() -> void:
 func test_police_events_are_checked_on_the_way() -> void:
 	var ok := EndlessNet._checked_police({
 		"strips": [[5200.0, -3.5, 0.0], [NAN, 0.0, 1.0], [10.0, 0.0, 99.0], "junk"],
-		"closures": [[3, 5000.0, 5060.0, 0, -1], [4, 5000.0, 9000.0, 0, 2], [5, 1.0, 2.0, 7, -1]],
+		# 1-4 lane ids, each 0-3 (D248): too long, an old-style -1, a lane 7, five lanes, none.
+		"closures": [[3, 5000.0, 5060.0, 0], [6, 5000.0, 5060.0, 1, 0, 3], [4, 5000.0, 9000.0, 0, 2], [5, 1.0, 2.0, 0, -1],
+			[7, 1.0, 2.0, 7], [8, 1.0, 2.0, 0, 1, 2, 3, 0], [9, 1.0, 2.0]],
 		"opened": [3, "x"],
 	})
 	assert_int((ok.strips as Array).size()).is_equal(1)
-	assert_int((ok.closures as Array).size()).is_equal(1)
+	assert_int((ok.closures as Array).size()).is_equal(2)
 	assert_array(ok.opened).is_equal([3])
 	assert_bool(EndlessNet._checked_police("nope").is_empty()).is_true()
 
@@ -102,13 +104,15 @@ func test_another_games_strips_and_roadblocks_come_through() -> void:
 	en.session = s
 	en.traffic = s.endless_traffic
 	var d := s.players[0].distance
-	en._apply_police(9, { "strips": [[d + 300.0, -3.5, 0.0]], "closures": [[4, d + 500.0, d + 560.0, 0, -1]] })
+	en._apply_police(9, { "strips": [[d + 300.0, -3.5, 0.0]], "closures": [[4, d + 500.0, d + 560.0, 0, 1]] })
 	assert_int(s.police.strips.size()).is_equal(1)
 	var strip: SpikeStrip = s.police.strips[0]
 	assert_object(strip.for_racer).is_null()
 	assert_bool(s.players[0] in strip.watch).is_true()
 	assert_int(s.endless_traffic.closures.size()).is_equal(1)
 	assert_float(s.endless_traffic.closed_ahead(0, d + 480.0, 40.0)).is_equal_approx(20.0, 0.01)
+	# Both lanes of the road, the oncoming one too (D248): closed ahead of its traffic from the far end.
+	assert_float(s.endless_traffic.closed_ahead(1, d + 580.0, 40.0)).is_equal_approx(20.0, 0.01)
 	en._apply_police(9, { "opened": [4] })
 	assert_int(s.endless_traffic.closures.size()).is_equal(0)
 	# This game's own go out with its next report.

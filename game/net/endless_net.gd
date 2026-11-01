@@ -109,7 +109,7 @@ func gone(slot: int) -> void:
 
 
 ## This game's police did something the other games' players meet too (D195): "strips" [at_m,
-## lat_from, lat_to], "closures" [id, from, to, lane, lane or -1], "opened" id.
+## lat_from, lat_to], "closures" [id, from, to, lane...] (1-4 lane ids, D248), "opened" id.
 func police_event(kind: String, what: Variant) -> void:
 	if not _police.has(kind):
 		_police[kind] = []
@@ -410,11 +410,14 @@ static func _good_strip(s: Variant) -> bool:
 	return s is Array and (s as Array).size() == 3 and (s as Array).all(_finite) and absf(float(s[1])) < 30.0 and absf(float(s[2])) < 30.0
 
 
-## [id, from, to, lane, lane or -1], a few hundred metres at most.
+## [id, from, to, lane...]: 1-4 lane ids (each 0-3), a few hundred metres at most.
 static func _good_closure(c: Variant) -> bool:
-	if not (c is Array and (c as Array).size() == 5 and (c as Array).all(_finite)):
+	if not (c is Array and (c as Array).size() >= 4 and (c as Array).size() <= 7 and (c as Array).all(_finite)):
 		return false
-	return int(c[3]) >= 0 and int(c[3]) < 4 and int(c[4]) >= -1 and int(c[4]) < 4 and absf(float(c[2]) - float(c[1])) < 500.0
+	for i in range(3, (c as Array).size()):
+		if int(c[i]) < 0 or int(c[i]) >= 4:
+			return false
+	return absf(float(c[2]) - float(c[1])) < 500.0
 
 
 ## Another game's police events here: its strips catch this game's players too, its roadblocks
@@ -427,7 +430,7 @@ func _apply_police(from: int, v: Dictionary) -> void:
 	if traffic == null:
 		return
 	for c: Array in pol.get("closures", []):
-		var lanes := [int(c[3])] if int(c[4]) < 0 else [int(c[3]), int(c[4])]
+		var lanes := c.slice(3).map(func(l: Variant) -> int: return int(l))
 		_remote_closures["%d:%d" % [from, int(c[0])]] = traffic.close(lanes, float(c[1]), float(c[2]))
 	for id: int in pol.get("opened", []):
 		var key := "%d:%d" % [from, id]

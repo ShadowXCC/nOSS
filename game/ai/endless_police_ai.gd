@@ -89,7 +89,12 @@ func _pursue(delta: float) -> void:
 		lateral = PoliceTuning.grip_mps2(level, v)
 		braking = lateral
 		brake_gain = CHASE_BRAKE_GAIN
-		c = follow(_lane_to_drive(road), _chase_speed(road, dist))
+		var into := _lane_to_drive(road)
+		var through := way_through(road, racer.distance) # a roadblock coming up (D248)
+		if through.is_empty():
+			c = follow(into, _chase_speed(road, dist))
+		else:
+			c = follow(into, minf(_chase_speed(road, dist, float(through.lat)), float(through.want)), float(through.offset))
 		if _trouble(c, delta):
 			racer.reset_car()
 			resets += 1
@@ -108,12 +113,12 @@ func _pursue(delta: float) -> void:
 
 
 ## Down the road `dist` m from the target: as fast as the level allows (PoliceBrain.chase_speed),
-## slowing in time for what's ahead in its lane.
-func _chase_speed(road: RoadWindow, dist: float) -> float:
+## slowing in time for what's ahead in its lane (or along `at_lat`).
+func _chase_speed(road: RoadWindow, dist: float, at_lat := NAN) -> float:
 	var b := braking * _grip(racer.vehicle)
 	var waiting_for := ahead and not passed and (racer as PoliceRacer).road.past(target, racer.distance) < 0.0
 	var want := PoliceBrain.chase_speed(level, absf(target.vehicle.speed()), dist, road.limit_at(racer.distance), b, waiting_for)
-	var next := _ahead(road, racer.distance, lane)
+	var next := _ahead(road, racer.distance, lane, at_lat)
 	if not next.is_empty() and not _is_target(next.get("what")):
 		var lead := maxf(float(next.speed), 0.0)
 		want = minf(want, sqrt(lead * lead + 2.0 * b * maxf(float(next.gap) - GAP_M - CHASE_GAP_S * lead, 0.0)))

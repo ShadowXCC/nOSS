@@ -19,6 +19,10 @@ const AHEAD_END_M := 200.0
 const PARK_SAMPLES := 10
 const PARK_BENDY := 1.0 / 300.0
 const TRAP_CLEAR_M := 40.0
+## Every lane closed, cars get by on the verge this far past the road's edge, where there's no
+## rail and no bridge this many samples either way (D248).
+const VERGE_OUT_M := 0.8
+const VERGE_SAMPLES := 12
 
 var traffic: EndlessTraffic
 var road_lanes: EndlessLanes
@@ -28,6 +32,7 @@ var busts := {}
 ## other games know it.
 var _base := -1
 var _base_check := 0.0
+var _slots := {} # way -> slot_lanes()
 
 
 static func make(s: TrackSession) -> EndlessPoliceRoad:
@@ -123,11 +128,49 @@ func _parkable(road: RoadWindow, rails: PackedByteArray, d: float) -> bool:
 	return true
 
 
-## Across the road where the lane is (each unit square across it).
-func across_xform(way_dir: int, lane: int, d: float, i: int) -> Transform3D:
-	var at := lane_xform(way_dir, lane, d)
-	at.basis = Basis(Vector3.UP, PI / 2.0 * (1 if i == 0 else -1)) * at.basis
-	return at
+## Every lane of the road, the oncoming ones too (D248).
+func block_slots(_way: int) -> int:
+	return road_lanes.count()
+
+
+## The lane ids from the left of a driver going `way` to their right.
+func slot_lanes(way_dir: int) -> Array[int]:
+	if _slots.has(way_dir):
+		return _slots[way_dir]
+	var out := road_lanes.ids()
+	var key := func(id: int) -> float: return -way_dir * road_lanes.side_sign(EndlessLanes.dir_of(id)) * (EndlessLanes.pos_of(id) + 0.5)
+	out.sort_custom(func(a: int, b: int) -> bool: return key.call(a) < key.call(b))
+	_slots[way_dir] = out
+	return out
+
+
+func slot_span(way_dir: int, slot: int, d: float) -> Vector2:
+	var id := slot_lanes(way_dir)[clampi(slot, 0, road_lanes.count() - 1)]
+	var side := road_lanes.side_sign(EndlessLanes.dir_of(id))
+	var w := road_lanes.lane_w(_road(), d)
+	var a := side * w * EndlessLanes.pos_of(id)
+	var b := side * w * (EndlessLanes.pos_of(id) + 1)
+	return Vector2(minf(a, b), maxf(a, b))
+
+
+## On the verge of `way`'s side, VERGE_OUT_M past the road's edge.
+func through_lateral(way_dir: int, d: float) -> float:
+	var side := road_lanes.side_sign(EndlessLanes.UP if way_dir > 0 else EndlessLanes.DOWN)
+	return side * (_road().half_width(d, side) + VERGE_OUT_M)
+
+
+## No rail on `way`'s side and not on a bridge, VERGE_SAMPLES either way of `d`.
+func verge_clear(way_dir: int, d: float) -> bool:
+	var road := _road()
+	var side := road_lanes.side_sign(EndlessLanes.UP if way_dir > 0 else EndlessLanes.DOWN)
+	var rails: PackedByteArray = road.barrier_l if side > 0.0 else road.barrier_r
+	var i := road.index_of(d)
+	if i < VERGE_SAMPLES or i + VERGE_SAMPLES >= road.samples.size():
+		return false
+	for j in range(i - VERGE_SAMPLES, i + VERGE_SAMPLES + 1):
+		if road.lifted[j] or rails[j] != 0:
+			return false
+	return true
 
 
 ## The traffic's physics cars round `v`, as near-miss rows.
@@ -160,26 +203,16 @@ func spikes_allowed() -> bool:
 	return true
 
 
-## Every lane of that way, from the centre line out, half the edge lane left open.
-func strip_span(way_dir: int, d: float) -> Vector2:
-	var road := _road()
-	var dir := EndlessLanes.UP if way_dir > 0 else EndlessLanes.DOWN
-	var side := road_lanes.side_sign(dir)
-	var a := 0.0
-	var b := side * road_lanes.lane_w(road, d) * (road_lanes.per_dir - 0.5)
-	return Vector2(minf(a, b), maxf(a, b))
-
-
-## Two lanes: the player's lane; four: both lanes of their way, the shoulder left.
-func close_lanes(p: Racer, way_dir: int, d: float, length: float) -> Array:
-	if traffic == null:
+## The slots' lanes in one closure (oncoming ones stop their traffic from their side).
+func close_slots(_p: Racer, way_dir: int, d: float, length: float, slots: Array) -> Array:
+	if traffic == null or slots.is_empty():
 		return []
-	var dir := EndlessLanes.UP if way_dir > 0 else EndlessLanes.DOWN
-	var ids := [EndlessLanes.id(0, dir)] if road_lanes.per_dir == 1 else [EndlessLanes.id(0, dir), EndlessLanes.id(1, dir)]
+	var order := slot_lanes(way_dir)
+	var ids := slots.map(func(slot: int) -> int: return order[slot])
 	var id := traffic.close(ids, d, d + way_dir * length)
 	if session.endless_net:
 		var c: Dictionary = traffic.closures[id]
-		session.endless_net.police_event("closures", [id, c.from, c.to, ids[0], ids[1] if ids.size() > 1 else -1])
+		session.endless_net.police_event("closures", [id, c.from, c.to] + ids)
 	return [id]
 
 
@@ -194,10 +227,6 @@ func open_lanes(closures: Array) -> void:
 func strip_laid(strip: SpikeStrip) -> void:
 	if session.endless_net:
 		session.endless_net.police_event("strips", [strip.at_m, strip.lat_from, strip.lat_to])
-
-
-func block_lanes(_way: int) -> Array:
-	return [0] if road_lanes.per_dir == 1 else [0, 1]
 
 
 ## Traffic moves over for this game's units, and (online) the other games' with their sirens on.

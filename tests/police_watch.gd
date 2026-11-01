@@ -50,4 +50,12 @@ func line() -> String:
 	var pc := police
 	return "  police: %d pursuits, %d busts, %d evaded, %d roadblocks, %d spike strips, %d patrols joined, %d waited ahead, %d pulled out; a unit within %.0f m %.0f%% of the time (first after %s), unit resets %d" % [
 		pc.pursuits, pc.busts, pc.evades, pc.roadblocks, pc.spikes_laid, pc.patrols_converted, pc.aheads, pc.launches,
-		PoliceTuning.CLOSE_M, close_s / maxf(time, 0.001) * 100.0, "%.0f s" % first_close if first_close >= 0.0 else "never", resets()]
+		PoliceTuning.CLOSE_M, close_s / maxf(time, 0.001) * 100.0, "%.0f s" % first_close if first_close >= 0.0 else "never", resets()] \
+		+ ("; lanes %s" % _patterns() if not pc.patterns.is_empty() else "")
+
+
+## The lane patterns closed (D248): "block #.# x2, spikes ##. x1".
+func _patterns() -> String:
+	var keys := police.patterns.keys()
+	keys.sort()
+	return ", ".join(PackedStringArray(keys.map(func(k: String) -> String: return "%s x%d" % [k, int(police.patterns[k])])))

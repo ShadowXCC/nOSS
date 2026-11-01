@@ -1,5 +1,5 @@
 extends GdUnitTestSuite
-## Spike strips (D192): a wheel over one goes flat, one through the half lane left open doesn't;
+## Spike strips (D192, D248): a wheel over one goes flat, one through an open lane doesn't;
 ## a reset puts the tyres back, and they come back up on their own after a while; strips come
 ## from heat level 3 and are taken up once the player is well past.
 
@@ -34,34 +34,51 @@ func _session() -> TrackSession:
 	return s
 
 
-## The player rolls at 20 m/s down lateral `lat`, over where a strip lies 60 m on.
-func _drive_over(s: TrackSession, lat: float) -> int:
+## The player rolls at 20 m/s down lateral `lat`, over where strips over `slots` lie 60 m on.
+func _drive_over(s: TrackSession, lat: float, slots: Array) -> int:
 	var p := s.players[0]
 	var pc := s.police
 	p.driver.set_physics_process(false)
 	p.vehicle.repair()
-	var h := s.track.highway
 	var d := 300.0
-	var strip := pc.lay_spikes(p, d + 60.0)
+	var laid := pc.lay_spikes(p, d + 60.0, slots)
 	var at := s.track.transform_at(d, lat)
 	p.vehicle.reset_to(at, at.basis.z * 20.0)
 	p.vehicle.throttle = 0.3
 	await _ticks(int(120 * 4.5))
-	pc.strips.erase(strip)
-	strip.queue_free()
+	for strip in laid:
+		pc.strips.erase(strip)
+		strip.queue_free()
 	return p.vehicle.flats
 
 
-func test_over_the_strip_flat_through_the_gap_not() -> void:
+## Strips cover whole lanes (D248), one a run of lanes side by side: over one, flat; through an
+## open lane or (every lane covered) the shoulder, not.
+func test_over_a_strip_flat_through_an_open_lane_or_the_shoulder_not() -> void:
 	var s := await _session()
 	var h := s.track.highway
-	var span := s.police.road.strip_span(1, 360.0)
-	# Its middle lane: over the strip.
-	assert_int(await _drive_over(s, h.lane_lateral(1, 1))).is_not_equal(0)
-	# The half lane left open at the outer edge.
-	var gap := -(h.inner + (h.lanes - 0.25) * h.lane_m)
-	assert_float(gap).is_less(span.x)
-	assert_int(await _drive_over(s, gap)).is_equal(0)
+	var pc := s.police
+	# Slots count from the median out: slot k is lane lanes - 1 - k.
+	var lane_of := func(slot: int) -> float: return h.lane_lateral(1, h.lanes - 1 - slot)
+	# The middle lane covered: over it, flat; the outer lane, not.
+	assert_int(await _drive_over(s, lane_of.call(1), [1])).is_not_equal(0)
+	assert_int(await _drive_over(s, lane_of.call(2), [1])).is_equal(0)
+	# Both edge lanes covered: two strips, the middle lane clear between them.
+	var two := pc.lay_spikes(s.players[0], 500.0, [0, 2])
+	assert_int(two.size()).is_equal(2)
+	assert_float(two[0].lat_to - two[0].lat_from).is_equal_approx(h.lane_m, 0.01)
+	for strip in two:
+		pc.strips.erase(strip)
+		strip.queue_free()
+	assert_int(await _drive_over(s, lane_of.call(1), [0, 2])).is_equal(0)
+	assert_int(await _drive_over(s, lane_of.call(0), [0, 2])).is_not_equal(0)
+	# Every lane covered: one strip; the shoulder is the way by.
+	var all := pc.lay_spikes(s.players[0], 500.0, [0, 1, 2])
+	assert_int(all.size()).is_equal(1)
+	for strip in all:
+		pc.strips.erase(strip)
+		strip.queue_free()
+	assert_int(await _drive_over(s, pc.road.through_lateral(1, 360.0), [0, 1, 2])).is_equal(0)
 	s.queue_free()
 	await get_tree().process_frame
 

@@ -2,9 +2,9 @@ extends GdUnitTestSuite
 ## The police on the endless road (D194): a camera's snap gives heat and a unit comes up behind in
 ## the players' way's lane, right or left; busted is pulled over, held, then on your way; players
 ## on one screen each have their own heat; a trap's parked patrol joins the chase where it was;
-## patrols turn up in the traffic; traffic moves over for a siren; roadblocks close the right lanes
-## for two lanes and four; spike strips only from heat 3; from heat 2 a unit waits on the verge
-## ahead (D201).
+## patrols turn up in the traffic; traffic moves over for a siren; roadblocks close the lanes they
+## pick, oncoming ones too (D248), for two lanes and four; spike strips only from heat 3, over whole
+## lanes; from heat 2 a unit waits on the verge ahead (D201).
 
 
 func before() -> void:
@@ -86,7 +86,7 @@ func test_busted_is_pulled_over_then_on_your_way() -> void:
 	p.vehicle.reset_to(at)
 	p.vehicle.throttle = 0.0
 	p.vehicle.handbrake = 1.0 # stopped (on a hill, maybe)
-	var u := pc.units[pc.units.size() - 1 - pc.road.ahead_units()] # a chase unit
+	var u := pc.units[pc.units.size() - 1 - pc.road.ahead_units() - pc.road.roadblock_units()] # a chase unit
 	u.deploy(Transform3D(at.basis, at.origin - at.basis.z * 4.6), Vector3.ZERO)
 	u.ai.mode = PoliceAI.Mode.PARKED
 	await _ticks(int(120 * (Heat.BUST_S + 0.5)))
@@ -116,7 +116,7 @@ func test_each_player_on_a_screen_has_their_own_heat() -> void:
 	assert_int(pc.heat_of(b).level()).is_equal(0)
 	assert_int(pc.chasers(a).size()).is_equal(3)
 	assert_int(pc.units.filter(func(u: PoliceRacer) -> bool: return u.ai.target == b).size()).is_equal(0)
-	assert_int(pc.units.size()).is_equal(EndlessPoliceRoad.CHASE_UNITS + PoliceControl.AHEAD_UNITS)
+	assert_int(pc.units.size()).is_equal(EndlessPoliceRoad.CHASE_UNITS + PoliceControl.AHEAD_UNITS + PoliceControl.ROADBLOCK_UNITS)
 	assert_object(a.hud.get_node_or_null(^"HeatPanel")).is_not_null()
 	s.queue_free()
 	await get_tree().process_frame
@@ -230,23 +230,41 @@ func test_traffic_moves_over_for_a_siren() -> void:
 	await get_tree().process_frame
 
 
-func test_roadblocks_close_the_lanes_of_the_players_way() -> void:
+func test_roadblocks_close_the_lanes_picked() -> void:
 	for lanes in [2, 4]:
 		var s := await _session("right", lanes, "heavy")
 		var pc := s.police
 		var p := s.players[0]
-		pc.heat_of(p).points = Heat.LEVELS[3] # level 4
-		await _ticks(6)
-		assert_bool(pc._blocks.has(p)).is_true()
-		var b: Dictionary = pc._blocks[p]
 		var t: EndlessTraffic = s.endless_traffic
-		var c: Dictionary = t.closures[int(b.closures[0])]
-		assert_array(c.lanes).is_equal([EndlessLanes.id(0, EndlessLanes.UP)] if lanes == 2 else [EndlessLanes.id(0, EndlessLanes.UP), EndlessLanes.id(1, EndlessLanes.UP)])
-		assert_int((b.units as Array).size()).is_equal(1 if lanes == 2 else 2)
-		# Nothing scheduled drives into it.
-		for car: Dictionary in t.scheduled():
-			if car.lane in c.lanes:
-				assert_bool(float(car.s) > float(c.from) - EndlessTraffic.CLOSED_BEFORE_M and float(car.s) < float(c.to)).is_false()
+		var road := pc.road as EndlessPoliceRoad
+		assert_int(road.block_slots(1)).is_equal(lanes)
+		# Left to right as the players see it, driving on the right: oncoming lanes first.
+		var order := road.slot_lanes(1)
+		assert_int(EndlessLanes.dir_of(order[0])).is_equal(EndlessLanes.DOWN)
+		assert_int(EndlessLanes.dir_of(order[-1])).is_equal(EndlessLanes.UP)
+		pc.rng.seed = 11 # the same picks every run
+		var seen_down := false
+		var seen_up := false
+		for level in [4, 5, 4, 5, 4, 5]:
+			pc._open_roadblock(p)
+			pc.heat_of(p).points = Heat.LEVELS[level - 1]
+			await _ticks(2)
+			assert_bool(pc._blocks.has(p)).is_true()
+			var b: Dictionary = pc._blocks[p]
+			var picked: Array = b.slots
+			assert_int(picked.size()).is_between(1, mini(3 if level == 5 else 2, lanes)) # (one may stay open for want of a verge)
+			var c: Dictionary = t.closures[int(b.closures[0])]
+			assert_array(c.lanes).is_equal(picked.map(func(slot: int) -> int: return order[slot]))
+			assert_int((b.units as Array).size()).is_equal(picked.size())
+			for id: int in c.lanes:
+				seen_down = seen_down or EndlessLanes.dir_of(id) == EndlessLanes.DOWN
+				seen_up = seen_up or EndlessLanes.dir_of(id) == EndlessLanes.UP
+			# Nothing scheduled drives into it, either way.
+			for car: Dictionary in t.scheduled():
+				if car.lane in c.lanes:
+					assert_bool(float(car.s) > float(c.from) - EndlessTraffic.CLOSED_BEFORE_M and float(car.s) < float(c.to) + EndlessTraffic.CLOSED_BEFORE_M \
+						and is_finite(t.closed_ahead(int(car.lane), float(car.s), EndlessTraffic.CLOSED_BEFORE_M))).is_false()
+		assert_bool(seen_down and seen_up).is_true()
 		s.queue_free()
 		await get_tree().process_frame
 
@@ -276,10 +294,12 @@ func test_spike_strips_only_from_heat_three() -> void:
 		s.endless.move_to(p.distance + 300.0)
 		await _ticks(2)
 	assert_bool(laid).is_true()
-	var strip: SpikeStrip = pc.strips[0]
-	var span := Vector2(strip.lat_from, strip.lat_to)
-	assert_float(span.x).is_less(0.0) # driving on the right: across the right of the road
-	assert_float(span.y).is_equal(0.0)
+	# Whole lanes (D248): each strip from lane edge to lane edge, within the lanes.
+	var w := (pc.road as EndlessPoliceRoad).road_lanes.lane_w(s.endless_world.road, pc.strips[0].at_m)
+	for strip: SpikeStrip in pc.strips:
+		for lat: float in [strip.lat_from, strip.lat_to]:
+			assert_float(absf(lat / w - roundf(lat / w))).is_less(0.01)
+			assert_float(absf(lat)).is_less_equal(w * 1.01)
 	s.queue_free()
 	await get_tree().process_frame
 

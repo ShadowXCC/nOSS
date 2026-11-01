@@ -6,6 +6,9 @@ extends RefCounted
 ## patrols, and what being busted means there. Distances are along the road (Racer.distance); a
 ## way is +1 (toward higher distances) or -1.
 
+## A roadblock's units side by side stand this far apart along the road (a car is 1.9 m wide).
+const STAGGER_M := 2.6
+
 var session: TrackSession
 
 
@@ -49,6 +52,11 @@ func ahead_units() -> int:
 	return PoliceControl.AHEAD_UNITS
 
 
+## The units kept for roadblocks (D248), on top of the rest.
+func roadblock_units() -> int:
+	return PoliceControl.ROADBLOCK_UNITS
+
+
 ## Where a unit waits for `p` about `m` metres on along their way, on the side of the road facing
 ## their way (D201): {xform, at_m}, or {} if nowhere here now.
 func ahead_spot(_p: Racer, _m: float) -> Dictionary:
@@ -81,11 +89,35 @@ func shoulder_xform(way_dir: int, d: float) -> Transform3D:
 	return lane_xform(way_dir, lanes() - 1, d)
 
 
-## The `i`th unit parked across `way`'s lanes at `d` (a roadblock), in lane `lane` (block_lanes).
-func across_xform(way_dir: int, lane: int, d: float, i: int) -> Transform3D:
-	var at := lane_xform(way_dir, lane, d)
-	at.basis = Basis(Vector3.UP, PI / 2.0 * (1 if i == 0 else -1)) * at.basis
+## The slots a roadblock or a spike strip may close for a driver going `way` (D248): lanes, counted
+## from their left as they drive (PoliceLanes picks among them).
+func block_slots(_way: int) -> int:
+	return lanes()
+
+
+## Slot `slot`'s lane across the road at `d`: Vector2(from, to) laterals, lane edge to lane edge.
+func slot_span(_way: int, _slot: int, _d: float) -> Vector2:
+	return Vector2.ZERO
+
+
+## The `i`th unit of a roadblock at `d`, parked at lateral `lat`, `angle` off the road's line
+## (PI / 2: square across it), every other one turned the other way and STAGGER_M on, so units
+## side by side don't overlap.
+func block_xform(way_dir: int, lat: float, d: float, i: int, angle := PI / 2.0) -> Transform3D:
+	var at := session.track.transform_at(d + way_dir * STAGGER_M * (i % 2), lat)
+	at.basis = Basis(at.basis.y, angle * (1 if i % 2 == 0 else -1)) * at.basis
 	return at
+
+
+## Where a car gets by a roadblock or a strip at `d` with every slot closed: the shoulder's
+## lateral (the verge's on the endless road).
+func through_lateral(_way: int, _d: float) -> float:
+	return 0.0
+
+
+## Whether the shoulder (the verge) at `d` is free to drive round a block there, `way`'s side.
+func verge_clear(_way: int, _d: float) -> bool:
+	return true
 
 
 ## Whether the police lay spike strips here (they must be able to catch the cars they're for).
@@ -93,10 +125,6 @@ func spikes_allowed() -> bool:
 	return true
 
 
-## Across the road the way `way` drives at `d`, where a spike strip lies: Vector2(from, to)
-## laterals, every lane of that way but half a lane left open.
-func strip_span(_way: int, _d: float) -> Vector2:
-	return Vector2.ZERO
 
 
 ## Traffic round `v` for near misses (TrafficManager.near_rows' rows).
@@ -104,19 +132,14 @@ func near_rows(_v: Vehicle, _radius: float) -> Array:
 	return []
 
 
-## A roadblock for `p` at `d`: `way`'s lanes closed to traffic over `length` m, bar the one left
-## open. Returns what open_lanes takes to open them again.
-func close_lanes(_p: Racer, _way: int, _d: float, _length: float) -> Array:
+## A roadblock for `p` at `d`: slots `slots` closed to traffic over `length` m on the way `way`
+## drives. Returns what open_lanes takes to open them again.
+func close_slots(_p: Racer, _way: int, _d: float, _length: float, _slots: Array) -> Array:
 	return []
 
 
 func open_lanes(_closures: Array) -> void:
 	pass
-
-
-## Lanes a roadblock parks units across: [lane] (the rest stay open).
-func block_lanes(_way: int) -> Array:
-	return []
 
 
 ## Traffic gets out of the way of `units` (PoliceRacers with their sirens on).

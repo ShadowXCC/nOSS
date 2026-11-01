@@ -7,7 +7,8 @@ extends Node
 ## by: one lane each way, in the oncoming lane, with a clear straight and nothing coming; two each
 ## way, in the passing lane once that's clear. Stuck or on its side or roof for a while, it resets.
 ## Police after a target (D201) and dev --flat-out take bends and brake harder (`lateral`,
-## `braking`).
+## `braking`). A roadblock ahead (D248), it heads for the way through: an open lane (an oncoming
+## one only with nothing coming), or with every lane closed the verge, slowly.
 
 ## Sideways and braking acceleration it plans with, on a dry road (m/s^2).
 const LATERAL := 2.8
@@ -31,6 +32,14 @@ const STUCK_S := 6.0
 const UPSET_S := 3.0
 ## Dev --flat-out: a player's autodrive at this share of its tyres' grip, with no cruising limit.
 const FLAT_OUT_GRIP := 0.85
+## A roadblock this far ahead: over to the way through; on the verge at most this fast. Through an
+## oncoming lane only with nothing coming from there to as far past the block as it has to go,
+## and this far more; else it keeps its lane and stops this far short. Within COMMIT_M it goes on.
+const THROUGH_REACH_M := 220.0
+const VERGE_MPS := 12.0
+const ONCOMING_PAST_M := 60.0
+const THROUGH_STOP_M := 14.0
+const COMMIT_M := 30.0
 
 var racer: Racer
 var as_guide := false
@@ -125,6 +134,16 @@ func controls(delta: float) -> Dictionary:
 			_passing = false
 			_held = 0.0
 			lane = lanes.keep_lane(EndlessLanes.UP)
+	# A roadblock coming up: over to its way through.
+	var through := way_through(road, d)
+	if not through.is_empty():
+		want = minf(want, float(through.want))
+		var on := _ahead(road, d, lane, float(through.lat))
+		if not on.is_empty():
+			var safe_on := GAP_M + GAP_S * speed
+			if float(on.gap) < safe_on:
+				want = minf(want, maxf(float(on.speed) * float(on.gap) / safe_on, 0.0))
+		return follow(lane, want, float(through.offset))
 	# Anything ahead in its lane.
 	var ahead := _ahead(road, d, lane)
 	if not ahead.is_empty():
@@ -191,11 +210,34 @@ func _grip(v: Vehicle) -> float:
 	return VehicleSim.surface_grip(VehicleSim.SURFACE_ASPHALT, c.x, c.y)
 
 
-## The nearest thing ahead in lane `in_lane` within 160 m: {gap (m, nose to tail), speed}, or {}.
-func _ahead(road: RoadWindow, d: float, in_lane: int) -> Dictionary:
+## A roadblock coming up (PoliceControl.way_through) for a car in `lane` at `d`: {lat, offset
+## (from the lane's middle), want (the most it should go)}, or {}. Not for a guide.
+func way_through(road: RoadWindow, d: float) -> Dictionary:
+	var police: PoliceControl = racer.session.get(&"police")
+	if as_guide or police == null or racer.waiting:
+		return {}
+	var w := police.way_through(racer, THROUGH_REACH_M)
+	if w.is_empty():
+		return {}
+	var lat := float(w.lat)
+	var want := INF
+	var to_go := float(w.at_m) - d
+	if not bool(w.open):
+		want = VERGE_MPS
+	elif EndlessLanes.dir_of(lanes.lane_at(road, float(w.at_m), lat)) == EndlessLanes.DOWN and to_go > COMMIT_M:
+		var traffic: Variant = racer.session.get(&"endless_traffic")
+		if traffic != null and traffic.oncoming_within(d, float(w.at_m) + ONCOMING_PAST_M + to_go):
+			want = sqrt(2.0 * braking * _grip(racer.vehicle) * maxf(to_go - THROUGH_STOP_M, 0.0))
+			lat = lanes.lateral(road, lane, d) # its own lane till it's clear
+	return { "lat": lat, "offset": lat - lanes.lateral(road, lane, d), "want": want }
+
+
+## The nearest thing ahead in lane `in_lane` within 160 m (or, given `at_lat`, along that line
+## across the road): {gap (m, nose to tail), speed}, or {}.
+func _ahead(road: RoadWindow, d: float, in_lane: int, at_lat := NAN) -> Dictionary:
 	var best := {}
 	var best_gap := 160.0
-	var lane_lat := lanes.lateral(road, in_lane, d)
+	var lane_lat := lanes.lateral(road, in_lane, d) if is_nan(at_lat) else at_lat
 	var lane_w := lanes.lane_w(road, d)
 	for r: Racer in racer.session.racers:
 		if r == racer or r.vehicle == null or r.waiting:
@@ -205,6 +247,10 @@ func _ahead(road: RoadWindow, d: float, in_lane: int) -> Dictionary:
 			best_gap = gap
 			best = { "gap": maxf(gap, 0.0), "speed": maxf(r.speed, 0.0), "what": r }
 	var traffic: Variant = racer.session.get(&"endless_traffic")
+	if not is_nan(at_lat):
+		if absf(at_lat) > lane_w * lanes.per_dir:
+			return best # on the verge: no traffic there
+		in_lane = lanes.lane_at(road, d, at_lat)
 	if traffic != null and traffic.has_method(&"ahead"):
 		var t: Dictionary = traffic.ahead(d, in_lane, best_gap)
 		if not t.is_empty() and float(t.gap) < best_gap:
