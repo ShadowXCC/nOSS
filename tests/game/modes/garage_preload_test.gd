@@ -109,12 +109,30 @@ func test_out_of_memory_the_rest_are_left_out() -> void:
 	var out: Array = await _run(batch, items)
 	assert_array(out.slice(0, 2)).is_equal([2, 4])
 	assert_bool(batch.memory_full).is_true()
+	assert_str(batch.full_by).is_equal("memory") # the note says "(memory)", not "(video memory)"
 	assert_int(batch.left.size()).is_equal(4)
 	for i in 2:
 		assert_bool(GaragePreload.get_car(String(items[i].path)).is_empty()).is_false()
 	for i in range(2, 6):
 		assert_bool(batch.left.has(String(items[i].path))).is_true()
 	assert_int((out[2] as Array).back()).is_equal(6)
+
+
+## Settings › Video memory set lower than the loaded cars came in under (D247): the next drive lets
+## them go (Game). Set higher, they stay.
+func test_a_lower_video_limit_lets_the_cars_go() -> void:
+	Settings.set_value("video_memory", "8")
+	assert_bool(GaragePreload.limit_lowered()).is_false() # none loaded
+	var out: Array = await _run(auto_free(GaragePreload.new()), _cars(2))
+	assert_int(out[0]).is_equal(2)
+	assert_bool(GaragePreload.limit_lowered()).is_false()
+	Settings.set_value("video_memory", "unlimited")
+	assert_bool(GaragePreload.limit_lowered()).is_false()
+	Settings.set_value("video_memory", "6")
+	assert_bool(GaragePreload.limit_lowered()).is_true()
+	GaragePreload.clear()
+	assert_bool(GaragePreload.limit_lowered()).is_false()
+	Settings.reset_keys(["video_memory"])
 
 
 ## Leaving with loads in flight (quitting on the loading screen) waits for them and keeps none.

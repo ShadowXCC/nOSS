@@ -393,7 +393,7 @@ var _waiting: TrackSession
 
 ## The track's here: the garage cars its traffic has load before the drive, behind the loading
 ## screen (D246); those that don't fit in memory are left out of it. They stay loaded for the next
-## drive; a drive without them lets them go.
+## drive; a drive without them lets them go, and so does a lower Video memory setting (D247).
 func _after_track(session: TrackSession) -> void:
 	_waiting = session
 	var pool: Array[Dictionary] = []
@@ -405,6 +405,8 @@ func _after_track(session: TrackSession) -> void:
 		_waiting = null
 		_switch(session)
 		return
+	if GaragePreload.limit_lowered():
+		GaragePreload.clear()
 	GaragePreload.keep_only(pool.map(func(d: Dictionary) -> String: return String(d.path)))
 	session.garage_preloaded = true
 	var batch := GaragePreload.new()
@@ -418,7 +420,7 @@ func _after_track(session: TrackSession) -> void:
 	batch.draws = Vehicle.drawn
 	batch.finished.connect(func(loaded: int, left_out: int) -> void:
 		if batch.memory_full:
-			session.garage_note = "Garage cars: %d/%d (memory)" % [loaded, loaded + left_out]
+			session.garage_note = "Garage cars: %d/%d (%s)" % [loaded, loaded + left_out, "video memory" if batch.full_by == "video" else "memory"]
 		_loading = null
 		_waiting = null
 		_switch(session), CONNECT_ONE_SHOT)

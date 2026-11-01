@@ -69,7 +69,7 @@ func test_settings_tabs_switch_by_action_and_by_key() -> void:
 	assert_str(menu.title).is_equal("Settings")
 	assert_str((menu.find_child("Crumbs", true, false) as Label).text).is_equal("Settings")
 	assert_str(menu.tab_name()).is_equal("Display")
-	assert_array(_row_names(menu)).is_equal(["Graphics", "Fullscreen", "Reset to defaults"])
+	assert_array(_row_names(menu)).is_equal(["Graphics", "Video memory", "Fullscreen", "Reset to defaults"])
 	assert_str(_focused_name()).is_equal("Graphics: Medium")
 	# The action, from a row.
 	_action(get_viewport(), "ui_tab_next")
@@ -269,9 +269,43 @@ func test_reset_to_defaults_asks_first() -> void:
 	Settings.reset_keys(["units"])
 
 
+## Display's Video memory (D247): Auto with its size, the card's in the help line; right steps to
+## the sizes and on to No limit, saved as it goes.
+func test_video_memory_row() -> void:
+	Settings.card_bytes = 10 << 30
+	var menu := _open(SettingsMenu.new()) as SettingsMenu
+	await _frames()
+	_action(get_viewport(), "ui_down")
+	await _frames()
+	assert_str(_focused_name()).is_equal("Video memory: Auto (7.5 GB)")
+	assert_str(menu.help.text).is_equal("Garage cars in traffic load until the game uses this. Card: 10 GB")
+	_action(get_viewport(), "ui_right")
+	await _frames()
+	assert_str(_focused_name()).is_equal("Video memory: 2 GB")
+	assert_str(Settings.video_memory).is_equal("2")
+	_action(get_viewport(), "ui_left")
+	_action(get_viewport(), "ui_left")
+	await _frames()
+	assert_str(_focused_name()).is_equal("Video memory: No limit")
+	assert_str(Settings.video_memory).is_equal("unlimited")
+	menu.get_parent().free()
+	# The card unknown: Auto is the fixed 3.5 GB.
+	Settings.card_bytes = 0
+	Settings.reset_keys(["video_memory"])
+	menu = _open(SettingsMenu.new()) as SettingsMenu
+	await _frames()
+	_action(get_viewport(), "ui_down")
+	await _frames()
+	assert_str(_focused_name()).is_equal("Video memory: Auto (3.5 GB)")
+	assert_str(menu.help.text).is_equal("Garage cars in traffic load until the game uses this. Card: unknown")
+	menu.get_parent().free()
+	Settings.card_bytes = -1
+
+
 ## On the page stack (the main menu's), the question is a page of its own on it.
 func test_reset_on_the_stack() -> void:
 	Settings.set_value("graphics", "high")
+	Settings.set_value("video_memory", "6")
 	var stack := MenuStack.new()
 	add_child(stack)
 	var menu := SettingsMenu.new()
@@ -287,6 +321,7 @@ func test_reset_on_the_stack() -> void:
 	await _frames()
 	assert_int(stack.depth()).is_equal(1)
 	assert_str(Settings.graphics).is_equal("medium")
+	assert_str(Settings.video_memory).is_equal("auto")
 	assert_str(_focused_name()).is_equal("Reset to defaults")
 	stack.free()
 

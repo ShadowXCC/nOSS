@@ -6,7 +6,7 @@ extends TabbedPage
 ## Players tab, the Players screen and the pause menu. Changes apply and save immediately.
 
 const RESETS := {
-	"Display": ["graphics", "fullscreen"],
+	"Display": ["graphics", "video_memory", "fullscreen"],
 	"Sound": ["master_volume", "vol_own_engine", "vol_other_engines", "vol_tires", "vol_effects", "vol_ambience",
 		"vol_music", "vol_ui", "vol_spotter", "vol_narration", "mono"],
 	"Splitscreen": ["split_two", "split_three", "split_audio", "auto_resolution"],
@@ -40,6 +40,10 @@ func _build_tab(which: String) -> void:
 		"Display":
 			add_row(UiKit.spinner("Graphics", [["low", "Low"], ["medium", "Medium"], ["high", "High"]], Settings.graphics,
 				func(v: String) -> void: Settings.set_value("graphics", v), "Detail and smoothing. Low runs fastest"))
+			var card := Settings.card_memory()
+			add_row(UiKit.spinner("Video memory", Settings.video_choices(), Settings.video_memory,
+				func(v: String) -> void: Settings.set_value("video_memory", v),
+				"Garage cars in traffic load until the game uses this. Card: %s" % (Settings.gb_text(card) if card > 0 else "unknown")))
 			_fullscreen = UiKit.check("Fullscreen", Settings.fullscreen, func(on: bool) -> void: Settings.set_value("fullscreen", on),
 				"The whole screen, or a window. F11")
 			add_row(_fullscreen)

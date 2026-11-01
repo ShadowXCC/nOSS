@@ -154,7 +154,8 @@ var traffic: TrafficManager
 var traffic_seed := -1
 ## Its garage cars were loaded before the drive (Game, D246): the traffic has only those loaded.
 var garage_preloaded := false
-## For P1 at the start: some were left out ("Garage cars: 20/27 (memory)"), or "".
+## For P1 at the start: some were left out ("Garage cars: 20/27 (video memory)", or "(memory)" for
+## free RAM), or "".
 var garage_note := ""
 var _garage_pool: Variant = null # garage_pool_here(), once worked out
 ## Highways: each player's starting direction by player order ([] or missing: the event's).

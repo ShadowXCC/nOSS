@@ -17,12 +17,12 @@ extends Node
 const MOST_PAUSED := 6
 const MOST_IN_SESSION := 2
 ## Memory (checked before each load): a load in flight takes about RAM_PER_LOAD; free RAM must stay
-## above RAM_FLOOR and RAM_FLOOR_SHARE of the whole, video memory in use at most VIDEO_MAX. Until a
-## car is in, one is reckoned VIDEO_GUESS.
+## above RAM_FLOOR and RAM_FLOOR_SHARE of the whole, video memory in use (the whole game's) at most
+## Settings.video_limit() (Settings › Video memory, D247). Until a car is in, one is reckoned
+## VIDEO_GUESS.
 const RAM_PER_LOAD := 1 << 30
 const RAM_FLOOR := 2 << 30
 const RAM_FLOOR_SHARE := 0.15
-const VIDEO_MAX := 3584 << 20
 const VIDEO_GUESS := 150 << 20
 const VIEW_TIMEOUT_S := 30.0
 
@@ -35,6 +35,8 @@ signal car_loaded(path: String)
 
 ## path -> {pkg (its whole model), far (its far view, or null), stamp (the file's modified time)}.
 static var _cache := {}
+## The highest video memory limit the loaded cars came in under (0: none loaded).
+static var _limit := 0.0
 
 ## [{path, platform (the far view is fitted to it; {}: none)}]
 var items: Array[Dictionary] = []
@@ -46,6 +48,8 @@ var in_session := false
 var room := Callable()
 ## Memory left some cars out.
 var memory_full := false
+## Which ran out: "video" (Settings › Video memory) or "memory" (free RAM; or `room`).
+var full_by := ""
 ## Paths left out (memory) or that wouldn't load: path -> true.
 var left := {}
 
@@ -80,11 +84,19 @@ static func keep_only(paths: Array) -> void:
 			gone = true
 	if gone:
 		NossCore.trim_memory() # what they held goes back to the system (D233)
+	if _cache.is_empty():
+		_limit = 0.0
 
 
 ## Lets go of every loaded car.
 static func clear() -> void:
 	keep_only([])
+
+
+## Settings › Video memory has gone down since the loaded cars came in: they may be over it now, so
+## the next drive loads afresh (D247). Gone up, the cars left out load then anyway (missing).
+static func limit_lowered() -> bool:
+	return not _cache.is_empty() and Settings.video_limit() < _limit
 
 
 static func _drop(path: String) -> void:
@@ -207,7 +219,8 @@ func _opts() -> Dictionary:
 ## goes back to the system once and it looks again; still none, and the rest are left out.
 func _pump() -> void:
 	while not _queue.is_empty() and _flight < _most() and not _stopped:
-		if not _has_room():
+		var short := _short_of()
+		if short:
 			if _flight > 0:
 				return # those in flight first
 			if not _trimmed:
@@ -215,6 +228,7 @@ func _pump() -> void:
 				NossCore.trim_memory()
 				continue
 			memory_full = true
+			full_by = short
 			for it in _queue:
 				left[String(it.path)] = true
 				_done += 1
@@ -225,16 +239,17 @@ func _pump() -> void:
 	_check_done()
 
 
-func _has_room() -> bool:
+## What one more load would run short of: "" (nothing), "memory" (free RAM) or "video".
+func _short_of() -> String:
 	if room.is_valid():
-		return bool(room.call(_flight))
+		return "" if bool(room.call(_flight)) else "memory"
 	var mem := OS.get_memory_info()
 	var free_ram := int(mem.get("available", -1))
 	var physical := int(mem.get("physical", -1))
 	if free_ram >= 0 and physical > 0 and free_ram - (_flight + 1) * RAM_PER_LOAD < maxi(RAM_FLOOR, int(physical * RAM_FLOOR_SHARE)):
-		return false
+		return "memory"
 	var video := video_used()
-	return video <= 0.0 or video + _per_car() * (_flight + 1) <= VIDEO_MAX
+	return "" if video <= 0.0 or video + _per_car() * (_flight + 1) <= Settings.video_limit() else "video"
 
 
 ## Video memory a car takes, from those loaded so far.
@@ -260,6 +275,7 @@ func _store(path: String, pkg: VehiclePackage, platform: Dictionary) -> void:
 	if _cache.has(path):
 		_drop(path) # an older one (its file changed)
 	_cache[path] = { "pkg": pkg, "far": null, "stamp": stamp_of(path) }
+	_limit = maxf(_limit, Settings.video_limit())
 	_loaded += 1
 	if draws and not pkg.lods.is_empty() and not platform.is_empty():
 		_views.append([path, platform])
@@ -312,7 +328,9 @@ func _check_done() -> void:
 	var loaded := items.filter(func(it: Dictionary) -> bool: return not get_car(String(it.path)).is_empty()).size()
 	if _loaded > 0 or not left.is_empty():
 		var mem := OS.get_memory_info()
-		print("garage preload: %d/%d (%d cached) in %.1f s, video %d MB (+%d for %d), ram free %d GB" % [loaded, items.size(), _cached,
-			(Time.get_ticks_msec() - _t0) / 1000.0, roundi(video_used() / 1048576.0), roundi((video_used() - _video0) / 1048576.0), _loaded,
-			roundi(float(mem.get("available", 0)) / 1073741824.0)])
+		var limit := Settings.video_limit()
+		print("garage preload: %d/%d (%d cached) in %.1f s, video %d MB of %s (+%d for %d), ram free %d GB%s" % [loaded, items.size(), _cached,
+			(Time.get_ticks_msec() - _t0) / 1000.0, roundi(video_used() / 1048576.0), "%d" % roundi(limit / 1048576.0) if is_finite(limit) else "no limit",
+			roundi((video_used() - _video0) / 1048576.0), _loaded, roundi(float(mem.get("available", 0)) / 1073741824.0),
+			", out of " + full_by if memory_full else ""])
 	finished.emit(loaded, items.size() - loaded)

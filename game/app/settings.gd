@@ -9,9 +9,15 @@ signal changed
 signal fullscreen_changed
 
 const PRESETS := ["low", "medium", "high"]
+## Video memory (D247): the sizes offered (GB) between Auto and No limit; Auto takes
+## VIDEO_AUTO_SHARE of the card, or VIDEO_FALLBACK (D246's fixed limit) when the card's unknown.
+const VIDEO_SIZES := [2, 3, 4, 5, 6, 8, 10, 12, 16, 24]
+const VIDEO_AUTO_SHARE := 0.75
+const VIDEO_FALLBACK := 3584 << 20
 ## Machine settings, saved in settings.cfg as [section] key.
 const MACHINE := {
 	"graphics": ["graphics", "preset"],
+	"video_memory": ["graphics", "video_memory"],
 	"units": ["game", "units"],
 	"fullscreen": ["display", "fullscreen"],
 	"discord_presence": ["game", "discord_presence"],
@@ -41,6 +47,9 @@ const MACHINE := {
 }
 
 var graphics := "medium"
+## How much video memory the game may fill with garage cars in traffic (GaragePreload): "auto", a
+## size in GB ("2" … "24", VIDEO_SIZES) or "unlimited".
+var video_memory := "auto"
 var units := "metric"
 var fullscreen := false
 ## Tell Discord what this machine is playing (game/app/discord.gd).
@@ -81,6 +90,8 @@ var net_favourites := []
 ## other car that fits drives in endless traffic.
 var traffic_off := []
 
+## The graphics card's memory (bytes; 0: unknown), asked once. Tests set it.
+var card_bytes := -1
 var primary: PlayerProfile
 var profile := {}
 var settings_path := "user://settings.cfg"
@@ -109,6 +120,8 @@ func load_all() -> void:
 			set(key, cfg.get_value(at[0], at[1], get(key)))
 	if graphics not in PRESETS:
 		graphics = "medium"
+	if video_memory not in ["auto", "unlimited"] + VIDEO_SIZES.map(func(gb: int) -> String: return str(gb)):
+		video_memory = "auto"
 	_profiles.clear()
 	_set_primary(get_profile(primary_profile))
 
@@ -262,6 +275,45 @@ func speed_text(mps: float) -> String:
 
 func speed_unit() -> String:
 	return "mph" if units == "imperial" else "km/h"
+
+
+## The graphics card's memory (bytes; 0: unknown, or headless), from NossCore the first time.
+func card_memory() -> int:
+	if card_bytes < 0:
+		card_bytes = 0
+		if DisplayServer.get_name() != "headless" and ClassDB.class_exists(&"NossCore"):
+			card_bytes = int(ClassDB.class_call_static(&"NossCore", &"video_memory_total", RenderingServer.get_video_adapter_name()))
+	return card_bytes
+
+
+## Video memory in use (the whole game's) that garage traffic loads cars up to, in bytes (D247).
+func video_limit() -> float:
+	match video_memory:
+		"auto":
+			return video_auto()
+		"unlimited":
+			return INF
+	return float(video_memory.to_int()) * (1 << 30)
+
+
+## Auto's limit (bytes): a share of the card, or the fixed fallback.
+func video_auto() -> float:
+	return card_memory() * VIDEO_AUTO_SHARE if card_memory() > 0 else float(VIDEO_FALLBACK)
+
+
+## The Video memory row's choices, [value, label]: "Auto (7.5 GB)", "2 GB" … "24 GB", "No limit".
+func video_choices() -> Array:
+	var out: Array = [["auto", "Auto (%s)" % gb_text(video_auto())]]
+	for gb: int in VIDEO_SIZES:
+		out.append([str(gb), "%d GB" % gb])
+	out.append(["unlimited", "No limit"])
+	return out
+
+
+## "7.5 GB", "10 GB".
+static func gb_text(bytes: float) -> String:
+	var gb := snappedf(bytes / (1 << 30), 0.1)
+	return "%d GB" % roundi(gb) if is_equal_approx(gb, roundf(gb)) else "%.1f GB" % gb
 
 
 ## Render settings of the graphics preset for one viewport (the root, or a player's view).
