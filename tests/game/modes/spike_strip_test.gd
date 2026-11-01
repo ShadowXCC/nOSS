@@ -137,3 +137,37 @@ func test_strips_come_with_heat_three_and_go_once_passed() -> void:
 	assert_bool(strip in pc.strips).is_false()
 	s.queue_free()
 	await get_tree().process_frame
+
+
+## Made to be seen (D249): chrome teeth from end to end, a glint that pops on the normal layer
+## (under three flashes a second) and a still one on the calm layer (none).
+func test_teeth_span_it_and_the_glints_keep_to_the_flash_rules() -> void:
+	var s := await _session()
+	var pc := s.police
+	var laid := pc.lay_spikes(s.players[0], 400.0, [0, 1])
+	var strip: SpikeStrip = laid[0]
+	var width := strip.lat_to - strip.lat_from
+	assert_float(width).is_equal_approx(2.0 * s.track.highway.lane_m, 0.01)
+	var lo := INF
+	var hi := -INF
+	for tip in strip.tips:
+		lo = minf(lo, tip.x)
+		hi = maxf(hi, tip.x)
+	assert_float(lo).is_less(-width / 2.0 + 0.4)
+	assert_float(hi).is_greater(width / 2.0 - 0.4)
+	assert_int(strip.tips.size()).is_greater(int(width / SpikeStrip.TOOTH_STEP_M))
+	assert_object(strip.get_node_or_null(^"Teeth")).is_not_null()
+	assert_int(strip.glint.layers).is_equal(1 << (Flash.LAYER_NORMAL - 1))
+	assert_int(strip.calm_glint.layers).is_equal(1 << (Flash.LAYER_CALM - 1))
+	assert_int(Flash.most_per_second(func(t: float) -> float: return SpikeStrip.glint_pattern(t, true))).is_equal(0)
+	var most := Flash.most_per_second(func(t: float) -> float: return SpikeStrip.glint_pattern(t, false))
+	assert_int(most).is_between(1, 3)
+	# It hops from tooth to tooth.
+	var seen := {}
+	for i in 12:
+		await _ticks(int(120 * SpikeStrip.GLINT_EVERY_S))
+		await get_tree().process_frame
+		seen[strip.glint.position] = true
+	assert_int(seen.size()).is_greater(3)
+	s.queue_free()
+	await get_tree().process_frame
