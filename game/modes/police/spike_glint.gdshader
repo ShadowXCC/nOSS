@@ -16,7 +16,7 @@ void vertex() {
 	vec3 center = (MODELVIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
 	float dist = length(center);
 	// The view's height in metres at that distance: 2 d tan(fov / 2).
-	float view_h = 2.0 * dist / PROJECTION_MATRIX[1][1];
+	float view_h = 2.0 * dist / abs(PROJECTION_MATRIX[1][1]); // (negative where clip space flips y)
 	float size = max(base_size, view_h * min_screen) * pop;
 	float c = cos(twist);
 	float s = sin(twist);
