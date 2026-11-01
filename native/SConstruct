@@ -18,7 +18,8 @@ def use_cxx20(e):
 # Extension. Objects go to build/, the library to bin/.
 env = env.Clone()
 use_cxx20(env)
-env.Append(CPPPATH=["src/", "thirdparty/SDL/include/", "thirdparty/meshoptimizer/src/"])
+# Vulkan's headers come with SDL (core/gpu_memory.cpp).
+env.Append(CPPPATH=["src/", "thirdparty/SDL/include/", "thirdparty/SDL/src/video/khronos/", "thirdparty/meshoptimizer/src/"])
 if env["platform"] == "linux":
     env.Append(LIBS=["dl"])
 VariantDir("build/src", "src", duplicate=False)
@@ -26,6 +27,8 @@ VariantDir("build/meshopt", "thirdparty/meshoptimizer/src", duplicate=False)
 sources = Glob("build/src/*.cpp") + Glob("build/src/*/*.cpp") + Glob("build/meshopt/*.cpp")
 
 if env["platform"] == "macos":
+    sources += Glob("build/src/*/*.mm")  # Metal (core/gpu_memory_apple.mm)
+    env.Append(LINKFLAGS=["-framework", "Metal", "-framework", "Foundation"])
     library = env.SharedLibrary(
         "bin/libnoss_core.{0}.{1}.framework/libnoss_core.{0}.{1}".format(env["platform"], env["target"]),
         source=sources,
