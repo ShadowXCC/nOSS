@@ -156,8 +156,8 @@ func test_confirm_goes_on() -> void:
 
 ## Custom lists every mode's classes, so the page scrolls, and it opens focused on the class used
 ## last — row 13 of 22 for a highway class. A row that starts out of the scroll's view is out of
-## the screen-reader tree until it has the focus (docs/ARCHITECTURE.md §36), so Back goes in the
-## action bar, where it is always reachable (the walk's stop in Changes.md).
+## the screen-reader tree until it has the focus (ARCHITECTURE.md §1, "Known Godot gaps"), so Back
+## goes in the action bar, where it is always reachable (the walk's stop in Changes.md).
 func test_the_all_modes_page_keeps_back_in_reach() -> void:
 	Settings.profile.last_platform = "official.highway.super"
 	var flow := EventFlow.racing("custom")

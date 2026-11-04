@@ -55,7 +55,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # walk reads focus from that window).
 # --p1-profile pins last_platform: a class page focuses the class used last as it opens, and on a
 # page long enough to scroll (Custom lists every mode's) a row that starts out of view is out of
-# the screen-reader tree (docs/ARCHITECTURE.md §36). Track GT is the first row of every such page.
+# the screen-reader tree (ARCHITECTURE.md §1, "Known Godot gaps"; D256). Track GT is each page's first row.
 GAME_ARGS = ["--skip-first-boot", "--no-save", "--screen-reader", "--autodrive", "--join=1", "--race-laps=1", "--race-ai=3",
              "--race-practice=0", "--race-quali=0", "--race-grid=random", "--port=47895", "--no-upnp", "--screens=-1",
              '--p1-profile={"last_platform": "official.track.gt"}']
