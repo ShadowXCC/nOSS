@@ -2,7 +2,17 @@ extends GdUnitTestSuite
 ## The Fitting Bay (docs/VEHICLE_PACKAGE.md §7): every step builds for an imported car, edits
 ## land in the draft, and the draft packs into a package that loads.
 
+const DIR := "user://tests/fitting_bay"
+
 var _bay: FittingBay
+
+
+func before() -> void:
+	Settings.use_folder(DIR)
+
+
+func after() -> void:
+	Settings.use_folder("user://")
 
 
 func before_test() -> void:
@@ -11,6 +21,9 @@ func before_test() -> void:
 	_bay.draft = FittingDraft.from_import(result)
 	_bay.draft.edit_path = "user://tests/writer/bay_sedan.noss"
 	DirAccess.make_dir_recursive_absolute("user://tests/writer")
+	# A car class, not whatever was driven last: a kart shrinks the car to its wheelbase (D150).
+	# _choose_platform() keeps an id that is already compatible.
+	_bay.platform_id = "official.track.gt"
 	add_child(_bay)
 
 
