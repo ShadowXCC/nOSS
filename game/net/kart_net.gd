@@ -218,11 +218,26 @@ func _server_use(peer: int, r: Racer, rec: Dictionary) -> void:
 	var items := kart.items
 	var item := _item_of(int(rec.item))
 	var t := now()
-	var ok := item != "" and items.item_of(r) == item and t - float(_last_use.get(r.net_id, -INF)) >= USE_RATE_S \
-		and absf(float(rec.time) - t) <= USE_CLOCK_S + Net.server.rtt_ms(peer) / 1000.0 and (rec.pos as Vector3).distance_to(r.com()) <= USE_NEAR_M
-	if not ok:
+	# Which test it failed, not just that it did: a use turned down is a real event in the check
+	# and the reason is the whole of the diagnosis.
+	var gap := t - float(_last_use.get(r.net_id, -INF))
+	var clock := absf(float(rec.time) - t)
+	var clock_room := USE_CLOCK_S + Net.server.rtt_ms(peer) / 1000.0
+	var near := (rec.pos as Vector3).distance_to(r.com())
+	var why := ""
+	if item == "":
+		why = "unknown item %d" % int(rec.item)
+	elif items.item_of(r) != item:
+		why = "holds %s, not %s" % [items.item_of(r) if items.item_of(r) else "nothing", item]
+	elif gap < USE_RATE_S:
+		why = "%.3f s since its last use, under %.2f" % [gap, USE_RATE_S]
+	elif clock > clock_room:
+		why = "clock %.3f s out, over %.3f" % [clock, clock_room]
+	elif near > USE_NEAR_M:
+		why = "used %.1f m from its car, over %.1f" % [near, USE_NEAR_M]
+	if why:
 		rejected_uses += 1
-		_why("use of %s by car %d turned down" % [item, r.net_id])
+		_why("use of %s by car %d turned down: %s" % [item, r.net_id, why])
 		_send(peer, [_record(Ev.REJECT, int(rec.seq), int(rec.entity), r.net_id, 0, int(rec.item))])
 		return
 	_last_use[r.net_id] = t
