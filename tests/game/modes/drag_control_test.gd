@@ -287,7 +287,7 @@ func test_the_ladder_draws_pairs_and_byes() -> void:
 	var ladder := DragLadder.new()
 	var field: Array[Racer] = []
 	for i in 5:
-		var r := Racer.new()
+		var r: Racer = auto_free(Racer.new())
 		r.display_name = "C%d" % i
 		r.number = i
 		field.append(r)
@@ -318,7 +318,7 @@ func test_the_ladder_draws_pairs_and_byes() -> void:
 
 func test_one_car_runs_a_shakedown_and_takes_the_match() -> void:
 	var ladder := DragLadder.new()
-	var only := Racer.new()
+	var only: Racer = auto_free(Racer.new())
 	only.display_name = "Solo"
 	var field: Array[Racer] = [only]
 	ladder.seed_field(field, 1)
