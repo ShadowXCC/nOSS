@@ -89,6 +89,11 @@ MAX_TRAFFIC_ERR_M = 1.0
 MAX_ENDLESS_ERR_M = 1.0
 MAX_ITEM_ERR_M = 0.5
 MAX_REJECTED = 0.05
+DEFAULT_ROAD_SEED = 7
+# A police run needs a speed trap within reach: on this seed the first one is a camera 780 m into
+# the drive (tools/list_endless_traps.tscn lists them). Seed 7's first is 6.5 km in, too far for
+# the 150 s the check runs, which is why it reported "bot00 was never chased" (D255).
+POLICE_ROAD_SEED = 4
 KART_CLASSES = ["official.kart.light", "official.kart.medium", "official.kart.heavy"]  # --classes mixed: bot i drives the i-th
 HIGHWAY_MISSES = 3  # HighwayNet.MISSES: checksums that disagree before a game asks again
 LOOP_AGAIN_MIN = 0.6  # acceptance 3: the share of the traffic met one lap that comes round the next
@@ -179,7 +184,7 @@ def main(argv=None):
     p.add_argument("--draft", choices=["track", "off", "on"], default="track", help="race: drafting (D208)")
     p.add_argument("--fuel", type=int, default=-1, help="race: fuel use, times the class's (0 off; -1 the track's, D209)")
     p.add_argument("--tyres", type=int, default=-1, help="race: tire wear, times the class's (0 off; -1 the track's)")
-    p.add_argument("--seed", type=int, default=7, help="endless: the road's seed")
+    p.add_argument("--seed", type=int, default=DEFAULT_ROAD_SEED, help="endless: the road's seed (--police: POLICE_ROAD_SEED unless given)")
     p.add_argument("--late", type=float, default=0.0, help="endless: the last bot joins this many seconds after the others")
     p.add_argument("--ai", type=int, default=0, help="AI cars the server adds (races)")
     p.add_argument("--class", dest="klass", default="")
@@ -238,6 +243,11 @@ def main(argv=None):
     if tt:
         event.update({"tt_min": args.minutes, "collisions": False})
     if endless:
+        # Police need a trap: the bot is only chased once a speed camera snaps it or a trap's
+        # parked patrol sees it speeding, and the traps come from the road's seed. A 150 s run
+        # covers about 4 km from the 1500 m start, and on seed 7 the first trap is at 8040 m.
+        if args.police and args.seed == DEFAULT_ROAD_SEED:
+            args.seed = POLICE_ROAD_SEED
         event.update({"road_seed": args.seed, "biome": 1, "endless_traffic": "normal", "oncoming": True,
                       "police": args.police, "speed_traps": args.police})
     if sumo:
@@ -414,7 +424,8 @@ def main(argv=None):
         fails.append("bots still running at the deadline")
 
     print("net_check: %d players (%d bots), %s, %s, %s%s%s" % (
-        players, len(bots), args.event, args.klass, Path(args.track).name, ", exported builds (odd bots on Windows under Wine)" if args.exported else "",
+        players, len(bots), args.event, args.klass, ("endless seed %d" % args.seed) if endless else Path(args.track).name,
+        ", exported builds (odd bots on Windows under Wine)" if args.exported else "",
         f", link {args.rtt:g} ms RTT, jitter {args.jitter:g} ms, loss {args.loss:g}%, rate {args.rate}" if sim else ""))
     print("%-7s %4s %8s %8s %8s %9s %9s %9s %8s %7s %5s" % ("bot", "pl", "down", "max", "up", "err med", "err p95", "err max", "contacts", "RSS", "thr"))
     worst_down = 0.0
@@ -518,15 +529,20 @@ def main(argv=None):
         if not any(reports[n].get("endless", {}).get("proxies_max", 0) > 0 for n in reports if n.startswith("bot")) and len(bots) > 1:
             fails.append("no traffic car was shown from another game")
         if args.police:
-            # Each game runs its own police (D195): the speeding bot is chased, and another game
-            # shows its units, sirens on.
+            # Each game runs its own police (D195): a bot speeding past a trap is chased, and
+            # another game shows that game's units, sirens on. Which bot it is is up to the
+            # traffic: an endless cruise target follows the flow, not the posted limit, so bot00's
+            # --speed-factor only bites where it has a clear road, and any bot is over the limit
+            # where the limit is low. So the check asks that a chase began and that another game
+            # saw it, not which bot was chased (D255).
             chased = {n: reports[n].get("endless", {}).get("pursuits", 0) for n in reports if n.startswith("bot")}
             sirens = {n: reports[n].get("endless", {}).get("siren_proxies", 0) for n in reports if n.startswith("bot")}
             print("police: chases by bot %s; other games' units seen with sirens on %s" % (chased, sirens))
-            if chased.get("bot00", 0) < 1:
-                fails.append("police on, but bot00 was never chased")
-            if len(bots) > 1 and not any(v > 0 for n, v in sirens.items() if n != "bot00"):
-                fails.append("no other game showed bot00's police with their sirens on")
+            hunted = [n for n, v in chased.items() if v > 0]
+            if not hunted:
+                fails.append("police on, but no bot was ever chased")
+            elif len(bots) > 1 and not any(v > 0 for n, v in sirens.items() if n not in hunted):
+                fails.append("no other game showed %s's police with their sirens on" % "/".join(sorted(hunted)))
         if endless_server is None:
             fails.append("the server reported nothing on the road")
         else:
