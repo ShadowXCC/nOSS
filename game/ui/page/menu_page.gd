@@ -47,8 +47,8 @@ const PLACES := { "Pause": "the pause menu", "Players": "the players", "Lobby": 
 ## description: the page before, by its crumb ("Back to Settings"; PLACES).
 var back_text := "Back"
 var back_hint := ""
-## Back goes in the action bar, not at the foot of the rows. For a page long enough to scroll: a
-## row below the fold stays out of the screen-reader tree until it has the focus
+## Back goes in the action bar, not at the foot of the rows (D256). For a page long enough to
+## scroll: a row below the fold stays out of the screen-reader tree until it has the focus
 ## (docs/ARCHITECTURE.md §36), and Back is the one row that must always be reachable.
 var back_in_bar := false
 ## Prompt entries besides Select and Back: [what, label] (PromptBar).
