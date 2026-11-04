@@ -300,7 +300,19 @@ func after_bust(p: Racer, _clock: float) -> void:
 		p.vehicle.reset_to(at)
 		p.vehicle.repair()
 	p.held = true
-	session.get_tree().create_timer(PULLED_OVER_S, false, true).timeout.connect(func() -> void:
-		if is_instance_valid(p):
-			p.held = false
-			p.notify("Drive on", 2.0))
+	# The wait is the car's own child, so it dies with it. On a tree timer the lambda held the car
+	# across 4 s, and a session that ended first left it a freed capture (D254).
+	var wait := Timer.new()
+	wait.one_shot = true
+	wait.wait_time = PULLED_OVER_S
+	wait.process_callback = Timer.TIMER_PROCESS_PHYSICS
+	wait.autostart = true
+	wait.timeout.connect(_drive_on.bind(p))
+	wait.timeout.connect(wait.queue_free)
+	p.add_child(wait)
+
+
+## A held car's wait is up. Not a lambda: the timer is the car's child, so nothing outlives it.
+func _drive_on(p: Racer) -> void:
+	p.held = false
+	p.notify("Drive on", 2.0)

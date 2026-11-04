@@ -38,9 +38,14 @@ func thunder(delay: float, level: float) -> void:
 	p.volume_db = linear_to_db(clampf(level, 0.05, 1.0))
 	add_child(p)
 	p.finished.connect(p.queue_free)
-	get_tree().create_timer(maxf(delay, 0.0), false).timeout.connect(func() -> void:
-		if is_instance_valid(p):
-			p.play())
+	# The wait is the player's own child, so it dies with it. On a tree timer the lambda held the
+	# player across up to 17.5 s, and a session that ended first left it a freed capture (D254).
+	var wait := Timer.new()
+	wait.one_shot = true
+	wait.wait_time = maxf(delay, 0.001)
+	wait.autostart = true
+	wait.timeout.connect(p.play)
+	p.add_child(wait)
 
 
 func level(kind: String) -> float:
