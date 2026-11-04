@@ -47,6 +47,10 @@ const PLACES := { "Pause": "the pause menu", "Players": "the players", "Lobby": 
 ## description: the page before, by its crumb ("Back to Settings"; PLACES).
 var back_text := "Back"
 var back_hint := ""
+## Back goes in the action bar, not at the foot of the rows. For a page long enough to scroll: a
+## row below the fold stays out of the screen-reader tree until it has the focus
+## (docs/ARCHITECTURE.md §36), and Back is the one row that must always be reachable.
+var back_in_bar := false
 ## Prompt entries besides Select and Back: [what, label] (PromptBar).
 var prompts: Array = []
 ## The first row takes the focus as the page opens. Off for pages stacked under another in one go
@@ -172,12 +176,13 @@ func _ready() -> void:
 		back_button = UiKit.button(back_text, func() -> void: closed.emit(), back_hint)
 		back_button.name = "Back"
 		back_button.custom_minimum_size.y = UiKit.ROW_HEIGHT
-		if _action_list.is_empty():
+		if _action_list.is_empty() and not back_in_bar:
 			rows.add_child(back_button)
 		else: # beside the actions, on their left
 			back_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			_actions.add_child(back_button)
 			_actions.move_child(back_button, 0)
+			_footer.visible = true
 	chain(autofocus)
 	resized.connect(_fit)
 	_scroll.resized.connect(_fit)

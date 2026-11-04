@@ -32,6 +32,8 @@ var _current: Button
 
 func _ready() -> void:
 	title = "Choose class"
+	# Custom lists every mode's classes, so the rows scroll: Back belongs in the bar.
+	back_in_bar = true
 	if flow:
 		crumbs = flow.crumbs("Class")
 		steps = flow.steps()

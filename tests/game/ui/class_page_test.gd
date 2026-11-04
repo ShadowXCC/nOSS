@@ -77,7 +77,7 @@ func test_classes_named_and_last_one_focused() -> void:
 	page.get_parent().get_parent().free()
 
 
-## A short window: down to the last class, it's in view; and up again.
+## A short window: down to the last class, it's in view, then Back in the bar; and up again.
 func test_the_list_scrolls_to_the_focus() -> void:
 	var flow := EventFlow.racing("regular")
 	flow.recall()
@@ -90,9 +90,12 @@ func test_the_list_scrolls_to_the_focus() -> void:
 		_action(get_viewport(), "ui_down")
 		await _frames(2)
 	assert_object(_focused()).is_same(page.back_button)
-	assert_int(page.scroll().scroll_vertical).is_greater(0)
 	var area := page.scroll().get_global_rect().grow(1.0)
-	assert_bool(area.encloses(page.back_button.get_global_rect())).is_true()
+	# Back is in the action bar under the scroll, so it takes the focus without scrolling the rows.
+	assert_bool(area.encloses(page.back_button.get_global_rect())).is_false()
+	assert_bool(page.get_global_rect().encloses(page.back_button.get_global_rect())).is_true()
+	assert_bool(area.encloses((buttons[-1] as Button).get_global_rect())).is_true()
+	assert_int(page.scroll().scroll_vertical).is_greater(0)
 	for i in buttons.size():
 		_action(get_viewport(), "ui_up")
 		await _frames(2)
@@ -149,3 +152,29 @@ func test_confirm_goes_on() -> void:
 	assert_str((stack.top() as PlayersMenu).platform_id).is_equal("official.track.touring")
 	assert_bool(_requested.is_empty()).is_true()
 	stack.get_parent().free()
+
+
+## Custom lists every mode's classes, so the page scrolls, and it opens focused on the class used
+## last — row 13 of 22 for a highway class. A row that starts out of the scroll's view is out of
+## the screen-reader tree until it has the focus (docs/ARCHITECTURE.md §36), so Back goes in the
+## action bar, where it is always reachable (the walk's stop in Changes.md).
+func test_the_all_modes_page_keeps_back_in_reach() -> void:
+	Settings.profile.last_platform = "official.highway.super"
+	var flow := EventFlow.racing("custom")
+	flow.recall()
+	assert_str(flow.class_id).is_equal("official.highway.super")
+	var page := _page(flow, Vector2(1920, 700))
+	await _frames(4)
+	var names := page.body.get_children().filter(func(c: Node) -> bool: return c is Button).map(func(b: Button) -> String: return String(b.accessibility_name))
+	assert_array(names).contains(["Track GT", "Highway Super, last used"])
+	assert_int(names.size()).is_greater(10) # every mode's
+	# It opens on the highway class, which scrolls Track GT out of view.
+	assert_str(String(_focused().accessibility_name)).is_equal("Highway Super, last used")
+	assert_int(page.scroll().scroll_vertical).is_greater(0)
+	var gt: Button = page.body.find_child("official_track_gt", false, false)
+	assert_bool(page.scroll().get_global_rect().encloses(gt.get_global_rect())).is_false()
+	# Back is in the bar under the body, not a row: in view whatever the scroll is at.
+	assert_bool(page.scroll().is_ancestor_of(page.back_button)).is_false()
+	assert_bool(page.back_button.is_visible_in_tree()).is_true()
+	assert_bool(page.get_global_rect().encloses(page.back_button.get_global_rect())).is_true()
+	page.get_parent().get_parent().free()

@@ -53,8 +53,12 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # --screens=-1: P1 on the game's own window, whatever monitor this PC's players are set to (the
 # walk reads focus from that window).
+# --p1-profile pins last_platform: a class page focuses the class used last as it opens, and on a
+# page long enough to scroll (Custom lists every mode's) a row that starts out of view is out of
+# the screen-reader tree (docs/ARCHITECTURE.md §36). Track GT is the first row of every such page.
 GAME_ARGS = ["--skip-first-boot", "--no-save", "--screen-reader", "--autodrive", "--join=1", "--race-laps=1", "--race-ai=3",
-             "--race-practice=0", "--race-quali=0", "--race-grid=random", "--port=47895", "--no-upnp", "--screens=-1"]
+             "--race-practice=0", "--race-quali=0", "--race-grid=random", "--port=47895", "--no-upnp", "--screens=-1",
+             '--p1-profile={"last_platform": "official.track.gt"}']
 
 if os.environ.get("NOSS_A11Y_PRIVATE") != "1":
     env = dict(os.environ, NOSS_A11Y_PRIVATE="1", GSETTINGS_BACKEND="memory")
@@ -643,6 +647,8 @@ def back_from(label, anchor):
     """Waits for the screen with `anchor` (a name prefix), checks it, and presses its Back."""
     if find(anchor, "button", timeout=30.0, prefix=True) is None:
         problems.append(f"{label}: no '{anchor}' button")
+        names = sorted({f"{n.get_role_name()} '{n.get_name()}'" for n in walk(app()) if showing(n) and (n.get_name() or "")})
+        log(f"  showing: {', '.join(names[:40])}")
         return False
     time.sleep(1.5)  # the screen before is freed meanwhile
     return step(label, "Back", last=True)
