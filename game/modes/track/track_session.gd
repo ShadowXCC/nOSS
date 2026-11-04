@@ -1514,7 +1514,7 @@ func _on_session_ended(kind: String, results: Array) -> void:
 		return
 	print("%s results: %s" % [kind.capitalize(), ", ".join(PackedStringArray(results.map(func(row: Dictionary) -> String: return "%d %s" % [row.position, row.name])))])
 	if Game.dev.has("quit-after-results") or (Game.dev.has("auto-continue") and not race.has_next()):
-		get_tree().quit()
+		Game.quit()
 		return
 	if Game.dev.has("auto-continue"): # dev: straight on to the next session
 		race.next_session.call_deferred()

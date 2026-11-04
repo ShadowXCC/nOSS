@@ -381,6 +381,8 @@ func open_session(session: TrackSession) -> void:
 	_switch(_loading)
 	_waiting = session
 	TrackLoader.load_async(self, session.track_path, func(pkg: TrackPackage) -> void:
+		if not is_instance_valid(session): # quit or left while it loaded
+			return
 		if pkg.ok():
 			session.track_package = pkg
 		_after_track(session))
@@ -727,6 +729,9 @@ func go_title() -> void:
 
 
 func _exit_tree() -> void:
+	# The backstop for quit(): an exit that never went through it still waits for the workers.
+	PackageLoader.finish_loads()
+	WorkerJob.finish_all()
 	if bay_draft is FittingDraft:
 		bay_draft.free_scene()
 	if is_instance_valid(_waiting) and not _waiting.is_inside_tree():
@@ -734,8 +739,19 @@ func _exit_tree() -> void:
 	GaragePreload.clear()
 
 
+## Quitting, from anywhere: the window's close button, a dev --quit-at, the server console. Loads
+## still on a worker finish first (D253) — a worker inside a native call when the GDExtension is
+## taken down crashes the exit, and a track load behind the loading screen has nobody else to wait
+## for it.
 func quit() -> void:
+	PackageLoader.finish_loads()
+	WorkerJob.finish_all()
 	get_tree().quit()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		quit()
 
 
 func _process(delta: float) -> void:
@@ -756,7 +772,7 @@ func _process(delta: float) -> void:
 			w.get_texture().get_image().save_png(path)
 			print("Screenshot: ", path)
 	if dev.has("quit-at") and _time >= float(dev["quit-at"]):
-		get_tree().quit()
+		quit()
 
 
 ## F11, or Cmd+Ctrl+F on macOS (where F11 shows the desktop), toggles fullscreen. Polled, like the

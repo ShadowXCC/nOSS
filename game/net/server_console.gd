@@ -59,6 +59,6 @@ func run(line: String) -> void:
 		"kick", "ban", "start", "next", "restart", "time", "weather":
 			host.admin(1, cmd, arg)
 		"quit", "stop", "exit":
-			get_tree().quit()
+			Game.quit()
 		_:
 			NetLog.line("Unknown command. " + HELP)
