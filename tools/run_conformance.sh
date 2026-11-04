@@ -10,6 +10,6 @@ tools/godot.sh --headless -s res://tests/conformance/run_conformance.gd -- "$@" 
 status=${PIPESTATUS[0]}
 .venv/bin/python tools/conformance_report.py tests/conformance/out || status=1
 # The harness against the game's own physics (Jolt).
-tools/godot.sh --headless --fixed-fps 120 -s res://tests/conformance/engine_check.gd 2>&1 | grep -E "PASS|FAIL"
+tools/godot.sh --headless --fixed-fps 120 res://tests/conformance/engine_check.tscn 2>&1 | grep -E "PASS|FAIL"
 [[ ${PIPESTATUS[0]} -eq 0 ]] || status=1
 exit "$status"

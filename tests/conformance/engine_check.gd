@@ -1,8 +1,9 @@
-extends SceneTree
+extends Node
 ## Checks the conformance harness against the game's own physics: a real Vehicle on Jolt
 ## (120 Hz) runs the launch and braking maneuvers on a flat plane, and the results must stay
 ## within 5% of NossConformance's flat-ground harness for the same platform and fit.
-##   tools/godot.sh --headless --fixed-fps 120 -s res://tests/conformance/engine_check.gd
+## Runs as a scene so the autoloads are there.
+##   tools/godot.sh --headless --fixed-fps 120 res://tests/conformance/engine_check.tscn
 
 const PLATFORM := "official.track.gt"
 const CAR := "res://content/cars/noss_box"
@@ -18,10 +19,11 @@ var _integral := 0.0
 var _hold := 0.0
 var _results := { "t_0_100_s": NAN, "d_100_0_m": NAN }
 var _s100 := NAN
+var _done := false
 
 
-func _initialize() -> void:
-	physics_interpolation = false
+func _ready() -> void:
+	get_tree().physics_interpolation = false
 	var ground := StaticBody3D.new()
 	ground.collision_layer = Vehicle.LAYER_WORLD
 	var shape := CollisionShape3D.new()
@@ -30,22 +32,22 @@ func _initialize() -> void:
 	shape.shape = box
 	shape.position = Vector3(0, -1.0, 3900.0)
 	ground.add_child(shape)
-	root.add_child(ground)
+	add_child(ground)
 
 	var loaded := PlatformLoader.load_official(PLATFORM)
 	var pkg := PackageLoader.load_package(CAR)
 	if not loaded.ok() or not pkg.ok():
 		print("FAIL can't load the platform or car")
-		quit(1)
+		get_tree().quit(1)
 		return
 	_vehicle = Vehicle.create(loaded, pkg)
-	root.add_child(_vehicle)
+	add_child(_vehicle)
 	_vehicle.reset_to(Transform3D.IDENTITY)
 
 
-func _physics_process(delta: float) -> bool:
-	if _vehicle == null:
-		return true
+func _physics_process(delta: float) -> void:
+	if _done or _vehicle == null:
+		return
 	_t += delta
 	_phase_t += delta
 	var v := _vehicle.speed()
@@ -81,13 +83,12 @@ func _physics_process(delta: float) -> bool:
 			if _prev.v >= 0.5 and v < 0.5:
 				_results.d_100_0_m = lerpf(_prev.s, s.z, (_prev.v - 0.5) / (_prev.v - v)) - _s100
 				_finish()
-				return true
+				return
 	_prev = { "v": v, "s": (_vehicle.global_transform * _vehicle.center_of_mass).z }
 	if _t > 120.0:
 		print("FAIL timed out in ", _phase)
-		quit(1)
-		return true
-	return false
+		_done = true
+		get_tree().quit(1)
 
 
 func _next(phase: String) -> void:
@@ -123,4 +124,5 @@ func _finish() -> void:
 		var ok := absf(delta) <= TOLERANCE_PCT
 		failed += 0 if ok else 1
 		print("%s engine %s: Jolt %.3f, harness %s (%+.2f%%)" % ["PASS" if ok else "FAIL", metric, got, ref, delta])
-	quit(1 if failed else 0)
+	_done = true
+	get_tree().quit(1 if failed else 0)
