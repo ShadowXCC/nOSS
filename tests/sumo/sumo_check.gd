@@ -17,8 +17,11 @@ const STUCK_S := 5.0
 const STUCK_SPEED := 0.8
 ## Margin on top of the time every platform needs to shrink away.
 const SLACK_S := 90.0
-## Two cars in on one tick this close in depth have nothing to tell them apart.
+## Two cars in on one tick this close in depth went in from the same height, so the depth cannot
+## tell them apart; then the distance from the centre has to (D252).
 const DEAD_HEAT_M := 0.001
+## And two of those this close to the same distance out really have nothing to tell them apart.
+const DEAD_HEAT_R_M := 0.01
 ## At most this share of the falls that had a platform below may miss it, and never on one fall
 ## alone: a miss is meant to be rare, not impossible (D163), so a single one proves nothing.
 const MISS_RATE := 0.34
@@ -42,7 +45,7 @@ var reported := false
 var problems: Array[String] = []
 var stuck := {}
 var outs: Array[Dictionary] = [] # [{name, at, tier, radius}]
-var out_ticks := {} # tick -> the depths under the goo of those that went out on it
+var out_ticks := {} # tick -> [depth, distance from the centre] of those that went out on it
 var armed_at := {} # tier -> the time it started shrinking
 var landed_on := {} # tier -> how many cars have stood on it
 var fell_from := {} # racer -> the tier it was last on
@@ -194,7 +197,7 @@ func _on_out(r: Racer) -> void:
 	var from := was if was >= 0 else -1 - was
 	outs.append({ "name": r.display_name, "at": time, "tier": from, "radius": a.radius_of(maxi(from, 0)) })
 	var same: Array = out_ticks.get(ticks, [])
-	same.append(session.sumo.out_depth(r))
+	same.append(Vector2(session.sumo.out_depth(r), session.sumo.out_radius(r)))
 	out_ticks[ticks] = same
 	# Went in from a platform that was not the bottom one: it should have been caught.
 	if from >= 0 and from < a.count() - 1 and a.live(from + 1) and bool(wide.get(r, false)):
@@ -210,16 +213,20 @@ func _on_ended(_kind: String, results: Array) -> void:
 			problems.append("ended with %d teams still in" % session.sumo.teams_standing().size())
 	elif standing.size() > 1:
 		problems.append("ended with %d cars still in" % standing.size())
-	# Two cars in on one tick is fine as long as their depths tell them apart (D167); the same
-	# tick at the same depth is a real dead heat, with nothing to rank them by.
+	# Two cars in on one tick is fine as long as their depths tell them apart (D167), or, when a
+	# whole ring went and dropped them from the same height, their distance from the centre does
+	# (D252). Tied on both is a real dead heat, with nothing to rank them by.
 	for t: int in out_ticks:
-		var depths: Array = out_ticks[t]
-		if depths.size() < 2:
+		var went: Array = out_ticks[t]
+		if went.size() < 2:
 			continue
-		depths.sort()
-		for i in depths.size() - 1:
-			if absf(float(depths[i + 1]) - float(depths[i])) < DEAD_HEAT_M:
-				problems.append("%d cars out on one tick within %.3f m (nothing to rank them by)" % [depths.size(), DEAD_HEAT_M])
+		went.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.y < b.y if is_equal_approx(a.x, b.x) else a.x < b.x)
+		for i in went.size() - 1:
+			var one: Vector2 = went[i]
+			var next: Vector2 = went[i + 1]
+			if absf(next.x - one.x) < DEAD_HEAT_M and absf(next.y - one.y) < DEAD_HEAT_R_M:
+				problems.append("%d cars out on one tick within %.3f m of depth and %.3f m of the centre (nothing to rank them by)"
+					% [went.size(), DEAD_HEAT_M, DEAD_HEAT_R_M])
 				break
 	# A miss is meant to be rare, not impossible (D163): a car flung hard off a vanishing ring can
 	# clear the one below. Most of them have to be caught, though.

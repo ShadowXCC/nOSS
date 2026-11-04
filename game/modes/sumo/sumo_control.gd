@@ -30,6 +30,9 @@ const LAND_VY := 2.0
 ## Once every player is out, the rest of the match may run this many times faster (D220), as a
 ## drag pass of bots can (D178): the clock only, so the bots fight it out as they would have.
 const FF_SPEED := 4.0
+## Two cars in on one tick within this of each other's depth went in from the same height: the
+## depth cannot tell them apart, so the distance from the centre does.
+const DEAD_HEAT_M := 0.001
 ## apply_net: the car's team as it was.
 const KEEP_TEAM := -2
 ## HUD elements a sumo match never shows: it has no laps, no sectors and no racing line.
@@ -52,6 +55,10 @@ var _out_at := {}
 ## racer -> how far under the goo's surface it was when it went in: two cars in on one tick are
 ## told apart by it (the one less deep touched later).
 var _out_depth := {}
+## racer -> how far from the arena's centre it was when it went in. The tiebreak under the depth
+## one, for a ring that shrinks away under a crowd: everyone goes in on one tick from the same
+## height, and the car that held the middle ranks ahead of one pushed out to the rim.
+var _out_radius := {}
 ## racer -> seconds of sinking left
 var _sinking := {}
 ## racer -> ram charge, 0..1
@@ -93,6 +100,7 @@ func reset() -> void:
 	_out_order.clear()
 	_out_at.clear()
 	_out_depth.clear()
+	_out_radius.clear()
 	_sinking.clear()
 	_charge.clear()
 	armed_by.clear()
@@ -274,7 +282,7 @@ func _hold_out() -> void:
 ## Cars that left the game drop out of the tables (they stay in the results they were in).
 func _forget_gone() -> void:
 	_out_order.assign(_out_order.filter(func(r: Variant) -> bool: return is_instance_valid(r)))
-	for d: Dictionary in [_tier, _reached, _out_at, _out_depth, _sinking, _charge, _team, _bodies]:
+	for d: Dictionary in [_tier, _reached, _out_at, _out_depth, _out_radius, _sinking, _charge, _team, _bodies]:
 		for k: Variant in d.keys():
 			if not is_instance_valid(k):
 				d.erase(k)
@@ -385,7 +393,16 @@ func _check_goo() -> void:
 		# A whole ring going at once can drop two cars in on the same tick. The one less far
 		# under the surface got there later, so it held on longer: that settles the order the
 		# clock is too coarse to, and keeps "last one in wins" from coming down to a coin toss.
-		going.sort_custom(func(a: Racer, b: Racer) -> bool: return a.com().y < b.com().y)
+		# A ring that shrinks away altogether drops them all from the same height, though, so the
+		# depths tie: then the one further out goes first, the one that held the middle last.
+		# Keyed once and snapped, so the order is a total one however the floats come out.
+		var keys := {}
+		for r in going:
+			keys[r] = Vector2(snappedf(r.com().y, DEAD_HEAT_M), -_radius_of(r))
+		going.sort_custom(func(a: Racer, b: Racer) -> bool:
+			var ka: Vector2 = keys[a]
+			var kb: Vector2 = keys[b]
+			return ka.y < kb.y if is_equal_approx(ka.x, kb.x) else ka.x < kb.x)
 	for r in going:
 		_knock_out(r)
 
@@ -397,6 +414,7 @@ func _knock_out(r: Racer) -> void:
 	_out_order.append(r)
 	_out_at[r] = session.race.clock
 	_out_depth[r] = layout.hazard_y - r.com().y if r.vehicle and is_instance_valid(r.vehicle) else 0.0
+	_out_radius[r] = _radius_of(r)
 	_tier[r] = -1
 	_set_out(r, true)
 	_start_sinking(r)
@@ -486,6 +504,19 @@ func _side_ranks() -> Dictionary:
 ## dead heat with it).
 func out_depth(r: Racer) -> float:
 	return float(_out_depth.get(r, 0.0))
+
+
+## How far from the arena's centre `r` was when it went in: the tiebreak when the depths tie.
+func out_radius(r: Racer) -> float:
+	return float(_out_radius.get(r, 0.0))
+
+
+## `r`'s distance from the arena's centre, flat.
+func _radius_of(r: Racer) -> float:
+	if r.vehicle == null or not is_instance_valid(r.vehicle):
+		return 0.0
+	var com := r.com()
+	return Vector2(com.x, com.z).distance_to(layout.centre)
 
 
 ## The sumo columns for `r`'s results row.
