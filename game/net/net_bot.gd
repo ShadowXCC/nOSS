@@ -15,6 +15,13 @@ extends Node
 ## other games, and how long another player was near. In a time trial (P10) it reports the most
 ## drivers it saw on the server's live board and whether its own car was ever on it.
 
+## The throttle is only watched once a join has settled (D258). ENet's own deceleration (2 a
+## step) applies until the client's throttle_configure lands, and NetClient.join can't configure
+## the peer any earlier: doing it while the peer is still connecting breaks the handshake. The
+## connect, the auth and a late joiner's catch-up are exactly when the round trip grows, so a
+## joiner's throttle walks down to 1/32 before its session is really going, then comes straight
+## back (acceleration 32). A sustained drop while driving still fails the check.
+const THROTTLE_SETTLE_S := 5.0
 const CONTACT_IMPULSE := 150.0 # N·s in one tick counts as contact (as race_check)
 
 var _down: Array[float] = [] # bytes per second, while in a session
@@ -66,6 +73,11 @@ func _ready() -> void:
 			_session_start = Time.get_ticks_msec() / 1000.0)
 
 
+## Whether this bot's session has been going long enough to judge the throttle by.
+func _settled() -> bool:
+	return _session_start >= 0.0 and Time.get_ticks_msec() / 1000.0 - _session_start > THROTTLE_SETTLE_S
+
+
 func _physics_process(delta: float) -> void:
 	if Net.content and not Net.content.track_ready.is_connected(_on_track):
 		Net.content.track_ready.connect(_on_track)
@@ -81,7 +93,7 @@ func _physics_process(delta: float) -> void:
 			_down.append(host.pop_statistic(ENetConnection.HOST_TOTAL_RECEIVED_DATA))
 			_up.append(host.pop_statistic(ENetConnection.HOST_TOTAL_SENT_DATA))
 			var p := Net.client.enet.get_peer(1)
-			if p:
+			if p and _settled():
 				_throttle_min = mini(_throttle_min, int(p.get_statistic(ENetPacketPeer.PEER_PACKET_THROTTLE)))
 		# The session may be gone when this quits: collect as it goes.
 		var remote := 0
